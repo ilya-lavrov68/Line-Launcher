@@ -390,7 +390,7 @@ async fn download_part(
     let mut received = 0u64;
     let mut last_report = Instant::now();
     loop {
-        check_cancelled(cancel.as_ref())?;
+        check_cancelled(cancel)?;
         let chunk = tokio::time::timeout(Duration::from_secs(60), response.chunk())
             .await
             .map_err(|_| {
@@ -426,7 +426,7 @@ async fn download_part(
     file.flush().await.map_err(|e| LineError::io(&e))?;
     file.sync_all().await.map_err(|e| LineError::io(&e))?;
     drop(file);
-    check_cancelled(cancel.as_ref())?;
+    check_cancelled(cancel)?;
     if received != distribution.size_bytes {
         return Err(LineError::new(
             ErrorCode::Integrity,

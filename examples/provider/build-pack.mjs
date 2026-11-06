@@ -52,7 +52,12 @@ function run(cmd, args) {
 
 function javaMajor() {
   if (process.env.LINE_JAVA_MAJOR) return Number(process.env.LINE_JAVA_MAJOR);
-  const version = run(bin("java"), ["-version"]);
+  // `java -version` writes to stderr on most JDKs.
+  const probe = spawnSync(bin("java"), ["-version"], { encoding: "utf8" });
+  if (probe.status !== 0) {
+    throw new Error(`java -version failed: ${probe.stderr || probe.error}`);
+  }
+  const version = `${probe.stdout || ""}${probe.stderr || ""}`;
   const match = /version "(\d+)(?:\.(\d+))?/.exec(version);
   if (!match) throw new Error("cannot parse `java -version`");
   const first = Number(match[1]);

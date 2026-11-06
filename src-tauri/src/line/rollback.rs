@@ -261,7 +261,7 @@ mod tests {
             record_release(base, &receipt(sha)).unwrap();
         }
         atomic_write(
-            base.join("current.json"),
+            &base.join("current.json"),
             &serde_json::to_vec(&receipt('d')).unwrap(),
         )
         .unwrap();

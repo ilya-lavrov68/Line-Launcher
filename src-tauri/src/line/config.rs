@@ -301,7 +301,7 @@ mod tests {
         c.min_launcher_version = "0.10.0".into();
         assert!(c.validate("0.9.0").is_err());
         assert!(c.validate("0.10.0").is_ok());
-        c.min_launcher_version = "0.2.0-rc.1";
+        c.min_launcher_version = "0.2.0-rc.1".into();
         assert!(c.validate("0.2.0").is_ok());
         assert!(c.validate("0.2.0-beta.9").is_err());
     }

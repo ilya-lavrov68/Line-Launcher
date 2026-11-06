@@ -136,7 +136,7 @@ impl LineState {
         self.config_generation.fetch_add(1, Ordering::Release);
         // Changing providers/endpoints must not reuse a session from the old config.
         if inner.active.as_ref().is_some_and(|(old_url, old)| {
-            old_url != url
+            old_url != &url
                 || old.provider.id != config.provider.id
                 || old.servers.iter().any(|old_server| {
                     config

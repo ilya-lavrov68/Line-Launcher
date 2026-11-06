@@ -95,12 +95,13 @@ async fn probe(path: PathBuf) -> Option<JavaRuntime> {
     let mut stderr = child.stderr.take()?;
     let mut out = Vec::new();
     let mut err = Vec::new();
+    let mut bounded_out = (&mut stdout).take(64 * 1024 + 1);
+    let mut bounded_err = (&mut stderr).take(64 * 1024 + 1);
     let work = async {
-        let (a, b) = tokio::try_join!(
-            (&mut stdout).take(64 * 1024 + 1).read_to_end(&mut out),
-            (&mut stderr).take(64 * 1024 + 1).read_to_end(&mut err),
+        tokio::try_join!(
+            bounded_out.read_to_end(&mut out),
+            bounded_err.read_to_end(&mut err),
         )?;
-        let _ = (a, b);
         child.wait().await
     };
     let status = match tokio::time::timeout(Duration::from_secs(10), work).await {
@@ -157,7 +158,7 @@ fn candidates(required_major: u16) -> Vec<PathBuf> {
         roots.push(PathBuf::from("/usr/java"));
         roots.push(PathBuf::from("/opt/java"));
         if let Ok(home) = std::env::var("HOME") {
-            roots.push(PathBuf::from(home).join(".sdkman/candidates/java"));
+            roots.push(PathBuf::from(&home).join(".sdkman/candidates/java"));
             roots.push(PathBuf::from(home).join(".jdks"));
         }
     }

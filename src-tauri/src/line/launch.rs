@@ -346,18 +346,17 @@ pub async fn launch_game(
         }
         // Bind before spawn: a fast mod must never hit connect-before-bind.
         let channel = PrivateChannel::create()?;
+        // Bind the secret guard and the request body outside the future: a
+        // temporary here would be dropped while the select! still borrows it.
+        let token = session.secret_token();
+        let request = TicketRequest {
+            server_id: &server_id,
+            sha256: &receipt.sha256,
+            channel_id: &channel.id,
+            username: &session.username,
+        };
         let (ticket, expires_in) = tokio::select! {
-            result = issue_ticket(
-            &state,
-            ticket_url,
-            &session.secret_token(),
-            &TicketRequest {
-                server_id: &server_id,
-                sha256: &receipt.sha256,
-                channel_id: &channel.id,
-                username: &session.username,
-            },
-            ) => result?,
+            result = issue_ticket(&state, ticket_url, &token, &request) => result?,
             _ = wait_stop(&stop) => return Err(cancelled()),
         };
         if stop.load(Ordering::Acquire) {

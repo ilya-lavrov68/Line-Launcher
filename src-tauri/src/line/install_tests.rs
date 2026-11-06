@@ -204,7 +204,7 @@ fn crash_staging_cleanup_preserves_published_release_and_pointer() {
     let release = base.join("releases").join("a".repeat(64));
     fs::create_dir_all(&release).unwrap();
     fs::write(release.join(".line-complete"), b"line-release-v1\n").unwrap();
-    atomic_write(base.join("current.json"), b"old-pointer").unwrap();
+    atomic_write(&base.join("current.json"), b"old-pointer").unwrap();
     cleanup_staging(base).unwrap();
     assert!(!staging.exists());
     assert!(release.join(".line-complete").exists());
@@ -217,7 +217,7 @@ fn lock_is_recoverable_after_owner_drop_and_file_is_never_unlinked() {
     {
         let _lock = InstallLock::acquire(temp.path()).unwrap();
         assert_eq!(
-            InstallLock::acquire(temp.path()).unwrap_err().code,
+            InstallLock::acquire(temp.path()).err().unwrap().code,
             ErrorCode::Busy
         );
     }

@@ -1,6 +1,7 @@
 pub mod line;
 
 use line::state::LineState;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

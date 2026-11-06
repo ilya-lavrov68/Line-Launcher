@@ -35,8 +35,26 @@ real `line-launch.json` and a `client.jar` whose main class requests the ticket
 over the private IPC channel and exchanges it — i.e. the launcher's real launch
 path is exercised without Minecraft.
 
-Because the certificate is self-signed, the desktop app will reject it until you
-trust it. See `docs/RUNBOOK.md`, section “Локальный провайдер”.
+Because the certificate is self-signed, the desktop app rejects it until you
+trust it. The launcher reports this as `TLS_UNTRUSTED` ("Не удалось проверить
+сертификат провайдера"), not as a connectivity problem. To confirm the server
+itself is fine:
+
+```sh
+curl --cacert .provider/tls.crt https://127.0.0.1:8443/config.json
+```
+
+The least invasive fix trusts the certificate for the launcher process only,
+without touching the OS trust store or needing administrator rights:
+
+```sh
+LINE_DEV_CA_CERT=.provider/tls.crt npm run tauri dev -- --features dev-provider-ca
+```
+
+That cargo feature is off by default and must never be enabled in a distributed
+build. macOS cannot take extra roots this way — use the OS trust store there.
+Both routes, and the risks of the machine-wide one, are in `docs/RUNBOOK.md`,
+section 3.2.
 
 ## Files
 

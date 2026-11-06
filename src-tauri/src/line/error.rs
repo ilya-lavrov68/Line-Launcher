@@ -7,6 +7,7 @@ pub enum ErrorCode {
     InvalidInput,
     UnsupportedVersion,
     Network,
+    TlsUntrusted,
     HttpStatus,
     InvalidCredentials,
     AccountExists,
@@ -102,16 +103,85 @@ impl LineError {
     }
 
     pub fn network(error: &reqwest::Error) -> Self {
-        Self::new(
-            ErrorCode::Network,
-            if error.is_timeout() {
-                "Провайдер не ответил вовремя. Попробуйте позже."
-            } else {
-                "Не удалось соединиться с провайдером. Проверьте подключение."
-            },
-            true,
-        )
+        // Flatten the source chain for classification only. The text is never
+        // serialized, logged or shown: it can contain URLs and host details.
+        let mut chain = String::new();
+        let mut current: Option<&dyn std::error::Error> = Some(error);
+        while let Some(link) = current {
+            if chain.len() > 4096 {
+                break;
+            }
+            chain.push_str(&link.to_string());
+            chain.push('\n');
+            current = link.source();
+        }
+        let (code, message) = classify_network_chain(&chain, error.is_timeout());
+        // An untrusted certificate will not fix itself on retry.
+        Self::new(code, message, code == ErrorCode::Network)
     }
+}
+
+/// Maps a flattened error chain to a fixed, non-sensitive message.
+///
+/// Dependency-free on purpose so it can be unit-tested without reqwest. Matching
+/// is done on the *wrapper* text produced by rustls/hyper ("invalid peer
+/// certificate", "tcp connect error"), which stays English even when the OS
+/// error underneath is localized. Anything unrecognized keeps the generic
+/// message, so a wrong guess can only cost detail, never correctness.
+pub fn classify_network_chain(chain: &str, is_timeout: bool) -> (ErrorCode, &'static str) {
+    let chain = chain.to_lowercase();
+    if is_timeout {
+        return (
+            ErrorCode::Network,
+            "Провайдер не ответил вовремя. Попробуйте позже.",
+        );
+    }
+    const TLS_MARKERS: &[&str] = &[
+        "invalid peer certificate",
+        "invalidcertificate",
+        "unknown issuer",
+        "unknownissuer",
+        "notvalidforname",
+        "certificate has expired",
+        "certificate expired",
+        "certexpired",
+        "self signed certificate",
+        "self-signed certificate",
+        "certificate verify failed",
+        "unable to get local issuer certificate",
+        "bad certificate",
+        "certificate unknown",
+        "0x800b0109",
+        "0x800b010a",
+    ];
+    if TLS_MARKERS.iter().any(|m| chain.contains(m)) {
+        return (
+            ErrorCode::TlsUntrusted,
+            "Не удалось проверить сертификат провайдера. Для демо-провайдера разрешите доверие к его сертификату — docs/RUNBOOK.md, раздел 3.2.",
+        );
+    }
+    const CONNECT_MARKERS: &[&str] = &[
+        "tcp connect error",
+        "connection refused",
+        "connection reset",
+        "connection closed",
+        "dns error",
+        "failed to lookup address",
+        "no such host",
+        "network is unreachable",
+        "os error 10061",
+        "os error 111",
+    ];
+    if CONNECT_MARKERS.iter().any(|m| chain.contains(m)) {
+        return (
+            ErrorCode::Network,
+            "Не удалось соединиться с провайдером. Проверьте адрес и что сервер запущен.",
+        );
+    }
+    (
+        ErrorCode::Network,
+        "Не удалось соединиться с провайдером. Проверьте подключение.",
+    )
 }
 
 impl fmt::Display for LineError {

@@ -81,7 +81,7 @@ use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
-    InvalidInput, UnsupportedVersion, Network, HttpStatus, InvalidCredentials,
+    InvalidInput, UnsupportedVersion, Network, TlsUntrusted, HttpStatus, InvalidCredentials,
     AccountExists, RateLimited, AuthRequired, JavaRequired, Integrity,
     UnsafeArchive, Storage, DiskSpace, Busy, Cancelled, Internal,
 }
@@ -141,6 +141,7 @@ const items = [
   attributed("launch_manifest.rs", "fn resolve_relative("),
   attributed("launch_manifest.rs", "fn relative_dir("),
   attributed("rollback.rs", "fn valid_sha("),
+  attributed("error.rs", "pub fn classify_network_chain("),
   attributed("install.rs", "fn has_path_conflict("),
 ];
 
@@ -236,6 +237,74 @@ fn harness_install_lock_is_exclusive_and_recoverable() {
     assert!(dir.join(".install.lock").exists());
     drop(_again);
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn harness_tls_failure_is_not_reported_as_a_connectivity_problem() {
+    // The real chain rustls produces for the reference provider's self-signed
+    // cert. It must not say "check your connection".
+    let chain = "error sending request for url (https://127.0.0.1:8443/config.json)\nclient error (Connect)\ninvalid peer certificate: UnknownIssuer\n";
+    let (code, message) = classify_network_chain(chain, false);
+    assert_eq!(code, ErrorCode::TlsUntrusted);
+    assert!(message.contains("сертификат"));
+    assert!(!message.contains("подключение"));
+    // The path to the fix must be in the message.
+    assert!(message.contains("3.2"));
+}
+
+#[test]
+fn harness_tls_markers_cover_expiry_hostname_and_schannel() {
+    for chain in [
+        "invalid peer certificate: Expired",
+        "invalid peer certificate: NotValidForName",
+        "invalid peer certificate: CertificateExpired",
+        "unable to get local issuer certificate",
+        "self-signed certificate",
+        "The certificate chain was issued by an authority that is not trusted (0x800B0109)",
+        "INVALID PEER CERTIFICATE: UNKNOWNISSUER",
+    ] {
+        assert_eq!(
+            classify_network_chain(chain, false).0,
+            ErrorCode::TlsUntrusted,
+            "missed {chain}"
+        );
+    }
+}
+
+#[test]
+fn harness_localized_os_error_under_an_english_wrapper_still_classifies() {
+    // rustls keeps its own wrapper text in English regardless of OS locale.
+    let chain = "invalid peer certificate: Other(Цепочка сертификатов выдана центром, не являющимся доверенным)";
+    assert_eq!(classify_network_chain(chain, false).0, ErrorCode::TlsUntrusted);
+}
+
+#[test]
+fn harness_timeout_wins_and_stays_retryable() {
+    let (code, message) = classify_network_chain("invalid peer certificate: UnknownIssuer", true);
+    assert_eq!(code, ErrorCode::Network);
+    assert!(message.contains("вовремя"));
+}
+
+#[test]
+fn harness_refused_connection_asks_to_check_the_server() {
+    for chain in [
+        "client error (Connect)\ntcp connect error: Connection refused (os error 111)",
+        "tcp connect error: os error 10061",
+        "dns error: failed to lookup address information",
+    ] {
+        let (code, message) = classify_network_chain(chain, false);
+        assert_eq!(code, ErrorCode::Network);
+        assert!(message.contains("запущен"), "wrong message for {chain}");
+    }
+}
+
+#[test]
+fn harness_unrecognized_chain_keeps_the_generic_message() {
+    for chain in ["", "something went wrong", "certificate", "peer closed"] {
+        let (code, message) = classify_network_chain(chain, false);
+        assert_eq!(code, ErrorCode::Network);
+        assert!(message.contains("Проверьте подключение"), "wrong for {chain}");
+    }
 }
 
 #[test]

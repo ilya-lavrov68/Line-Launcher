@@ -167,3 +167,34 @@ test("brand config does not reference a deleted asset", async () => {
     );
   }
 });
+
+test("a root-relative asset path is rejected with a prefix hint", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { readFileSync, writeFileSync } = await import("node:fs");
+  const root = path.resolve(import.meta.dirname, "..");
+  const configPath = path.join(root, "branding/line.brand.json");
+  const original = readFileSync(configPath, "utf8");
+  const config = JSON.parse(original);
+  if (!config.assets?.app_icon) return; // nothing to mis-point
+  try {
+    // Regression: "branding/assets/..." is joined with branding/ again, giving
+    // branding/branding/assets/... The message must name the base dir.
+    config.assets.app_icon = `branding/${config.assets.app_icon}`;
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    let stderr = "";
+    try {
+      execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
+        { encoding: "utf8", cwd: root, shell: false, stdio: "pipe" },
+      );
+      assert.fail("a doubled branding/ prefix must not resolve");
+    } catch (error) {
+      stderr = `${(error as { stderr?: string }).stderr ?? ""}`;
+    }
+    assert.match(stderr, /относительно каталога branding/);
+    assert.match(stderr, /Уберите префикс/);
+  } finally {
+    writeFileSync(configPath, original);
+  }
+});

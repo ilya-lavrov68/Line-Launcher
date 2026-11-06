@@ -54,7 +54,8 @@ UI/UX, палитра и скругления остаются как в ори�
 
 ```sh
 npm ci
-npm run doctor      # проверка окружения: Node, Rust, MSVC/WebView2, Java, openssl
+npm run doctor      # окружение + совпадение версий Tauri (крейт ↔ npm API)
+npm run check:tauri # только версии Tauri: major.minor должны совпадать
 npm run tauri dev
 ```
 
@@ -112,7 +113,7 @@ instances/<server-id>/
 
 ## Релизы
 
-Автоматическое обновление Obsy и его ключ отключены. Workflow вручную собирает неподписанные кандидаты, применяя брендинг через `tauri build -c src-tauri/tauri.brand.conf.json`. Публикация, подпись кода и updater Line — отдельные этапы перед распространением.
+Автоматическое обновление Obsy и его ключ отключены. Workflow вручную собирает неподписанные кандидаты через `scripts/tauri-build.mjs`: он применяет брендинг и на Windows делает два прохода — NSIS с обычной лицензией и MSI с `LICENSE.rtf` (иначе WiX падает с `LGHT0311` на кириллице). Публикация, подпись кода и updater Line — отдельные этапы перед распространением.
 
 ## Лицензия
 

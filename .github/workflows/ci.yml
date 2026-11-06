@@ -27,6 +27,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Tauri crate and npm API are on the same minor
+        run: npm run check:tauri
       - name: Branding is up to date
         run: npm run brand:check
       - run: npm test

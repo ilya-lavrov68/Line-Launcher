@@ -92,19 +92,22 @@ pub struct RunningGame {
 
 impl LineState {
     pub fn new() -> LineResult<Self> {
-        let http = reqwest::Client::builder()
+        let builder = reqwest::Client::builder()
             .user_agent(concat!("LineLauncher/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(15))
             .read_timeout(Duration::from_secs(60))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|_| {
-                LineError::new(
-                    ErrorCode::Internal,
-                    "Не удалось инициализировать HTTP-клиент.",
-                    false,
-                )
-            })?;
+            .redirect(reqwest::redirect::Policy::none());
+        // Certificate verification is never disabled. The only extra trust
+        // anchor is opt-in at compile time and scoped to this process.
+        #[cfg(feature = "dev-provider-ca")]
+        let builder = super::dev_ca::apply(builder)?;
+        let http = builder.build().map_err(|_| {
+            LineError::new(
+                ErrorCode::Internal,
+                "Не удалось инициализировать HTTP-клиент.",
+                false,
+            )
+        })?;
         Ok(Self {
             http,
             inner: Mutex::new(Inner::default()),

@@ -10,6 +10,7 @@
  *   src/brand/logo.svg|png          — copied header mark (if configured)
  *   src-tauri/tauri.brand.conf.json — Tauri overlay for `tauri build -c`
  *   src-tauri/icons/*               — regenerated OS icons via `tauri icon`
+ *   src-tauri/LICENSE.rtf           — ASCII-only RTF of LICENSE for the MSI dialog
  *
  * The DEFAULT preset ("obsy") produces zero palette overrides, so the shipped
  * build inherits upstream Obsy's tokens and radii unchanged.
@@ -25,6 +26,7 @@ import {
 } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { licenseToRtf } from "./lib/license-rtf.mjs";
 import { tauriCliCommand } from "./lib/tauri-cli.mjs";
 import { sameText } from "./lib/text-eol.mjs";
 import type { BrandConfig, BrandPalette } from "../branding/brand.types.ts";
@@ -52,6 +54,18 @@ function fail(message: string): never {
 }
 
 /** Write only when content differs, so repeat runs are quiet and idempotent. */
+/** Asset paths in the config are relative to branding/, not to the repo root. */
+function missingAsset(field: string, rel: string, absolute: string): string {
+  const hint = rel.startsWith("branding/")
+    ? `\nПохоже, путь указан от корня репозитория. Уберите префикс: "${rel.slice("branding/".length)}".`
+    : "";
+  return (
+    `${field} указывает на отсутствующий файл: ${absolute}\n` +
+    `Пути в assets.* задаются относительно каталога branding/.${hint}\n` +
+    `Положите файл на место или задайте ${field} = null в branding/line.brand.json.`
+  );
+}
+
 function writeIfChanged(path: string, content: string): boolean {
   const current = existsSync(path) ? readFileSync(path, "utf8") : null;
   // A CRLF checkout (Git for Windows default) must not look "out of date".
@@ -81,10 +95,7 @@ function main(): void {
     const target = join(ROOT, "src/brand", `logo${logoExt}`);
     const logoSource = join(BRANDING, logoPath);
     if (!existsSync(logoSource))
-      fail(
-        `assets.logo указывает на отсутствующий файл: ${logoSource}\n` +
-          "Положите файл на место или задайте assets.logo = null в branding/line.brand.json.",
-      );
+      fail(missingAsset("assets.logo", logoPath, logoSource));
     const bytes = readFileSync(logoSource);
     const current = existsSync(target) ? readFileSync(target) : null;
     if (!current || !current.equals(bytes)) {
@@ -111,11 +122,7 @@ function main(): void {
   if (appIconPath && !SKIP_ICONS) {
     const source = join(BRANDING, appIconPath);
     if (!existsSync(source))
-      fail(
-        `assets.app_icon указывает на отсутствующий файл: ${source}\n` +
-          "Положите файл на место или задайте assets.app_icon = null в branding/line.brand.json " +
-          "(тогда останутся уже сгенерированные иконки в src-tauri/icons).",
-      );
+      fail(missingAsset("assets.app_icon", appIconPath, source));
     const stamp = `${createHash("sha256").update(readFileSync(source)).digest("hex")}\n`;
     const stampPath = join(ICONS_DIR, ".brand-source.sha256");
     const current = existsSync(stampPath)
@@ -142,6 +149,17 @@ function main(): void {
     writeIfChanged(OUT_TAURI, renderTauriOverlay(config, Boolean(appIconPath)))
   ) {
     changed.push("src-tauri/tauri.brand.conf.json");
+  }
+
+  // WiX cannot put the bilingual LICENSE into an en-US MSI (code page 1252).
+  // An .rtf licenseFile is passed through untouched, so emit ASCII-only RTF
+  // with \uN escapes: builds under any code page and still renders Cyrillic.
+  const licensePath = join(ROOT, "LICENSE");
+  if (existsSync(licensePath)) {
+    const rtf = licenseToRtf(readFileSync(licensePath, "utf8"));
+    if (writeIfChanged(join(ROOT, "src-tauri", "LICENSE.rtf"), rtf)) {
+      changed.push("src-tauri/LICENSE.rtf");
+    }
   }
 
   if (CHECK_ONLY) {

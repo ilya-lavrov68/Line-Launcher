@@ -17,7 +17,7 @@
     "test:java": "node scripts/test-java-client.mjs",
     "brand": "node --experimental-strip-types scripts/apply-brand.ts",
     "brand:check": "node --experimental-strip-types scripts/apply-brand.ts --check",
-    "tauri:build": "npm run brand && node scripts/tauri.mjs build -c src-tauri/tauri.brand.conf.json",
+    "tauri:build": "npm run brand && node scripts/tauri-build.mjs",
     "test:rust": "node scripts/test-rust-pure.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",
     "test:provider": "node scripts/test-provider.mjs",

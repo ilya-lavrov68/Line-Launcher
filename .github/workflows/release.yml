@@ -43,8 +43,11 @@ jobs:
           workspaces: src-tauri
       # Build unsigned review artifacts only. Publishing and the Line-owned
       # updater key/endpoint require a separate, explicitly approved release job.
+      # Windows bundles in two passes: NSIS with the plain UTF-8 license, MSI with
+      # the ASCII RTF. A single `tauri build` fails in WiX with LGHT0311 because
+      # the bilingual LICENSE cannot be stored in the en-US code page (1252).
       - name: Build Line Launcher
-        run: npm run tauri build -- -c src-tauri/tauri.brand.conf.json -- ${{ matrix.args }}
+        run: node scripts/tauri-build.mjs ${{ matrix.args }}
       - uses: actions/upload-artifact@v4
         with:
           name: line-launcher-${{ matrix.platform }}-${{ strategy.job-index }}

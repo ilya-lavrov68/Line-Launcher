@@ -5,7 +5,8 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (22 tests: 6 contract + 12 branding validator + 4 license/metadata)
+- `npm test` (72 passing, 1 skipped: contract, branding, licence/metadata, environment
+  probe, Windows tool discovery, Tauri version alignment and installer licence encoding)
 - `npm run brand:check` (generated branding is current)
 - License/metadata tests: custom Line license, verbatim upstream MIT hash,
   npm/Cargo license pointers, and desktop bundle legal resources
@@ -44,6 +45,14 @@ Checked in the implementation sandbox:
 - `src-tauri/tauri.conf.json` validated against the bundled Tauri CLI JSON
   schema; `cargo metadata --locked --offline --no-deps` reports the custom
   `license_file` instead of MIT
+- Installer licence encoding: `src-tauri/LICENSE.rtf` is ASCII-only and decodes
+  back to the bilingual `LICENSE` byte-for-byte (checked both by the in-repo
+  reader and independently by Python `striprtf`, Cyrillic intact). The merged
+  NSIS/MSI configs were resolved the way the CLI merges `-c` overlays: NSIS keeps
+  the plain UTF-8 `LICENSE`, MSI gets the RTF. Mutation checks confirmed the tests
+  fail if the `\uN` escaping or the MSI overlay is removed.
+  **The installers themselves were never built here** — WiX and NSIS are
+  Windows-only. The rendered licence dialog still needs a human check on Windows.
 
 Verified by CI (not reproducible in this sandbox):
 

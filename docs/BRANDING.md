@@ -183,6 +183,7 @@ npm run tauri:build
 | `src/brand/logo.svg\|png`         | Копия знака; импортируется, чтобы Vite его хешировал                           |
 | `src-tauri/tauri.brand.conf.json` | Overlay для `tauri build -c`                                                   |
 | `src-tauri/icons/*`               | Иконки ОС, регенерируются только при смене исходника                           |
+| `src-tauri/LICENSE.rtf`           | Лицензия для MSI: ASCII с `\uN`-escape из `LICENSE` (RUNBOOK, 1.10)            |
 
 Все файлы детерминированы и сохраняются в репозитории. Повторный запуск ничего не меняет.
 Иконки пересобираются только если SHA-256 исходника изменился (штамп в
@@ -193,11 +194,15 @@ npm run tauri:build
 ```sh
 npm run brand         # применить брендинг
 npm run brand:check   # проверить, что файлы актуальны (для CI)
-npm run tauri:build   # brand + tauri build -c src-tauri/tauri.brand.conf.json
+npm run tauri:build   # brand + сборка установщиков (на Windows: NSIS, затем MSI)
 ```
 
 `npm run brand -- --skip-icons` пропускает генерацию иконок, если нужен только
 CSS/TS (например, в лёгком CI-джобе).
+
+`LICENSE.rtf` править руками нельзя: он генерируется из `LICENSE`. MSI берёт его через
+overlay `src-tauri/tauri.msi.conf.json`, NSIS — обычный `LICENSE`, потому что выводит
+лицензию как простой текст.
 
 ## Почему иконка приложения меняется только при сборке
 

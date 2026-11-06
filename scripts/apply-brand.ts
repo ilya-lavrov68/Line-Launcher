@@ -10,6 +10,7 @@
  *   src/brand/logo.svg|png          — copied header mark (if configured)
  *   src-tauri/tauri.brand.conf.json — Tauri overlay for `tauri build -c`
  *   src-tauri/icons/*               — regenerated OS icons via `tauri icon`
+ *   src-tauri/LICENSE.rtf           — ASCII-only RTF of LICENSE for the MSI dialog
  *
  * The DEFAULT preset ("obsy") produces zero palette overrides, so the shipped
  * build inherits upstream Obsy's tokens and radii unchanged.
@@ -25,6 +26,7 @@ import {
 } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { licenseToRtf } from "./lib/license-rtf.mjs";
 import { tauriCliCommand } from "./lib/tauri-cli.mjs";
 import { sameText } from "./lib/text-eol.mjs";
 import type { BrandConfig, BrandPalette } from "../branding/brand.types.ts";
@@ -147,6 +149,17 @@ function main(): void {
     writeIfChanged(OUT_TAURI, renderTauriOverlay(config, Boolean(appIconPath)))
   ) {
     changed.push("src-tauri/tauri.brand.conf.json");
+  }
+
+  // WiX cannot put the bilingual LICENSE into an en-US MSI (code page 1252).
+  // An .rtf licenseFile is passed through untouched, so emit ASCII-only RTF
+  // with \uN escapes: builds under any code page and still renders Cyrillic.
+  const licensePath = join(ROOT, "LICENSE");
+  if (existsSync(licensePath)) {
+    const rtf = licenseToRtf(readFileSync(licensePath, "utf8"));
+    if (writeIfChanged(join(ROOT, "src-tauri", "LICENSE.rtf"), rtf)) {
+      changed.push("src-tauri/LICENSE.rtf");
+    }
   }
 
   if (CHECK_ONLY) {

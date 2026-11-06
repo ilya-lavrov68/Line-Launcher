@@ -130,9 +130,20 @@ public final class LineTicketClient {
       if (cause instanceof Exception failure) throw failure;
       throw new IOException("Line IPC failed");
     } catch (TimeoutException e) {
-      RandomAccessFile pipe = handle.getAndSet(null);
-      if (pipe != null) try { pipe.close(); } catch (IOException ignored) {}
       future.cancel(true);
+      RandomAccessFile pipe = handle.getAndSet(null);
+      if (pipe != null) {
+        // On Windows, closing a pipe handle while another thread is inside a
+        // synchronous ReadFile can block until that read completes. Never do it
+        // on the caller's thread: the timeout must return promptly. The closer
+        // is a daemon and finishes as soon as the launcher drops its endpoint
+        // (its own IPC deadline), or at JVM exit.
+        Thread closer = new Thread(() -> {
+          try { pipe.close(); } catch (IOException ignored) {}
+        }, "line-ticket-ipc-close");
+        closer.setDaemon(true);
+        closer.start();
+      }
       throw new SocketTimeoutException("Line IPC timeout");
     } finally {
       executor.shutdownNow();

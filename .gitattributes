@@ -1,0 +1,22 @@
+# Normalize line endings so a Windows checkout (core.autocrlf=true by default)
+# matches what the generators write. Without this, generated files and the icon
+# stamp read back as CRLF and look "out of date" on every run.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF to stay valid for cmd.exe.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets — never touch, never diff as text.
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.jar binary
+*.zip binary
+*.pdf binary

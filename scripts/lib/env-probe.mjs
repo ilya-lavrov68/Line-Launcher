@@ -30,9 +30,10 @@ export function probe(cmd, args = [], opts = {}) {
     ...opts,
   };
   let r = spawnSync(cmd, args, { ...base, shell: false });
-  // .cmd/.bat shims cannot be spawned directly on Windows; retry via shell with
-  // every argv entry quoted so spaces survive.
-  if (r.error?.code === "ENOENT" && isWin) {
+  // .cmd/.bat shims cannot be spawned directly on Windows: Node >=18.20.2
+  // throws EINVAL (older versions ENOENT). Retry via shell with every argv
+  // entry quoted so spaces survive.
+  if (isWin && ["ENOENT", "EINVAL"].includes(r.error?.code)) {
     const line = [cmd, ...args]
       .map((a) => (/[\s"]/.test(a) ? `"${String(a).replace(/"/g, '\\"')}"` : a))
       .join(" ");

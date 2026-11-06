@@ -25,6 +25,8 @@ import {
 } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tauriCliCommand } from "./lib/tauri-cli.mjs";
+import { sameText } from "./lib/text-eol.mjs";
 import type { BrandConfig, BrandPalette } from "../branding/brand.types.ts";
 import {
   renderCss,
@@ -52,7 +54,8 @@ function fail(message: string): never {
 /** Write only when content differs, so repeat runs are quiet and idempotent. */
 function writeIfChanged(path: string, content: string): boolean {
   const current = existsSync(path) ? readFileSync(path, "utf8") : null;
-  if (current === content) return false;
+  // A CRLF checkout (Git for Windows default) must not look "out of date".
+  if (sameText(current, content)) return false;
   if (CHECK_ONLY) fail(`${path} is out of date. Run: npm run brand`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
@@ -106,15 +109,14 @@ function main(): void {
     const current = existsSync(stampPath)
       ? readFileSync(stampPath, "utf8")
       : null;
-    if (current !== stamp) {
+    if (!sameText(current, stamp)) {
       if (CHECK_ONLY)
         fail("src-tauri/icons is out of date. Run: npm run brand");
       console.log("[brand] generating OS icons via tauri icon…");
-      execFileSync(
-        process.platform === "win32" ? "npx.cmd" : "npx",
-        ["tauri", "icon", source, "-o", ICONS_DIR],
-        { cwd: ROOT, stdio: "inherit" },
-      );
+      // Never shell out to npx.cmd: Node >=18.20.2 throws EINVAL for .cmd
+      // without a shell. Run the CLI entry point with this Node instead.
+      const cli = tauriCliCommand(["icon", source, "-o", ICONS_DIR]);
+      execFileSync(cli.command, cli.args, { cwd: ROOT, stdio: "inherit" });
       // Desktop-only product: drop generated mobile assets.
       for (const mobile of ["ios", "android"]) {
         rmSync(join(ICONS_DIR, mobile), { recursive: true, force: true });

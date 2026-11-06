@@ -3,9 +3,8 @@
 // `tauri signer` work without a Rust toolchain.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { createRequire } from "node:module";
+import { tauriCliCommand } from "./lib/tauri-cli.mjs";
 
-const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname, "..");
 const argv = process.argv.slice(2);
 const sub = argv.find((a) => !a.startsWith("-")) || "";
@@ -31,24 +30,18 @@ if (NEEDS_RUST.has(sub)) {
   if (doctor.status !== 0) process.exit(doctor.status ?? 1);
 }
 
-// Resolve the CLI's JS entry point instead of relying on a shell shim.
+// Same shell-free resolution the brand generator uses.
 let cli;
 try {
-  cli = require.resolve("@tauri-apps/cli/tauri.js");
-} catch {
-  cli = null;
+  cli = tauriCliCommand(argv);
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
 }
-
-const result = cli
-  ? spawnSync(process.execPath, [cli, ...argv], {
-      stdio: "inherit",
-      cwd: root,
-    })
-  : spawnSync("tauri", argv, {
-      stdio: "inherit",
-      cwd: root,
-      shell: process.platform === "win32",
-    });
+const result = spawnSync(cli.command, cli.args, {
+  stdio: "inherit",
+  cwd: root,
+});
 
 if (result.error) {
   console.error(`Не удалось запустить Tauri CLI: ${result.error.message}`);

@@ -10,7 +10,16 @@ permissions:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    # Windows is included deliberately: the brand generator, the doctor and the
+    # dev wrapper all failed there while a Linux-only job stayed green.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,6 +31,23 @@ jobs:
         run: npm run brand:check
       - run: npm test
       - run: npm run build
+      - name: Icon generation runs from a clean stamp
+        # Exercises the `tauri icon` spawn, which is where `npx.cmd` threw
+        # EINVAL on Windows, then re-checks that the stamp was written.
+        # (icon.icns is not byte-reproducible, so git cleanliness is not asserted.)
+        run: |
+          set -o pipefail
+          rm -f src-tauri/icons/.brand-source.sha256
+          if ! npm run brand 2>&1 | tee brand-regen.log; then
+            message=$(tail -c 2500 brand-regen.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=icon generation failed::${message}"
+            exit 1
+          fi
+          npm run brand:check
+      - name: Doctor and dev wrapper are runnable
+        run: |
+          npm run doctor -- --frontend-only
+          npm run tauri -- --version
 
   rust-pure:
     # Runs the dependency-free Rust logic with plain rustc. This is a fast

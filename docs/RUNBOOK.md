@@ -98,7 +98,33 @@ npm run doctor       # проверяет всё окружение и печа�
 Первый `npm run tauri dev` после установки собирает ~470 крейтов и занимает
 несколько минут — это нормально, последующие запуски быстрые.
 
-### 1.4. Про `npm audit`
+### 1.4. Если doctor говорит «MSVC не установлен», а он установлен
+
+Проверка ищет toolchain тремя способами: через `vswhere`, по наличию `cl.exe` на
+диске и — если первые два не нашли — реальной пробной линковкой через `rustc`.
+Пробная компиляция решает спор: если она прошла, doctor считает окружение годным,
+даже когда Visual Studio стоит на нестандартном диске.
+
+Проверить вручную:
+
+```powershell
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+  -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+  -property installationPath
+```
+
+Пустой вывод означает, что компонент C++ действительно не выбран в инсталляторе
+(сам Visual Studio при этом может быть установлен). Откройте Visual Studio
+Installer → «Изменить» → вкладка «Отдельные компоненты» → отметьте
+«MSVC v143 — VS 2022 C++ x64/x86 build tools» и «Windows 11 SDK».
+
+Если проверка ошибается, а сборка при этом идёт, её можно пропустить:
+
+```powershell
+$env:LINE_SKIP_DOCTOR=1; npm run tauri dev
+```
+
+### 1.5. Про `npm audit`
 
 `npm ci` может показать два десятка уязвимостей. Все они относятся к
 **инструментам сборки** (`shadcn` CLI, Tailwind, Vite) и не попадают в бандл:

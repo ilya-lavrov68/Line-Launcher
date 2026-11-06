@@ -1,14 +1,19 @@
 // Preflight environment check. `tauri dev` fails with a cryptic
 // "cargo metadata ... program not found" when Rust is missing; this prints the
 // actual cause and the fix instead. Exit code 1 only for blockers.
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { findMsvc, findWebView2, probe, tryLink } from "./lib/env-probe.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const platform = process.platform;
 const args = new Set(process.argv.slice(2));
 const rustRequired = !args.has("--frontend-only");
+
+if (process.env.LINE_SKIP_DOCTOR === "1") {
+  console.log("LINE_SKIP_DOCTOR=1 — проверка окружения пропущена.");
+  process.exit(0);
+}
 
 const C = {
   red: (s) => `\x1b[31m${s}\x1b[0m`,
@@ -20,16 +25,6 @@ const C = {
 
 let blockers = 0;
 const problems = [];
-
-function probe(cmd, args) {
-  const r = spawnSync(cmd, args, {
-    encoding: "utf8",
-    shell: platform === "win32",
-    windowsHide: true,
-  });
-  if (r.error || r.status !== 0) return null;
-  return `${r.stdout || ""}${r.stderr || ""}`.trim();
-}
 
 function ok(label, detail) {
   console.log(`  ${C.green("OK")}   ${label} ${C.dim(detail || "")}`);
@@ -90,34 +85,19 @@ if (rustRequired) {
 
   // Windows needs the MSVC linker; rustc alone is not enough.
   if (platform === "win32") {
-    const vsWhere = path.join(
-      process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)",
-      "Microsoft Visual Studio/Installer/vswhere.exe",
-    );
-    if (existsSync(vsWhere)) {
-      const out = probe(vsWhere, [
-        "-latest",
-        "-products",
-        "*",
-        "-requires",
-        "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-        "-property",
-        "installationPath",
-      ]);
-      if (out) ok("MSVC Build Tools", out.split("\n")[0]);
-      else bad("MSVC Build Tools", "компонент C++ не установлен", "msvc");
+    const msvc = findMsvc();
+    if (msvc) {
+      ok("MSVC Build Tools", `${msvc.path} ${C.dim(`[${msvc.via}]`)}`);
     } else {
-      warn("MSVC Build Tools", "vswhere не найден — проверьте вручную");
+      // Heuristics can miss a valid install (custom drive, moved VS). Let the
+      // compiler decide before blocking the user.
+      const link = tryLink();
+      if (link.ok) ok("MSVC Build Tools", link.detail);
+      else bad("MSVC Build Tools", "линковка не проходит", "msvc");
     }
-    const webview = [
-      process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)",
-      process.env.ProgramFiles || "C:\\Program Files",
-    ].some((p) =>
-      existsSync(
-        path.join(p, "Microsoft/EdgeWebView/Application/msedgewebview2.exe"),
-      ),
-    );
-    if (webview) ok("WebView2 Runtime", "");
+
+    const webview = findWebView2();
+    if (webview) ok("WebView2 Runtime", path.dirname(webview));
     else warn("WebView2 Runtime", "не найден — нужен для окна приложения");
   }
 } else {
@@ -168,5 +148,11 @@ for (const id of problems) {
   for (const line of FIXES[id] || []) console.log(line);
   console.log("");
 }
-console.log(C.dim("Подробности: docs/RUNBOOK.md, раздел 1.\n"));
+console.log(
+  C.dim(
+    "Если проверка ошибается, а сборка работает: LINE_SKIP_DOCTOR=1 npm run tauri dev\n" +
+      "Подробности: docs/RUNBOOK.md, раздел 1.",
+  ),
+);
+console.log("");
 process.exit(1);

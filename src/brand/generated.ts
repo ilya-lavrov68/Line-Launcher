@@ -13,7 +13,7 @@ export const brand: Brand = {
   logo: null,
   attribution: {
     placement: "footer",
-    language: "both",
+    language: "en",
     en: "Powered by Line Launcher | Plus In Plus",
     ru: "Работает на Line Launcher | Plus In Plus",
   },

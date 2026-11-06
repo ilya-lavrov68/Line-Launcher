@@ -25,7 +25,7 @@ oracle during manual desktop testing.
 
 ```sh
 node examples/provider/build-pack.mjs      # writes .provider/pack.zip + config
-node examples/provider/server.mjs          # https://localhost:8443/config.json
+node examples/provider/server.mjs          # https://127.0.0.1:8443/config.json
 ```
 
 Requirements: Node 22+, `openssl` (for the self-signed certificate), and a JDK

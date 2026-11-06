@@ -35,7 +35,7 @@ const bin = (name) =>
       )
     : name;
 const port = Number(process.env.LINE_TEST_PORT || 8443);
-const base = `https://localhost:${port}`;
+const base = `https://127.0.0.1:${port}`;
 let checks = 0;
 
 function check(condition, message) {

@@ -129,7 +129,7 @@ try {
   const unpacked = packEntries.reduce((sum, e) => sum + e.bytes.length, 0);
   writeFileSync(path.join(out, "pack.zip"), archive);
 
-  const base = process.env.LINE_PROVIDER_URL || "https://localhost:8443";
+  const base = process.env.LINE_PROVIDER_URL || "https://127.0.0.1:8443";
   const config = {
     schema_version: 1,
     min_launcher_version: "0.1.0",

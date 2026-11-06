@@ -5,7 +5,7 @@
 //   node examples/provider/build-pack.mjs
 //   node examples/provider/server.mjs
 //
-// Env: LINE_PROVIDER_PORT (8443), LINE_PROVIDER_HOST (localhost),
+// Env: LINE_PROVIDER_PORT (8443), LINE_PROVIDER_HOST (127.0.0.1),
 //      LINE_DEMO_USER (Player_1), LINE_DEMO_PASSWORD (demo-password).
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
@@ -20,7 +20,9 @@ const root = path.resolve(
 );
 const dir = path.join(root, ".provider");
 const port = Number(process.env.LINE_PROVIDER_PORT || 8443);
-const host = process.env.LINE_PROVIDER_HOST || "localhost";
+// Loopback only. Use 127.0.0.1 rather than `localhost`: on some hosts
+// `localhost` resolves to ::1 first while this server binds IPv4.
+const host = process.env.LINE_PROVIDER_HOST || "127.0.0.1";
 const demoUser = process.env.LINE_DEMO_USER || "Player_1";
 const demoPassword = process.env.LINE_DEMO_PASSWORD || "demo-password";
 
@@ -54,7 +56,7 @@ if (!existsSync(keyPath) || !existsSync(certPath)) {
       "-subj",
       `/CN=${host}`,
       "-addext",
-      `subjectAltName=DNS:${host},DNS:localhost,IP:127.0.0.1`,
+      "subjectAltName=DNS:localhost,IP:127.0.0.1",
     ],
     { encoding: "utf8" },
   );

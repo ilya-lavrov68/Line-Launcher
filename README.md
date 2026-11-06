@@ -81,7 +81,7 @@ cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D w
 
 ```sh
 npm run provider:pack     # .provider/pack.zip + config.json
-npm run provider:serve    # https://localhost:8443/config.json
+npm run provider:serve    # https://127.0.0.1:8443/config.json
 npm run test:provider     # автоматическая проверка связки
 npm run test:ui           # UI-smoke (нужен playwright-core и запущенный npm run dev)
 ```

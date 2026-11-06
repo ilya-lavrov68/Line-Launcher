@@ -107,7 +107,7 @@ cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D w
 
 ```sh
 npm run provider:pack     # .provider/pack.zip + .provider/config.json
-npm run provider:serve    # https://localhost:8443/config.json
+npm run provider:serve    # https://127.0.0.1:8443/config.json
 ```
 
 Генератор компилирует `DemoGame.java` и справочный `LineTicketClient.java`, кладёт
@@ -187,7 +187,7 @@ npm run tauri dev
 
 ### 4.2. Сценарий ручной проверки
 
-Введите в поле конфигурации `https://localhost:8443/config.json`, затем пройдите
+Введите в поле конфигурации `https://127.0.0.1:8443/config.json`, затем пройдите
 по списку. Демо-аккаунт: `Player_1` / `demo-password`.
 
 | №   | Действие                                        | Ожидаемый результат                                           |

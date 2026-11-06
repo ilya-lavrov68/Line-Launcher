@@ -67,6 +67,27 @@ impl ProgressSink {
     }
 }
 
+/// True when a normalized path is both a file and a directory, or when a file is
+/// an ancestor of another entry. Keys use `\\` separators and are lowercased.
+/// Evaluated after the whole scan so the verdict is independent of entry order.
+fn has_path_conflict(
+    file_paths: &std::collections::HashSet<String>,
+    directory_paths: &std::collections::HashSet<String>,
+) -> bool {
+    if file_paths.iter().any(|file| directory_paths.contains(file)) {
+        return true;
+    }
+    for file in file_paths {
+        let parts: Vec<&str> = file.split('\\').collect();
+        for depth in 1..parts.len() {
+            if file_paths.contains(&parts[..depth].join("\\")) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn check_cancelled(cancel: &AtomicBool) -> LineResult<()> {
     if cancel.load(Ordering::Acquire) {
         Err(LineError::new(
@@ -229,9 +250,12 @@ pub fn extract_verified_zip(
                 )
             })?;
             if declared_total > expected_unpacked {
+                // Same class of failure as the equality check below: the archive
+                // disagrees with the configured size. Structural attacks keep
+                // UnsafeArchive; a size mismatch is Integrity.
                 return Err(LineError::new(
-                    ErrorCode::UnsafeArchive,
-                    "Распакованный размер превышает заявленный.",
+                    ErrorCode::Integrity,
+                    "Распакованный размер превышает заявленный в конфигурации.",
                     false,
                 ));
             }
@@ -248,30 +272,22 @@ pub fn extract_verified_zip(
         if entry.is_dir() {
             directory_paths.insert(normalized);
         } else {
-            file_paths.insert(normalized.clone());
-            // A file cannot also be an ancestor directory (mods vs mods/a.jar).
-            let mut ancestor = relative.parent();
-            while let Some(parent) = ancestor {
-                if !parent.as_os_str().is_empty() {
-                    let key = parent.to_string_lossy().replace('/', "\\").to_lowercase();
-                    if file_paths.contains(&key) {
-                        return Err(LineError::new(
-                            ErrorCode::UnsafeArchive,
-                            "Конфликт файла и каталога в ZIP.",
-                            false,
-                        ));
-                    }
-                }
-                ancestor = parent.parent();
-            }
+            file_paths.insert(normalized);
         }
     }
-    if file_paths.iter().any(|file| directory_paths.contains(file)) {
-        return Err(LineError::new(
+    // A path cannot be both a file and a directory, and a file cannot be an
+    // ancestor of another entry. Check after the scan so the result does not
+    // depend on entry order: "mods" then "mods/a.jar" must fail exactly like
+    // "mods/a.jar" then "mods".
+    let conflict = || {
+        LineError::new(
             ErrorCode::UnsafeArchive,
             "Конфликт файла и каталога в ZIP.",
             false,
-        ));
+        )
+    };
+    if has_path_conflict(&file_paths, &directory_paths) {
+        return Err(conflict());
     }
     if declared_total != expected_unpacked {
         return Err(LineError::new(

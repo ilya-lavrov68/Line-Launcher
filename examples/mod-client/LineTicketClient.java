@@ -123,6 +123,12 @@ public final class LineTicketClient {
     });
     try {
       return future.get(IPC_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+    } catch (ExecutionException e) {
+      // Surface the pipe failure itself: callers catch IOException, and the
+      // executor would otherwise hide it behind ExecutionException.
+      Throwable cause = e.getCause();
+      if (cause instanceof Exception failure) throw failure;
+      throw new IOException("Line IPC failed");
     } catch (TimeoutException e) {
       RandomAccessFile pipe = handle.getAndSet(null);
       if (pipe != null) try { pipe.close(); } catch (IOException ignored) {}

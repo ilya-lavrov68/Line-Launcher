@@ -141,6 +141,7 @@ const items = [
   attributed("launch_manifest.rs", "fn resolve_relative("),
   attributed("launch_manifest.rs", "fn relative_dir("),
   attributed("rollback.rs", "fn valid_sha("),
+  attributed("install.rs", "fn has_path_conflict("),
 ];
 
 // Real unit tests, copied from the crate so expectations have one source of truth.
@@ -148,6 +149,7 @@ const tests = [
   installTestPrelude,
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed("launch.rs", "fn abs("),
   attributed("launch.rs", "fn spec()"),
   attributed(
     "launch.rs",
@@ -161,6 +163,26 @@ const tests = [
 
 // Extra coverage for helpers whose crate tests need serde/tempfile/zip.
 const harnessTests = `
+#[test]
+fn harness_zip_path_conflicts_are_order_independent() {
+    // Keys are normalized with a backslash separator; build it from its code
+    // point so this harness needs no escaped literals.
+    let sep = char::from(92).to_string();
+    let set = |items: &[&str]| {
+        items.iter().map(|s| s.replace('/', &sep)).collect::<std::collections::HashSet<String>>()
+    };
+    let empty = set(&[]);
+    // "mods" as a file plus anything below it must fail in both scan orders.
+    assert!(has_path_conflict(&set(&["mods", "mods/a.jar"]), &empty));
+    assert!(has_path_conflict(&set(&["mods/a.jar", "mods"]), &empty));
+    // Deep ancestors, not just the immediate parent.
+    assert!(has_path_conflict(&set(&["mods", "mods/lib/a.jar"]), &empty));
+    // Same path declared as both file and directory.
+    assert!(has_path_conflict(&set(&["mods"]), &set(&["mods"])));
+    // Legitimate trees and sibling prefixes must pass.
+    assert!(!has_path_conflict(&set(&["mods/a.jar", "config/b.txt"]), &set(&["mods", "config"])));
+    assert!(!has_path_conflict(&set(&["mods", "mods2/a.jar"]), &empty));
+}
 #[test]
 fn harness_server_dir_rejects_traversal_and_device_names() {
     let root = Path::new("/data");

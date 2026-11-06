@@ -568,11 +568,20 @@ pub async fn get_game_status(
 mod tests {
     use super::*;
 
+    /// Absolute paths differ per platform: "/game" is relative on Windows.
+    fn abs(relative: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:\\line-test\\{relative}"))
+        } else {
+            PathBuf::from(format!("/line-test/{relative}"))
+        }
+    }
+
     fn spec() -> LaunchSpec {
         LaunchSpec {
-            java: "/usr/bin/java".into(),
-            game_dir: "/game".into(),
-            classpath: vec!["/game/client.jar".into()],
+            java: abs("java"),
+            game_dir: abs("game"),
+            classpath: vec![abs("game/client.jar")],
             main_class: "net.minecraft.client.main.Main".into(),
             username: "Player_1".into(),
             minecraft_version: "1.21.1".into(),
@@ -589,7 +598,7 @@ mod tests {
         let args = build_java_command(&spec()).unwrap();
         assert!(args.contains(&"-Xmx8192M".to_owned()));
         let game_dir = args.iter().position(|a| a == "--gameDir").unwrap();
-        assert_eq!(args[game_dir + 1], "/game");
+        assert_eq!(args[game_dir + 1], abs("game").to_string_lossy());
         assert!(args
             .iter()
             .any(|a| a == "-DlineLauncher.sessionChannel=launch-channel-1"));

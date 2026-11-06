@@ -89,6 +89,7 @@ export type LineErrorCode =
   | "INVALID_INPUT"
   | "UNSUPPORTED_VERSION"
   | "NETWORK"
+  | "TLS_UNTRUSTED"
   | "HTTP_STATUS"
   | "INVALID_CREDENTIALS"
   | "ACCOUNT_EXISTS"
@@ -195,6 +196,7 @@ export function isLineError(value: unknown): value is LineError {
     "INVALID_INPUT",
     "UNSUPPORTED_VERSION",
     "NETWORK",
+    "TLS_UNTRUSTED",
     "HTTP_STATUS",
     "INVALID_CREDENTIALS",
     "ACCOUNT_EXISTS",

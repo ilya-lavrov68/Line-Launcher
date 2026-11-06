@@ -5,19 +5,22 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (72 passing, 1 skipped: contract, branding, licence/metadata, environment
-  probe, Windows tool discovery, Tauri version alignment and installer licence encoding)
+- `npm test` (84 passing, 1 skipped: contract, branding, licence/metadata, environment
+  probe, Windows tool discovery, Tauri version alignment, installer licence encoding
+  and TLS trust)
 - `npm run brand:check` (generated branding is current)
 - License/metadata tests: custom Line license, verbatim upstream MIT hash,
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 10 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 16 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
   walking, install-lock exclusivity/recovery, main-class and SHA validation, and
-  order-independent ZIP file/directory conflict detection.
+  order-independent ZIP file/directory conflict detection, and classification of
+  network failure chains (untrusted/expired/mismatched certificate, localized OS
+  errors under an English rustls wrapper, refused connection, timeout precedence).
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -53,6 +56,15 @@ Checked in the implementation sandbox:
   fail if the `\uN` escaping or the MSI overlay is removed.
   **The installers themselves were never built here** — WiX and NSIS are
   Windows-only. The rendered licence dialog still needs a human check on Windows.
+
+- TLS trust diagnosis reproduced against the real reference provider: without
+  trust the request fails with `self-signed certificate` (Node:
+  `DEPTH_ZERO_SELF_SIGNED_CERT`), and `curl --cacert .provider/tls.crt` returns the
+  config JSON. The server was never the problem.
+- `src-tauri/src/line/dev_ca.rs` type-checked and executed against a stub reqwest:
+  valid PEM accepted, missing/garbage/empty file rejected, blank and unset
+  variable are no-ops (6 control-flow cases). The real reqwest/rustls pairing is
+  not compiled here.
 
 Verified by CI (not reproducible in this sandbox):
 

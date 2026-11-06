@@ -11,6 +11,13 @@ license-file = "../LICENSE"
 name = "line_launcher_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = []
+# DEVELOPMENT ONLY. Trusts one extra CA from LINE_DEV_CA_CERT so the reference
+# provider's self-signed TLS works without editing the OS trust store. Never
+# enable this in a distributed build. See docs/RUNBOOK.md, section 3.2.
+dev-provider-ca = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

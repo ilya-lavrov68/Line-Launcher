@@ -33,7 +33,8 @@ jobs:
       - run: npm run build
       - name: Icon generation runs from a clean stamp
         # Exercises the `tauri icon` spawn, which is where `npx.cmd` threw
-        # EINVAL on Windows. Regenerating must also leave the tree clean.
+        # EINVAL on Windows, then re-checks that the stamp was written.
+        # (icon.icns is not byte-reproducible, so git cleanliness is not asserted.)
         run: |
           set -o pipefail
           rm -f src-tauri/icons/.brand-source.sha256

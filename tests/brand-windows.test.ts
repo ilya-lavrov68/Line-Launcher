@@ -9,6 +9,17 @@ import { normalizeEol, sameText } from "../scripts/lib/text-eol.mjs";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const STAMP = path.join(ROOT, "src-tauri/icons/.brand-source.sha256");
 
+// The icon pipeline only runs when a custom app icon is configured. With
+// assets.app_icon = null these two cases have nothing to exercise, so skip
+// them explicitly rather than report a misleading pass. sameText() below still
+// guards the line-ending normalization itself.
+const brandConfig = JSON.parse(
+  readFileSync(path.join(ROOT, "branding/line.brand.json"), "utf8"),
+);
+const iconSkip = brandConfig.assets?.app_icon
+  ? false
+  : "assets.app_icon is null — no icon pipeline to exercise";
+
 test("tauri CLI is resolved to node + a JS entry, never a .cmd shim", () => {
   const cli = tauriCliCommand(["icon", "x", "-o", "y"]);
   assert.equal(cli.command, process.execPath, "must run under this Node");
@@ -44,45 +55,53 @@ test("sameText treats a CRLF checkout as unchanged", () => {
   assert.equal(sameText(null, null), true);
 });
 
-test("brand:check passes when the icon stamp has Windows line endings", () => {
-  // Regression: a CRLF stamp never matched, so every `npm run dev` regenerated
-  // all OS icons — and on Windows that path died with `spawnSync npx.cmd EINVAL`.
-  const original = readFileSync(STAMP, "utf8");
-  try {
-    writeFileSync(STAMP, original.replace(/\n/g, "\r\n"));
-    const out = execFileSync(
-      process.execPath,
-      ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
-      { encoding: "utf8", cwd: ROOT, shell: false },
-    );
-    assert.match(out, /up to date/);
-    assert.ok(
-      !/generating OS icons/.test(out),
-      "a CRLF stamp must not trigger icon regeneration",
-    );
-  } finally {
-    writeFileSync(STAMP, original);
-  }
-});
+test(
+  "brand:check passes when the icon stamp has Windows line endings",
+  { skip: iconSkip },
+  () => {
+    // Regression: a CRLF stamp never matched, so every `npm run dev` regenerated
+    // all OS icons — and on Windows that path died with `spawnSync npx.cmd EINVAL`.
+    const original = readFileSync(STAMP, "utf8");
+    try {
+      writeFileSync(STAMP, original.replace(/\n/g, "\r\n"));
+      const out = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
+        { encoding: "utf8", cwd: ROOT, shell: false },
+      );
+      assert.match(out, /up to date/);
+      assert.ok(
+        !/generating OS icons/.test(out),
+        "a CRLF stamp must not trigger icon regeneration",
+      );
+    } finally {
+      writeFileSync(STAMP, original);
+    }
+  },
+);
 
-test("brand:check still fails when the source icon really changed", () => {
-  const original = readFileSync(STAMP, "utf8");
-  try {
-    writeFileSync(STAMP, "0".repeat(64) + "\r\n");
-    assert.throws(
-      () =>
-        execFileSync(
-          process.execPath,
-          ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
-          { encoding: "utf8", cwd: ROOT, shell: false, stdio: "pipe" },
-        ),
-      /out of date|Command failed/,
-      "normalizing line endings must not hide a genuine mismatch",
-    );
-  } finally {
-    writeFileSync(STAMP, original);
-  }
-});
+test(
+  "brand:check still fails when the source icon really changed",
+  { skip: iconSkip },
+  () => {
+    const original = readFileSync(STAMP, "utf8");
+    try {
+      writeFileSync(STAMP, "0".repeat(64) + "\r\n");
+      assert.throws(
+        () =>
+          execFileSync(
+            process.execPath,
+            ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
+            { encoding: "utf8", cwd: ROOT, shell: false, stdio: "pipe" },
+          ),
+        /out of date|Command failed/,
+        "normalizing line endings must not hide a genuine mismatch",
+      );
+    } finally {
+      writeFileSync(STAMP, original);
+    }
+  },
+);
 
 test("repo forces LF so Windows checkouts match generated output", () => {
   const attrs = readFileSync(path.join(ROOT, ".gitattributes"), "utf8");

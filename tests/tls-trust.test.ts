@@ -161,3 +161,45 @@ test("the runbook documents both routes and the machine-wide risk", () => {
   const pkg = JSON.parse(read("package.json"));
   assert.ok("tauri" in pkg.scripts);
 });
+
+test("the dev CA resolves a repo-relative path even when cwd is src-tauri", () => {
+  const src = read("src-tauri/src/line/dev_ca.rs");
+  // tauri dev chdirs into src-tauri (tauri-cli src/dev.rs), so the repo root must
+  // be derived from the compile-time manifest dir, not from cwd alone.
+  assert.match(src, /env!\("CARGO_MANIFEST_DIR"\)/);
+  assert.match(src, /manifest_dir\.parent\(\)/);
+  assert.match(src, /pub fn candidate_paths\(/);
+  // An absolute path must never be re-rooted.
+  assert.match(src, /if requested\.is_absolute\(\)/);
+  // Resolved local paths belong on stderr, not in the IPC error DTO.
+  assert.match(
+    src,
+    /eprintln!\("\[line\] {ENV_VAR}=\{raw:\?\} could not be read/,
+  );
+});
+
+test("the runbook explains the src-tauri working-directory trap", () => {
+  const section = read("docs/RUNBOOK.md")
+    .split("### 3.2.")[1]
+    .split("### 3.3.")[0];
+  assert.match(section, /LINE_DEV_CA_CERT/);
+  assert.match(section, /set_current_dir/);
+  assert.match(section, /от корня репозитория/);
+});
+
+test("doctor reports the WebView2 version and where it came from", () => {
+  const doctor = read("scripts/doctor.mjs");
+  assert.match(doctor, /webview\.version/);
+  assert.match(doctor, /webview\.via/);
+  const probeSrc = read("scripts/lib/env-probe.mjs");
+  // The Evergreen layout has a version directory; the flat-only check was the bug.
+  assert.match(probeSrc, /path\.join\(app, version, "msedgewebview2\.exe"\)/);
+  assert.match(probeSrc, /F3017226-FE2A-4295-8BDF-00C3A9A7E4C5/);
+  assert.match(probeSrc, /WOW6432Node/);
+});
+
+test("vite config no longer uses the deprecated __dirname", () => {
+  const config = read("vite.config.ts");
+  assert.ok(!config.includes("__dirname"), "Vite warns about __dirname");
+  assert.match(config, /import\.meta\.dirname/);
+});

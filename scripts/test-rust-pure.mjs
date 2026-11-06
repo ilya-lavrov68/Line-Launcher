@@ -142,6 +142,7 @@ const items = [
   attributed("launch_manifest.rs", "fn relative_dir("),
   attributed("rollback.rs", "fn valid_sha("),
   attributed("error.rs", "pub fn classify_network_chain("),
+  attributed("dev_ca.rs", "pub fn candidate_paths("),
   attributed("install.rs", "fn has_path_conflict("),
 ];
 
@@ -305,6 +306,56 @@ fn harness_unrecognized_chain_keeps_the_generic_message() {
         assert_eq!(code, ErrorCode::Network);
         assert!(message.contains("Проверьте подключение"), "wrong for {chain}");
     }
+}
+
+#[test]
+fn harness_dev_ca_resolves_a_repo_relative_path_from_src_tauri() {
+    // tauri dev chdirs into src-tauri, so cwd is the crate dir, not the repo.
+    let manifest = Path::new("/repo/src-tauri");
+    let cwd = Path::new("/repo/src-tauri");
+    let paths = candidate_paths(".provider/tls.crt", Some(cwd), manifest);
+    let wanted = PathBuf::from("/repo/.provider/tls.crt");
+    assert!(paths.contains(&wanted), "repo root must be tried: {paths:?}");
+    // cwd keeps priority so an explicit local file still wins.
+    assert_eq!(paths[0], PathBuf::from("/repo/src-tauri/.provider/tls.crt"));
+}
+
+#[test]
+fn harness_dev_ca_tries_the_repo_root_from_any_working_directory() {
+    let manifest = Path::new("/repo/src-tauri");
+    for cwd in [Path::new("/repo"), Path::new("/elsewhere")] {
+        let paths = candidate_paths(".provider/tls.crt", Some(cwd), manifest);
+        assert!(
+            paths.contains(&PathBuf::from("/repo/.provider/tls.crt")),
+            "failed for cwd {cwd:?}: {paths:?}"
+        );
+    }
+    // No known cwd must still fall back to the manifest and its parent.
+    let paths = candidate_paths(".provider/tls.crt", None, manifest);
+    assert!(paths.contains(&PathBuf::from("/repo/.provider/tls.crt")));
+}
+
+#[test]
+fn harness_dev_ca_never_redirects_an_absolute_path() {
+    let manifest = Path::new("/repo/src-tauri");
+    let absolute = if cfg!(windows) {
+        String::from("C:") + &char::from(92).to_string() + "certs" + &char::from(92).to_string() + "dev.crt"
+    } else {
+        String::from("/etc/certs/dev.crt")
+    };
+    let paths = candidate_paths(&absolute, Some(Path::new("/repo")), manifest);
+    assert_eq!(paths.len(), 1, "an absolute path must be used verbatim");
+    assert_eq!(paths[0], PathBuf::from(&absolute));
+}
+
+#[test]
+fn harness_dev_ca_trims_whitespace_and_deduplicates_roots() {
+    let manifest = Path::new("/repo/src-tauri");
+    // cwd == manifest must not produce the same candidate twice.
+    let paths = candidate_paths("  .provider/tls.crt  ", Some(manifest), manifest);
+    assert_eq!(paths.len(), 2, "expected crate dir + repo root: {paths:?}");
+    assert_eq!(paths[0], PathBuf::from("/repo/src-tauri/.provider/tls.crt"));
+    assert_eq!(paths[1], PathBuf::from("/repo/.provider/tls.crt"));
 }
 
 #[test]

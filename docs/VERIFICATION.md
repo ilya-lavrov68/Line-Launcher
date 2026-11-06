@@ -5,7 +5,7 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (84 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (93 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding
   and TLS trust)
 - `npm run brand:check` (generated branding is current)
@@ -13,7 +13,7 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 16 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 20 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -61,10 +61,18 @@ Checked in the implementation sandbox:
   trust the request fails with `self-signed certificate` (Node:
   `DEPTH_ZERO_SELF_SIGNED_CERT`), and `curl --cacert .provider/tls.crt` returns the
   config JSON. The server was never the problem.
-- `src-tauri/src/line/dev_ca.rs` type-checked and executed against a stub reqwest:
-  valid PEM accepted, missing/garbage/empty file rejected, blank and unset
-  variable are no-ops (6 control-flow cases). The real reqwest/rustls pairing is
-  not compiled here.
+- `src-tauri/src/line/dev_ca.rs` type-checked and executed against a stub reqwest
+  with `CARGO_MANIFEST_DIR` set to the real crate directory: a repo-relative
+  `.provider/…` path resolves while cwd is `src-tauri` (the reported failure),
+  absolute paths pass through, missing/garbage files are rejected, an unset
+  variable is a no-op, and the resolved local path stays out of the error DTO
+  (5 end-to-end cases). The real reqwest/rustls pairing is not compiled here.
+- WebView2 detection corrected against Microsoft's documented rule: the registry
+  `pv` value under the EdgeUpdate client GUID, with `0.0.0.0` treated as absent,
+  and an on-disk fallback that understands the Evergreen `Application/<version>/`
+  layout. Covered by tests for the versioned layout, newest-version selection
+  (numeric, not lexical), the flat layout, per-user hives and the `0.0.0.0` state.
+  The registry itself cannot be queried from this Linux sandbox.
 
 Verified by CI (not reproducible in this sandbox):
 

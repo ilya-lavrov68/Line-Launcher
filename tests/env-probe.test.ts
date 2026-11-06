@@ -12,6 +12,8 @@ import test from "node:test";
 import {
   findMsvc,
   findWebView2,
+  parseWebView2Version,
+  WEBVIEW2_CLIENT_KEY,
   probe,
   programFilesRoots,
   tryLink,
@@ -154,14 +156,16 @@ test("findMsvc reports null when no toolchain exists", () => {
   }
 });
 
-test("findWebView2 accepts a per-user install under LOCALAPPDATA", () => {
+test("findWebView2 finds the Evergreen versioned layout per user", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "line webview-"));
   try {
     const app = path.join(dir, "Microsoft", "EdgeWebView", "Application");
-    mkdirSync(app, { recursive: true });
-    const exe = path.join(app, "msedgewebview2.exe");
+    // Real installs put the exe under a version directory, not directly in
+    // Application/ — the old probe checked the flat path and always missed.
+    const versioned = path.join(app, "147.0.3912.98");
+    mkdirSync(versioned, { recursive: true });
+    const exe = path.join(versioned, "msedgewebview2.exe");
     writeFileSync(exe, "");
-    // Machine-wide roots point at an empty sibling so only LOCALAPPDATA can match.
     const empty = path.join(dir, "empty");
     mkdirSync(empty);
     const roots = {
@@ -169,10 +173,96 @@ test("findWebView2 accepts a per-user install under LOCALAPPDATA", () => {
       "ProgramFiles(x86)": empty,
       ProgramW6432: empty,
     };
-    assert.equal(findWebView2({ ...roots, LOCALAPPDATA: dir }), exe);
-    assert.equal(findWebView2(roots), null);
+    const found = findWebView2({ ...roots, LOCALAPPDATA: dir }, () => null);
+    assert.deepEqual(found, {
+      version: "147.0.3912.98",
+      path: exe,
+      via: "files",
+    });
+    assert.equal(
+      findWebView2(roots, () => null),
+      null,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("findWebView2 picks the newest version directory, not the first", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "line webview-multi-"));
+  try {
+    const app = path.join(dir, "Microsoft", "EdgeWebView", "Application");
+    // Deliberately not in numeric order: 99 < 147 numerically but sorts first
+    // lexically, so a plain string sort would pick the wrong runtime.
+    for (const version of ["99.0.1150.30", "147.0.3912.98", "120.0.2210.91"]) {
+      mkdirSync(path.join(app, version), { recursive: true });
+      writeFileSync(path.join(app, version, "msedgewebview2.exe"), "");
+    }
+    const found = findWebView2({ LOCALAPPDATA: dir }, () => null);
+    assert.equal(found?.version, "147.0.3912.98");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("findWebView2 still accepts a flat layout", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "line webview-flat-"));
+  try {
+    const app = path.join(dir, "Microsoft", "EdgeWebView", "Application");
+    mkdirSync(app, { recursive: true });
+    const exe = path.join(app, "msedgewebview2.exe");
+    writeFileSync(exe, "");
+    const found = findWebView2({ LOCALAPPDATA: dir }, () => null);
+    assert.equal(found?.path, exe);
+    assert.equal(found?.via, "files");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("findWebView2 trusts the registry pv value without touching the disk", () => {
+  const asked: string[] = [];
+  const found = findWebView2({}, (cmd, args) => {
+    assert.equal(cmd, "reg");
+    asked.push(args[1]);
+    // Only the per-user hive has a runtime on this machine.
+    return args[1].startsWith("HKCU")
+      ? "    pv    REG_SZ    147.0.3912.98\r\n"
+      : null;
+  });
+  assert.deepEqual(found, {
+    version: "147.0.3912.98",
+    path: null,
+    via: "registry",
+  });
+  // Both documented hives plus the 32-bit machine view must be consulted.
+  assert.ok(asked.some((k) => k.includes("WOW6432Node")));
+  assert.ok(asked.some((k) => k.startsWith("HKCU")));
+  assert.ok(asked.every((k) => k.includes(WEBVIEW2_CLIENT_KEY)));
+});
+
+test("a registry key with pv = 0.0.0.0 does not count as installed", () => {
+  // Microsoft documents this exact state: the key exists, no runtime does.
+  const found = findWebView2({}, () => "    pv    REG_SZ    0.0.0.0\r\n");
+  assert.equal(found, null);
+});
+
+test("parseWebView2Version handles real reg output and rejects non-installs", () => {
+  assert.equal(
+    parseWebView2Version(
+      "\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\r\n    pv    REG_SZ    147.0.3912.98\r\n",
+    ),
+    "147.0.3912.98",
+  );
+  for (const output of [
+    null,
+    "",
+    "ERROR: The system was unable to find the specified registry key or value.",
+    "    pv    REG_SZ    0.0.0.0",
+    "    pv    REG_SZ    ",
+    "    name    REG_SZ    Microsoft Edge WebView2 Runtime",
+  ]) {
+    assert.equal(parseWebView2Version(output), null, `accepted ${output}`);
   }
 });
 

@@ -121,20 +121,77 @@ export function findMsvc(env = process.env, run = probe) {
   return null;
 }
 
-/** WebView2 ships machine-wide or per-user; both are valid. */
-export function findWebView2(env = process.env) {
-  const candidates = programFilesRoots(env).map((p) =>
-    path.join(p, "Microsoft/EdgeWebView/Application/msedgewebview2.exe"),
+/** WebView2 Runtime client GUID used by EdgeUpdate. */
+export const WEBVIEW2_CLIENT_KEY =
+  "Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+
+/**
+ * `reg query` prints `    pv    REG_SZ    147.0.3912.98`.
+ * A key can exist with pv = 0.0.0.0 (or empty) while no runtime is installed,
+ * so the value must be present and non-zero to count.
+ */
+export function parseWebView2Version(output) {
+  if (!output) return null;
+  const match = /^\s*pv\s+REG_SZ\s+(\S+)\s*$/im.exec(output);
+  const version = match?.[1];
+  if (!version || /^0+(\.0+)*$/.test(version)) return null;
+  return version;
+}
+
+/** Newest dotted numeric version first; non-numeric names sort last. */
+function compareVersionDirs(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const na = pa[i] ?? 0;
+    const nb = pb[i] ?? 0;
+    if (Number.isNaN(na) !== Number.isNaN(nb)) return Number.isNaN(na) ? 1 : -1;
+    if (na !== nb) return nb - na;
+  }
+  return 0;
+}
+
+/**
+ * WebView2 ships machine-wide or per-user; both are valid.
+ *
+ * The registry `pv` value is Microsoft's documented detection rule and is
+ * authoritative. The on-disk fallback must account for the Evergreen layout,
+ * where the executable lives in a *versioned* subdirectory:
+ *   ...\\Microsoft\\EdgeWebView\\Application\\<version>\\msedgewebview2.exe
+ * Checking `Application/msedgewebview2.exe` (no version) never matches a real
+ * install and made doctor report "not found" on machines that had it.
+ */
+export function findWebView2(env = process.env, run = probe) {
+  for (const hive of [
+    `HKLM\\SOFTWARE\\WOW6432Node\\${WEBVIEW2_CLIENT_KEY}`,
+    `HKCU\\Software\\${WEBVIEW2_CLIENT_KEY}`,
+    `HKLM\\SOFTWARE\\${WEBVIEW2_CLIENT_KEY}`,
+  ]) {
+    const version = parseWebView2Version(
+      run("reg", ["query", hive, "/v", "pv"]),
+    );
+    if (version) return { version, path: null, via: "registry" };
+  }
+
+  const roots = programFilesRoots(env).map((p) =>
+    path.join(p, "Microsoft/EdgeWebView/Application"),
   );
   if (env.LOCALAPPDATA) {
-    candidates.push(
-      path.join(
-        env.LOCALAPPDATA,
-        "Microsoft/EdgeWebView/Application/msedgewebview2.exe",
-      ),
+    roots.push(
+      path.join(env.LOCALAPPDATA, "Microsoft/EdgeWebView/Application"),
     );
   }
-  return candidates.find((p) => existsSync(p)) || null;
+  for (const app of roots) {
+    // Fixed-version/manual layouts may keep it flat; support both.
+    const flat = path.join(app, "msedgewebview2.exe");
+    if (existsSync(flat)) return { version: null, path: flat, via: "files" };
+    const versions = subdirs(app).sort(compareVersionDirs);
+    for (const version of versions) {
+      const exe = path.join(app, version, "msedgewebview2.exe");
+      if (existsSync(exe)) return { version, path: exe, via: "files" };
+    }
+  }
+  return null;
 }
 
 /**

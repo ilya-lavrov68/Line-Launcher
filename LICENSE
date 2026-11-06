@@ -1,21 +1,246 @@
-MIT License
+Line Launcher Provider License 1.0
+SPDX-License-Identifier: LicenseRef-LineLauncher-Provider-1.0
 
-Copyright (c) 2026 obsy-official
+Copyright (c) 2026 Plus In Plus. All rights reserved outside the permissions
+expressly granted below.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a source-available license, not an open-source license. Line Launcher
+is a ready-to-brand solution for game-server providers. Public visibility of
+source code does not grant permission to remove its attribution, relicense it,
+or redistribute it as an unrestricted product.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The English and Russian texts below express the same terms. In case of a
+conflict of interpretation, the English text controls.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+ENGLISH
+
+1. Definitions and third-party materials
+
+"Plus In Plus" is the licensor. "Line Materials" means the original code,
+documentation, branding configuration and other original contributions made
+by or for Plus In Plus in this repository, excluding third-party materials.
+"Product" means Line Launcher and branded builds incorporating Line Materials.
+
+The upstream Obsy Launcher materials remain licensed under MIT. Their original
+copyright and permission notice is preserved verbatim in
+LICENSES/Obsy-MIT.txt. Other dependencies retain their respective licenses;
+see NOTICE.md and LICENSES/. Nothing in this license withdraws rights already
+granted under MIT or any other third-party license. Those rights apply only to
+the materials they cover, not to Line Materials. Independent use of upstream
+materials under their own license is not restricted by this license.
+
+2. Conditional permission for game-server providers
+
+Subject to all conditions below, Plus In Plus grants you a limited,
+non-exclusive, non-transferable, non-sublicensable permission to:
+
+(a) inspect and evaluate the source code;
+(b) make and compile reasonable modifications needed to integrate the Product
+    with game-server services that you operate or administer;
+(c) use those builds commercially or non-commercially for those services; and
+(d) distribute branded compiled builds to the players of those services,
+    together with the notices required by section 4.
+
+You may make verbatim source copies for internal evaluation, development,
+backup and contribution purposes, provided this license and all copyright,
+attribution and third-party notices remain intact. Contractors may exercise
+these permissions solely on your behalf and under these same conditions.
+
+No ownership is transferred. This permission does not allow you to sell,
+sublicense or relicense Line Materials; publish or distribute modified Line
+source code; offer Line Launcher as a standalone competing launcher product
+or white-label platform for unrelated providers; or remove the Required
+Credit. These activities require separate prior written permission from
+Plus In Plus. This restriction does not apply to independently licensed
+upstream or third-party materials used without Line Materials.
+
+3. Required visible credit — an essential condition
+
+Every use, execution, public demonstration and distribution of a build
+containing Line Materials must retain a clearly legible, readily accessible
+credit in the launcher's main interface, outside the About dialog. It must
+remain visible during ordinary use, including configuration, authentication,
+server selection and installation. It must not be hidden behind a dialog,
+removed at particular breakpoints, obscured, or made effectively unreadable.
+
+At least one of these exact phrases must be displayed; displaying both is
+permitted and is the default:
+
+    Работает на Line Launcher | Plus In Plus
+    Powered by Line Launcher | Plus In Plus
+
+This is the "Required Credit". The names "Line Launcher" and "Plus In Plus"
+and the vertical-bar separator must be retained. Translation, replacement
+with only a provider's brand, or omission of either name is not permitted.
+The main-interface credit may be placed in the footer or header. The About
+dialog must repeat the credit; an About-only credit is insufficient.
+
+The build configuration may select the permitted placement and language.
+It may not disable, rewrite or conditionally remove the Required Credit.
+Removing or bypassing it in source code, generated files, styles or a compiled
+build is outside the permission granted by this license. WITHOUT THE REQUIRED
+CREDIT, NO PERMISSION TO USE OR DISTRIBUTE LINE MATERIALS IS GRANTED.
+
+4. Distribution notices
+
+Every distributed compiled build or installer must include readable copies
+of LICENSE, NOTICE.md and the applicable files in LICENSES/, including the
+upstream MIT notice. Source copies permitted by section 2 must retain the
+same files. You must also comply with all applicable third-party licenses.
+You may add your own copyright notice for your original contributions, but
+may not remove or misrepresent existing notices or imply endorsement by
+Plus In Plus or upstream authors.
+
+5. Names and marks
+
+Except for displaying the Required Credit and truthful factual descriptions,
+this license grants no trademark, trade-name or logo rights. Custom provider
+branding does not transfer ownership of Line Launcher or Plus In Plus names
+or marks and does not authorize removal of the Required Credit.
+
+6. Termination
+
+This permission applies only while you comply with this license. A breach
+automatically terminates the permissions granted for Line Materials. In
+particular, removing, disabling or obscuring the Required Credit makes
+continued use or distribution unlicensed. You must stop the unauthorized use
+and distribution and correct the breach before relying on this license again.
+Termination does not retroactively authorize past breaches. Rights granted
+by third-party licenses for third-party materials are unaffected.
+
+7. No warranty or liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, LINE MATERIALS ARE PROVIDED
+"AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. TO THAT
+EXTENT, PLUS IN PLUS IS NOT LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY
+ARISING FROM THE USE OF OR INABILITY TO USE LINE MATERIALS. Nothing here
+excludes liability that cannot lawfully be excluded. Third-party warranties
+and liabilities are governed by their own terms and applicable law.
+
+8. General
+
+Rights not expressly granted are reserved. A separate written agreement
+signed by an authorized representative of Plus In Plus may grant additional
+permissions. If a provision is unenforceable, the remaining provisions
+continue to apply to the extent permitted by law. Acceptance of these terms
+is required before exercising the permissions above.
+
+РУССКИЙ
+
+1. Определения и сторонние материалы
+
+«Plus In Plus» — лицензиар. «Материалы Line» — оригинальный код,
+документация, конфигурация брендинга и другие оригинальные вклады, созданные
+студией или для студии Plus In Plus в этом репозитории, за исключением
+сторонних материалов. «Продукт» — Line Launcher и брендированные сборки,
+включающие Материалы Line.
+
+Исходные материалы Obsy Launcher остаются под лицензией MIT. Оригинальное
+уведомление об авторских правах и текст разрешения дословно сохранены в
+LICENSES/Obsy-MIT.txt. Прочие зависимости сохраняют свои лицензии; см.
+NOTICE.md и LICENSES/. Эта лицензия не отзывает права, уже предоставленные
+MIT или иной сторонней лицензией. Такие права относятся только к охваченным
+ими материалам, а не к Материалам Line. Самостоятельное использование
+исходных материалов по их собственной лицензии не ограничивается этим текстом.
+
+2. Условное разрешение для провайдеров игровых серверов
+
+При соблюдении всех условий ниже Plus In Plus предоставляет ограниченное,
+неисключительное, непередаваемое разрешение без права сублицензирования:
+
+(a) изучать и оценивать исходный код;
+(b) вносить и компилировать разумные изменения, необходимые для интеграции
+    Продукта с игровыми серверами, которыми вы управляете или которые
+    администрируете;
+(c) коммерчески или некоммерчески использовать такие сборки для этих услуг;
+(d) распространять брендированные исполняемые сборки среди игроков этих
+    сервисов вместе с уведомлениями, обязательными по разделу 4.
+
+Разрешены дословные копии исходного кода для внутренней оценки, разработки,
+резервирования и подготовки вклада при сохранении этой лицензии и всех
+уведомлений об авторстве, атрибуции и сторонних лицензиях. Подрядчики могут
+использовать эти разрешения только от вашего имени и на тех же условиях.
+
+Право собственности не передаётся. Без отдельного предварительного письменного
+разрешения Plus In Plus нельзя продавать, сублицензировать или менять лицензию
+Материалов Line; публиковать или распространять изменённый исходный код Line;
+предлагать Line Launcher как отдельный конкурирующий лаунчер или white-label
+платформу для сторонних провайдеров; удалять Обязательное упоминание. Это
+ограничение не относится к самостоятельно лицензированным исходным и иным
+сторонним материалам, используемым без Материалов Line.
+
+3. Обязательное видимое упоминание — существенное условие
+
+Каждое использование, запуск, публичный показ и распространение сборки,
+содержащей Материалы Line, должно сохранять разборчивое и легко доступное
+упоминание в основном интерфейсе лаунчера, вне диалога «О программе». Оно
+должно оставаться видимым при обычной работе, включая настройку, авторизацию,
+выбор сервера и установку. Нельзя прятать его за диалогом, скрывать на
+определённых размерах окна, перекрывать или делать фактически нечитаемым.
+
+Должна отображаться хотя бы одна из следующих точных фраз; разрешено обе,
+что и установлено по умолчанию:
+
+    Работает на Line Launcher | Plus In Plus
+    Powered by Line Launcher | Plus In Plus
+
+Это «Обязательное упоминание». Названия «Line Launcher» и «Plus In Plus» и
+вертикальный разделитель должны сохраняться. Перевод, замена только брендом
+провайдера или удаление любого из названий не разрешены. Упоминание в
+основном интерфейсе располагается в нижнем или верхнем колонтитуле. Диалог
+«О программе» обязан повторять его; наличия только в этом диалоге недостаточно.
+
+Конфигурация сборки выбирает допустимое расположение и язык. Она не может
+отключать, переписывать или условно удалять Обязательное упоминание. Его
+удаление или обход в исходниках, генерируемых файлах, стилях либо исполняемой
+сборке выходит за пределы предоставленного разрешения. БЕЗ ОБЯЗАТЕЛЬНОГО
+УПОМИНАНИЯ РАЗРЕШЕНИЕ НА ИСПОЛЬЗОВАНИЕ И РАСПРОСТРАНЕНИЕ МАТЕРИАЛОВ LINE
+НЕ ПРЕДОСТАВЛЯЕТСЯ.
+
+4. Уведомления при распространении
+
+Каждая распространяемая исполняемая сборка или установщик должны содержать
+читаемые копии LICENSE, NOTICE.md и применимых файлов LICENSES/, включая
+исходное уведомление MIT. Разрешённые разделом 2 копии исходников сохраняют
+те же файлы. Необходимо соблюдать применимые сторонние лицензии. Можно
+добавить уведомление о собственном авторстве, но нельзя удалять или искажать
+существующие уведомления либо намекать на поддержку со стороны Plus In Plus
+или исходных авторов.
+
+5. Названия и обозначения
+
+Кроме отображения Обязательного упоминания и достоверного фактического
+описания, лицензия не предоставляет прав на товарные знаки, фирменные
+наименования или логотипы. Собственный брендинг провайдера не передаёт права
+на названия и обозначения Line Launcher или Plus In Plus и не разрешает
+удалять Обязательное упоминание.
+
+6. Прекращение разрешения
+
+Разрешение действует только при соблюдении лицензии. Нарушение автоматически
+прекращает разрешения на Материалы Line. В частности, удаление, отключение
+или сокрытие Обязательного упоминания делает дальнейшее использование или
+распространение неразрешённым. Необходимо прекратить такое использование и
+распространение и устранить нарушение, прежде чем вновь полагаться на эту
+лицензию. Прекращение не разрешает задним числом прошлые нарушения. Права на
+сторонние материалы по сторонним лицензиям сохраняются.
+
+7. Отказ от гарантий и ограничение ответственности
+
+В МАКСИМАЛЬНОЙ СТЕПЕНИ, ДОПУСТИМОЙ ПРИМЕНИМЫМ ПРАВОМ, МАТЕРИАЛЫ LINE
+ПРЕДОСТАВЛЯЮТСЯ «КАК ЕСТЬ», БЕЗ ЯВНЫХ ИЛИ ПОДРАЗУМЕВАЕМЫХ ГАРАНТИЙ, ВКЛЮЧАЯ
+ПРИГОДНОСТЬ ДЛЯ ПРОДАЖИ, КОНКРЕТНОЙ ЦЕЛИ И ОТСУТСТВИЕ НАРУШЕНИЯ ПРАВ. В ЭТОЙ
+ЖЕ СТЕПЕНИ PLUS IN PLUS НЕ НЕСЁТ ОТВЕТСТВЕННОСТИ ЗА ПРЕТЕНЗИИ, УБЫТКИ И ИНЫЕ
+ТРЕБОВАНИЯ, ВОЗНИКАЮЩИЕ ИЗ ИСПОЛЬЗОВАНИЯ ИЛИ НЕВОЗМОЖНОСТИ ИСПОЛЬЗОВАНИЯ
+МАТЕРИАЛОВ LINE. Ответственность, которую нельзя исключить по закону, не
+исключается. Гарантии и ответственность третьих лиц определяются их условиями
+и применимым правом.
+
+8. Общие положения
+
+Все прямо не предоставленные права сохраняются. Отдельное письменное
+соглашение, подписанное уполномоченным представителем Plus In Plus, может
+предоставить дополнительные разрешения. Если положение не имеет силы,
+остальные продолжают действовать в допустимой законом степени. Перед
+использованием разрешений, перечисленных выше, необходимо принять эти условия.

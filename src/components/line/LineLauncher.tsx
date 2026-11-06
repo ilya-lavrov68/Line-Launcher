@@ -1,0 +1,611 @@
+import {
+  AnimatePresence,
+  LazyMotion,
+  MotionConfig,
+  domAnimation,
+  m,
+} from "framer-motion";
+import { ArrowLeft, Check, Link2, LogOut, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { brand } from "@/brand/generated";
+import { Button } from "@/components/ui/button";
+import { errorMessage, lineApi } from "@/lib/line/api";
+import { isNewerGameStatus } from "@/types/line";
+import type {
+  AuthMode,
+  AuthSessionInfo,
+  ConfigSnapshot,
+  InstallProgress as ProgressData,
+  InstallReceipt,
+  LineServer,
+  GameStatus,
+  ReleaseHistory,
+} from "@/types/line";
+import AboutDialog from "./AboutDialog";
+import Attribution from "./Attribution";
+import AuthForm from "./AuthForm";
+import ConfigUrlInput from "./ConfigUrlInput";
+import InstallProgress from "./InstallProgress";
+import LaunchControls from "./LaunchControls";
+import BrandMark from "./BrandMark";
+import ServerList from "./ServerList";
+
+type Screen = "config" | "servers" | "detail";
+
+const LAUNCHER_VERSION = "0.1.0";
+
+export default function LineLauncher() {
+  const [screen, setScreen] = useState<Screen>("config");
+  const [snapshot, setSnapshot] = useState<ConfigSnapshot | null>(null);
+  const [selected, setSelected] = useState<LineServer | null>(null);
+  const [session, setSession] = useState<AuthSessionInfo | null>(null);
+  const [receipt, setReceipt] = useState<InstallReceipt | null>(null);
+  const [installedIds, setInstalledIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string>();
+  const [authError, setAuthError] = useState<string>();
+  const [installError, setInstallError] = useState<string>();
+  const [progress, setProgress] = useState<ProgressData | null>(null);
+  const operation = useRef<string | null>(null);
+  const mounted = useRef(true);
+  const requestGeneration = useRef(0);
+  const detailGeneration = useRef(0);
+  const [installing, setInstalling] = useState(false);
+  const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState<string>();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<ReleaseHistory | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string>();
+  const gameActive =
+    gameStatus?.phase === "starting" || gameStatus?.phase === "running";
+  const actionsBusy = installing || authLoading || launching || gameActive;
+
+  const loadConfig = useCallback(async (url: string, force = false) => {
+    const generation = ++requestGeneration.current;
+    setLoading(true);
+    setError(undefined);
+    try {
+      const next = await lineApi.fetchConfig(url, force);
+      if (!mounted.current || generation !== requestGeneration.current) return;
+      detailGeneration.current += 1;
+      setSnapshot(next);
+      setScreen("servers");
+      setSession(null);
+      setSelected(null);
+      setInstalledIds(new Set());
+      const builds = await Promise.all(
+        next.config.servers.map(async (server) => {
+          try {
+            return (await lineApi.installedBuild(server.id))?.serverId;
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      if (mounted.current && generation === requestGeneration.current) {
+        setInstalledIds(
+          new Set(builds.filter((id): id is string => Boolean(id))),
+        );
+      }
+    } catch (cause) {
+      if (mounted.current && generation === requestGeneration.current)
+        setError(errorMessage(cause));
+    } finally {
+      if (mounted.current && generation === requestGeneration.current)
+        setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    lineApi
+      .cachedConfig()
+      .then((cached) => {
+        if (cached && mounted.current) {
+          setSnapshot(cached);
+          setScreen("servers");
+          // Stale-while-revalidate: cached cards are visible immediately; a fresh
+          // successful fetch replaces them and clears the offline/stale badge.
+          void loadConfig(cached.sourceUrl);
+        }
+      })
+      .catch((cause) => {
+        if (mounted.current) setError(errorMessage(cause));
+      });
+    return () => {
+      mounted.current = false;
+      requestGeneration.current += 1;
+    };
+  }, [loadConfig]);
+
+  async function refresh() {
+    if (!snapshot || actionsBusy || refreshing) return;
+    setRefreshing(true);
+    setError(undefined);
+    try {
+      const next = await lineApi.fetchConfig(snapshot.sourceUrl, true);
+      if (!mounted.current) return;
+      setSnapshot(next);
+      // Config refresh can change endpoints and invalidate backend sessions.
+      setSession(null);
+      setReceipt(null);
+      detailGeneration.current += 1;
+      if (screen === "detail") {
+        setScreen("servers");
+        setSelected(null);
+      }
+    } catch (cause) {
+      if (mounted.current) setError(errorMessage(cause));
+    } finally {
+      if (mounted.current) setRefreshing(false);
+    }
+  }
+
+  async function selectServer(server: LineServer) {
+    if (snapshot?.stale) {
+      setError("Обновите конфигурацию перед входом и установкой.");
+      return;
+    }
+    const generation = ++detailGeneration.current;
+    setSelected(server);
+    setScreen("detail");
+    setSession(null);
+    setReceipt(null);
+    setProgress(null);
+    setAuthError(undefined);
+    setInstallError(undefined);
+    setLaunchError(undefined);
+    setGameStatus(null);
+    setHistory(null);
+    try {
+      const [installed, status] = await Promise.all([
+        lineApi.installedBuild(server.id),
+        lineApi.gameStatus(server.id),
+      ]);
+      if (mounted.current && generation === detailGeneration.current) {
+        setReceipt(installed);
+        setGameStatus((previous) =>
+          isNewerGameStatus(previous, status) ? status : previous,
+        );
+      }
+    } catch (cause) {
+      if (mounted.current && generation === detailGeneration.current)
+        setInstallError(errorMessage(cause));
+    }
+  }
+
+  async function authenticate(
+    mode: AuthMode,
+    username: string,
+    password: string,
+  ) {
+    if (!selected || actionsBusy) return;
+    const generation = detailGeneration.current;
+    const serverId = selected.id;
+    setAuthLoading(true);
+    setAuthError(undefined);
+    try {
+      const next = await lineApi.authenticate(mode, {
+        serverId,
+        username,
+        password,
+      });
+      if (mounted.current && generation === detailGeneration.current)
+        setSession(next);
+    } catch (cause) {
+      if (mounted.current && generation === detailGeneration.current)
+        setAuthError(errorMessage(cause));
+    } finally {
+      if (mounted.current && generation === detailGeneration.current)
+        setAuthLoading(false);
+    }
+  }
+
+  async function install() {
+    if (!selected || !session || operation.current || gameActive) return;
+    if (session.expiresAt <= Date.now()) {
+      setSession(null);
+      setAuthError("Сессия истекла. Войдите повторно.");
+      return;
+    }
+    const id = crypto.randomUUID();
+    operation.current = id;
+    setInstalling(true);
+    setInstallError(undefined);
+    setProgress(null);
+    let unlisten: (() => void) | undefined;
+    try {
+      unlisten = await lineApi.onProgress(id, (next) => {
+        if (mounted.current) setProgress(next);
+      });
+      const result = await lineApi.install(selected.id, id);
+      if (!mounted.current) return;
+      setReceipt(result);
+      setInstalledIds((previous) => new Set(previous).add(result.serverId));
+      setProgress(
+        (previous) =>
+          previous ?? {
+            operationId: id,
+            serverId: selected.id,
+            phase: "completed",
+            percent: 100,
+            receivedBytes: selected.distribution.size_bytes,
+            totalBytes: selected.distribution.size_bytes,
+            extractedBytes: selected.distribution.unpacked_size_bytes,
+            unpackedBytes: selected.distribution.unpacked_size_bytes,
+          },
+      );
+    } catch (cause) {
+      if (!mounted.current) return;
+      const message = errorMessage(cause);
+      setInstallError(message);
+      setProgress((previous) =>
+        previous
+          ? { ...previous, phase: "failed" }
+          : {
+              operationId: id,
+              serverId: selected.id,
+              phase: "failed",
+              percent: 0,
+              receivedBytes: 0,
+              totalBytes: selected.distribution.size_bytes,
+              extractedBytes: 0,
+              unpackedBytes: selected.distribution.unpacked_size_bytes,
+            },
+      );
+    } finally {
+      unlisten?.();
+      operation.current = null;
+      if (mounted.current) setInstalling(false);
+    }
+  }
+
+  async function cancel() {
+    if (!operation.current) return;
+    try {
+      await lineApi.cancel(operation.current);
+    } catch (cause) {
+      if (mounted.current) setInstallError(errorMessage(cause));
+    }
+  }
+
+  async function logout() {
+    if (!selected || actionsBusy) return;
+    try {
+      await lineApi.logout(selected.id);
+      setSession(null);
+      setAuthError(undefined);
+    } catch (cause) {
+      setAuthError(errorMessage(cause));
+    }
+  }
+
+  useEffect(() => {
+    if (!selected || screen !== "detail") return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    lineApi
+      .onGame(selected.id, (status) => {
+        if (mounted.current && !cancelled)
+          setGameStatus((previous) =>
+            isNewerGameStatus(previous, status) ? status : previous,
+          );
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [selected, screen]);
+
+  async function launch() {
+    if (!selected || !session || actionsBusy) return;
+    const generation = detailGeneration.current;
+    setLaunching(true);
+    setLaunchError(undefined);
+    try {
+      const status = await lineApi.launch(selected.id);
+      if (mounted.current && generation === detailGeneration.current)
+        setGameStatus((previous) =>
+          isNewerGameStatus(previous, status) ? status : previous,
+        );
+    } catch (cause) {
+      if (mounted.current && generation === detailGeneration.current)
+        setLaunchError(errorMessage(cause));
+    } finally {
+      if (mounted.current && generation === detailGeneration.current)
+        setLaunching(false);
+    }
+  }
+
+  async function stopGame() {
+    if (!selected || !gameActive) return;
+    try {
+      await lineApi.stopGame(selected.id);
+    } catch (cause) {
+      setLaunchError(errorMessage(cause));
+    }
+  }
+
+  async function openHistory(open: boolean) {
+    setHistoryOpen(open);
+    if (!open || !selected || actionsBusy) return;
+    const generation = detailGeneration.current;
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      const next = await lineApi.history(selected.id);
+      if (mounted.current && generation === detailGeneration.current)
+        setHistory(next);
+    } catch (cause) {
+      if (mounted.current && generation === detailGeneration.current)
+        setHistoryError(errorMessage(cause));
+    } finally {
+      if (mounted.current && generation === detailGeneration.current)
+        setHistoryLoading(false);
+    }
+  }
+
+  async function rollback(target: InstallReceipt) {
+    if (!selected || actionsBusy || historyLoading) return;
+    const generation = detailGeneration.current;
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      const result = await lineApi.rollback(selected.id, target.sha256);
+      if (!mounted.current || generation !== detailGeneration.current) return;
+      setReceipt(result.receipt);
+      setHistory(await lineApi.history(selected.id));
+      setHistoryOpen(false);
+    } catch (cause) {
+      if (mounted.current && generation === detailGeneration.current)
+        setHistoryError(errorMessage(cause));
+    } finally {
+      if (mounted.current && generation === detailGeneration.current)
+        setHistoryLoading(false);
+    }
+  }
+
+  function changeProvider() {
+    if (actionsBusy || loading) return;
+    if (selected) void lineApi.logout(selected.id).catch(() => undefined);
+    detailGeneration.current += 1;
+    setScreen("config");
+    setSelected(null);
+    setSession(null);
+    setError(undefined);
+  }
+
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <MotionConfig reducedMotion="user">
+        <div className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
+          <header
+            data-tauri-drag-region
+            className="border-border/50 bg-card/50 flex w-full shrink-0 cursor-default flex-wrap items-center justify-between gap-3 border-b p-4 backdrop-blur-md select-none"
+          >
+            <div
+              className="pointer-events-none ml-3 flex items-center gap-3"
+              data-tauri-drag-region
+            >
+              <BrandMark />
+              <h1
+                data-tauri-drag-region
+                className="text-foreground text-xl font-bold tracking-tight"
+              >
+                {brand.name}
+              </h1>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+              {brand.attribution.placement === "header" && <Attribution />}
+              {snapshot && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={actionsBusy || loading}
+                  onClick={changeProvider}
+                  className="pointer-events-auto flex cursor-pointer items-center gap-1.5 text-xs"
+                >
+                  <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Сменить провайдера</span>
+                </Button>
+              )}
+              <AboutDialog version={LAUNCHER_VERSION} />
+            </div>
+          </header>
+          <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="mx-auto max-w-5xl">
+              {error && screen !== "config" && (
+                <p
+                  role="alert"
+                  className="text-destructive border-destructive/20 bg-destructive/5 mb-5 rounded-lg border p-3 text-xs"
+                >
+                  {error}
+                </p>
+              )}
+              <AnimatePresence mode="wait" initial={false}>
+                <m.div
+                  key={screen === "detail" ? `detail-${selected?.id}` : screen}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {screen === "config" && (
+                    <div className="flex min-h-full items-center justify-center py-4">
+                      <ConfigUrlInput
+                        initialUrl={snapshot?.sourceUrl}
+                        loading={loading}
+                        error={error}
+                        onSubmit={(url) => void loadConfig(url)}
+                      />
+                    </div>
+                  )}
+                  {screen === "servers" && snapshot && (
+                    <ServerList
+                      providerName={snapshot.config.provider.name}
+                      servers={snapshot.config.servers}
+                      installedIds={installedIds}
+                      stale={snapshot.stale}
+                      refreshing={refreshing}
+                      actionsDisabled={actionsBusy}
+                      onSelect={(server) => void selectServer(server)}
+                      onRefresh={() => void refresh()}
+                    />
+                  )}
+                  {screen === "detail" && selected && (
+                    <section className="mx-auto flex max-w-xl flex-col gap-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={actionsBusy}
+                        onClick={() => {
+                          detailGeneration.current += 1;
+                          setScreen("servers");
+                          setSelected(null);
+                          setSession(null);
+                        }}
+                        className="flex cursor-pointer items-center gap-1.5 self-start text-xs"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Все серверы</span>
+                      </Button>
+                      <div className="bg-card border-border/50 relative flex flex-col gap-6 overflow-hidden rounded-xl border p-6 shadow-2xl backdrop-blur-md">
+                        <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
+                        <div className="relative z-10 flex flex-col gap-1">
+                          <span className="text-muted-foreground font-mono text-[10px]">
+                            {snapshot?.config.provider.name} / v
+                            {selected.version}
+                          </span>
+                          <h2 className="text-foreground text-2xl font-bold tracking-tight">
+                            {selected.name}
+                          </h2>
+                          <p className="text-muted-foreground text-xs leading-relaxed">
+                            {selected.description}
+                          </p>
+                        </div>
+                        {session ? (
+                          <div className="relative z-10 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                              <Check
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              {session.username}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={actionsBusy}
+                              onClick={() => void logout()}
+                              className="flex cursor-pointer items-center gap-1.5 text-xs"
+                            >
+                              <LogOut
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              <span>Выйти</span>
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="relative z-10">
+                            <AuthForm
+                              serverName={selected.name}
+                              registrationAvailable={Boolean(
+                                selected.auth.register_url,
+                              )}
+                              loading={authLoading || installing}
+                              error={authError}
+                              onSubmit={(mode, username, password) =>
+                                void authenticate(mode, username, password)
+                              }
+                            />
+                          </div>
+                        )}
+                        {session &&
+                          !progress &&
+                          (!receipt ||
+                            receipt.sha256 !==
+                              selected.distribution.sha256) && (
+                            <Button
+                              disabled={actionsBusy}
+                              onClick={() => void install()}
+                              className="relative z-10 h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98]"
+                            >
+                              {installing
+                                ? "Подготовка установки…"
+                                : receipt
+                                  ? "Обновить сборку"
+                                  : "Установить сборку"}
+                            </Button>
+                          )}
+                        {progress && (
+                          <div className="relative z-10">
+                            <InstallProgress
+                              progress={progress}
+                              error={installError}
+                              onCancel={() => void cancel()}
+                              onRetry={() => void install()}
+                            />
+                          </div>
+                        )}
+                        {receipt &&
+                          (!progress || progress.phase === "completed") && (
+                            <LaunchControls
+                              server={selected}
+                              receipt={receipt}
+                              status={gameStatus}
+                              busy={actionsBusy}
+                              error={launchError}
+                              historyOpen={historyOpen}
+                              history={history}
+                              historyLoading={historyLoading}
+                              historyError={historyError}
+                              onHistoryOpenChange={(open) =>
+                                void openHistory(open)
+                              }
+                              onRollback={(target) => void rollback(target)}
+                              onLaunch={() => void launch()}
+                              onStop={() => void stopGame()}
+                            />
+                          )}
+                        {installError && !progress && (
+                          <p
+                            role="alert"
+                            className="text-destructive relative z-10 text-xs"
+                          >
+                            {installError}
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                  )}
+                </m.div>
+              </AnimatePresence>
+            </div>
+          </main>
+          <footer className="border-border/50 text-muted-foreground flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[10px]">
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>
+                {brand.shortName} | {LAUNCHER_VERSION}
+              </span>
+              {brand.attribution.placement === "footer" && <Attribution />}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+              Только авторизация провайдера
+            </span>
+          </footer>
+        </div>
+      </MotionConfig>
+    </LazyMotion>
+  );
+}

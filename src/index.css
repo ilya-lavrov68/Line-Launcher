@@ -180,3 +180,15 @@ input[id*="hidden-input"],
   flex-direction: column !important;
   box-sizing: border-box !important;
 }
+
+/* Line respects the OS setting in addition to Framer Motion's MotionConfig. */
+@media (prefers-reduced-motion: reduce) {
+  body {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,252 +1,122 @@
-<div align="center">
+# Line Launcher
 
-# 💎 Obsy Launcher
+**Plus In Plus** — готовое брендируемое решение для провайдеров игровых серверов: минималистичный Minecraft-лаунчер с авторизацией провайдера. Построен на [Obsy Launcher](https://github.com/obsy-official/obsy-launcher). Line распространяется как **source-available**, не как полностью open-source продукт; исходные компоненты Obsy сохраняют MIT.
 
-**A blazing-fast, lightweight, and modern cross-platform Minecraft launcher.**
+```text
+config.json провайдера → витрина серверов → вход / регистрация
+→ проверка и установка ZIP → подготовленная сборка
+```
 
-[![Release](https://img.shields.io/github/v/release/obsy-official/obsy-launcher?style=for-the-badge&color=6366f1)](https://github.com/obsy-official/obsy-launcher/releases)
-[![Rust](https://img.shields.io/badge/Rust-Backend-dea584?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
-[![Tauri](https://img.shields.io/badge/Tauri_v2-Native-24C8D8?style=for-the-badge&logo=tauri)](https://tauri.app/)
-[![React](https://img.shields.io/badge/React_19-Frontend-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-MIT-emerald?style=for-the-badge)](LICENSE)
+Без Microsoft/offline-аккаунтов, ручного выбора загрузчиков, аддонов, виджетов и пользовательских JVM-флагов.
 
-[🇷🇺 **Читать на русском**](#-obsy-launcher-русский) • [📥 **Download**](#-getting-started) • [🧩 **Addons Guide**](addons/README.md) • [🤝 **Contributing**](CONTRIBUTING.md)
+## Статус: первый вертикальный срез
 
-<br/>
+Реализованы типизированный конфиг, кэш с TTL/ETag, API провайдера, Rust-хранилище сессий, потоковая загрузка с SHA-256, безопасная распаковка, атомарная публикация релиза и build-time брендинг. React-экраны переиспользуют компоненты и палитру Obsy/Base UI, Tailwind v4, Framer Motion и Lucide.
 
-![Obsy Launcher Dashboard](docs/images/obsy-dashboard.png)
+**Запуск Minecraft реализован на стороне launcher, но ещё не проверен с реальной сборкой.** Есть строгий `line-launch.json`, поиск Java, одноразовый launch ticket, приватный IPC, spawn/остановка процесса и откат релизов. Exchange endpoint и интеграция мода с Minecraft session остаются ответственностью провайдера; справочный Java-клиент приложен. Небезопасной передачи токена через `-D` нет. Это не готовый production-релиз.
 
-</div>
+## Документация
 
----
+- [Брендинг под свой проект](docs/BRANDING.md) — палитра, логотипы, иконка приложения
+- [Архитектура, решения безопасности и roadmap](docs/ARCHITECTURE.md)
+- [Контракт провайдера](docs/PROVIDER.md)
+- [Пример config.json](examples/config.json) — значения URL/размеров/хеша демонстрационные, архив не скачивается.
+- [TypeScript-контракт](src/types/line.ts)
+- [Rust-модуль установки](src-tauri/src/line/install.rs)
+- [ServerCard](src/components/line/ServerCard.tsx)
 
-## ✨ Features
+## Брендинг
 
-- ⚡ **Ultra-Fast & Resource-Efficient**: Starts in under **400 ms** with minimal RAM usage (~**40 MB** idle) thanks to the native Rust + Tauri v2 core.
-- 🎨 **Sleek Modern Interface**: Responsive glassmorphic UI built with React 19, Tailwind CSS, Base UI, and smooth Framer Motion micro-animations.
-- 🧩 **Modular Addon Ecosystem**: Extend launcher features on the fly with live widgets, Discord Rich Presence, Modrinth integration, 3D skin dolls, custom themes, and launch hooks.
-- 🎮 **Universal Account Management**: Instant switching between Microsoft MSA and Offline accounts, with custom skin previews and cape wardrobe support.
-- 🚀 **Smart Instance & Version Control**: Filter and launch Vanilla releases, snapshots, Fabric, Forge, NeoForge, and Quilt with isolated directories.
-- 🛠️ **Power-User Performance Tweaks**: One-click Aikar's garbage collection flags, automatic RAM allocation detection, customizable JVM arguments, and live streaming console logs.
-- 🌐 **Multi-Language Support**: English and Russian localization with seamless real-time switching.
+Лаунчер можно быстро адаптировать под свой игровой проект: название, акценты,
+логотип в интерфейсе и иконка приложения задаются одним файлом [`branding/line.brand.json`](branding/line.brand.json).
 
----
+```sh
+# отредактируйте branding/line.brand.json, затем
+npm run brand
+npm run tauri:build
+```
 
-## 📸 Visual Tour
+UI/UX, палитра и скругления остаются как в оригинальном Obsy Launcher: пресет по
+умолчанию `obsy` не создаёт ни одного переопределения, а генератор разрешает
+менять только семантические цвета. Для проектов есть готовые пресеты
+(`emerald`, `violet`, `amber`, `rose`, `sky`) и точечные переопределения.
 
-<div align="center">
+Упоминание **Line Launcher | Plus In Plus** — условие лицензии, а не просто
+оформление. Без него использовать и распространять сборки с материалами Line
+нельзя. Точные фразы: «Работает на Line Launcher | Plus In Plus» /
+«Powered by Line Launcher | Plus In Plus». Конфиг выбирает только постоянный
+футер или шапку и язык (`ru`, `en`, `both`); «О программе» всегда повторяет
+упоминание дополнительно. Подробнее — [docs/BRANDING.md](docs/BRANDING.md).
 
-### 🧩 Addons Hub & Marketplace
+## Разработка
 
-Explore and install community addons, integrations, and widgets with granular permission safety checks.
+Требования: Node.js 22+, npm, Rust stable и [системные зависимости Tauri v2](https://tauri.app/start/prerequisites/).
 
-![Obsy Launcher Addons Hub](docs/images/obsy-addons.png)
-
-<br/>
-
-### ⚙️ Comprehensive Game & JVM Settings
-
-Configure memory limits, Java runtime paths, optimized GC flags, and window resolutions.
-
-![Obsy Launcher Settings](docs/images/obsy-settings.png)
-
-<br/>
-
-### 📟 Real-Time Live Game Console
-
-Color-coded logs and diagnostic output streamed straight from the Minecraft engine and Rust backend.
-
-![Obsy Launcher Live Console](docs/images/obsy-console.png)
-
-</div>
-
----
-
-## 🚀 Getting Started
-
-### 📥 Download (For Players)
-
-1. Head over to the [Releases](https://github.com/obsy-official/obsy-launcher/releases) page.
-2. Grab the installer for your platform:
-   - **Windows:** `.exe` (Installer) or `.msi`
-   - **macOS:** `.dmg` (Apple Silicon & Intel)
-   - **Linux:** `.AppImage` or `.deb`
-3. Launch Obsy, select your profile, and enjoy Minecraft!
-
----
-
-### 💻 Development (For Contributors)
-
-#### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18+) or [Bun](https://bun.sh/)
-- [Rust & Cargo](https://www.rust-lang.org/tools/install) (stable)
-- [Tauri v2 Prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites)
-
-#### Setup & Launch
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/obsy-official/obsy-launcher.git
-cd obsy-launcher
-
-# 2. Install dependencies
-npm install
-
-# 3. Build built-in addons
-npm run build:addons
-
-# 4. Start the launcher in development mode
+```sh
+npm ci
 npm run tauri dev
 ```
 
-#### Build Production Bundles
+`npm run dev` поднимает только frontend. Без desktop shell доступен интерфейс ввода ссылки; авторизация и установка не имитируются.
 
-```bash
-npm run tauri build
+```sh
+npm test
+npm run test:rust
+npm run test:java
+npm run test:provider
+npm run brand:check
+npm run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
----
+Проверки TypeScript, production-сборки frontend, тестов контракта и брендинга,
+чистой Rust-логики, Java-клиента и референсного провайдера выполняются локально.
+Статус и ограничения среды — [docs/VERIFICATION.md](docs/VERIFICATION.md).
+Полный `cargo check/test/clippy`, проверки на Windows/macOS, реальный Minecraft,
+подпись и updater — по инструкции в [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
-## 🧩 Addon Development
+Для end-to-end проверки без Minecraft есть референсный провайдер и генератор сборки:
 
-Obsy Launcher features a plugin architecture allowing developers to build rich addons using TypeScript and React:
-
-- **Addon slots**: Mount widgets to dashboard cards, header actions, and sidebars.
-- **Launch hooks**: Intercept game launches, inject custom JVM arguments, and run pre-flight scripts.
-- **Sandboxed permissions**: Safe access to profile storage, instance directories, and network.
-
-👉 Read the [Addon Development Guide](addons/README.md) to build your first addon in minutes.
-
----
-
-## 🛠️ Tech Stack
-
-| Layer                | Technologies                                      |
-| -------------------- | ------------------------------------------------- |
-| **Frontend Core**    | React 19, TypeScript, Vite, Base UI               |
-| **Styling & Motion** | Tailwind CSS v4, Framer Motion, Lucide Icons      |
-| **3D Graphics**      | skinview3d (Three.js WebGL skin & cape rendering) |
-| **Desktop Runtime**  | Tauri v2, WebKit / WebView2                       |
-| **Native Backend**   | Rust 2021, Tokio, Reqwest, Serde                  |
-
----
-
-<br/>
-<br/>
-
----
-
-<div align="center">
-
-# 🇷🇺 Obsy Launcher (Русский)
-
-**Молниеносный, легковесный и современный кроссплатформенный лаунчер для Minecraft.**
-
-[📥 **Скачать**](#-скачивание-для-игроков) • [🧩 **Руководство по аддонам**](addons/README.md) • [🤝 **Участие в разработке**](CONTRIBUTING.md) • [📄 **Лицензия**](LICENSE)
-
-<br/>
-
-![Главное меню Obsy Launcher](docs/images/obsy-dashboard.png)
-
-</div>
-
----
-
-## ✨ Возможности
-
-- ⚡ **Максимальная производительность**: Время холодного запуска менее **400 мс**, потребление оперативной памяти в фоне ~**40 МБ** благодаря связке Rust и Tauri v2.
-- 🎨 **Современный стеклянный интерфейс**: UI на React 19 и Tailwind CSS с плавной анимацией на Framer Motion.
-- 🧩 **Модульный движок аддонов**: Расширяйте возможности лаунчера прямо на лету — 3D-модель персонажа с гардеробом плащей, Discord Rich Presence, каталог Modrinth, темы и хуки запуска.
-- 🎮 **Удобное управление аккаунтами**: Мгновенное переключение между аккаунтами Microsoft (MSA) и оффлайн-профилями, синхронизация скинов и плащей.
-- 🚀 **Поддержка любых версий и модпаков**: Запуск официальных релизов, снапшотов, Fabric, Forge, NeoForge и Quilt в изолированных директориях.
-- 🛠️ **Тонкая оптимизация**: Применение флагов сборщика мусора Aikar's Flags в один клик, автоопределение памяти, кастомные аргументы JVM и встроенная консоль с логами.
-- 🌐 **Двуязычный интерфейс**: Полная поддержка русского и английского языков с переключением в реальном времени.
-
----
-
-## 📸 Скриншоты
-
-<div align="center">
-
-### 🧩 Центр аддонов (Obsy Addons Hub)
-
-Каталог модулей, тем и интеграций с проверкой безопасности и детальным списком разрешений.
-
-![Центр аддонов Obsy Launcher](docs/images/obsy-addons.png)
-
-<br/>
-
-### ⚙️ Настройки производительности и графики
-
-Управление выделением памяти (RAM), выбор версии Java, аргументы JVM и параметры экрана.
-
-![Настройки Obsy Launcher](docs/images/obsy-settings.png)
-
-<br/>
-
-### 📟 Консоль и диагностические логи
-
-Вывод логов клиента игры и бэкенда лаунчера в режиме реального времени с подсветкой синтаксиса.
-
-![Консоль Obsy Launcher](docs/images/obsy-console.png)
-
-</div>
-
----
-
-## 🚀 Как начать
-
-### 📥 Скачивание (Для игроков)
-
-1. Перейдите в раздел [Releases](https://github.com/obsy-official/obsy-launcher/releases).
-2. Загрузите установщик для вашей системы:
-   - **Windows:** `.exe` (Установщик) или `.msi`
-   - **macOS:** `.dmg` (Apple Silicon M1/M2/M3/M4 и Intel)
-   - **Linux:** `.AppImage` или `.deb`
-3. Установите лаунчер, выберите версию Minecraft и запускайте игру!
-
----
-
-### 💻 Разработка (Для разработчиков)
-
-#### Требования
-
-- [Node.js](https://nodejs.org/) (версия 18+) или [Bun](https://bun.sh/)
-- [Rust и Cargo](https://www.rust-lang.org/tools/install)
-- [Зависимости Tauri v2](https://tauri.app/v1/guides/getting-started/prerequisites)
-
-#### Сборка и запуск
-
-```bash
-# 1. Клонирование репозитория
-git clone https://github.com/obsy-official/obsy-launcher.git
-cd obsy-launcher
-
-# 2. Установка зависимостей
-npm install
-
-# 3. Сборка встроенных аддонов
-npm run build:addons
-
-# 4. Запуск в режиме разработки
-npm run tauri dev
+```sh
+npm run provider:pack     # .provider/pack.zip + config.json
+npm run provider:serve    # https://localhost:8443/config.json
+npm run test:provider     # автоматическая проверка связки
+npm run test:ui           # UI-smoke (нужен playwright-core и запущенный npm run dev)
 ```
 
-#### Сборка релизного бинарника
+## Данные
 
-```bash
-npm run tauri build
+Per-user каталог Tauri app data:
+
+```text
+config-cache.json
+instances/<server-id>/
+  .install.lock
+  .staging-<uuid>/       # временно, удаляется при ошибке/следующей установке
+  releases/<sha256>/     # проверенный immutable-релиз
+  current.json           # атомарно публикуемый указатель
 ```
 
----
+Пароли и токены не сохраняются на диск или в WebView. Старые данные Obsy не импортируются и не удаляются.
 
-## 🤝 Вклад в проект
+## Релизы
 
-Мы рады любой помощи в развитии проекта! Перед отправкой Pull Request, пожалуйста, ознакомьтесь с файлом [CONTRIBUTING.md](CONTRIBUTING.md).
+Автоматическое обновление Obsy и его ключ отключены. Workflow вручную собирает неподписанные кандидаты, применяя брендинг через `tauri build -c src-tauri/tauri.brand.conf.json`. Публикация, подпись кода и updater Line — отдельные этапы перед распространением.
 
----
+## Лицензия
 
-## 📄 Лицензия
+Оригинальные материалы Line — [Line Launcher Provider License 1.0](LICENSE):
+source-available лицензия для провайдеров игровых серверов с обязательным
+видимым упоминанием **Line Launcher | Plus In Plus**. Это не MIT и не
+open-source лицензия. Разрешены интеграция, коммерческое использование для
+своих игровых сервисов и распространение брендированных сборок их игрокам при
+соблюдении условий. Удаление упоминания прекращает разрешение; отдельные
+права требуют письменного согласия Plus In Plus.
 
-Проект распространяется под открытой лицензией [MIT](LICENSE).
+Исходные материалы Obsy остаются под MIT: дословный текст сохранён в
+[LICENSES/Obsy-MIT.txt](LICENSES/Obsy-MIT.txt). Новая лицензия Line не отзывает
+права на upstream. Сторонние уведомления — [NOTICE.md](NOTICE.md) и
+[LICENSES/](LICENSES/). Перед публичным коммерческим релизом рекомендуется
+юридическая проверка текста под вашу юрисдикцию.

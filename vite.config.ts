@@ -17,7 +17,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    host: host || false,
+    host: host || "0.0.0.0",
+    allowedHosts: [".e2b.app", "localhost", "127.0.0.1"],
     hmr: host
       ? {
           protocol: "ws",

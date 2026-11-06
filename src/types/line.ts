@@ -1,0 +1,230 @@
+/** Line Launcher public config contract, schema 1. JSON uses snake_case. */
+export const LINE_SCHEMA_VERSION = 1 as const;
+export const LINE_SUPPORTED_FEATURES = [
+  "custom-auth-v1",
+  "zip-sha256-v1",
+  "launch-manifest-v1",
+  "private-ipc-v1",
+] as const;
+export type LineFeature = (typeof LINE_SUPPORTED_FEATURES)[number];
+
+export interface LineProvider {
+  id: string;
+  name: string;
+  logo_url?: string;
+}
+
+export interface LineAuthConfig {
+  /** POST { username, password, server_id }; HTTPS only. */
+  login_url: string;
+  /** Same request/response contract as login_url. Omit to disable registration. */
+  register_url?: string;
+  /** POST bearer provider session; issues a one-shot launch ticket. */
+  launch_ticket_url?: string;
+  /** HTTPS endpoint the game mod exchanges the ticket at. */
+  session_exchange_url?: string;
+}
+
+export interface LineDistribution {
+  /** Immutable HTTPS archive URL. Redirects are revalidated by Rust. */
+  url: string;
+  /** Lowercase, 64-character SHA-256 of the complete ZIP. Required. */
+  sha256: string;
+  /** Exact compressed size; also used to reject oversized responses early. */
+  size_bytes: number;
+  /** Exact sum of regular-file sizes after extraction, excluding directories. */
+  unpacked_size_bytes: number;
+}
+
+export interface LineServer {
+  /** Stable, lowercase ASCII slug; never accept a filesystem path from JSON. */
+  id: string;
+  name: string;
+  description: string;
+  logo_url?: string;
+  /** Provider's release identifier. Change it when the distribution changes. */
+  version: string;
+  minecraft_version?: string;
+  auth: LineAuthConfig;
+  distribution: LineDistribution;
+}
+
+export interface LineConfig {
+  schema_version: typeof LINE_SCHEMA_VERSION;
+  /** Strict SemVer. Checked numerically, including prerelease precedence. */
+  min_launcher_version: string;
+  provider: LineProvider;
+  /** Defaults to 300 s; Rust validates the range 60–86400 s. */
+  cache_ttl_seconds?: number;
+  /** Additional required capabilities. Unknown features fail closed. */
+  required_features?: LineFeature[];
+  servers: LineServer[];
+}
+
+/** Rust IPC DTOs use camelCase (Tauri's default argument conversion). */
+export interface ConfigSnapshot {
+  config: LineConfig;
+  sourceUrl: string;
+  fetchedAt: number;
+  fromCache: boolean;
+  stale: boolean;
+}
+
+export interface AuthSessionInfo {
+  serverId: string;
+  username: string;
+  /** Unix epoch milliseconds. Never includes the provider access token. */
+  expiresAt: number;
+}
+
+export type AuthMode = "login" | "register";
+export interface AuthCredentials {
+  serverId: string;
+  username: string;
+  password: string;
+}
+
+/** Wire representation of Rust's LineError. Messages never contain credentials. */
+export type LineErrorCode =
+  | "INVALID_INPUT"
+  | "UNSUPPORTED_VERSION"
+  | "NETWORK"
+  | "HTTP_STATUS"
+  | "INVALID_CREDENTIALS"
+  | "ACCOUNT_EXISTS"
+  | "RATE_LIMITED"
+  | "AUTH_REQUIRED"
+  | "JAVA_REQUIRED"
+  | "INTEGRITY"
+  | "UNSAFE_ARCHIVE"
+  | "STORAGE"
+  | "DISK_SPACE"
+  | "BUSY"
+  | "CANCELLED"
+  | "INTERNAL";
+
+export interface LineError {
+  code: LineErrorCode;
+  message: string;
+  retryable: boolean;
+  httpStatus?: number;
+}
+
+export type InstallPhase =
+  | "downloading"
+  | "verifying"
+  | "extracting"
+  | "committing"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
+export interface InstallProgress {
+  operationId: string;
+  serverId: string;
+  phase: InstallPhase;
+  /** Monotonic overall progress, 0–100; not a network-speed estimate. */
+  percent: number;
+  receivedBytes: number;
+  totalBytes: number;
+  extractedBytes: number;
+  unpackedBytes: number;
+}
+
+export interface InstallReceipt {
+  serverId: string;
+  version: string;
+  sha256: string;
+  installedAt: number;
+  alreadyInstalled: boolean;
+}
+
+export const LINE_PROGRESS_EVENT = "line://install-progress";
+export const LINE_GAME_EVENT = "line://game-status";
+
+export interface LaunchManifest {
+  schema_version: 1;
+  java_major: number;
+  main_class: string;
+  classpath: string[];
+  minecraft_version: string;
+  asset_index?: string;
+  assets_dir?: string;
+  natives_dir?: string;
+}
+
+export type GamePhase = "idle" | "starting" | "running" | "exited" | "failed";
+export interface GameStatus {
+  serverId: string;
+  /** Monotonic backend counter; older revisions must never overwrite newer ones. */
+  revision: number;
+  phase: GamePhase;
+  sha256?: string;
+  startedAt?: number;
+  exitCode?: number;
+  /** Non-sensitive lifecycle explanation from Rust. */
+  message?: string;
+}
+
+export interface ReleaseHistory {
+  serverId: string;
+  releases: InstallReceipt[];
+}
+
+export interface RollbackResult {
+  receipt: InstallReceipt;
+  removedReleases: string[];
+}
+
+/**
+ * Tauri events and command replies can arrive out of order. Accept a status only
+ * when it is at least as new as the one already shown for the same server.
+ */
+export function isNewerGameStatus(
+  previous: GameStatus | null | undefined,
+  next: GameStatus,
+): boolean {
+  if (!previous || previous.serverId !== next.serverId) return true;
+  return next.revision >= previous.revision;
+}
+
+export function isLineError(value: unknown): value is LineError {
+  if (!value || typeof value !== "object") return false;
+  const error = value as Record<string, unknown>;
+  const codes: LineErrorCode[] = [
+    "INVALID_INPUT",
+    "UNSUPPORTED_VERSION",
+    "NETWORK",
+    "HTTP_STATUS",
+    "INVALID_CREDENTIALS",
+    "ACCOUNT_EXISTS",
+    "RATE_LIMITED",
+    "AUTH_REQUIRED",
+    "JAVA_REQUIRED",
+    "INTEGRITY",
+    "UNSAFE_ARCHIVE",
+    "STORAGE",
+    "DISK_SPACE",
+    "BUSY",
+    "CANCELLED",
+    "INTERNAL",
+  ];
+  return (
+    codes.includes(error.code as LineErrorCode) &&
+    typeof error.message === "string" &&
+    typeof error.retryable === "boolean" &&
+    (error.httpStatus === undefined ||
+      (typeof error.httpStatus === "number" &&
+        Number.isInteger(error.httpStatus)))
+  );
+}
+
+export function toLineError(value: unknown): LineError {
+  if (isLineError(value)) return value;
+  // Do not display/log an unknown exception: it could contain a signed URL or token.
+  return {
+    code: "INTERNAL",
+    message: "Не удалось выполнить операцию. Повторите попытку.",
+    retryable: false,
+  };
+}

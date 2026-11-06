@@ -1,63 +1,13 @@
-# Contributing to Obsy Launcher (Участие в разработке)
+# Участие в Line Launcher
 
-_(🇷🇺 Русская версия ниже)_
+Line Launcher — source-available решение Plus In Plus для провайдеров игровых серверов, построенное на Obsy Launcher. Не добавляйте универсальные аккаунты, загрузчики, аддоны или произвольные JVM-настройки без отдельного архитектурного решения.
 
-First off, thank you for considering contributing to Obsy Launcher! It's people like you that make open source such a great community.
+1. Создайте ветку от актуальной `main`.
+2. Установите Node.js 22+, Rust stable и зависимости Tauri v2.
+3. `npm ci`, затем `npm run tauri dev`.
+4. Frontend-компоненты Line находятся в `src/components/line/`; переиспользуйте `src/components/ui/`, Tailwind-токены, Framer Motion, Lucide и Base UI.
+5. Backend-команды не должны принимать секреты в логи, произвольные пути из JSON или токены в WebView.
+6. Перед PR выполните `npm test`, `npm run build`, Rust fmt/test/clippy из README.
+7. Не прикладывайте пароли, токены, приватные конфиги и пользовательские миры к issue.
 
-## Where do I go from here?
-
-If you've noticed a bug or have a feature request, make sure to check if there's already an issue for it. If not, open a new issue using our provided templates!
-
-## Setting up your environment
-
-1. Fork the repo and create your branch from `main`.
-2. Run `npm install` in the repository root.
-3. Make your changes in the `src/` (frontend) or `src-tauri/` (backend) directories.
-
-## Developing & Submitting Addons
-
-Want to build a community addon, widget, or theme? Check out our comprehensive [Addon Development Guide](addons/README.md).
-
-## Code Style
-
-This project uses `prettier` for code formatting.
-
-Before submitting a pull request, please make sure your code is formatted correctly by running:
-
-```bash
-npm run format
-```
-
-This will format both your TypeScript/JavaScript files and Rust files (via `cargo fmt`).
-
----
-
-# 🇷🇺 Участие в разработке Obsy Launcher
-
-Прежде всего, спасибо, что решили внести свой вклад в Obsy Launcher! Именно благодаря таким людям Open Source сообщество развивается.
-
-## С чего начать?
-
-Если вы нашли баг или хотите предложить новую фичу, проверьте вкладку Issues — возможно, кто-то уже написал об этом. Если нет, смело создавайте новый Issue, используя наши шаблоны!
-
-## Настройка окружения
-
-1. Сделайте форк репозитория и создайте ветку от `main`.
-2. Запустите `npm install` в корневой папке.
-3. Вносите свои изменения в `src/` (фронтенд) или `src-tauri/` (бэкенд).
-
-## Разработка и публикация аддонов
-
-Хотите создать собственный модуль, виджет, тему или интеграцию? Ознакомьтесь с [Руководством по созданию аддонов](addons/README.md).
-
-## Стиль кода
-
-Этот проект использует `prettier` для форматирования кода.
-
-Перед тем как отправить Pull Request, убедитесь, что ваш код отформатирован правильно. Для этого запустите:
-
-```bash
-npm run format
-```
-
-Эта команда отформатирует ваши TypeScript/JavaScript файлы, а также код на Rust (с помощью `cargo fmt`).
+Документация: [архитектура](docs/ARCHITECTURE.md), [контракт провайдера](docs/PROVIDER.md), [брендинг](docs/BRANDING.md). Вклад в материалы Line принимается на условиях [LICENSE](LICENSE); исходные материалы Obsy остаются под MIT (`LICENSES/Obsy-MIT.txt`). Не удаляйте обязательное упоминание Line Launcher | Plus In Plus и сторонние уведомления.

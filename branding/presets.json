@@ -1,0 +1,31 @@
+{
+  "$comment": "Named palette presets. 'obsy' is intentionally empty: it inherits every token from src/index.css exactly as upstream Obsy defines them, including radii. Other presets override only colour slots, never --radius or geometry.",
+  "presets": {
+    "obsy": {},
+    "emerald": {
+      "primary": "oklch(0.765 0.177 163.223)",
+      "primary_foreground": "oklch(0.21 0.006 285.885)",
+      "ring": "oklch(0.552 0.016 285.938)"
+    },
+    "violet": {
+      "primary": "oklch(0.702 0.183 293.541)",
+      "primary_foreground": "oklch(0.21 0.006 285.885)",
+      "ring": "oklch(0.552 0.016 285.938)"
+    },
+    "amber": {
+      "primary": "oklch(0.828 0.189 84.429)",
+      "primary_foreground": "oklch(0.21 0.006 285.885)",
+      "ring": "oklch(0.552 0.016 285.938)"
+    },
+    "rose": {
+      "primary": "oklch(0.712 0.194 13.428)",
+      "primary_foreground": "oklch(0.21 0.006 285.885)",
+      "ring": "oklch(0.552 0.016 285.938)"
+    },
+    "sky": {
+      "primary": "oklch(0.746 0.16 232.661)",
+      "primary_foreground": "oklch(0.21 0.006 285.885)",
+      "ring": "oklch(0.552 0.016 285.938)"
+    }
+  }
+}

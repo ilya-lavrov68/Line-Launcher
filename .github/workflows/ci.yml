@@ -2,71 +2,96 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, "arena/**"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  check-frontend:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Branding is up to date
+        run: npm run brand:check
+      - run: npm test
+      - run: npm run build
 
-      - name: Cache Bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build frontend
-        run: bun run build
-
-  check-tauri:
+  rust-pure:
+    # Runs the dependency-free Rust logic with plain rustc. This is a fast
+    # smoke signal, NOT a replacement for the full `rust` job below.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm run test:rust
 
-      - name: Install system dependencies
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      - name: Format
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - name: Check all targets
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets
+      - name: Unit tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Clippy
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
-      - name: Cargo check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+  java-client:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Reference Java client / one-shot exchange integration
+        run: npm run test:java
+      - name: Reference provider / pack / demo-game end-to-end
+        run: npm run test:provider
 
-  gitleaks:
-    name: Secret scanning
+  secret-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Install Gitleaks
         run: |
-          LATEST_TAG=$(curl -sI https://github.com/gitleaks/gitleaks/releases/latest | grep -i "location:" | awk -F'/' '{print $NF}' | tr -d '\r\n')
-          VERSION="${LATEST_TAG#v}"
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/${LATEST_TAG}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp
-          sudo mv /tmp/gitleaks /usr/local/bin/
-
-      - name: Run Gitleaks
-        run: gitleaks detect --verbose --redact
+          VERSION=8.28.0
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+      - run: gitleaks detect --verbose --redact

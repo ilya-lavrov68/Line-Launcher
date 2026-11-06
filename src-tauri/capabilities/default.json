@@ -1,12 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Capability for the main window",
+  "identifier": "main",
+  "description": "Line Launcher main window: core events and custom Line commands only.",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "core:app:default",
-    "opener:default",
-    "updater:default"
-  ]
+  "permissions": ["core:default"]
 }

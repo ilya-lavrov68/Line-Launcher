@@ -1,0 +1,98 @@
+import type { ReactElement, ReactNode } from "react";
+import { History, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import type { InstallReceipt, ReleaseHistory } from "@/types/line";
+
+export interface ReleaseHistoryDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  history: ReleaseHistory | null;
+  currentSha?: string;
+  loading: boolean;
+  error?: string;
+  onRollback: (receipt: InstallReceipt) => void;
+  trigger: ReactNode;
+}
+
+/** Reuses Obsy Dialog/UrlInstallModal header and InstalledAddonCard row styling. */
+export default function ReleaseHistoryDialog({
+  open,
+  onOpenChange,
+  history,
+  currentSha,
+  loading,
+  error,
+  onRollback,
+  trigger,
+}: ReleaseHistoryDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger render={trigger as ReactElement} />
+      <DialogContent className="p-5 sm:max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-bold">
+            <History className="h-5 w-5" />
+            История сборок
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+          {history?.releases.length ? (
+            history.releases.map((receipt) => {
+              const current = receipt.sha256 === currentSha;
+              return (
+                <div
+                  key={receipt.sha256}
+                  className="border-border/40 bg-card/60 flex items-center justify-between gap-3 rounded-xl border p-3.5 backdrop-blur-sm"
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-foreground truncate text-xs font-semibold">
+                      {receipt.version}
+                    </span>
+                    <span className="text-muted-foreground font-mono text-[10px]">
+                      {receipt.sha256.slice(0, 12)}
+                    </span>
+                  </div>
+                  {current ? (
+                    <span className="text-muted-foreground text-xs">
+                      Текущая
+                    </span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={loading}
+                      onClick={() => onRollback(receipt)}
+                      className="cursor-pointer text-xs"
+                    >
+                      {loading ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        "Откатить"
+                      )}
+                    </Button>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              Сохранённых сборок пока нет.
+            </p>
+          )}
+        </div>
+        {error && (
+          <p role="alert" className="text-destructive text-xs">
+            {error}
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -79,7 +79,13 @@ function main(): void {
   if (logoPath) {
     logoExt = extname(logoPath).toLowerCase();
     const target = join(ROOT, "src/brand", `logo${logoExt}`);
-    const bytes = readFileSync(join(BRANDING, logoPath));
+    const logoSource = join(BRANDING, logoPath);
+    if (!existsSync(logoSource))
+      fail(
+        `assets.logo указывает на отсутствующий файл: ${logoSource}\n` +
+          "Положите файл на место или задайте assets.logo = null в branding/line.brand.json.",
+      );
+    const bytes = readFileSync(logoSource);
     const current = existsSync(target) ? readFileSync(target) : null;
     if (!current || !current.equals(bytes)) {
       if (CHECK_ONLY) fail(`${target} is out of date. Run: npm run brand`);
@@ -104,6 +110,12 @@ function main(): void {
   // Icon generation is the slow step: only rerun when the source changes.
   if (appIconPath && !SKIP_ICONS) {
     const source = join(BRANDING, appIconPath);
+    if (!existsSync(source))
+      fail(
+        `assets.app_icon указывает на отсутствующий файл: ${source}\n` +
+          "Положите файл на место или задайте assets.app_icon = null в branding/line.brand.json " +
+          "(тогда останутся уже сгенерированные иконки в src-tauri/icons).",
+      );
     const stamp = `${createHash("sha256").update(readFileSync(source)).digest("hex")}\n`;
     const stampPath = join(ICONS_DIR, ".brand-source.sha256");
     const current = existsSync(stampPath)

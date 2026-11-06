@@ -39,7 +39,7 @@ CI зелёный по всем десяти job (PR #1). Полная комп�
 | npm           | идёт с Node                  | lockfile v3                            |
 | Rust (rustup) | stable ≥ 1.95                | backend Tauri                          |
 | JDK           | 17+ (для CI используется 21) | тесты Java-клиента и сборка демо-пака  |
-| openssl       | 3.x                          | сертификат локального провайдера       |
+| openssl       | 3.x (есть в составе Git)     | сертификат локального провайдера       |
 | Git           | любая свежая                 | работа с репозиторием                  |
 
 Системные зависимости Tauri v2 обязательны и различаются по ОС:
@@ -145,7 +145,45 @@ git add --renormalize .
 git status        # должны быть только ожидаемые изменения
 ```
 
-### 1.6. Про `npm audit`
+### 1.6. Если `provider:serve` пишет `spawnSync openssl ENOENT`
+
+openssl нужен только для самоподписанного сертификата демо-провайдера. Отдельная
+установка обычно не требуется: **Git for Windows уже содержит рабочий openssl** в
+`<Git>\usr\bin\openssl.exe`, и скрипты теперь находят его сами (как и варианты
+OpenSSL-Win64, Strawberry Perl, MSYS2, Chocolatey). Проверить:
+
+```powershell
+& "$env:ProgramFiles\Git\usr\bin\openssl.exe" version
+```
+
+Если его действительно нет:
+
+```powershell
+winget install --id ShiningLight.OpenSSL.Light
+# либо укажите путь явно
+$env:LINE_OPENSSL="C:\Program Files\Git\usr\bin\openssl.exe"
+```
+
+`npm run doctor` показывает, откуда взят openssl (`[PATH]`, `[Git for Windows]`).
+
+### 1.7. Если `test:ui` не находит браузер
+
+`playwright-core` входит в devDependencies и **не скачивает браузер**. Скрипт
+сам находит установленный Edge или Chrome — на Windows Edge есть всегда. Если
+нужен другой:
+
+```powershell
+$env:CHROMIUM_PATH="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+npm run test:ui
+```
+
+Либо скачайте Chromium один раз: `npx playwright-core install chromium`.
+
+UI-smoke обращается к запущенному dev-серверу, поэтому в другом терминале должен
+работать `npm run dev`. Если сервер не поднят, скрипт теперь говорит об этом
+прямо, а не падает со стеком соединения.
+
+### 1.8. Про `npm audit`
 
 `npm ci` может показать два десятка уязвимостей. Все они относятся к
 **инструментам сборки** (`shadcn` CLI, Tailwind, Vite) и не попадают в бандл:

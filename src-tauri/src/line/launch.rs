@@ -3,7 +3,7 @@
 //! WebView DTOs, events or logs.
 use super::error::{ErrorCode, LineError, LineResult};
 use super::install::current_receipt;
-use super::ipc::PrivateChannel;
+use super::ipc::{PrivateChannel, TicketGrant};
 use super::java;
 use super::launch_manifest::read_optional;
 use super::state::LineState;
@@ -386,7 +386,6 @@ pub async fn launch_game(
             .kill_on_drop(true);
         #[cfg(windows)]
         {
-            use std::os::windows::process::CommandExt;
             command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         }
         let mut child = command.spawn().map_err(|_| {
@@ -431,11 +430,13 @@ pub async fn launch_game(
                     .serve_once(
                         pid,
                         ticket,
-                        &exchange_url,
-                        &ipc_server,
-                        &ipc_sha,
-                        &username,
-                        expires_in,
+                        TicketGrant {
+                            exchange_url: &exchange_url,
+                            server_id: &ipc_server,
+                            sha256: &ipc_sha,
+                            username: &username,
+                            expires_in,
+                        },
                     )
                     .await
             });

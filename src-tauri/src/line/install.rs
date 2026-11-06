@@ -196,7 +196,7 @@ pub fn extract_verified_zip(
     create_private_dir(staging)?;
     let file = File::open(archive_path).map_err(|e| LineError::io(&e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(zip_error)?;
-    if archive.len() == 0 || archive.len() > MAX_ZIP_ENTRIES {
+    if archive.is_empty() || archive.len() > MAX_ZIP_ENTRIES {
         return Err(LineError::new(
             ErrorCode::UnsafeArchive,
             "Превышен лимит количества файлов в архиве.",
@@ -679,10 +679,10 @@ pub async fn download_and_extract(
         // current.json pointing to the previous complete release.
         let bytes = serde_json::to_vec(&receipt).map_err(|_| LineError::storage())?;
         atomic_write(&base.join("current.json"), &bytes)?;
-        super::rollback::record_release(&base, &receipt)?;
+        super::rollback::record_release(base, &receipt)?;
         // The command layer rejects install while a game is running. Low-level
         // callers still protect the current pointer and retention window.
-        super::rollback::prune_releases(&base, &server.id, None)?;
+        super::rollback::prune_releases(base, &server.id, None)?;
         Ok(receipt)
     }
     .await;

@@ -27,11 +27,11 @@ pub async fn get(
                     LineError::input("Провайдер вернул некорректное перенаправление.")
                 })?;
             url = validate_https(
-                &url.join(location)
+                url.join(location)
                     .map_err(|_| {
                         LineError::input("Провайдер вернул некорректную ссылку перенаправления.")
                     })?
-                    .to_string(),
+                    .as_str(),
             )?;
             continue;
         }

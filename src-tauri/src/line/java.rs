@@ -4,8 +4,6 @@
 //! regular `java` executable. The selected major must match the manifest.
 use super::error::{ErrorCode, LineError, LineResult};
 use std::collections::HashSet;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;

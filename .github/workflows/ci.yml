@@ -105,7 +105,14 @@ jobs:
           distribution: temurin
           java-version: 21
       - name: Reference Java client / one-shot exchange integration
-        run: npm run test:java
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm run test:java 2>&1 | tee java-test.log; then
+            message=$(tail -c 2500 java-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=test:java failed::${message}"
+            exit 1
+          fi
       - name: Reference provider / pack / demo-game end-to-end
         shell: bash
         run: |

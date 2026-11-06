@@ -21,6 +21,17 @@ struct TicketRequest {
     channel: String,
 }
 
+/// Everything the mod receives alongside the one-shot ticket. Grouped so the
+/// IPC entry point stays within clippy's argument budget and the binding set is
+/// named in one place.
+pub struct TicketGrant<'a> {
+    pub exchange_url: &'a str,
+    pub server_id: &'a str,
+    pub sha256: &'a str,
+    pub username: &'a str,
+    pub expires_in: u64,
+}
+
 #[derive(Serialize)]
 struct TicketResponse<'a> {
     #[serde(rename = "type")]
@@ -109,13 +120,9 @@ impl PrivateChannel {
         self,
         expected_pid: u32,
         ticket: Zeroizing<String>,
-        exchange_url: &str,
-        server_id: &str,
-        sha256: &str,
-        username: &str,
-        expires_in: u64,
+        grant: TicketGrant<'_>,
     ) -> LineResult<()> {
-        let ttl = Duration::from_secs(expires_in.clamp(1, 120)).min(IPC_TIMEOUT);
+        let ttl = Duration::from_secs(grant.expires_in.clamp(1, 120)).min(IPC_TIMEOUT);
         let deadline = Instant::now() + ttl;
         #[cfg(unix)]
         let stream = {
@@ -173,15 +180,7 @@ impl PrivateChannel {
         };
         #[cfg(not(any(unix, windows)))]
         {
-            let _ = (
-                expected_pid,
-                ticket,
-                exchange_url,
-                server_id,
-                sha256,
-                username,
-                deadline,
-            );
+            let _ = (expected_pid, ticket, grant, deadline);
             return Err(LineError::new(
                 ErrorCode::Internal,
                 "Приватный IPC недоступен на этой ОС.",
@@ -230,10 +229,10 @@ impl PrivateChannel {
         let response = TicketResponse {
             kind: "line.launch-ticket.response",
             ticket: &ticket,
-            exchange_url,
-            server_id,
-            sha256,
-            username,
+            exchange_url: grant.exchange_url,
+            server_id: grant.server_id,
+            sha256: grant.sha256,
+            username: grant.username,
         };
         let mut response_bytes =
             Zeroizing::new(serde_json::to_vec(&response).map_err(|_| LineError::storage())?);
@@ -410,11 +409,13 @@ mod tests {
                 .serve_once(
                     std::process::id(),
                     Zeroizing::new("ticket-secret".into()),
-                    "https://auth.example.com/exchange",
-                    "survival",
-                    &"a".repeat(64),
-                    "player",
-                    60,
+                    TicketGrant {
+                        exchange_url: "https://auth.example.com/exchange",
+                        server_id: "survival",
+                        sha256: &"a".repeat(64),
+                        username: "player",
+                        expires_in: 60,
+                    },
                 )
                 .await
         });
@@ -443,11 +444,13 @@ mod tests {
                 .serve_once(
                     std::process::id(),
                     Zeroizing::new("secret".into()),
-                    "https://auth.example.com/exchange",
-                    "survival",
-                    &"a".repeat(64),
-                    "player",
-                    60,
+                    TicketGrant {
+                        exchange_url: "https://auth.example.com/exchange",
+                        server_id: "survival",
+                        sha256: &"a".repeat(64),
+                        username: "player",
+                        expires_in: 60,
+                    },
                 )
                 .await
         });
@@ -467,11 +470,13 @@ mod tests {
                 .serve_once(
                     std::process::id(),
                     Zeroizing::new("secret".into()),
-                    "https://auth.example.com/exchange",
-                    "survival",
-                    &"a".repeat(64),
-                    "player",
-                    60,
+                    TicketGrant {
+                        exchange_url: "https://auth.example.com/exchange",
+                        server_id: "survival",
+                        sha256: &"a".repeat(64),
+                        username: "player",
+                        expires_in: 60,
+                    },
                 )
                 .await
         });

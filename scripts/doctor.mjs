@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { findMsvc, findWebView2, probe, tryLink } from "./lib/env-probe.mjs";
+import { findOpenSsl } from "./lib/find-openssl.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const platform = process.platform;
@@ -110,9 +111,13 @@ const java = probe("java", ["-version"]);
 if (java) ok("Java", java.split("\n")[0]);
 else warn("Java", "нет — не нужны test:java / provider:pack");
 
-const openssl = probe("openssl", ["version"]);
-if (openssl) ok("openssl", openssl);
-else warn("openssl", "нет — нужен только для test:provider");
+const openssl = findOpenSsl();
+if (openssl)
+  ok(
+    "openssl",
+    `${openssl.version.split("\n")[0]} ${C.dim(`[${openssl.via}]`)}`,
+  );
+else warn("openssl", "нет — нужен только для provider:serve / test:provider");
 
 // --- Verdict ----------------------------------------------------------------
 if (blockers === 0) {

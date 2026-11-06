@@ -3,8 +3,8 @@
 //   npm run dev                       # in another terminal
 //   node scripts/ui-smoke.mjs
 //
-// Optional dependencies (not in package.json to keep `npm ci` browser-free):
-//   npm i -D playwright-core
+// playwright-core is a devDependency and downloads no browser. An installed
+// Chrome/Edge is detected automatically; otherwise:
 //   npx playwright-core install chromium     # or set CHROMIUM_PATH=/path/to/chrome
 //
 // Environment:
@@ -18,6 +18,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { browserHelp, findBrowser } from "./lib/find-browser.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.resolve(root, process.env.SMOKE_OUT || ".smoke");
@@ -27,11 +28,7 @@ let chromium;
 try {
   ({ chromium } = await import("playwright-core"));
 } catch {
-  console.error(
-    "playwright-core is not installed.\n" +
-      "  npm i -D playwright-core\n" +
-      "  npx playwright-core install chromium   # or set CHROMIUM_PATH",
-  );
+  console.error("playwright-core не установлен. Выполните: npm ci");
   process.exit(2);
 }
 
@@ -55,10 +52,32 @@ config.servers.push({
 
 mkdirSync(outDir, { recursive: true });
 const launchOptions = { headless: true };
-if (process.env.CHROMIUM_PATH) {
-  launchOptions.executablePath = process.env.CHROMIUM_PATH;
+const found = findBrowser();
+if (found) {
+  launchOptions.executablePath = found.path;
+  console.log(`Browser: ${found.via} (${found.path})`);
 }
-const browser = await chromium.launch(launchOptions);
+
+// Fail with a usable message instead of a raw connect stack when the dev server
+// is not running — the most common way to invoke this script.
+try {
+  await fetch(baseUrl, { signal: AbortSignal.timeout(5000) });
+} catch {
+  console.error(
+    `Dev-сервер недоступен по адресу ${baseUrl}.\n` +
+      "Запустите в другом терминале:  npm run dev\n" +
+      "Другой адрес:                 BASE_URL=http://127.0.0.1:5173 npm run test:ui",
+  );
+  process.exit(2);
+}
+
+let browser;
+try {
+  browser = await chromium.launch(launchOptions);
+} catch (error) {
+  console.error(`${error.message}\n\n${browserHelp()}`);
+  process.exit(2);
+}
 const page = await browser.newPage({
   viewport: { width: 1280, height: 900 },
   // Obsy's animated gradient never settles; screenshots must disable motion.

@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { findOpenSsl, openSslHelp } from "../../scripts/lib/find-openssl.mjs";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -39,13 +40,21 @@ mkdirSync(dir, { recursive: true });
 const keyPath = path.join(dir, "tls.key");
 const certPath = path.join(dir, "tls.crt");
 if (!existsSync(keyPath) || !existsSync(certPath)) {
+  const openssl = findOpenSsl();
+  if (!openssl) {
+    console.error(openSslHelp());
+    process.exit(2);
+  }
+  if (openssl.via !== "PATH") {
+    console.log(`Using openssl from ${openssl.via}: ${openssl.path}`);
+  }
   const result = spawnSync(
-    "openssl",
+    openssl.path,
     [
       "req",
       "-x509",
       "-newkey",
-      "rsa:2046",
+      "rsa:2048",
       "-nodes",
       "-keyout",
       keyPath,
@@ -60,10 +69,12 @@ if (!existsSync(keyPath) || !existsSync(certPath)) {
     ],
     { encoding: "utf8" },
   );
-  if (result.status !== 0) {
+  if (result.error || result.status !== 0) {
     console.error(
-      "openssl is required to create the development certificate.\n" +
-        (result.stderr || String(result.error)),
+      `Не удалось создать сертификат разработки (${openssl.path}).\n` +
+        (result.stderr || String(result.error)) +
+        "\n" +
+        openSslHelp(),
     );
     process.exit(2);
   }

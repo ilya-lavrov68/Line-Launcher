@@ -28,7 +28,8 @@ node examples/provider/build-pack.mjs      # writes .provider/pack.zip + config
 node examples/provider/server.mjs          # https://127.0.0.1:8443/config.json
 ```
 
-Requirements: Node 22+, `openssl` (for the self-signed certificate), and a JDK
+Requirements: Node 22+, `openssl` (for the self-signed certificate; auto-detected,
+including the copy bundled with Git for Windows — override with `LINE_OPENSSL`), and a JDK
 17+ (`javac`) or `ECJ_JAR` to compile the demo mod client. The pack contains a
 real `line-launch.json` and a `client.jar` whose main class requests the ticket
 over the private IPC channel and exchanges it — i.e. the launcher's real launch

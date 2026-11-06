@@ -10,7 +10,7 @@
   },
   "assets": {
     "logo": null,
-    "app_icon": null
+    "app_icon": "branding/assets/app-icon.svg"
   },
   "palette": {},
   "attribution": {

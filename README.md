@@ -54,7 +54,8 @@ UI/UX, палитра и скругления остаются как в ори�
 
 ```sh
 npm ci
-npm run doctor      # проверка окружения: Node, Rust, MSVC/WebView2, Java, openssl
+npm run doctor      # окружение + совпадение версий Tauri (крейт ↔ npm API)
+npm run check:tauri # только версии Tauri: major.minor должны совпадать
 npm run tauri dev
 ```
 

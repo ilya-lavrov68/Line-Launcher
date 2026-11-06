@@ -15,7 +15,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# Pinned to a minor on purpose: the Tauri CLI requires the `tauri` crate and
+# `@tauri-apps/api` to share major.minor. A bare "2" lets cargo float to a newer
+# minor than the npm lockfile and breaks `tauri dev`/`build`. Bump both together;
+# `npm run doctor` and CI check the pair.
+tauri = { version = "~2.12", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13.4", features = ["json"] }

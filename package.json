@@ -23,12 +23,13 @@
     "test:provider": "node scripts/test-provider.mjs",
     "provider:pack": "node examples/provider/build-pack.mjs",
     "provider:serve": "node examples/provider/server.mjs",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "check:tauri": "node scripts/check-tauri-versions.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@fontsource-variable/geist": "^5.2.9",
-    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/api": "~2.12.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.43.0",
@@ -39,7 +40,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
-    "@tauri-apps/cli": "^2.11.4",
+    "@tauri-apps/cli": "~2.12.4",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

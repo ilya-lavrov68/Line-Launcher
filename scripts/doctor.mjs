@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { findMsvc, findWebView2, probe, tryLink } from "./lib/env-probe.mjs";
 import { findOpenSsl } from "./lib/find-openssl.mjs";
+import { checkTauriVersions, tauriVersionHelp } from "./lib/tauri-versions.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const platform = process.platform;
@@ -51,6 +52,27 @@ else bad("Node.js", `${process.versions.node}, нужен 22+`, "node");
 if (existsSync(path.join(root, "node_modules")))
   ok("node_modules", "установлены");
 else bad("node_modules", "не установлены", "npm");
+
+// --- Tauri crate/npm pair ---------------------------------------------------
+// The CLI aborts the build on a major.minor mismatch; catch it here with a fix.
+const tauri = checkTauriVersions(root);
+for (const pair of tauri.pairs) {
+  if (pair.crateMinor === pair.npmMinor) {
+    ok(
+      "Tauri versions",
+      `${pair.crate} ${pair.crateVersion} ↔ ${pair.npm} ${pair.npmVersion}`,
+    );
+  }
+}
+if (tauri.mismatches.length > 0) {
+  for (const m of tauri.mismatches) {
+    console.log(
+      `  ${C.red("НЕТ")}  Tauri versions ${C.dim(`${m.crate} ${m.crateVersion} ↔ ${m.npm} ${m.npmVersion}`)}`,
+    );
+  }
+  blockers += 1;
+  problems.push("tauriVersions");
+}
 
 // --- Rust -------------------------------------------------------------------
 console.log("");
@@ -139,6 +161,7 @@ const FIXES = {
     "Проверка:  rustc --version  и  cargo --version",
   ],
   rustup: ["Обновите toolchain:  rustup update stable"],
+  tauriVersions: [tauriVersionHelp(tauri.mismatches)],
   msvc: [
     "Установите Microsoft C++ Build Tools:",
     "  https://visualstudio.microsoft.com/visual-cpp-build-tools/",

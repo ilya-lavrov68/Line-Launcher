@@ -145,7 +145,29 @@ git add --renormalize .
 git status        # должны быть только ожидаемые изменения
 ```
 
-### 1.6. Если `provider:serve` пишет `spawnSync openssl ENOENT`
+### 1.6. Если Tauri пишет `Found version mismatched Tauri packages`
+
+Tauri требует, чтобы крейт `tauri` (версия из `src-tauri/Cargo.lock`) и npm-пакет
+`@tauri-apps/api` совпадали **по major и minor**. Патч-версии могут различаться.
+
+```sh
+npm run check:tauri     # показывает обе версии и точную команду для выравнивания
+```
+
+Обычно отстаёт npm: крейт был задан как `version = "2"` и уплывал на самый свежий
+minor, пока `package-lock.json` держал старый. Теперь обе стороны закреплены на
+minor (`~2.12` в Cargo.toml, `~2.12.x` в package.json) и обновляются только вместе:
+
+```sh
+npm install @tauri-apps/api@~2.13 @tauri-apps/cli@~2.13
+# и в src-tauri/Cargo.toml: tauri = { version = "~2.13", ... }
+cargo update -p tauri
+```
+
+Проверка встроена в `npm run doctor` и в CI, поэтому рассинхрон больше не
+обрывает сборку на середине.
+
+### 1.7. Если `provider:serve` пишет `spawnSync openssl ENOENT`
 
 openssl нужен только для самоподписанного сертификата демо-провайдера. Отдельная
 установка обычно не требуется: **Git for Windows уже содержит рабочий openssl** в
@@ -166,7 +188,7 @@ $env:LINE_OPENSSL="C:\Program Files\Git\usr\bin\openssl.exe"
 
 `npm run doctor` показывает, откуда взят openssl (`[PATH]`, `[Git for Windows]`).
 
-### 1.7. Если `test:ui` не находит браузер
+### 1.8. Если `test:ui` не находит браузер
 
 `playwright-core` входит в devDependencies и **не скачивает браузер**. Скрипт
 сам находит установленный Edge или Chrome — на Windows Edge есть всегда. Если
@@ -183,7 +205,7 @@ UI-smoke обращается к запущенному dev-серверу, по
 работать `npm run dev`. Если сервер не поднят, скрипт теперь говорит об этом
 прямо, а не падает со стеком соединения.
 
-### 1.8. Про `npm audit`
+### 1.9. Про `npm audit`
 
 `npm ci` может показать два десятка уязвимостей. Все они относятся к
 **инструментам сборки** (`shadcn` CLI, Tailwind, Vite) и не попадают в бандл:

@@ -52,6 +52,18 @@ function fail(message: string): never {
 }
 
 /** Write only when content differs, so repeat runs are quiet and idempotent. */
+/** Asset paths in the config are relative to branding/, not to the repo root. */
+function missingAsset(field: string, rel: string, absolute: string): string {
+  const hint = rel.startsWith("branding/")
+    ? `\nПохоже, путь указан от корня репозитория. Уберите префикс: "${rel.slice("branding/".length)}".`
+    : "";
+  return (
+    `${field} указывает на отсутствующий файл: ${absolute}\n` +
+    `Пути в assets.* задаются относительно каталога branding/.${hint}\n` +
+    `Положите файл на место или задайте ${field} = null в branding/line.brand.json.`
+  );
+}
+
 function writeIfChanged(path: string, content: string): boolean {
   const current = existsSync(path) ? readFileSync(path, "utf8") : null;
   // A CRLF checkout (Git for Windows default) must not look "out of date".
@@ -81,10 +93,7 @@ function main(): void {
     const target = join(ROOT, "src/brand", `logo${logoExt}`);
     const logoSource = join(BRANDING, logoPath);
     if (!existsSync(logoSource))
-      fail(
-        `assets.logo указывает на отсутствующий файл: ${logoSource}\n` +
-          "Положите файл на место или задайте assets.logo = null в branding/line.brand.json.",
-      );
+      fail(missingAsset("assets.logo", logoPath, logoSource));
     const bytes = readFileSync(logoSource);
     const current = existsSync(target) ? readFileSync(target) : null;
     if (!current || !current.equals(bytes)) {
@@ -111,11 +120,7 @@ function main(): void {
   if (appIconPath && !SKIP_ICONS) {
     const source = join(BRANDING, appIconPath);
     if (!existsSync(source))
-      fail(
-        `assets.app_icon указывает на отсутствующий файл: ${source}\n` +
-          "Положите файл на место или задайте assets.app_icon = null в branding/line.brand.json " +
-          "(тогда останутся уже сгенерированные иконки в src-tauri/icons).",
-      );
+      fail(missingAsset("assets.app_icon", appIconPath, source));
     const stamp = `${createHash("sha256").update(readFileSync(source)).digest("hex")}\n`;
     const stampPath = join(ICONS_DIR, ".brand-source.sha256");
     const current = existsSync(stampPath)

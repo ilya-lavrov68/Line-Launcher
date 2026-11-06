@@ -11,11 +11,12 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 9 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 10 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
-  walking, install-lock exclusivity/recovery, main-class and SHA validation.
+  walking, install-lock exclusivity/recovery, main-class and SHA validation, and
+  order-independent ZIP file/directory conflict detection.
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -44,27 +45,40 @@ Checked in the implementation sandbox:
   schema; `cargo metadata --locked --offline --no-deps` reports the custom
   `license_file` instead of MIT
 
-Not checked here:
+Verified by CI (not reproducible in this sandbox):
 
-- Full Rust compilation/unit tests/clippy: crate archives cannot be downloaded
-  from crates.io in this sandbox, so the Tauri/serde/reqwest/zip/tokio graph was
-  never compiled here. CI must run these on Linux, Windows, and macOS, including
-  the IPC, lifecycle-lease, symlink, ticket-parser, status-revision and
-  crash-recovery tests. Windows named-pipe ACL/PID and macOS peer-credential
-  behaviour remain OS-dependent until that CI/desktop run.
-  Step-by-step instructions: `docs/RUNBOOK.md`.
+Crate archives cannot be downloaded from crates.io here, so the full graph was
+first compiled on GitHub Actions. As of PR #1 all ten jobs are green, including
+the `rust` matrix (`cargo fmt --check`, `check --all-targets`, `test`,
+`clippy --all-targets -- -D warnings`) and the `java-client` matrix on
+ubuntu-22.04, windows-latest and macos-latest. That run exercised the IPC,
+lifecycle-lease, symlink, ticket-parser, status-revision and crash-recovery
+tests, plus Windows named-pipe ACL/PID and Unix peer-credential paths.
+
+CI found and this branch fixed defects the local subset could not see: nine
+compile errors (temporary lifetimes in `try_join!`/`select!`, a missing
+`tauri::Manager` import, `&AtomicBool` misuse, a moved `PathBuf`), an
+order-dependent ZIP file/directory conflict check, a POSIX-only test fixture
+that was not absolute on Windows, `ExecutionException` masking `IOException` in
+the Windows IPC client, and a Windows timeout path that blocked while closing a
+pipe with a pending read.
+
+Not checked here or by CI:
+
 - Tauri desktop shell, real ZIP installation through Rust commands, and
-  Java/Minecraft launch. The reference provider and generated pack now exist
-  (`examples/provider/`), but the desktop app itself was never run here: the
-  Rust backend cannot be compiled in this sandbox. The Java/provider tests use
-  Node as the launcher's IPC peer, not Rust commands.
+  Java/Minecraft launch. The reference provider and generated pack exist
+  (`examples/provider/`), but the desktop app itself was never run: CI compiles
+  and unit-tests the backend, it does not open a window. The Java/provider tests
+  use Node as the launcher's IPC peer, not Rust commands.
+  Step-by-step instructions: `docs/RUNBOOK.md`.
 - Actual desktop installer contents: legal resources are configured and their
   source paths tested, but no platform installer was built in this sandbox.
 
 The browser fallback is intentionally read-only and explains that desktop
 operations require Tauri. It does not simulate successful authentication or
 installation. Real Minecraft launch, provider ticket exchange, OS-specific IPC
-permissions and Rust unit tests still require CI/desktop verification.
+permissions still require a real desktop run; Rust unit tests now run in CI on
+all three platforms.
 
 Additional Chromium smoke coverage used a test-only injected Tauri IPC stub
 (no stub code ships in the app): config URL → server cards → login/registration

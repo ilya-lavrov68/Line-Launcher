@@ -61,6 +61,7 @@ npm run tauri dev
 Если `tauri dev` сообщает `cargo metadata: program not found` — не установлен
 Rust; `npm run doctor` покажет, чего не хватает, и как это поставить. Пошаговая
 инструкция для Windows/macOS/Linux — [docs/RUNBOOK.md](docs/RUNBOOK.md), раздел 1.
+Если проверка ошибается, пропустите её: `LINE_SKIP_DOCTOR=1 npm run tauri dev`.
 
 `npm audit` показывает уязвимости инструментов сборки (shadcn CLI, Tailwind,
 Vite), которые не попадают в бандл. Проверять нужно `npm audit --omit=dev`.

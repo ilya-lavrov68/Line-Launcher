@@ -120,8 +120,24 @@ if (rustRequired) {
     }
 
     const webview = findWebView2();
-    if (webview) ok("WebView2 Runtime", path.dirname(webview));
-    else warn("WebView2 Runtime", "не найден — нужен для окна приложения");
+    if (webview) {
+      ok(
+        "WebView2 Runtime",
+        webview.version
+          ? `${webview.version} [${webview.via}]`
+          : `${path.dirname(webview.path)} [files]`,
+      );
+    } else {
+      warn(
+        "WebView2 Runtime",
+        "не найден в реестре и на диске — нужен для окна приложения",
+      );
+      console.log(
+        C.dim(
+          "       https://developer.microsoft.com/microsoft-edge/webview2/",
+        ),
+      );
+    }
   }
 } else {
   console.log(C.dim("  Rust пропущен (--frontend-only)"));

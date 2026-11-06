@@ -124,7 +124,30 @@ Installer → «Изменить» → вкладка «Отдельные ко�
 $env:LINE_SKIP_DOCTOR=1; npm run tauri dev
 ```
 
-### 1.5. Если `npm run dev` падает на `spawnSync npx.cmd EINVAL`
+### 1.5. Если doctor говорит «WebView2 не найден», а окно открывается
+
+Проверка искала `msedgewebview2.exe` прямо в `…\Microsoft\EdgeWebView\Application`,
+но Evergreen-рантайм кладёт его **в подпапку версии**:
+`…\EdgeWebView\Application\<версия>\msedgewebview2.exe`. Такой путь не существовал
+никогда, поэтому doctor всегда писал «не найден» — даже там, где рантайм стоит.
+На Windows 11 он предустановлен.
+
+**Исправлено.** Теперь основной источник — реестр (правило Microsoft), значение
+`pv` в ключе `{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`:
+
+```powershell
+reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv
+reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv
+```
+
+Версия больше `0.0.0.0` — рантайм установлен. Ключ может существовать с
+`pv = 0.0.0.0`, и это значит «не установлен»; такое значение не считается.
+Doctor печатает найденную версию и источник: `147.0.3912.98 [registry]`.
+
+Если предупреждение осталось и обе команды ничего не нашли — рантайма действительно нет,
+поставьте Evergreen Standalone: https://developer.microsoft.com/microsoft-edge/webview2/
+
+### 1.6. Если `npm run dev` падает на `spawnSync npx.cmd EINVAL`
 
 Начиная с Node 18.20.2 / 20.12.2 (исправление CVE-2024-27980) запуск `.cmd`-файла
 без шелла запрещён. Генератор брендинга запускал `npx.cmd` для `tauri icon` —
@@ -145,7 +168,7 @@ git add --renormalize .
 git status        # должны быть только ожидаемые изменения
 ```
 
-### 1.6. Если Tauri пишет `Found version mismatched Tauri packages`
+### 1.7. Если Tauri пишет `Found version mismatched Tauri packages`
 
 Tauri требует, чтобы крейт `tauri` (версия из `src-tauri/Cargo.lock`) и npm-пакет
 `@tauri-apps/api` совпадали **по major и minor**. Патч-версии могут различаться.
@@ -167,7 +190,7 @@ cargo update -p tauri
 Проверка встроена в `npm run doctor` и в CI, поэтому рассинхрон больше не
 обрывает сборку на середине.
 
-### 1.7. Если `provider:serve` пишет `spawnSync openssl ENOENT`
+### 1.8. Если `provider:serve` пишет `spawnSync openssl ENOENT`
 
 openssl нужен только для самоподписанного сертификата демо-провайдера. Отдельная
 установка обычно не требуется: **Git for Windows уже содержит рабочий openssl** в
@@ -188,7 +211,7 @@ $env:LINE_OPENSSL="C:\Program Files\Git\usr\bin\openssl.exe"
 
 `npm run doctor` показывает, откуда взят openssl (`[PATH]`, `[Git for Windows]`).
 
-### 1.8. Если `test:ui` не находит браузер
+### 1.9. Если `test:ui` не находит браузер
 
 `playwright-core` входит в devDependencies и **не скачивает браузер**. Скрипт
 сам находит установленный Edge или Chrome — на Windows Edge есть всегда. Если
@@ -205,7 +228,7 @@ UI-smoke обращается к запущенному dev-серверу, по
 работать `npm run dev`. Если сервер не поднят, скрипт теперь говорит об этом
 прямо, а не падает со стеком соединения.
 
-### 1.9. Про `npm audit`
+### 1.10. Про `npm audit`
 
 `npm ci` может показать два десятка уязвимостей. Все они относятся к
 **инструментам сборки** (`shadcn` CLI, Tailwind, Vite) и не попадают в бандл:
@@ -217,7 +240,7 @@ npm audit --omit=dev    # уязвимости того, что реально �
 Проверяйте именно эту команду. `npm audit fix --force` применять не нужно —
 он ломает мажорные версии инструментов сборки.
 
-### 1.10. Сборка MSI падает с `LGHT0311`
+### 1.11. Сборка MSI падает с `LGHT0311`
 
 ```text
 LicenseAgreementDlg.wxs(27) : error LGHT0311 : A string was provided with characters
@@ -363,6 +386,35 @@ LINE_DEV_CA_CERT=.provider/tls.crt npm run tauri dev -- --features dev-provider-
 
 **macOS** этот способ не поддерживает (rustls platform verifier не принимает
 дополнительные корни) — лаунчер честно скажет об этом. Используйте способ 2.
+
+#### Если лаунчер паникует на `LINE_DEV_CA_CERT`
+
+```text
+Failed to setup app: error encountered during setup hook:
+Не удалось прочитать LINE_DEV_CA_CERT: файл сертификата недоступен.
+```
+
+`tauri dev` переключает рабочий каталог в `src-tauri` (`set_current_dir(dirs.tauri)`
+в CLI), поэтому относительный `.provider\tls.crt` раньше искался как
+`src-tauri\.provider\tls.crt` — и не находился.
+
+**Исправлено:** путь теперь ищется от текущего каталога, затем от `src-tauri`,
+затем **от корня репозитория**. Команда из способа 1 работает как есть. Абсолютный
+путь используется ровно как указан. В консоли печатается список проверенных
+путей и тот, который сработал:
+
+```text
+[line] WARNING: dev-provider-ca active — trusting 1 extra root(s) from D:\Проекты\Line-Launcher\.provider\tls.crt
+```
+
+Если файл всё равно не найден — задайте абсолютный путь:
+
+```powershell
+$env:LINE_DEV_CA_CERT = "D:\Проекты\Line-Launcher\.provider\tls.crt"
+```
+
+Проверьте, что сертификат вообще создан: его делает `npm run provider:serve` при
+первом запуске. Без запущенного провайдера лаунчер подключаться не к чему.
 
 #### Способ 2: добавить сертификат в хранилище ОС
 

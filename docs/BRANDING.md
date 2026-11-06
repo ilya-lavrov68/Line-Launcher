@@ -183,7 +183,7 @@ npm run tauri:build
 | `src/brand/logo.svg\|png`         | Копия знака; импортируется, чтобы Vite его хешировал                           |
 | `src-tauri/tauri.brand.conf.json` | Overlay для `tauri build -c`                                                   |
 | `src-tauri/icons/*`               | Иконки ОС, регенерируются только при смене исходника                           |
-| `src-tauri/LICENSE.rtf`           | Лицензия для MSI: ASCII с `\uN`-escape из `LICENSE` (RUNBOOK, 1.10)            |
+| `src-tauri/LICENSE.rtf`           | Лицензия для MSI: ASCII с `\uN`-escape из `LICENSE` (RUNBOOK, 1.11)            |
 
 Все файлы детерминированы и сохраняются в репозитории. Повторный запуск ничего не меняет.
 Иконки пересобираются только если SHA-256 исходника изменился (штамп в

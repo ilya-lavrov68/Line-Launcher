@@ -1,0 +1,20 @@
+{
+  "preset": "obsy",
+  "product": {
+    "name": "Line Launcher",
+    "short_name": "Line",
+    "app_id": "studio.plusinplus.line-launcher",
+    "publisher": "Plus In Plus",
+    "window_title": "Line Launcher",
+    "description": "Provider-configured Minecraft launcher"
+  },
+  "assets": {
+    "logo": null,
+    "app_icon": "assets/app-icon.svg"
+  },
+  "palette": {},
+  "attribution": {
+    "placement": "footer",
+    "language": "both"
+  }
+}

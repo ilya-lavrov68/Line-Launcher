@@ -3,5 +3,8 @@ dist
 src-tauri
 .gitignore
 package.json
-bun.lockb
-bun.lock
+
+package-lock.json
+src-tauri/Cargo.lock
+.smoke
+.provider

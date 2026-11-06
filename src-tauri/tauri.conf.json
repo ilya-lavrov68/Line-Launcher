@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Obsy Launcher",
-  "version": "1.0.1",
-  "identifier": "com.obsy-official.obsy-launcher",
+  "productName": "Line Launcher",
+  "version": "0.1.0",
+  "identifier": "studio.plusinplus.line-launcher",
   "build": {
-    "beforeDevCommand": "bun run dev",
-    "beforeBuildCommand": "bun run build",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
@@ -13,38 +13,41 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Obsy Launcher",
-        "width": 1024,
-        "height": 600,
+        "title": "Line Launcher — Plus In Plus",
+        "width": 1100,
+        "height": 720,
         "minWidth": 800,
-        "minHeight": 500,
+        "minHeight": 560,
         "resizable": true,
         "center": true,
         "fullscreen": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' https: ipc: http://localhost:* ws: wsocket:"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:5173 ws://localhost:5173; object-src 'none'; base-uri 'self'"
     }
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "targets": "all",
+    "shortDescription": "Provider-configured Minecraft launcher",
+    "publisher": "Plus In Plus",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgyOTk2NjY4NzY1QzM3NjkKUldScE4xeDJhR2FaZ3B1SUo4Z2x5OHY4NmVyc0tHN3I2cHRzd0M1STkxY2RyVmxSUEpHYStzUmMK",
-      "endpoints": [
-        "https://github.com/obsy-official/obsy-launcher/releases/latest/download/latest.json"
-      ]
+    ],
+    "licenseFile": "../LICENSE",
+    "copyright": "Copyright (c) 2026 Plus In Plus. Source-available; see LICENSE. Upstream Obsy materials remain MIT.",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../NOTICE.md": "NOTICE.md",
+      "../LICENSES/Obsy-MIT.txt": "LICENSES/Obsy-MIT.txt",
+      "../LICENSES/Lucide-LICENSE.txt": "LICENSES/Lucide-LICENSE.txt"
     }
   }
 }

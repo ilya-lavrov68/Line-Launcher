@@ -1,0 +1,131 @@
+import { m } from "framer-motion";
+import { Link2, RefreshCw, ShieldCheck } from "lucide-react";
+import { useId, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export interface ConfigUrlInputProps {
+  initialUrl?: string;
+  loading?: boolean;
+  error?: string;
+  onSubmit: (url: string) => void;
+}
+
+/**
+ * Provider URL entry. Reuses Obsy's Onboarding card shell
+ * (`border-border/50 bg-card rounded-2xl border p-10 shadow-2xl`), its
+ * `bg-primary/10 text-primary` icon badge, Input/Label/Button primitives and
+ * Obsy's UrlInstallModal form layout. No new colours or radii.
+ */
+export default function ConfigUrlInput({
+  initialUrl = "",
+  loading = false,
+  error,
+  onSubmit,
+}: ConfigUrlInputProps) {
+  const id = useId();
+  const [url, setUrl] = useState(initialUrl);
+  const [validation, setValidation] = useState<string>();
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loading) return;
+    const trimmed = url.trim();
+    try {
+      const parsed = new URL(trimmed);
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.username ||
+        parsed.password ||
+        parsed.hash
+      ) {
+        throw new Error("invalid");
+      }
+      setValidation(undefined);
+      onSubmit(parsed.toString());
+    } catch {
+      setValidation("Введите HTTPS-ссылку без логина, пароля и #фрагмента.");
+    }
+  }
+
+  const message = validation ?? error;
+  return (
+    <m.section
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, type: "spring", bounce: 0.3 }}
+      className="border-border/50 bg-card flex w-full max-w-md flex-col items-center justify-center gap-6 rounded-2xl border p-10 text-center shadow-2xl"
+      aria-labelledby={`${id}-title`}
+    >
+      <div className="bg-primary/10 text-primary flex h-16 w-16 items-center justify-center rounded-full shadow-inner">
+        <Link2 className="h-8 w-8" />
+      </div>
+      <div>
+        <h2 id={`${id}-title`} className="mb-2 text-2xl font-bold">
+          Ваш сервер. Одна ссылка.
+        </h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Укажите адрес config.json от разработчика сервера. Лаунчер подготовит
+          сборку и подключит вас к игровому пространству.
+        </p>
+      </div>
+
+      <form onSubmit={submit} className="flex w-full flex-col gap-4 text-left">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={id} className="text-xs">
+            Адрес конфигурации
+          </Label>
+          <Input
+            id={id}
+            type="url"
+            required
+            maxLength={2048}
+            autoComplete="url"
+            spellCheck={false}
+            placeholder="https://your-server.com/config.json"
+            value={url}
+            disabled={loading}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              setValidation(undefined);
+            }}
+            aria-invalid={Boolean(validation)}
+            aria-describedby={`${id}-help${message ? ` ${id}-error` : ""}`}
+            className="text-xs"
+          />
+          <p
+            id={`${id}-help`}
+            className="text-muted-foreground flex items-start gap-1.5 text-[11px] leading-relaxed"
+          >
+            <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
+            Используйте ссылку только от доверенного провайдера.
+          </p>
+          {message && (
+            <p
+              id={`${id}-error`}
+              role="alert"
+              className="text-destructive text-xs"
+            >
+              {message}
+            </p>
+          )}
+        </div>
+        <Button
+          type="submit"
+          disabled={loading || !url.trim()}
+          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98]"
+        >
+          {loading ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            <Link2 className="h-4 w-4" />
+          )}
+          <span>
+            {loading ? "Проверяем конфигурацию…" : "Подключить провайдера"}
+          </span>
+        </Button>
+      </form>
+    </m.section>
+  );
+}

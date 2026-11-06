@@ -23,11 +23,10 @@ node_modules
 *.sln
 *.sw?
 
-# Obsy runtime data & user profiles
-.obsy/
-*.key
+# Smoke-test screenshots and the local reference provider
+.smoke/
+.provider/
 
-# Addons sources (only compiled zip archives in addons/dist/ are committed)
-addons/src/
-!addons/dist/*.zip
-!addons/catalog.json
+# Local secrets and runtime data
+*.key
+.line_launcher/

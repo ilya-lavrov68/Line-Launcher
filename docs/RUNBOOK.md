@@ -61,10 +61,54 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
 git clone <ваш-репозиторий> Line-Launcher
 cd Line-Launcher
 npm ci
-rustup show          # должен быть stable ≥ 1.95
+npm run doctor       # проверяет всё окружение и печатает, чего не хватает
 ```
 
-**Готово, если:** `npm ci` завершился без ошибок, `rustc --version` печатает версию.
+**Готово, если:** `npm run doctor` завершился с кодом 0 и напечатал «Готово к сборке».
+
+`npm run tauri dev` и `npm run tauri:build` запускают эту проверку автоматически,
+поэтому вместо невнятного `cargo metadata ... program not found` вы сразу
+увидите, чего именно не хватает.
+
+### 1.3. Если `tauri dev` пишет `cargo metadata: program not found`
+
+Это значит, что **Rust не установлен** (или не попал в `PATH`). Сам лаунчер тут
+ни при чём: Tauri вызывает `cargo`, а его нет в системе.
+
+**Windows**
+
+1. Установите Rust: скачайте <https://win.rustup.rs/x86_64>, запустите, выберите
+   вариант `1) Proceed with standard installation`.
+2. Установите **Microsoft C++ Build Tools**:
+   <https://visualstudio.microsoft.com/visual-cpp-build-tools/> → workload
+   «Разработка классических приложений на C++», обязательно с компонентом
+   «Windows 10/11 SDK». Без него Rust установится, но линковка упадёт на
+   `link.exe`.
+3. Убедитесь, что установлен **WebView2 Runtime** (в Windows 11 он уже есть):
+   <https://developer.microsoft.com/microsoft-edge/webview2/>
+4. **Закройте и заново откройте терминал** — `PATH` подхватывается только при
+   старте процесса. Это самая частая причина «я же установил, а не работает».
+5. Проверьте: `rustc --version`, `cargo --version`, затем `npm run doctor`.
+
+**macOS:** `xcode-select --install`, затем
+`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
+
+**Linux:** та же команда `rustup` плюс системные пакеты из раздела 1.1.
+
+Первый `npm run tauri dev` после установки собирает ~470 крейтов и занимает
+несколько минут — это нормально, последующие запуски быстрые.
+
+### 1.4. Про `npm audit`
+
+`npm ci` может показать два десятка уязвимостей. Все они относятся к
+**инструментам сборки** (`shadcn` CLI, Tailwind, Vite) и не попадают в бандл:
+
+```sh
+npm audit --omit=dev    # уязвимости того, что реально уходит пользователю → 0
+```
+
+Проверяйте именно эту команду. `npm audit fix --force` применять не нужно —
+он ломает мажорные версии инструментов сборки.
 
 ---
 

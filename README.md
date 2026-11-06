@@ -54,8 +54,16 @@ UI/UX, палитра и скругления остаются как в ори�
 
 ```sh
 npm ci
+npm run doctor      # проверка окружения: Node, Rust, MSVC/WebView2, Java, openssl
 npm run tauri dev
 ```
+
+Если `tauri dev` сообщает `cargo metadata: program not found` — не установлен
+Rust; `npm run doctor` покажет, чего не хватает, и как это поставить. Пошаговая
+инструкция для Windows/macOS/Linux — [docs/RUNBOOK.md](docs/RUNBOOK.md), раздел 1.
+
+`npm audit` показывает уязвимости инструментов сборки (shadcn CLI, Tailwind,
+Vite), которые не попадают в бандл. Проверять нужно `npm audit --omit=dev`.
 
 `npm run dev` поднимает только frontend. Без desktop shell доступен интерфейс ввода ссылки; авторизация и установка не имитируются.
 

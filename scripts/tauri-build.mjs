@@ -43,6 +43,21 @@ function main() {
   const root = path.resolve(import.meta.dirname, "..");
   const extraArgs = process.argv.slice(2);
 
+  // An installer must name its one provider (branding/provider.json). Reuses the
+  // real validator instead of a second copy of the rule. Players never type an
+  // address, so shipping an unconfigured template would be a dead end.
+  const provider = spawnSync(
+    process.execPath,
+    [
+      "--experimental-strip-types",
+      path.join(root, "scripts/apply-brand.ts"),
+      "--require-provider",
+      "--skip-icons",
+    ],
+    { stdio: "inherit", cwd: root },
+  );
+  if (provider.status !== 0) process.exit(provider.status ?? 1);
+
   // The doctor runs once, not per pass.
   const doctor = spawnSync(
     process.execPath,

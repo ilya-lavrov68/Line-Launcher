@@ -12,6 +12,7 @@ pub mod launch;
 pub mod launch_manifest;
 pub mod rollback;
 pub mod settings;
+pub mod skin_library;
 pub mod state;
 pub mod storage;
 pub mod wardrobe;

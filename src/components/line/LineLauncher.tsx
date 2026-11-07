@@ -26,6 +26,9 @@ import AboutDialog from "./AboutDialog";
 import Attribution from "./Attribution";
 import AuthForm from "./AuthForm";
 import ConfigUrlInput from "./ConfigUrlInput";
+import ConnectingScreen from "./ConnectingScreen";
+import { bakedProvider } from "@/brand/provider.generated";
+import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import InstallProgress from "./InstallProgress";
 import LaunchControls from "./LaunchControls";
 import ServerBanner from "./ServerBanner";
@@ -43,6 +46,12 @@ const LAUNCHER_VERSION = "0.1.0";
 
 export default function LineLauncher() {
   const [screen, setScreen] = useState<Screen>("config");
+  /**
+   * One provider per build. A configured build connects to its baked address and
+   * never shows an address field; only an unconfigured template under `npm run
+   * dev` lets a developer type one.
+   */
+  const mode = connectionMode(bakedProvider, import.meta.env.DEV);
   const [section, setSection] = useState<LineSection>("servers");
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -111,35 +120,58 @@ export default function LineLauncher() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     void lineApi
       .settings()
       .then((value) => {
-        if (mounted.current) setSettings(value);
+        if (!cancelled) setSettings(value);
       })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     mounted.current = true;
+    // Per-run guard, not the shared `mounted` ref: StrictMode mounts, cleans up
+    // and mounts again, which sets `mounted` back to true. The first run's
+    // promise would then pass that check and connect a second time.
+    let cancelled = false;
     lineApi
       .cachedConfig()
       .then((cached) => {
-        if (cached && mounted.current) {
+        if (cancelled) return;
+        if (cached) {
+          // A universal build's cache must not carry over into a locked branded
+          // build: only a baked address is trusted there.
+          if (!isAllowedCachedUrl(bakedProvider, cached.sourceUrl)) {
+            void connectBakedDefault();
+            return;
+          }
           setSnapshot(cached);
           setScreen("servers");
           // Stale-while-revalidate: cached cards are visible immediately; a fresh
           // successful fetch replaces them and clears the offline/stale badge.
           void loadConfig(cached.sourceUrl);
+        } else {
+          void connectBakedDefault();
         }
       })
       .catch((cause) => {
-        if (mounted.current) setError(errorMessage(cause));
+        if (!cancelled) setError(errorMessage(cause));
       });
     return () => {
+      cancelled = true;
       mounted.current = false;
       requestGeneration.current += 1;
     };
   }, [loadConfig]);
+
+  /** The build names exactly one provider, so startup connects straight to it. */
+  async function connectBakedDefault() {
+    if (mode === "auto") await loadConfig(bakedProvider.configUrl);
+  }
 
   async function refresh() {
     if (!snapshot || actionsBusy || refreshing) return;
@@ -403,24 +435,11 @@ export default function LineLauncher() {
     }
   }
 
-  /** Wardrobe needs a signed-in server whose provider advertises the endpoints. */
-  const wardrobeAvailable = Boolean(selected && session && selected.wardrobe);
-
   /**
-   * Say exactly which prerequisite is missing. "Inactive" with no reachable
-   * explanation left players guessing; each branch names the next action.
+   * Local-first: the history lives on this machine, so the section is always
+   * reachable. Only *syncing* to the provider needs a signed-in server.
    */
-  const wardrobeHint = wardrobeAvailable
-    ? undefined
-    : !snapshot
-      ? "Сначала подключите провайдера по ссылке на config.json"
-      : !selected
-        ? "Откройте сервер в списке — гардероб относится к конкретному серверу"
-        : !selected.wardrobe
-          ? `Провайдер не настроил гардероб для сервера «${selected.name}». Лаунчер не может загружать скины, пока в конфиге нет блока wardrobe.`
-          : !session
-            ? `Войдите в аккаунт на сервере «${selected.name}» — скин хранится у провайдера и привязан к аккаунту`
-            : "Гардероб недоступен";
+  const canSyncSkin = Boolean(selected && session && selected.wardrobe);
 
   const titleContext =
     section === "settings"
@@ -431,14 +450,7 @@ export default function LineLauncher() {
           ? selected.name
           : (snapshot?.config.provider.name ?? "Подключение");
 
-  // Logout, config refresh or a provider change can remove the wardrobe
-  // prerequisites. Fall back to the server list instead of rendering nothing.
-  useEffect(() => {
-    if (section === "wardrobe" && !wardrobeAvailable) setSection("servers");
-  }, [section, wardrobeAvailable]);
-
   function navigate(next: LineSection) {
-    if (next === "wardrobe" && !wardrobeAvailable) return;
     setSection(next);
     setError(undefined);
   }
@@ -458,7 +470,11 @@ export default function LineLauncher() {
     }
   }
 
-  function changeProvider() {
+  /**
+   * There is no other provider to switch to. This signs out and reconnects to the
+   * same baked address, which is what a player actually wants after an outage.
+   */
+  function reconnect() {
     if (actionsBusy || loading) return;
     if (selected) void lineApi.logout(selected.id).catch(() => undefined);
     detailGeneration.current += 1;
@@ -467,6 +483,7 @@ export default function LineLauncher() {
     setSelected(null);
     setSession(null);
     setError(undefined);
+    if (mode === "auto") void loadConfig(bakedProvider.configUrl, true);
   }
 
   return (
@@ -479,13 +496,11 @@ export default function LineLauncher() {
               <SideNav
                 section={section}
                 collapsed={settings?.settings.sidebarCollapsed ?? false}
-                wardrobeAvailable={wardrobeAvailable}
-                wardrobeHint={wardrobeHint}
                 providerName={snapshot?.config.provider.name}
                 actionsDisabled={actionsBusy || loading}
                 onNavigate={navigate}
                 onToggleCollapsed={() => void toggleSidebar()}
-                onChangeProvider={changeProvider}
+                onChangeProvider={reconnect}
                 onAbout={() => setAboutOpen(true)}
               />
               <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
@@ -519,21 +534,33 @@ export default function LineLauncher() {
                           disabled={actionsBusy}
                         />
                       )}
-                      {section === "wardrobe" && selected && session && (
+                      {section === "wardrobe" && (
                         <WardrobeScreen
                           server={selected}
-                          username={session.username}
+                          username={session?.username}
+                          canSync={canSyncSkin}
                           disabled={actionsBusy}
                         />
                       )}
                       {section === "servers" && screen === "config" && (
                         <div className="flex min-h-full items-center justify-center py-4">
-                          <ConfigUrlInput
-                            initialUrl={snapshot?.sourceUrl}
-                            loading={loading}
-                            error={error}
-                            onSubmit={(url) => void loadConfig(url)}
-                          />
+                          {mode === "dev-url" ? (
+                            <ConfigUrlInput
+                              initialUrl={snapshot?.sourceUrl}
+                              loading={loading}
+                              error={error}
+                              onSubmit={(url) => void loadConfig(url)}
+                            />
+                          ) : (
+                            <ConnectingScreen
+                              loading={loading}
+                              error={error}
+                              unconfigured={mode === "unconfigured"}
+                              onRetry={() =>
+                                void loadConfig(bakedProvider.configUrl, true)
+                              }
+                            />
+                          )}
                         </div>
                       )}
                       {section === "servers" &&

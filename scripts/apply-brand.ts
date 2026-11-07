@@ -36,6 +36,11 @@ import {
   renderTs,
   validateBrand,
 } from "./brand-config.ts";
+import {
+  renderProviderTs,
+  requireConfigured,
+  validateProvider,
+} from "./provider-config.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BRANDING = join(ROOT, "branding");
@@ -44,10 +49,14 @@ const PRESETS_PATH = join(BRANDING, "presets.json");
 const OUT_CSS = join(ROOT, "src/brand/generated.css");
 const OUT_TS = join(ROOT, "src/brand/generated.ts");
 const OUT_TAURI = join(ROOT, "src-tauri/tauri.brand.conf.json");
+const PROVIDER_PATH = join(BRANDING, "provider.json");
+const OUT_PROVIDER = join(ROOT, "src/brand/provider.generated.ts");
 const ICONS_DIR = join(ROOT, "src-tauri/icons");
 
 const CHECK_ONLY = process.argv.includes("--check");
 const SKIP_ICONS = process.argv.includes("--skip-icons");
+// Installers must name their one provider; the dev template may stay empty.
+const REQUIRE_PROVIDER = process.argv.includes("--require-provider");
 
 function fail(message: string): never {
   throw new Error(`[brand] ${message}`);
@@ -83,6 +92,25 @@ function main(): void {
   };
   const { palette, logoPath, appIconPath } = validateBrand(config, presets);
   const changed: string[] = [];
+
+  // Provider address: baked at build time so players never type a URL.
+  if (!existsSync(PROVIDER_PATH) && REQUIRE_PROVIDER) {
+    fail("branding/provider.json is missing. Create it with your config_url.");
+  }
+  if (existsSync(PROVIDER_PATH)) {
+    const provider = validateProvider(
+      JSON.parse(readFileSync(PROVIDER_PATH, "utf8")),
+    );
+    if (REQUIRE_PROVIDER) requireConfigured(provider);
+    if (writeIfChanged(OUT_PROVIDER, renderProviderTs(provider))) {
+      changed.push("src/brand/provider.generated.ts");
+    }
+    console.log(
+      provider.configUrl
+        ? `[provider] ${provider.configUrl}`
+        : "[provider] config_url пуст — шаблон не настроен (для установщика заполните его)",
+    );
+  }
 
   if (writeIfChanged(OUT_CSS, renderCss(palette))) {
     changed.push("src/brand/generated.css");

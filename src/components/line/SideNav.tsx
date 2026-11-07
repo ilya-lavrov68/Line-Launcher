@@ -2,7 +2,7 @@ import { m, useReducedMotion } from "framer-motion";
 import {
   ChevronLeft,
   Info,
-  Link2,
+  RefreshCw,
   Server,
   Settings,
   Shirt,
@@ -23,10 +23,6 @@ export type LineSection = "servers" | "wardrobe" | "settings";
 export interface SideNavProps {
   section: LineSection;
   collapsed: boolean;
-  /** Wardrobe needs a signed-in server that advertises the endpoints. */
-  wardrobeAvailable: boolean;
-  /** Why the wardrobe is unavailable, phrased as the next step for the player. */
-  wardrobeHint?: string;
   providerName?: string;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
@@ -57,8 +53,6 @@ interface NavItem {
 export default function SideNav({
   section,
   collapsed,
-  wardrobeAvailable,
-  wardrobeHint,
   providerName,
   onNavigate,
   onToggleCollapsed,
@@ -69,16 +63,8 @@ export default function SideNav({
   const reducedMotion = useReducedMotion();
   const items: NavItem[] = [
     { id: "servers", label: "Серверы", icon: Server },
-    {
-      id: "wardrobe",
-      label: "Гардероб",
-      icon: Shirt,
-      disabled: !wardrobeAvailable,
-      hint: wardrobeAvailable
-        ? undefined
-        : (wardrobeHint ??
-          "Войдите на сервер, у которого провайдер настроил гардероб"),
-    },
+    // Never gated: the local history works signed out and offline.
+    { id: "wardrobe", label: "Гардероб", icon: Shirt },
     { id: "settings", label: "Настройки", icon: Settings },
   ];
 
@@ -153,16 +139,16 @@ export default function SideNav({
         <Button
           variant="ghost"
           disabled={actionsDisabled}
-          aria-label="Сменить провайдера"
-          title={collapsed ? "Сменить провайдера" : undefined}
+          aria-label="Переподключиться"
+          title={collapsed ? "Переподключиться" : undefined}
           onClick={onChangeProvider}
           className={cn(
             "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
-          <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {!collapsed && <span className="truncate">Сменить провайдера</span>}
+          <RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {!collapsed && <span className="truncate">Переподключиться</span>}
         </Button>
         <Button
           variant="ghost"

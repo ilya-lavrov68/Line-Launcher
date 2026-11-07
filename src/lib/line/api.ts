@@ -18,6 +18,7 @@ import {
   type SettingsSnapshot,
   type SkinModel,
   type SkinState,
+  type SkinLibrarySnapshot,
 } from "@/types/line";
 
 export class DesktopRequiredError extends Error {
@@ -71,6 +72,18 @@ export const lineApi = {
   uploadSkin: (serverId: string, model: SkinModel, png: number[]) =>
     call<SkinState>("upload_skin", { serverId, model, png }),
   resetSkin: (serverId: string) => call<void>("reset_skin", { serverId }),
+  skinLibrary: () => call<SkinLibrarySnapshot>("list_skin_library"),
+  addSkin: (name: string, model: SkinModel, png: number[]) =>
+    call<SkinLibrarySnapshot>("add_skin_to_library", { name, model, png }),
+  renameSkin: (id: string, name: string) =>
+    call<SkinLibrarySnapshot>("rename_skin", { id, name }),
+  deleteSkin: (id: string) =>
+    call<SkinLibrarySnapshot>("delete_skin_from_library", { id }),
+  skinTexture: (id: string) => call<number[]>("read_skin_texture", { id }),
+  setActiveSkin: (serverId: string, id: string | null) =>
+    call<SkinLibrarySnapshot>("set_active_skin", { serverId, id }),
+  syncActiveSkin: (serverId: string) =>
+    call<SkinState>("sync_active_skin", { serverId }),
   onGame: async (
     serverId: string,
     callback: (status: GameStatus) => void,

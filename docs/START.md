@@ -1,0 +1,143 @@
+# Быстрый старт Line Launcher
+
+Короткая инструкция. Подробности — в [RUNBOOK.md](RUNBOOK.md), контракт API — в
+[PROVIDER.md](PROVIDER.md), брендинг — в [BRANDING.md](BRANDING.md).
+
+## Я игрок
+
+1. Установите лаунчер, который вам дал ваш игровой проект.
+2. Откройте его. Список серверов загрузится сам — адрес вводить не нужно.
+3. Выберите сервер → **Регистрация** или **Вход**.
+4. **Установить сборку** → дождитесь загрузки → **Играть**.
+
+Если список не загрузился — проверьте интернет и нажмите **Повторить**. Если
+Java не найдена, лаунчер скажет, какую версию поставить.
+
+**Гардероб** работает без входа и без интернета: добавьте PNG 64×64 или 64×32,
+он сохранится в локальной истории. На сервер уходит только активный скин и
+только по кнопке **Отправить на сервер**.
+
+## Я провайдер: собрать лаунчер под свой проект
+
+Нужны **Node.js 22+**, **Rust stable** и
+[зависимости Tauri v2](https://tauri.app/start/prerequisites/).
+
+```sh
+npm ci
+npm run doctor          # проверит окружение и подскажет, чего не хватает
+```
+
+### Шаг 1. Свой адрес
+
+Один лаунчер = один провайдер. Ваши серверы перечисляются не здесь, а в
+`config.json`, который отдаёт этот адрес.
+
+`branding/provider.json`:
+
+```json
+{
+  "config_url": "https://ваш-домен/line/config.json"
+}
+```
+
+Только `https://`, без логина/пароля в ссылке и без `#`. Пустое значение — это
+ненастроенный шаблон: в режиме разработки появится поле ссылки, а сборка
+установщика будет остановлена с понятной ошибкой.
+
+### Шаг 2. Свой вид
+
+`branding/line.brand.json` — название, акценты, логотип. Готовые пресеты:
+`obsy` (по умолчанию), `emerald`, `violet`, `amber`, `rose`, `sky`.
+
+```json
+{
+  "preset": "emerald",
+  "product": { "name": "My Project" },
+  "assets": { "logo": "assets/logo.svg" }
+}
+```
+
+### Шаг 3. Сборка
+
+```sh
+npm run tauri:build
+```
+
+Команда сама применит брендинг, проверит что адрес заполнен и соберёт
+установщики (на Windows — NSIS и MSI). Результат в `src-tauri/target/release/bundle/`.
+
+Готово. Игроку остаётся зарегистрироваться и войти.
+
+> Упоминание **Line Launcher | Plus In Plus** в интерфейсе — условие лицензии.
+> Его нельзя убирать. Место и язык выбираются в `branding/line.brand.json`.
+
+### Что должен отдавать ваш сервер
+
+Минимум: `config.json` со списком серверов и эндпоинты входа/регистрации.
+Полное описание полей, ограничения и примеры — [PROVIDER.md](PROVIDER.md).
+Готовый образец конфига — [examples/config.json](../examples/config.json).
+
+Проверить связку без Minecraft:
+
+```sh
+npm run provider:pack     # тестовая сборка + config.json
+npm run provider:serve    # https://127.0.0.1:8443/config.json
+npm run test:provider
+```
+
+## Я разработчик лаунчера
+
+```sh
+npm ci
+npm run dev               # только интерфейс, без desktop-оболочки
+npm run tauri dev         # полное приложение
+```
+
+Пока `branding/provider.json` пуст, `npm run dev` показывает поле ссылки — это
+удобство для разработки, в готовой сборке его нет.
+
+### Проверки
+
+```sh
+npm test                  # контракт, брендинг, лицензия, логика игрока
+npm run check             # TypeScript
+npm run build             # production-сборка интерфейса
+npm run brand:check       # сгенерированный брендинг актуален
+npm run test:rust         # чистая Rust-логика без crates.io
+npm run test:wardrobe     # скин-эндпоинты по HTTPS
+```
+
+Браузерные проверки (нужен запущенный `npm run dev` в другом терминале):
+
+```sh
+npx playwright-core install chromium
+npm run test:ui           # сквозной сценарий интерфейса
+npm run test:boot         # подключение при старте ровно один раз
+npm run screenshots       # обновить картинки для README
+```
+
+Rust целиком:
+
+```sh
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+```
+
+`npm audit` ругается на инструменты сборки — они не попадают в бандл. Проверять
+нужно `npm audit --omit=dev`.
+
+Что проверено, а что нет — [VERIFICATION.md](VERIFICATION.md).
+
+## Частые проблемы
+
+| Симптом                                         | Что делать                                                                                   |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `cargo metadata: program not found`             | Не установлен Rust. `npm run doctor` покажет, чего не хватает                                |
+| Список серверов не грузится                     | Проверьте интернет, нажмите **Повторить**. Адрес зашит в сборку — менять его игроку не нужно |
+| «Сборка не настроена»                           | Тот, кто собрал лаунчер, не заполнил `branding/provider.json`                                |
+| Сборка установщика остановилась на `config_url` | Заполните `branding/provider.json` и повторите                                               |
+| `tauri dev` не находит WebView2 (Windows)       | Установите WebView2 Runtime; подробности в [RUNBOOK.md](RUNBOOK.md)                          |
+| Нужен пропуск проверки окружения                | `LINE_SKIP_DOCTOR=1 npm run tauri dev`                                                       |
+
+Полный разбор проблем и ручные проверки — [RUNBOOK.md](RUNBOOK.md).

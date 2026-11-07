@@ -16,6 +16,11 @@ struct CacheEnvelope {
     config: LineConfig,
 }
 
+/// Shared with the settings screen so "clear cache" removes exactly this file.
+pub fn cache_file_path(app: &AppHandle) -> LineResult<PathBuf> {
+    cache_path(app)
+}
+
 fn cache_path(app: &AppHandle) -> LineResult<PathBuf> {
     Ok(app
         .path()

@@ -13,6 +13,9 @@ import BrandMark from "./BrandMark";
 
 export interface AboutDialogProps {
   version: string;
+  /** Controlled mode: the side navigation owns the trigger. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -21,22 +24,29 @@ export interface AboutDialogProps {
  * The mandatory Line Launcher | Plus In Plus credit is repeated here.
  * This is additional to the persistent footer/header credit, never a replacement.
  */
-export default function AboutDialog({ version }: AboutDialogProps) {
+export default function AboutDialog({
+  version,
+  open,
+  onOpenChange,
+}: AboutDialogProps) {
+  const controlled = open !== undefined;
   return (
-    <Dialog>
-      <DialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground h-8 w-8 cursor-pointer"
-            title="О программе / About"
-          />
-        }
-      >
-        <Info className="h-4 w-4" />
-        <span className="sr-only">О программе / About</span>
-      </DialogTrigger>
+    <Dialog {...(controlled ? { open, onOpenChange } : {})}>
+      {!controlled && (
+        <DialogTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground h-8 w-8 cursor-pointer"
+              title="О программе / About"
+            />
+          }
+        >
+          <Info className="h-4 w-4" />
+          <span className="sr-only">О программе / About</span>
+        </DialogTrigger>
+      )}
       <DialogContent className="p-5 sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">

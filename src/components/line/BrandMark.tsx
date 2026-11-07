@@ -8,11 +8,37 @@ export interface BrandMarkProps {
 }
 
 /**
- * Product mark. Uses the configured branding logo when present, otherwise the
- * built-in Lucide mark tinted with `text-primary` exactly like Obsy's header
- * logo (`className="text-primary h-8 w-auto"`).
+ * Product mark, supplied as a standalone transparent SVG/PNG via
+ * `branding/assets.logo`.
+ *
+ * A monochrome SVG authored with `currentColor` is painted through a CSS mask so
+ * it inherits `text-primary` and therefore follows every branding preset — the
+ * same tint Obsy applies to its own header logo. Colour artwork keeps its own
+ * fills and is rendered as a plain image. Neither path introduces a background.
  */
 export default function BrandMark({ className }: BrandMarkProps) {
+  if (brand.logo && brand.logoTinted) {
+    // Vite inlines small SVGs as a data: URL containing single quotes. An
+    // unquoted CSS url(...) with quotes inside is invalid and silently dropped,
+    // which leaves a solid colour block instead of the mark. Always quote.
+    const mask = `url("${brand.logo.replace(/"/g, '\\"')}")`;
+    return (
+      <span
+        aria-hidden="true"
+        className={cn("bg-primary inline-block h-8 w-8 shrink-0", className)}
+        style={{
+          maskImage: mask,
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+          WebkitMaskImage: mask,
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+        }}
+      />
+    );
+  }
   if (brand.logo) {
     return (
       <img

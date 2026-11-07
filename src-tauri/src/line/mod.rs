@@ -11,7 +11,9 @@ pub mod java;
 pub mod launch;
 pub mod launch_manifest;
 pub mod rollback;
+pub mod settings;
 pub mod state;
 pub mod storage;
+pub mod wardrobe;
 
 pub const LAUNCHER_VERSION: &str = env!("CARGO_PKG_VERSION");

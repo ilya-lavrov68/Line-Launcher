@@ -124,6 +124,10 @@ const items = [
   attributed("install.rs", "pub fn safe_entry_path("),
   attributed("java.rs", "pub fn parse_java_version("),
   attributed("launch.rs", "pub struct LaunchSpec {"),
+  attributed("launch.rs", "pub const MIN_HEAP_MB:"),
+  attributed("launch.rs", "pub const MAX_HEAP_MB:"),
+  attributed("launch.rs", "pub fn heap_ceiling("),
+  attributed("launch.rs", "pub fn validate_heap("),
   attributed("launch.rs", "pub fn optimal_heap_mb("),
   attributed("launch.rs", "pub fn build_java_command("),
   attributed("launch.rs", "pub fn verified_game_dir("),
@@ -142,6 +146,9 @@ const items = [
   attributed("launch_manifest.rs", "fn relative_dir("),
   attributed("rollback.rs", "fn valid_sha("),
   attributed("error.rs", "pub fn classify_network_chain("),
+  attributed("wardrobe.rs", "pub const MAX_SKIN_BYTES:"),
+  attributed("wardrobe.rs", "const PNG_SIGNATURE:"),
+  attributed("wardrobe.rs", "pub fn validate_skin_png("),
   attributed("dev_ca.rs", "pub fn candidate_paths("),
   attributed("install.rs", "fn has_path_conflict("),
 ];
@@ -161,6 +168,10 @@ const tests = [
     "launch.rs",
     "fn rejects_agent_injection_and_small_host_memory_is_bounded(",
   ),
+  attributed("wardrobe.rs", "fn header("),
+  attributed("wardrobe.rs", "fn accepts_both_minecraft_skin_sizes("),
+  attributed("wardrobe.rs", "fn rejects_wrong_dimensions_depth_and_interlace("),
+  attributed("wardrobe.rs", "fn rejects_non_png_and_oversize("),
 ];
 
 // Extra coverage for helpers whose crate tests need serde/tempfile/zip.
@@ -356,6 +367,36 @@ fn harness_dev_ca_trims_whitespace_and_deduplicates_roots() {
     assert_eq!(paths.len(), 2, "expected crate dir + repo root: {paths:?}");
     assert_eq!(paths[0], PathBuf::from("/repo/src-tauri/.provider/tls.crt"));
     assert_eq!(paths[1], PathBuf::from("/repo/.provider/tls.crt"));
+}
+
+#[test]
+fn harness_heap_ceiling_leaves_room_for_the_os() {
+    let gib = 1024u64 * 1024 * 1024;
+    assert_eq!(heap_ceiling(16 * gib), 12288);
+    assert_eq!(heap_ceiling(64 * gib), MAX_HEAP_MB, "hard cap must hold");
+    assert_eq!(heap_ceiling(4 * gib), 3072);
+    // A tiny or bogus memory reading must never produce an unusable ceiling.
+    assert_eq!(heap_ceiling(512 * 1024 * 1024), MIN_HEAP_MB);
+    assert_eq!(heap_ceiling(0), MIN_HEAP_MB);
+}
+
+#[test]
+fn harness_player_heap_is_rejected_not_clamped() {
+    let gib = 1024u64 * 1024 * 1024;
+    assert_eq!(validate_heap(4096, 16 * gib).unwrap(), 4096);
+    assert!(validate_heap(512, 16 * gib).is_err(), "below the floor");
+    assert!(validate_heap(13000, 16 * gib).is_err(), "above the ceiling");
+    assert!(validate_heap(MAX_HEAP_MB, 2 * gib).is_err(), "above RAM share");
+    let err = validate_heap(99999, 4 * gib).unwrap_err();
+    assert_eq!(err.code, ErrorCode::InvalidInput);
+    assert!(!err.retryable);
+    // The automatic value must always be inside the selectable range.
+    for gib_count in [2u64, 4, 8, 16, 32, 128] {
+        let total = gib_count * gib;
+        let auto = optimal_heap_mb(total);
+        assert!(auto >= MIN_HEAP_MB);
+        assert!(auto <= heap_ceiling(total), "auto heap exceeds the ceiling");
+    }
 }
 
 #[test]

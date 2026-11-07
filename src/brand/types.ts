@@ -28,5 +28,11 @@ export interface Brand {
   description: string;
   /** Hashed asset URL, or null when the built-in mark is used. */
   logo: string | null;
+  /**
+   * True when the SVG paints with `currentColor`. Such a mark is rendered as a
+   * CSS mask so it inherits the palette (works under every preset and in the
+   * title bar). Colour artwork keeps its own fills and is rendered as an image.
+   */
+  logoTinted: boolean;
   attribution: BrandAttribution;
 }

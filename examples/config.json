@@ -6,7 +6,13 @@
     "name": "Example Server Provider"
   },
   "cache_ttl_seconds": 300,
-  "required_features": ["custom-auth-v1", "zip-sha256-v1"],
+  "required_features": [
+    "custom-auth-v1",
+    "zip-sha256-v1",
+    "launch-manifest-v1",
+    "private-ipc-v1",
+    "skin-upload-v1"
+  ],
   "servers": [
     {
       "id": "survival",
@@ -23,6 +29,32 @@
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "size_bytes": 1048576,
         "unpacked_size_bytes": 2097152
+      },
+      "icon_url": "https://cdn.example.com/line/survival-icon.png",
+      "banner_url": "https://cdn.example.com/line/survival-banner.jpg",
+      "wardrobe": {
+        "skin_url": "https://auth.example.com/v1/launcher/skin",
+        "skin_upload_url": "https://auth.example.com/v1/launcher/skin"
+      }
+    },
+    {
+      "id": "skyblock",
+      "name": "SkyBlock",
+      "description": "Острова в пустоте: кооператив, экономика и сезонные задания.",
+      "icon_url": "https://cdn.example.com/line/skyblock-icon.png",
+      "banner_url": "https://cdn.example.com/line/skyblock-banner.jpg",
+      "version": "2026.11.1",
+      "minecraft_version": "1.21.1",
+      "auth": {
+        "login_url": "https://auth.example.com/v1/launcher/login",
+        "launch_ticket_url": "https://auth.example.com/v1/launcher/ticket",
+        "session_exchange_url": "https://auth.example.com/v1/launcher/exchange"
+      },
+      "distribution": {
+        "url": "https://downloads.example.com/line/skyblock-2026.11.1.zip",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size_bytes": 2097152,
+        "unpacked_size_bytes": 4194304
       }
     }
   ]

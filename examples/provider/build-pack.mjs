@@ -145,6 +145,7 @@ try {
       "zip-sha256-v1",
       "launch-manifest-v1",
       "private-ipc-v1",
+      "skin-upload-v1",
     ],
     servers: [
       {
@@ -159,6 +160,10 @@ try {
           register_url: `${base}/v1/register`,
           launch_ticket_url: `${base}/v1/launcher/ticket`,
           session_exchange_url: `${base}/v1/launcher/exchange`,
+        },
+        wardrobe: {
+          skin_url: `${base}/v1/launcher/skin`,
+          skin_upload_url: `${base}/v1/launcher/skin`,
         },
         distribution: {
           url: `${base}/pack.zip`,

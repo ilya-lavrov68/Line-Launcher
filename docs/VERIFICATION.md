@@ -5,22 +5,28 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (93 passing, 1 skipped: contract, branding, licence/metadata, environment
-  probe, Windows tool discovery, Tauri version alignment, installer licence encoding
-  and TLS trust)
+- `npm test` (110 passing, 1 skipped: contract, branding, licence/metadata, environment
+  probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
+  TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
+  artwork, wardrobe contract, custom-frame permissions, window-geometry survival
+  through the branding overlay, and token-only styling of the new chrome)
 - `npm run brand:check` (generated branding is current)
 - License/metadata tests: custom Line license, verbatim upstream MIT hash,
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 20 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 25 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
   walking, install-lock exclusivity/recovery, main-class and SHA validation, and
   order-independent ZIP file/directory conflict detection, and classification of
   network failure chains (untrusted/expired/mismatched certificate, localized OS
-  errors under an English rustls wrapper, refused connection, timeout precedence).
+  errors under an English rustls wrapper, refused connection, timeout precedence),
+  skin PNG validation (both accepted sizes, rejected dimensions/depth/colour type/
+  interlace, non-PNG and oversize input), and the player heap policy (RAM-share
+  ceiling, hard cap, rejection instead of clamping, automatic value always inside
+  the selectable range).
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -34,12 +40,28 @@ Checked in the implementation sandbox:
   bearer ticket issuance, a real JVM demo game completing the private-IPC
   handshake and exchange, ticket never printed, replay rejected (409), binding
   mismatch rejected (403). Node plays the launcher IPC peer; Rust is not involved.
+- `npm run test:wardrobe`: 21 checks against the reference provider's skin contract
+  over real HTTPS (self-signed cert pinned): missing/unknown bearer rejected, 404
+  for a player without a skin, missing and unknown model rejected, wrong
+  Content-Type, missing PNG signature, wrong dimensions, oversized body answered
+  with 413 rather than a dropped socket, valid 64×64 slim and legacy 64×32
+  accepted, state read-back, texture download, reset, and the session token never
+  appearing in the provider log. Needs no JDK; Rust is not involved.
 - `npm run test:ui`: Chromium smoke of config → login → install → history →
   launch → stop, including a deliberately reordered game event that must not
   resurrect a finished game, and mandatory credit visibility at 375/800/1280 px.
-  0 page errors. Uses a test-only injected Tauri IPC stub.
+  Extended for the player shell: the tinted brand mask must actually apply (an
+  unquoted CSS `url()` silently degraded it to a solid block), the custom caption
+  buttons must reach the window plugin, sidebar collapse must persist through
+  `save_settings` and keep accessible names, the settings screen must show human
+  labels rather than raw `keep`/`auto` values and expose no JVM-argument field,
+  loaded server banner/icon must render, and the wardrobe runs a real 64×64 PNG
+  through validation → preview → upload → reset while a malformed PNG is rejected
+  without any upload call. 33 IPC calls, 0 page errors. Uses a test-only injected
+  Tauri IPC stub — the real window plugin and Rust commands are not exercised.
 - Chromium smoke test of the browser fallback screen
-- Chromium screenshots of the config, server list, auth and installed states
+- Chromium screenshots of the config, server list, auth, installed, server detail
+  (banner + icon), settings and wardrobe states, reviewed visually
 - Branding switch verified in the browser: a non-default preset changed the
   accent, product name and attribution placement while `--radius` stayed 14px
 - Mandatory credit visibility smoke: footer and header placements checked at

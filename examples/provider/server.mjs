@@ -102,6 +102,40 @@ function json(res, status, body) {
   res.end(bytes);
 }
 
+/**
+ * Raw body with a hard cap. Rejects with a tagged error instead of destroying the
+ * socket, so the caller can answer 413 and the launcher shows a real reason
+ * rather than a generic network failure.
+ */
+function readRaw(req, limit = 256 * 1024) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    let aborted = false;
+    const chunks = [];
+    req.on("data", (chunk) => {
+      if (aborted) return;
+      size += chunk.length;
+      if (size > limit) {
+        aborted = true;
+        chunks.length = 0;
+        const error = new Error("body too large");
+        error.tooLarge = true;
+        reject(error);
+        // Stop reading, but keep the connection alive for the 413 response.
+        req.pause();
+        req.removeAllListeners("data");
+        req.resume();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (!aborted) resolve(Buffer.concat(chunks));
+    });
+    req.on("error", reject);
+  });
+}
+
 function readBody(req, limit = 16 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -140,6 +174,15 @@ function prune() {
     if (record.expiresAt <= now) tickets.delete(ticket);
 }
 
+// Reference wardrobe storage: username -> { model, png }. Never persisted.
+const skins = new Map();
+
+function bearerSession(req) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  return sessions.get(token);
+}
+
 const server = https.createServer(
   { key: readFileSync(keyPath), cert: readFileSync(certPath) },
   async (req, res) => {
@@ -166,6 +209,69 @@ const server = https.createServer(
           ETag: `"${packSha}"`,
         });
         res.end(packBytes);
+        return;
+      }
+      if (url.pathname === "/v1/launcher/skin") {
+        const session = bearerSession(req);
+        if (!session) return json(res, 401, { error: "invalid_session" });
+        const base = `https://${host}:${port}`;
+        if (req.method === "GET") {
+          const skin = skins.get(session.username);
+          if (!skin) return json(res, 404, { error: "no_skin" });
+          return json(res, 200, {
+            model: skin.model,
+            texture_url: `${base}/skins/${encodeURIComponent(session.username)}.png`,
+          });
+        }
+        if (req.method === "DELETE") {
+          skins.delete(session.username);
+          log("skin reset", session.username);
+          res.writeHead(204).end();
+          return;
+        }
+        if (req.method === "POST") {
+          const model = req.headers["x-skin-model"];
+          if (model !== "classic" && model !== "slim") {
+            return json(res, 400, { error: "invalid_model" });
+          }
+          if (!String(req.headers["content-type"]).startsWith("image/png")) {
+            return json(res, 415, { error: "expected_png" });
+          }
+          const png = await readRaw(req);
+          // The launcher validates too; a provider must never trust the client.
+          const signature = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+          ]);
+          if (
+            png.length < 33 ||
+            !png.subarray(0, 8).equals(signature) ||
+            png.readUInt32BE(16) !== 64 ||
+            ![32, 64].includes(png.readUInt32BE(20))
+          ) {
+            return json(res, 400, { error: "invalid_skin" });
+          }
+          skins.set(session.username, { model, png });
+          log("skin updated", { username: session.username, model });
+          return json(res, 200, {
+            model,
+            texture_url: `${base}/skins/${encodeURIComponent(session.username)}.png`,
+          });
+        }
+        return json(res, 405, { error: "method_not_allowed" });
+      }
+      if (req.method === "GET" && url.pathname.startsWith("/skins/")) {
+        const username = decodeURIComponent(
+          url.pathname.slice("/skins/".length).replace(/\.png$/, ""),
+        );
+        const skin = skins.get(username);
+        if (!skin) return json(res, 404, { error: "no_skin" });
+        res.writeHead(200, {
+          "Content-Type": "image/png",
+          "Content-Length": skin.png.length,
+          // The preview canvas is cross-origin; allow it to read the pixels.
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(skin.png);
         return;
       }
       if (
@@ -270,6 +376,7 @@ const server = https.createServer(
       return json(res, 404, { error: "not_found" });
     } catch (error) {
       log("request failed:", error.message);
+      if (error.tooLarge) return json(res, 413, { error: "body_too_large" });
       return json(res, 400, { error: "bad_request" });
     }
   },

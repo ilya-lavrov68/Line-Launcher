@@ -24,6 +24,7 @@ export default function BrandMark({ className }: BrandMarkProps) {
     const mask = `url("${brand.logo.replace(/"/g, '\\"')}")`;
     return (
       <span
+        data-line-brand-mark="tinted"
         aria-hidden="true"
         className={cn("bg-primary inline-block h-8 w-8 shrink-0", className)}
         style={{
@@ -42,6 +43,7 @@ export default function BrandMark({ className }: BrandMarkProps) {
   if (brand.logo) {
     return (
       <img
+        data-line-brand-mark="image"
         src={brand.logo}
         alt=""
         aria-hidden="true"
@@ -51,6 +53,7 @@ export default function BrandMark({ className }: BrandMarkProps) {
   }
   return (
     <Layers2
+      data-line-brand-mark="fallback"
       className={cn("text-primary h-8 w-8", className)}
       aria-hidden="true"
     />

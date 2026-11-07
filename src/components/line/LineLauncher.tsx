@@ -9,6 +9,7 @@ import { ArrowLeft, Check, LogOut, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { brand } from "@/brand/generated";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import { isNewerGameStatus } from "@/types/line";
 import type {
@@ -405,6 +406,22 @@ export default function LineLauncher() {
   /** Wardrobe needs a signed-in server whose provider advertises the endpoints. */
   const wardrobeAvailable = Boolean(selected && session && selected.wardrobe);
 
+  /**
+   * Say exactly which prerequisite is missing. "Inactive" with no reachable
+   * explanation left players guessing; each branch names the next action.
+   */
+  const wardrobeHint = wardrobeAvailable
+    ? undefined
+    : !snapshot
+      ? "Сначала подключите провайдера по ссылке на config.json"
+      : !selected
+        ? "Откройте сервер в списке — гардероб относится к конкретному серверу"
+        : !selected.wardrobe
+          ? `Провайдер не настроил гардероб для сервера «${selected.name}». Лаунчер не может загружать скины, пока в конфиге нет блока wardrobe.`
+          : !session
+            ? `Войдите в аккаунт на сервере «${selected.name}» — скин хранится у провайдера и привязан к аккаунту`
+            : "Гардероб недоступен";
+
   const titleContext =
     section === "settings"
       ? "Настройки"
@@ -455,242 +472,252 @@ export default function LineLauncher() {
   return (
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
-        <div className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
-          <TitleBar context={titleContext} />
-          <div className="flex min-h-0 w-full flex-1 overflow-hidden">
-            <SideNav
-              section={section}
-              collapsed={settings?.settings.sidebarCollapsed ?? false}
-              wardrobeAvailable={wardrobeAvailable}
-              providerName={snapshot?.config.provider.name}
-              actionsDisabled={actionsBusy || loading}
-              onNavigate={navigate}
-              onToggleCollapsed={() => void toggleSidebar()}
-              onChangeProvider={changeProvider}
-              onAbout={() => setAboutOpen(true)}
-            />
-            <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
-              <div className="mx-auto max-w-5xl">
-                {error && !(section === "servers" && screen === "config") && (
-                  <p
-                    role="alert"
-                    className="text-destructive border-destructive/20 bg-destructive/5 mb-5 rounded-lg border p-3 text-xs"
-                  >
-                    {error}
-                  </p>
-                )}
-                <AnimatePresence mode="wait" initial={false}>
-                  <m.div
-                    key={
-                      section === "servers"
-                        ? screen === "detail"
-                          ? `detail-${selected?.id}`
-                          : screen
-                        : section
-                    }
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    {section === "settings" && settings && (
-                      <SettingsScreen
-                        snapshot={settings}
-                        onChange={setSettings}
-                        disabled={actionsBusy}
-                      />
-                    )}
-                    {section === "wardrobe" && selected && session && (
-                      <WardrobeScreen
-                        server={selected}
-                        username={session.username}
-                        disabled={actionsBusy}
-                      />
-                    )}
-                    {section === "servers" && screen === "config" && (
-                      <div className="flex min-h-full items-center justify-center py-4">
-                        <ConfigUrlInput
-                          initialUrl={snapshot?.sourceUrl}
-                          loading={loading}
-                          error={error}
-                          onSubmit={(url) => void loadConfig(url)}
-                        />
-                      </div>
-                    )}
-                    {section === "servers" &&
-                      screen === "servers" &&
-                      snapshot && (
-                        <ServerList
-                          providerName={snapshot.config.provider.name}
-                          servers={snapshot.config.servers}
-                          installedIds={installedIds}
-                          stale={snapshot.stale}
-                          refreshing={refreshing}
-                          actionsDisabled={actionsBusy}
-                          onSelect={(server) => void selectServer(server)}
-                          onRefresh={() => void refresh()}
+        <TooltipProvider>
+          <div className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
+            <TitleBar context={titleContext} />
+            <div className="flex min-h-0 w-full flex-1 overflow-hidden">
+              <SideNav
+                section={section}
+                collapsed={settings?.settings.sidebarCollapsed ?? false}
+                wardrobeAvailable={wardrobeAvailable}
+                wardrobeHint={wardrobeHint}
+                providerName={snapshot?.config.provider.name}
+                actionsDisabled={actionsBusy || loading}
+                onNavigate={navigate}
+                onToggleCollapsed={() => void toggleSidebar()}
+                onChangeProvider={changeProvider}
+                onAbout={() => setAboutOpen(true)}
+              />
+              <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
+                <div className="mx-auto max-w-5xl">
+                  {error && !(section === "servers" && screen === "config") && (
+                    <p
+                      role="alert"
+                      className="text-destructive border-destructive/20 bg-destructive/5 mb-5 rounded-lg border p-3 text-xs"
+                    >
+                      {error}
+                    </p>
+                  )}
+                  <AnimatePresence mode="wait" initial={false}>
+                    <m.div
+                      key={
+                        section === "servers"
+                          ? screen === "detail"
+                            ? `detail-${selected?.id}`
+                            : screen
+                          : section
+                      }
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      {section === "settings" && settings && (
+                        <SettingsScreen
+                          snapshot={settings}
+                          onChange={setSettings}
+                          disabled={actionsBusy}
                         />
                       )}
-                    {section === "servers" &&
-                      screen === "detail" &&
-                      selected && (
-                        <section className="mx-auto flex max-w-xl flex-col gap-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={actionsBusy}
-                            onClick={() => {
-                              detailGeneration.current += 1;
-                              setScreen("servers");
-                              setSelected(null);
-                              setSession(null);
-                            }}
-                            className="flex cursor-pointer items-center gap-1.5 self-start text-xs"
-                          >
-                            <ArrowLeft
-                              className="h-3.5 w-3.5"
-                              aria-hidden="true"
-                            />
-                            <span>Все серверы</span>
-                          </Button>
-                          <ServerBanner
-                            name={selected.name}
-                            bannerUrl={selected.banner_url}
-                            iconUrl={selected.icon_url ?? selected.logo_url}
+                      {section === "wardrobe" && selected && session && (
+                        <WardrobeScreen
+                          server={selected}
+                          username={session.username}
+                          disabled={actionsBusy}
+                        />
+                      )}
+                      {section === "servers" && screen === "config" && (
+                        <div className="flex min-h-full items-center justify-center py-4">
+                          <ConfigUrlInput
+                            initialUrl={snapshot?.sourceUrl}
+                            loading={loading}
+                            error={error}
+                            onSubmit={(url) => void loadConfig(url)}
                           />
-                          <div className="bg-card border-border/50 relative flex flex-col gap-6 overflow-hidden rounded-xl border p-6 shadow-2xl backdrop-blur-md">
-                            <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
-                            <div className="relative z-10 flex flex-col gap-1">
-                              <span className="text-muted-foreground font-mono text-[10px]">
-                                {snapshot?.config.provider.name} / v
-                                {selected.version}
-                              </span>
-                              <h2 className="text-foreground text-2xl font-bold tracking-tight">
-                                {selected.name}
-                              </h2>
-                              <p className="text-muted-foreground text-xs leading-relaxed">
-                                {selected.description}
-                              </p>
-                            </div>
-                            {session ? (
-                              <div className="relative z-10 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                                <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                                  <Check
-                                    className="h-3.5 w-3.5"
-                                    aria-hidden="true"
-                                  />
-                                  {session.username}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={actionsBusy}
-                                  onClick={() => void logout()}
-                                  className="flex cursor-pointer items-center gap-1.5 text-xs"
-                                >
-                                  <LogOut
-                                    className="h-3.5 w-3.5"
-                                    aria-hidden="true"
-                                  />
-                                  <span>Выйти</span>
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="relative z-10">
-                                <AuthForm
-                                  serverName={selected.name}
-                                  registrationAvailable={Boolean(
-                                    selected.auth.register_url,
-                                  )}
-                                  loading={authLoading || installing}
-                                  error={authError}
-                                  onSubmit={(mode, username, password) =>
-                                    void authenticate(mode, username, password)
-                                  }
-                                />
-                              </div>
-                            )}
-                            {session &&
-                              !progress &&
-                              (!receipt ||
-                                receipt.sha256 !==
-                                  selected.distribution.sha256) && (
-                                <Button
-                                  disabled={actionsBusy}
-                                  onClick={() => void install()}
-                                  className="relative z-10 h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98]"
-                                >
-                                  {installing
-                                    ? "Подготовка установки…"
-                                    : receipt
-                                      ? "Обновить сборку"
-                                      : "Установить сборку"}
-                                </Button>
-                              )}
-                            {progress && (
-                              <div className="relative z-10">
-                                <InstallProgress
-                                  progress={progress}
-                                  error={installError}
-                                  onCancel={() => void cancel()}
-                                  onRetry={() => void install()}
-                                />
-                              </div>
-                            )}
-                            {receipt &&
-                              (!progress || progress.phase === "completed") && (
-                                <LaunchControls
-                                  server={selected}
-                                  receipt={receipt}
-                                  status={gameStatus}
-                                  busy={actionsBusy}
-                                  error={launchError}
-                                  historyOpen={historyOpen}
-                                  history={history}
-                                  historyLoading={historyLoading}
-                                  historyError={historyError}
-                                  onHistoryOpenChange={(open) =>
-                                    void openHistory(open)
-                                  }
-                                  onRollback={(target) => void rollback(target)}
-                                  onLaunch={() => void launch()}
-                                  onStop={() => void stopGame()}
-                                />
-                              )}
-                            {installError && !progress && (
-                              <p
-                                role="alert"
-                                className="text-destructive relative z-10 text-xs"
-                              >
-                                {installError}
-                              </p>
-                            )}
-                          </div>
-                        </section>
+                        </div>
                       )}
-                  </m.div>
-                </AnimatePresence>
-              </div>
-            </main>
-          </div>
-          <AboutDialog
-            version={LAUNCHER_VERSION}
-            open={aboutOpen}
-            onOpenChange={setAboutOpen}
-          />
-          <footer className="border-border/50 text-muted-foreground flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[10px]">
-            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span>
-                {brand.shortName} | {LAUNCHER_VERSION}
+                      {section === "servers" &&
+                        screen === "servers" &&
+                        snapshot && (
+                          <ServerList
+                            providerName={snapshot.config.provider.name}
+                            servers={snapshot.config.servers}
+                            installedIds={installedIds}
+                            stale={snapshot.stale}
+                            refreshing={refreshing}
+                            actionsDisabled={actionsBusy}
+                            onSelect={(server) => void selectServer(server)}
+                            onRefresh={() => void refresh()}
+                          />
+                        )}
+                      {section === "servers" &&
+                        screen === "detail" &&
+                        selected && (
+                          <section className="mx-auto flex max-w-xl flex-col gap-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={actionsBusy}
+                              onClick={() => {
+                                detailGeneration.current += 1;
+                                setScreen("servers");
+                                setSelected(null);
+                                setSession(null);
+                              }}
+                              className="flex cursor-pointer items-center gap-1.5 self-start text-xs"
+                            >
+                              <ArrowLeft
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              <span>Все серверы</span>
+                            </Button>
+                            <ServerBanner
+                              name={selected.name}
+                              bannerUrl={selected.banner_url}
+                              iconUrl={selected.icon_url ?? selected.logo_url}
+                            />
+                            <div className="bg-card border-border/50 relative flex flex-col gap-6 overflow-hidden rounded-xl border p-6 shadow-2xl backdrop-blur-md">
+                              <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
+                              <div className="relative z-10 flex flex-col gap-1">
+                                <span className="text-muted-foreground font-mono text-[10px]">
+                                  {snapshot?.config.provider.name} / v
+                                  {selected.version}
+                                </span>
+                                <h2 className="text-foreground text-2xl font-bold tracking-tight">
+                                  {selected.name}
+                                </h2>
+                                <p className="text-muted-foreground text-xs leading-relaxed">
+                                  {selected.description}
+                                </p>
+                              </div>
+                              {session ? (
+                                <div className="relative z-10 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                                    <Check
+                                      className="h-3.5 w-3.5"
+                                      aria-hidden="true"
+                                    />
+                                    {session.username}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={actionsBusy}
+                                    onClick={() => void logout()}
+                                    className="flex cursor-pointer items-center gap-1.5 text-xs"
+                                  >
+                                    <LogOut
+                                      className="h-3.5 w-3.5"
+                                      aria-hidden="true"
+                                    />
+                                    <span>Выйти</span>
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="relative z-10">
+                                  <AuthForm
+                                    serverName={selected.name}
+                                    registrationAvailable={Boolean(
+                                      selected.auth.register_url,
+                                    )}
+                                    loading={authLoading || installing}
+                                    error={authError}
+                                    onSubmit={(mode, username, password) =>
+                                      void authenticate(
+                                        mode,
+                                        username,
+                                        password,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              )}
+                              {session &&
+                                !progress &&
+                                (!receipt ||
+                                  receipt.sha256 !==
+                                    selected.distribution.sha256) && (
+                                  <Button
+                                    disabled={actionsBusy}
+                                    onClick={() => void install()}
+                                    className="relative z-10 h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
+                                  >
+                                    {installing
+                                      ? "Подготовка установки…"
+                                      : receipt
+                                        ? "Обновить сборку"
+                                        : "Установить сборку"}
+                                  </Button>
+                                )}
+                              {progress && (
+                                <div className="relative z-10">
+                                  <InstallProgress
+                                    progress={progress}
+                                    error={installError}
+                                    onCancel={() => void cancel()}
+                                    onRetry={() => void install()}
+                                  />
+                                </div>
+                              )}
+                              {receipt &&
+                                (!progress ||
+                                  progress.phase === "completed") && (
+                                  <LaunchControls
+                                    server={selected}
+                                    receipt={receipt}
+                                    status={gameStatus}
+                                    busy={actionsBusy}
+                                    error={launchError}
+                                    historyOpen={historyOpen}
+                                    history={history}
+                                    historyLoading={historyLoading}
+                                    historyError={historyError}
+                                    onHistoryOpenChange={(open) =>
+                                      void openHistory(open)
+                                    }
+                                    onRollback={(target) =>
+                                      void rollback(target)
+                                    }
+                                    onLaunch={() => void launch()}
+                                    onStop={() => void stopGame()}
+                                  />
+                                )}
+                              {installError && !progress && (
+                                <p
+                                  role="alert"
+                                  className="text-destructive relative z-10 text-xs"
+                                >
+                                  {installError}
+                                </p>
+                              )}
+                            </div>
+                          </section>
+                        )}
+                    </m.div>
+                  </AnimatePresence>
+                </div>
+              </main>
+            </div>
+            <AboutDialog
+              version={LAUNCHER_VERSION}
+              open={aboutOpen}
+              onOpenChange={setAboutOpen}
+            />
+            <footer className="border-border/50 text-muted-foreground flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[10px]">
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>
+                  {brand.shortName} | {LAUNCHER_VERSION}
+                </span>
+                {brand.attribution.placement === "footer" && <Attribution />}
               </span>
-              {brand.attribution.placement === "footer" && <Attribution />}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-              Только авторизация провайдера
-            </span>
-          </footer>
-        </div>
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                Только авторизация провайдера
+              </span>
+            </footer>
+          </div>
+        </TooltipProvider>
       </MotionConfig>
     </LazyMotion>
   );

@@ -14,9 +14,9 @@ export const brand: Brand = {
   windowTitle: "Line Launcher",
   description: "Provider-configured Minecraft launcher",
   logo: logoUrl,
-  logoTinted: true,
+  logoTinted: false,
   attribution: {
-    placement: "footer",
+    placement: "header",
     language: "en",
     en: "Powered by Line Launcher | Plus In Plus",
     ru: "Работает на Line Launcher | Plus In Plus",

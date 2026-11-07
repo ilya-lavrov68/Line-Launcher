@@ -252,18 +252,28 @@ test("the new chrome uses semantic tokens, never hardcoded colours", () => {
   }
 });
 
-test("the standalone logo is transparent and tinted by the palette", () => {
+test("the standalone logo is transparent and its tint mode is detected", () => {
   const svg = read("branding/assets/logo.svg");
   assert.ok(!/<rect[^>]*fill=/.test(svg), "the mark must have no background");
-  assert.match(svg, /currentColor/);
   assert.match(svg, /viewBox=/);
   const brand = readJson("branding/line.brand.json") as BrandConfig;
-  assert.equal(brand.assets?.logo, "assets/logo.svg");
+  assert.ok(brand.assets?.logo, "a standalone logo file must be configured");
+
+  // Both modes are valid: monochrome art is tinted through a mask, colour art
+  // keeps its own fills. The generator must classify whichever is shipped, so
+  // swapping the file cannot silently render a solid block or a stale tint.
+  const tinted = /\bcurrentColor\b/i.test(svg);
   const generated = read("src/brand/generated.ts");
-  assert.match(generated, /logoTinted: true/);
+  assert.ok(
+    generated.includes(`logoTinted: ${tinted}`),
+    `logoTinted must be ${tinted} for the shipped artwork`,
+  );
   const mark = read("src/components/line/BrandMark.tsx");
-  assert.match(mark, /maskImage/);
+  assert.match(mark, /maskImage/, "the tinted path must survive");
   assert.match(mark, /bg-primary/);
+  assert.match(mark, /<img/, "the colour path must survive");
+  // An unquoted url() is dropped by the CSS parser when Vite inlines the SVG.
+  assert.match(mark, /url\("/, "the mask URL must stay quoted");
 });
 
 test("navigation keeps every target reachable when collapsed", () => {
@@ -274,4 +284,94 @@ test("navigation keeps every target reachable when collapsed", () => {
   assert.match(nav, /aria-expanded/);
   assert.match(nav, /Attribution/);
   assert.match(nav, /useReducedMotion/);
+});
+
+// --- Layout stability and chrome ------------------------------------------
+
+test("submit buttons keep a reserved message slot so they cannot jump", () => {
+  for (const file of [
+    "src/components/line/ConfigUrlInput.tsx",
+    "src/components/line/AuthForm.tsx",
+  ]) {
+    const src = read(file);
+    // Mounting/unmounting the error changed the card height and, because the
+    // card is centred, moved the submit button on every attempt.
+    assert.match(
+      src,
+      /aria-live="polite"/,
+      `${file} lost its live message slot`,
+    );
+    assert.match(
+      src,
+      /min-h-\d+/,
+      `${file} must reserve height for the message`,
+    );
+  }
+  // The shared Button already provides press feedback; a second bespoke
+  // transform fought it and made the press feel like a jump.
+  for (const file of [
+    "src/components/line/ConfigUrlInput.tsx",
+    "src/components/line/AuthForm.tsx",
+    "src/components/line/LaunchControls.tsx",
+    "src/components/line/LineLauncher.tsx",
+  ]) {
+    assert.ok(
+      !/active:scale-/.test(read(file)),
+      `${file} re-introduces a bespoke press transform`,
+    );
+  }
+});
+
+test("the scrollbar pill is token-driven and not disabled by the standard props", () => {
+  const css = read("src/index.css");
+  assert.match(css, /::-webkit-scrollbar-thumb/);
+  assert.match(css, /background-clip:\s*content-box/);
+  assert.match(css, /var\(--foreground\)/);
+  assert.match(css, /var\(--primary\)/);
+  // Setting scrollbar-width/color unconditionally makes Chromium ignore
+  // ::-webkit-scrollbar entirely, which silently restores the stock bar.
+  const standard = /scrollbar-width:\s*thin/;
+  assert.match(css, standard);
+  const guard = css.indexOf("@supports not selector(::-webkit-scrollbar)");
+  assert.ok(guard >= 0, "the standard properties must be gated to Firefox");
+  assert.ok(
+    guard < css.search(standard),
+    "scrollbar-width must sit inside the @supports guard",
+  );
+  // No hardcoded colours: every preset must restyle the thumb.
+  const block = css.slice(
+    css.indexOf("::-webkit-scrollbar"),
+    css.indexOf("/* Base UI"),
+  );
+  assert.ok(
+    !/#[0-9a-fA-F]{3,8}\b/.test(block),
+    "the scrollbar hardcodes a colour",
+  );
+  // Reduced motion must also stop the thumb transition.
+  assert.match(
+    css,
+    /prefers-reduced-motion[\s\S]*::-webkit-scrollbar-thumb[\s\S]*transition:\s*none/,
+  );
+});
+
+test("the unavailable wardrobe explains itself and stays reachable", () => {
+  const nav = read("src/components/line/SideNav.tsx");
+  // A disabled button gets pointer-events:none, so a native title never shows.
+  // Assert the prop itself, not the word: a comment mentioning it would
+  // otherwise let the regression through (verified by mutation).
+  assert.match(nav, /focusableWhenDisabled=\{/);
+  assert.match(nav, /TooltipTrigger/);
+  assert.match(nav, /opacity-50/, "it must still look inactive");
+  const shell = read("src/components/line/LineLauncher.tsx");
+  assert.match(shell, /TooltipProvider/);
+  // One generic hint left players guessing; each prerequisite is named.
+  assert.match(shell, /wardrobeHint/);
+  for (const reason of [
+    "подключите провайдера",
+    "Откройте сервер",
+    "не настроил гардероб",
+    "Войдите в аккаунт",
+  ]) {
+    assert.ok(shell.includes(reason), `missing wardrobe reason: ${reason}`);
+  }
 });

@@ -179,20 +179,27 @@ export default function AuthForm({
           </m.div>
         </AnimatePresence>
 
-        {message && (
-          <p
-            id={`${id}-error`}
-            role="alert"
-            className="text-destructive text-xs leading-relaxed"
-          >
-            {message}
-          </p>
-        )}
+        {/*
+          Reserved slot, same reason as ConfigUrlInput: mounting/unmounting the
+          error moved the submit button on every attempt. The height is fixed so
+          clearing the message while the request runs cannot shift the layout.
+        */}
+        <div className="min-h-10" aria-live="polite">
+          {message && (
+            <p
+              id={`${id}-error`}
+              role="alert"
+              className="text-destructive text-xs leading-relaxed"
+            >
+              {message}
+            </p>
+          )}
+        </div>
 
         <Button
           type="submit"
           disabled={loading}
-          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98]"
+          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
         >
           {loading ? (
             <RefreshCw className="h-4 w-4 animate-spin" />

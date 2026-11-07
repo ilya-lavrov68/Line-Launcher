@@ -11,6 +11,11 @@ import {
 import { brand } from "@/brand/generated";
 import Attribution from "@/components/line/Attribution";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type LineSection = "servers" | "wardrobe" | "settings";
@@ -20,6 +25,8 @@ export interface SideNavProps {
   collapsed: boolean;
   /** Wardrobe needs a signed-in server that advertises the endpoints. */
   wardrobeAvailable: boolean;
+  /** Why the wardrobe is unavailable, phrased as the next step for the player. */
+  wardrobeHint?: string;
   providerName?: string;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
@@ -51,6 +58,7 @@ export default function SideNav({
   section,
   collapsed,
   wardrobeAvailable,
+  wardrobeHint,
   providerName,
   onNavigate,
   onToggleCollapsed,
@@ -68,7 +76,8 @@ export default function SideNav({
       disabled: !wardrobeAvailable,
       hint: wardrobeAvailable
         ? undefined
-        : "Войдите на сервер, у которого провайдер настроил гардероб",
+        : (wardrobeHint ??
+          "Войдите на сервер, у которого провайдер настроил гардероб"),
     },
     { id: "settings", label: "Настройки", icon: Settings },
   ];
@@ -98,18 +107,27 @@ export default function SideNav({
         {items.map((item) => {
           const active = section === item.id;
           const Icon = item.icon;
-          return (
+          const button = (
             <Button
-              key={item.id}
               variant="ghost"
               disabled={item.disabled}
+              // Keep it focusable and hoverable so the reason is reachable by
+              // keyboard and pointer; the shared Button otherwise applies
+              // pointer-events-none and the hint can never be read.
+              focusableWhenDisabled={item.disabled ? true : undefined}
               aria-current={active ? "page" : undefined}
               aria-label={item.label}
-              title={collapsed ? (item.hint ?? item.label) : item.hint}
+              title={collapsed && !item.hint ? item.label : undefined}
               onClick={() => onNavigate(item.id)}
               className={cn(
-                "h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs font-medium",
+                "h-9 w-full items-center gap-2.5 rounded-lg text-xs font-medium",
                 collapsed ? "justify-center px-0" : "justify-start px-2.5",
+                // focusableWhenDisabled drops the native :disabled styling, so
+                // the muted look is restored explicitly. It stays hoverable so
+                // the tooltip explaining the reason can still be read.
+                item.disabled
+                  ? "cursor-not-allowed opacity-50 hover:bg-transparent"
+                  : "cursor-pointer",
                 active
                   ? "bg-primary/10 text-primary hover:bg-primary/15"
                   : "text-muted-foreground hover:text-foreground",
@@ -118,6 +136,15 @@ export default function SideNav({
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Button>
+          );
+          if (!item.hint) return <div key={item.id}>{button}</div>;
+          return (
+            <Tooltip key={item.id}>
+              <TooltipTrigger render={button} />
+              <TooltipContent side="right" className="max-w-56">
+                {item.hint}
+              </TooltipContent>
+            </Tooltip>
           );
         })}
       </div>

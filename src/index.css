@@ -121,6 +121,75 @@ code {
   }
 }
 
+/*
+ * Custom scrollbar "pill".
+ *
+ * The stock WebView2 scrollbar is a wide grey bar that ignores the palette.
+ * This one is drawn entirely from Obsy's semantic tokens, so every branding
+ * preset restyles it with no extra CSS and no new palette slots:
+ *   track  — transparent (the surface behind shows through)
+ *   thumb  — --foreground at low alpha, brighter on hover, --primary on drag
+ *
+ * Geometry: a 10px gutter with a 2px transparent border leaves a 6px pill that
+ * never touches the content. `background-clip: content-box` is what creates the
+ * inset, so the thumb stays a rounded pill instead of a full-width bar.
+ * The same width is reserved for both axes so corners line up.
+ */
+@layer base {
+  /*
+   * Firefox only. Setting scrollbar-width/color in Chromium makes it IGNORE
+   * ::-webkit-scrollbar entirely, which silently killed the pill (verified in
+   * WebView2's engine). Gate the standard properties on the absence of support.
+   */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent)
+        transparent;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 22%, transparent);
+    border-radius: var(--radius-full, 9999px);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    min-height: 2.5rem;
+    transition: background-color 150ms ease;
+  }
+
+  /* Hovering the scrollable area reveals the thumb; it stays quiet otherwise. */
+  :hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 34%, transparent);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--foreground) 48%, transparent);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background-color: color-mix(in oklch, var(--primary) 70%, transparent);
+  }
+
+  /* Horizontal pill gets the same inset so both axes match. */
+  ::-webkit-scrollbar-thumb:horizontal {
+    min-width: 2.5rem;
+  }
+}
+
 /* Base UI internal hidden inputs suppression */
 input[type="hidden"],
 input[aria-hidden="true"],
@@ -190,5 +259,8 @@ input[id*="hidden-input"],
   *::before,
   *::after {
     scroll-behavior: auto !important;
+  }
+  ::-webkit-scrollbar-thumb {
+    transition: none;
   }
 }

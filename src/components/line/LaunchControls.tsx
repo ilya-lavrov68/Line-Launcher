@@ -53,7 +53,7 @@ export default function LaunchControls({
         <Button
           disabled={!configured || (!active && busy) || !receipt}
           onClick={active ? onStop : onLaunch}
-          className="h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98]"
+          className="h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
         >
           {active ? (
             starting ? (

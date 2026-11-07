@@ -94,27 +94,37 @@ export default function ConfigUrlInput({
             aria-describedby={`${id}-help${message ? ` ${id}-error` : ""}`}
             className="text-xs"
           />
-          <p
-            id={`${id}-help`}
-            className="text-muted-foreground flex items-start gap-1.5 text-[11px] leading-relaxed"
+          {/*
+            One fixed-height slot for help *and* error. Rendering the error as an
+            extra block changed the card height, and because the card is centred
+            the submit button jumped 24px on every submit (the error is cleared
+            while the request runs, then comes back). Swapping the content of a
+            reserved slot keeps the button perfectly still. min-h covers the
+            longest provider message at the narrowest supported window.
+          */}
+          <div
+            className="flex min-h-12 items-start gap-1.5 text-[11px] leading-relaxed"
+            aria-live="polite"
           >
-            <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
-            Используйте ссылку только от доверенного провайдера.
-          </p>
-          {message && (
-            <p
-              id={`${id}-error`}
-              role="alert"
-              className="text-destructive text-xs"
-            >
-              {message}
-            </p>
-          )}
+            {message ? (
+              <p id={`${id}-error`} role="alert" className="text-destructive">
+                {message}
+              </p>
+            ) : (
+              <p
+                id={`${id}-help`}
+                className="text-muted-foreground flex items-start gap-1.5"
+              >
+                <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
+                Используйте ссылку только от доверенного провайдера.
+              </p>
+            )}
+          </div>
         </div>
         <Button
           type="submit"
           disabled={loading || !url.trim()}
-          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98]"
+          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
         >
           {loading ? (
             <RefreshCw className="h-4 w-4 animate-spin" />

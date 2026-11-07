@@ -103,7 +103,12 @@ function skinPng() {
 const skinBytes = skinPng();
 
 mkdirSync(outDir, { recursive: true });
-const launchOptions = { headless: true };
+// --hide-scrollbars is a Playwright default; keeping it would hide the custom
+// scrollbar this suite asserts on.
+const launchOptions = {
+  headless: true,
+  ignoreDefaultArgs: ["--hide-scrollbars"],
+};
 const found = findBrowser();
 if (found) {
   launchOptions.executablePath = found.path;
@@ -149,6 +154,7 @@ await page.addInitScript(
     window.__events = new Map();
     window.__calls = [];
     window.__revision = 0;
+    window.__failConfigOnce = true;
     window.__emit = (event, payload) => {
       for (const [id, listener] of window.__events) {
         if (listener.event === event)
@@ -218,7 +224,19 @@ await page.addInitScript(
           return null;
         }
         if (cmd === "get_cached_config") return null;
-        if (cmd === "fetch_line_config")
+        if (cmd === "fetch_line_config" && window.__failConfigOnce) {
+          window.__failConfigOnce = false;
+          throw {
+            code: "NETWORK",
+            message:
+              "Не удалось соединиться с провайдером. Проверьте адрес и что сервер запущен.",
+            retryable: true,
+          };
+        }
+        if (cmd === "fetch_line_config") {
+          // Keep the loading state observable; an instant resolve races the
+          // screen's exit animation and measures the wrong element.
+          await new Promise((resolve) => setTimeout(resolve, 400));
           return {
             config,
             sourceUrl: args.url,
@@ -226,6 +244,7 @@ await page.addInitScript(
             fromCache: false,
             stale: false,
           };
+        }
         if (cmd === "get_installed_build") return window.__installed || null;
         if (cmd === "get_game_status")
           return {
@@ -328,7 +347,35 @@ try {
   await page
     .getByLabel("Адрес конфигурации")
     .fill("https://provider.example.com/config.json");
+  // Regression: submitting used to clear the error block, shrinking the centred
+  // card and throwing the button up, then back down when the error returned.
+  // Measure the three states the player actually sees: idle, error, loading.
+  const submitY = async () =>
+    Math.round(
+      (
+        await page
+          .getByRole("button", {
+            name: /Подключить провайдера|Проверяем конфигурацию/,
+          })
+          .boundingBox()
+      ).y,
+    );
+  const idleY = await submitY();
+
+  // First attempt fails: the error must appear without moving the button.
   await page.getByRole("button", { name: "Подключить провайдера" }).click();
+  await page.getByRole("alert").waitFor();
+  const errorY = await submitY();
+
+  // Second attempt clears the error while loading — the original 24px jump.
+  await page.getByRole("button", { name: "Подключить провайдера" }).click();
+  await page.getByRole("button", { name: "Проверяем конфигурацию…" }).waitFor();
+  const loadingY = await submitY();
+  check(
+    Math.max(idleY, errorY, loadingY) - Math.min(idleY, errorY, loadingY) <= 1,
+    `the submit button moved: idle=${idleY} error=${errorY} loading=${loadingY}`,
+  );
+
   await page.getByRole("heading", { name: "Plus In Plus Demo" }).waitFor();
   await shot("servers");
 
@@ -336,17 +383,87 @@ try {
   // with single quotes inside; an unquoted url(...) is dropped by the CSS parser
   // and the mark degrades to a solid block. Assert the mask really applies.
   const mark = await page.evaluate(() => {
-    const el = document.querySelector("header span[aria-hidden='true']");
-    if (!el) return null;
-    const cs = getComputedStyle(el);
-    return { mask: cs.maskImage || cs.webkitMaskImage, bg: cs.backgroundColor };
+    const span = document.querySelector(
+      'header [data-line-brand-mark="tinted"]',
+    );
+    if (span) {
+      const cs = getComputedStyle(span);
+      return { kind: "mask", mask: cs.maskImage || cs.webkitMaskImage };
+    }
+    const img = document.querySelector('header [data-line-brand-mark="image"]');
+    if (img)
+      return { kind: "image", loaded: img.complete && img.naturalWidth > 0 };
+    return null;
   });
-  if (mark) {
+  if (mark?.kind === "mask") {
     check(
       mark.mask && mark.mask !== "none",
       "brand mark mask was dropped by the CSS parser (solid block instead of a logo)",
     );
+  } else if (mark?.kind === "image") {
+    check(mark.loaded, "the colour brand mark did not load");
   }
+
+  // The disabled wardrobe must explain itself. A native title on a disabled
+  // button never fires (pointer-events:none) and is invisible to keyboard users.
+  const wardrobeNav = page.getByRole("button", { name: "Гардероб" });
+  const wardrobeState = await wardrobeNav.evaluate((el) => ({
+    ariaDisabled: el.getAttribute("aria-disabled"),
+    pointerEvents: getComputedStyle(el).pointerEvents,
+    opacity: getComputedStyle(el).opacity,
+  }));
+  if (wardrobeState.ariaDisabled === "true") {
+    check(
+      wardrobeState.pointerEvents !== "none",
+      "the disabled wardrobe cannot be hovered, so its reason is unreachable",
+    );
+    check(
+      Number(wardrobeState.opacity) < 1,
+      "the disabled wardrobe must still look inactive",
+    );
+    await wardrobeNav.hover();
+    const reason = await page
+      .locator('[data-slot="tooltip-content"]')
+      .innerText({ timeout: 5000 });
+    check(
+      reason.trim().length > 10,
+      "the disabled wardrobe showed no explanation",
+    );
+    // Reachable by keyboard, not only by pointer.
+    const focusable = await wardrobeNav.evaluate((el) => {
+      el.focus();
+      return document.activeElement === el;
+    });
+    check(focusable, "the disabled wardrobe is not focusable");
+    await page.mouse.move(600, 400);
+  }
+
+  // Custom scrollbar: the pill must be drawn by ::-webkit-scrollbar. Setting
+  // scrollbar-width in Chromium disables those pseudo-elements entirely, so
+  // assert the standard property is NOT forcing the stock bar back.
+  const scrollbar = await page.evaluate(() => {
+    const main = document.querySelector("main");
+    const cs = getComputedStyle(main);
+    const thumb = getComputedStyle(main, "::-webkit-scrollbar-thumb");
+    return {
+      standard: cs.scrollbarWidth,
+      radius: thumb.borderTopLeftRadius,
+      clip: thumb.backgroundClip,
+      colour: thumb.backgroundColor,
+    };
+  });
+  check(
+    scrollbar.standard === "auto",
+    "scrollbar-width is set in Chromium, which disables the custom pill",
+  );
+  check(
+    parseFloat(scrollbar.radius) > 0 || scrollbar.radius.includes("9999"),
+    `the scrollbar thumb is not a pill: radius=${scrollbar.radius}`,
+  );
+  check(
+    scrollbar.clip === "content-box",
+    "the thumb needs background-clip:content-box for its inset",
+  );
 
   // Custom title bar: the caption buttons must actually reach the window plugin.
   for (const label of ["Свернуть окно", "Развернуть окно"]) {

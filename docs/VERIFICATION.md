@@ -5,7 +5,7 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (110 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (113 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, wardrobe contract, custom-frame permissions, window-geometry survival
@@ -57,8 +57,18 @@ Checked in the implementation sandbox:
   labels rather than raw `keep`/`auto` values and expose no JVM-argument field,
   loaded server banner/icon must render, and the wardrobe runs a real 64×64 PNG
   through validation → preview → upload → reset while a malformed PNG is rejected
-  without any upload call. 33 IPC calls, 0 page errors. Uses a test-only injected
+  without any upload call. 34 IPC calls, 0 page errors. Uses a test-only injected
   Tauri IPC stub — the real window plugin and Rust commands are not exercised.
+- Layout-stability regressions measured in Chromium, not assumed: the provider
+  submit button holds its position within 1px across idle → error → loading
+  (it used to jump 24px), the scrollbar thumb computes to a pill
+  (`border-radius`, `background-clip: content-box`) and follows `--foreground`
+  when the token changes, and the disabled wardrobe is hoverable, focusable and
+  shows a reason naming the missing prerequisite. Playwright's default
+  `--hide-scrollbars` is disabled for this suite, otherwise the scrollbar under
+  test would be invisible. The three new static assertions were mutation-checked:
+  restoring the unconditional `scrollbar-width` or dropping
+  `focusableWhenDisabled` makes them fail.
 - Chromium smoke test of the browser fallback screen
 - Chromium screenshots of the config, server list, auth, installed, server detail
   (banner + icon), settings and wardrobe states, reviewed visually

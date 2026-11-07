@@ -41,7 +41,7 @@ export default function LaunchControls({
   onStop,
 }: LaunchControlsProps) {
   const configured = Boolean(
-    server.auth.launch_ticket_url && server.auth.session_exchange_url,
+    server.auth?.launch_ticket_url && server.auth?.session_exchange_url,
   );
   const starting = status?.phase === "starting";
   const running = status?.phase === "running";

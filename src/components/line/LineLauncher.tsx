@@ -5,7 +5,7 @@ import {
   domAnimation,
   m,
 } from "framer-motion";
-import { ArrowLeft, Check, LogOut, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { brand } from "@/brand/generated";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import type {
 } from "@/types/line";
 import AboutDialog from "./AboutDialog";
 import Attribution from "./Attribution";
-import AuthForm from "./AuthForm";
+import AccountScreen from "./AccountScreen";
 import ConfigUrlInput from "./ConfigUrlInput";
 import ConnectingScreen from "./ConnectingScreen";
 import { bakedProvider } from "@/brand/provider.generated";
@@ -38,9 +38,9 @@ import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
 import WardrobeScreen from "./WardrobeScreen";
 import { closeWindow, minimizeWindow } from "@/lib/line/window";
-import type { SettingsSnapshot } from "@/types/line";
+import { toLineError, type SettingsSnapshot } from "@/types/line";
 
-type Screen = "config" | "servers" | "detail";
+type Screen = "config" | "account" | "servers" | "detail";
 
 const LAUNCHER_VERSION = "0.1.0";
 
@@ -92,10 +92,14 @@ export default function LineLauncher() {
       if (!mounted.current || generation !== requestGeneration.current) return;
       detailGeneration.current += 1;
       setSnapshot(next);
-      setScreen("servers");
-      setSession(null);
       setSelected(null);
       setInstalledIds(new Set());
+      // The account belongs to the project, so a config refresh keeps it unless
+      // Rust dropped it (provider/auth change). Ask the backend, not the UI.
+      const current = await lineApi.session().catch(() => null);
+      if (!mounted.current || generation !== requestGeneration.current) return;
+      setSession(current);
+      setScreen(current ? "servers" : "account");
       const builds = await Promise.all(
         next.config.servers.map(async (server) => {
           try {
@@ -181,11 +185,16 @@ export default function LineLauncher() {
       const next = await lineApi.fetchConfig(snapshot.sourceUrl, true);
       if (!mounted.current) return;
       setSnapshot(next);
-      // Config refresh can change endpoints and invalidate backend sessions.
-      setSession(null);
+      // Only a provider/auth change drops the account; Rust decides that.
+      const current = await lineApi.session().catch(() => null);
+      if (!mounted.current) return;
+      setSession(current);
       setReceipt(null);
       detailGeneration.current += 1;
-      if (screen === "detail") {
+      if (!current) {
+        setScreen("account");
+        setSelected(null);
+      } else if (screen === "detail") {
         setScreen("servers");
         setSelected(null);
       }
@@ -205,7 +214,6 @@ export default function LineLauncher() {
     setSection("servers");
     setSelected(server);
     setScreen("detail");
-    setSession(null);
     setReceipt(null);
     setProgress(null);
     setAuthError(undefined);
@@ -225,42 +233,59 @@ export default function LineLauncher() {
         );
       }
     } catch (cause) {
-      if (mounted.current && generation === detailGeneration.current)
-        setInstallError(errorMessage(cause));
+      if (mounted.current && generation === detailGeneration.current) {
+        if (authExpired(cause)) setInstallError(undefined);
+        else setInstallError(errorMessage(cause));
+      }
     }
   }
 
+  /** One sign-in for the whole project: no server id is involved. */
   async function authenticate(
     mode: AuthMode,
     username: string,
     password: string,
   ) {
-    if (!selected || actionsBusy) return;
-    const generation = detailGeneration.current;
-    const serverId = selected.id;
+    if (authLoading) return;
     setAuthLoading(true);
     setAuthError(undefined);
     try {
-      const next = await lineApi.authenticate(mode, {
-        serverId,
-        username,
-        password,
-      });
-      if (mounted.current && generation === detailGeneration.current)
-        setSession(next);
+      const next = await lineApi.authenticate(mode, { username, password });
+      if (!mounted.current) return;
+      setSession(next);
+      setScreen("servers");
+      setSection("servers");
+      // A different account must not inherit the previous player's uploaded
+      // skin marker; the wardrobe re-syncs itself for this account.
+      void lineApi.forgetSyncedSkin().catch(() => undefined);
     } catch (cause) {
-      if (mounted.current && generation === detailGeneration.current)
-        setAuthError(errorMessage(cause));
+      if (mounted.current) setAuthError(errorMessage(cause));
     } finally {
-      if (mounted.current && generation === detailGeneration.current)
-        setAuthLoading(false);
+      if (mounted.current) setAuthLoading(false);
     }
+  }
+
+  /**
+   * The backend is the source of truth about the session: when it says the
+   * account is gone (expired or invalidated), go back to the single sign-in
+   * screen instead of leaving the player on a button that cannot work.
+   */
+  function authExpired(cause: unknown): boolean {
+    if (toLineError(cause).code !== "AUTH_REQUIRED") return false;
+    setSession(null);
+    setSelected(null);
+    setScreen("account");
+    setSection("servers");
+    setAuthError("Сессия истекла. Войдите повторно.");
+    void lineApi.forgetSyncedSkin().catch(() => undefined);
+    return true;
   }
 
   async function install() {
     if (!selected || !session || operation.current || gameActive) return;
     if (session.expiresAt <= Date.now()) {
       setSession(null);
+      setScreen("account");
       setAuthError("Сессия истекла. Войдите повторно.");
       return;
     }
@@ -325,14 +350,19 @@ export default function LineLauncher() {
     }
   }
 
+  /** Signing out is account-wide: it closes access to every server at once. */
   async function logout() {
-    if (!selected || actionsBusy) return;
+    if (actionsBusy) return;
     try {
-      await lineApi.logout(selected.id);
+      await lineApi.logout();
       setSession(null);
       setAuthError(undefined);
+      setSelected(null);
+      setScreen("account");
+      setSection("servers");
+      void lineApi.forgetSyncedSkin().catch(() => undefined);
     } catch (cause) {
-      setAuthError(errorMessage(cause));
+      setError(errorMessage(cause));
     }
   }
 
@@ -379,8 +409,10 @@ export default function LineLauncher() {
         else if (behaviour === "close") void closeWindow();
       }
     } catch (cause) {
-      if (mounted.current && generation === detailGeneration.current)
-        setLaunchError(errorMessage(cause));
+      if (mounted.current && generation === detailGeneration.current) {
+        if (authExpired(cause)) setLaunchError(undefined);
+        else setLaunchError(errorMessage(cause));
+      }
     } finally {
       if (mounted.current && generation === detailGeneration.current)
         setLaunching(false);
@@ -436,10 +468,10 @@ export default function LineLauncher() {
   }
 
   /**
-   * Local-first: the history lives on this machine, so the section is always
-   * reachable. Only *syncing* to the provider needs a signed-in server.
+   * Local-first: history works signed out. The automatic upload needs the
+   * project account and the project's wardrobe endpoints — not a selected server.
    */
-  const canSyncSkin = Boolean(selected && session && selected.wardrobe);
+  const canSyncSkin = Boolean(session && snapshot?.config.provider.wardrobe);
 
   const titleContext =
     section === "settings"
@@ -476,7 +508,7 @@ export default function LineLauncher() {
    */
   function reconnect() {
     if (actionsBusy || loading) return;
-    if (selected) void lineApi.logout(selected.id).catch(() => undefined);
+    void lineApi.logout().catch(() => undefined);
     detailGeneration.current += 1;
     setScreen("config");
     setSection("servers");
@@ -497,6 +529,8 @@ export default function LineLauncher() {
                 section={section}
                 collapsed={settings?.settings.sidebarCollapsed ?? false}
                 providerName={snapshot?.config.provider.name}
+                username={session?.username}
+                onLogout={() => void logout()}
                 actionsDisabled={actionsBusy || loading}
                 onNavigate={navigate}
                 onToggleCollapsed={() => void toggleSidebar()}
@@ -536,9 +570,16 @@ export default function LineLauncher() {
                       )}
                       {section === "wardrobe" && (
                         <WardrobeScreen
-                          server={selected}
                           username={session?.username}
                           canSync={canSyncSkin}
+                          accountKey={session?.username ?? "signed-out"}
+                          onAuthRequired={() => {
+                            setSession(null);
+                            setSelected(null);
+                            setScreen("account");
+                            setSection("servers");
+                            setAuthError("Сессия истекла. Войдите повторно.");
+                          }}
                           disabled={actionsBusy}
                         />
                       )}
@@ -563,6 +604,24 @@ export default function LineLauncher() {
                           )}
                         </div>
                       )}
+                      {section === "servers" &&
+                        screen === "account" &&
+                        snapshot && (
+                          <div className="flex min-h-full items-center justify-center py-4">
+                            <AccountScreen
+                              providerName={snapshot.config.provider.name}
+                              serverCount={snapshot.config.servers.length}
+                              registrationAvailable={Boolean(
+                                snapshot.config.provider.auth.register_url,
+                              )}
+                              loading={authLoading}
+                              error={authError}
+                              onSubmit={(mode, username, password) =>
+                                void authenticate(mode, username, password)
+                              }
+                            />
+                          </div>
+                        )}
                       {section === "servers" &&
                         screen === "servers" &&
                         snapshot && (
@@ -589,7 +648,6 @@ export default function LineLauncher() {
                                 detailGeneration.current += 1;
                                 setScreen("servers");
                                 setSelected(null);
-                                setSession(null);
                               }}
                               className="flex cursor-pointer items-center gap-1.5 self-start text-xs"
                             >
@@ -618,48 +676,6 @@ export default function LineLauncher() {
                                   {selected.description}
                                 </p>
                               </div>
-                              {session ? (
-                                <div className="relative z-10 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                                    <Check
-                                      className="h-3.5 w-3.5"
-                                      aria-hidden="true"
-                                    />
-                                    {session.username}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={actionsBusy}
-                                    onClick={() => void logout()}
-                                    className="flex cursor-pointer items-center gap-1.5 text-xs"
-                                  >
-                                    <LogOut
-                                      className="h-3.5 w-3.5"
-                                      aria-hidden="true"
-                                    />
-                                    <span>Выйти</span>
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="relative z-10">
-                                  <AuthForm
-                                    serverName={selected.name}
-                                    registrationAvailable={Boolean(
-                                      selected.auth.register_url,
-                                    )}
-                                    loading={authLoading || installing}
-                                    error={authError}
-                                    onSubmit={(mode, username, password) =>
-                                      void authenticate(
-                                        mode,
-                                        username,
-                                        password,
-                                      )
-                                    }
-                                  />
-                                </div>
-                              )}
                               {session &&
                                 !progress &&
                                 (!receipt ||

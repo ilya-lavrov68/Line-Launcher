@@ -4,7 +4,7 @@
 //! validates the PNG locally and forwards it under the existing bearer session,
 //! so no second credential or upload token is introduced. Endpoints are
 //! HTTPS-only and direct-only — a redirect never receives the access token.
-use super::config::validate_https;
+use super::config::{validate_https, WardrobeConfig};
 use super::error::{ErrorCode, LineError, LineResult};
 use super::http;
 use super::state::LineState;
@@ -117,19 +117,21 @@ fn auth_error(error: LineError) -> LineError {
     }
 }
 
-/// Returns None when the account has no custom skin (provider answers 404).
+/// The project's wardrobe endpoints, or a message that explains skins stay
+/// local. Kept in one place so read/upload/reset cannot disagree.
+fn account_wardrobe(config: &super::config::LineConfig) -> LineResult<&WardrobeConfig> {
+    config.provider.wardrobe.as_ref().ok_or_else(|| {
+        LineError::input("Проект не настроил гардероб. Скин сохранён локально и применится в игре.")
+    })
+}
+
+/// The account's current skin, or None when unset (provider answers 404).
+/// The wardrobe belongs to the project account, so there is no server id.
 #[tauri::command]
-pub async fn get_skin(
-    server_id: String,
-    state: State<'_, LineState>,
-) -> LineResult<Option<SkinState>> {
+pub async fn get_skin(state: State<'_, LineState>) -> LineResult<Option<SkinState>> {
     let (_, config) = state.fresh_config()?;
-    let server = config.server(&server_id)?;
-    let wardrobe = server
-        .wardrobe
-        .as_ref()
-        .ok_or_else(|| LineError::input("Провайдер не настроил гардероб для этого сервера."))?;
-    let session = state.session(&server_id)?;
+    let wardrobe = account_wardrobe(&config)?;
+    let session = state.session()?;
     let url = validate_https(&wardrobe.skin_url)?;
     let token = session.secret_token();
     let mut response = http::get_bearer(&state.http, &url, &token).await?;
@@ -141,23 +143,17 @@ pub async fn get_skin(
     Ok(Some(parse_skin(&bytes)?))
 }
 
-/// Shared upload path. Both the direct command and the library sync use it, so
-/// validation, HTTPS rules and bearer handling cannot drift between them.
+/// The single upload path, used by the automatic sync. Validation, HTTPS rules
+/// and bearer handling live here so nothing can drift.
 pub async fn push_skin(
-    server_id: &str,
     model: SkinModel,
     png: Vec<u8>,
     state: &State<'_, LineState>,
 ) -> LineResult<SkinState> {
     validate_skin_png(&png)?;
     let (_, config) = state.fresh_config()?;
-    let server = config.server(server_id)?;
-    let wardrobe = server.wardrobe.as_ref().ok_or_else(|| {
-        LineError::input(
-            "Провайдер не настроил гардероб для этого сервера. Скин сохранён локально.",
-        )
-    })?;
-    let session = state.session(server_id)?;
+    let wardrobe = account_wardrobe(&config)?;
+    let session = state.session()?;
     let url = validate_https(&wardrobe.skin_upload_url)?;
     let token = session.secret_token();
     let mut response = http::send_bearer_bytes(
@@ -175,25 +171,12 @@ pub async fn push_skin(
     parse_skin(&bytes)
 }
 
-#[tauri::command]
-pub async fn upload_skin(
-    server_id: String,
-    model: SkinModel,
-    png: Vec<u8>,
-    state: State<'_, LineState>,
-) -> LineResult<SkinState> {
-    push_skin(&server_id, model, png, &state).await
-}
-
-#[tauri::command]
-pub async fn reset_skin(server_id: String, state: State<'_, LineState>) -> LineResult<()> {
+/// Clears the account's custom skin. Called by the automatic sync when the
+/// player picks the standard look; there is no manual upload/reset command.
+pub async fn reset_skin(state: &State<'_, LineState>) -> LineResult<()> {
     let (_, config) = state.fresh_config()?;
-    let server = config.server(&server_id)?;
-    let wardrobe = server
-        .wardrobe
-        .as_ref()
-        .ok_or_else(|| LineError::input("Провайдер не настроил гардероб для этого сервера."))?;
-    let session = state.session(&server_id)?;
+    let wardrobe = account_wardrobe(&config)?;
+    let session = state.session()?;
     let url = validate_https(&wardrobe.skin_upload_url)?;
     let token = session.secret_token();
     let mut response = http::send_bearer_bytes(

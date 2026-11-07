@@ -1,13 +1,14 @@
 import {
   Check,
-  CloudUpload,
+  CloudOff,
   History,
+  Loader2,
   Plus,
-  RotateCcw,
   Shirt,
   Trash2,
+  UserRound,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SkinPreview from "@/components/line/SkinPreview";
 import SkinThumb from "@/components/line/SkinThumb";
 import { Button } from "@/components/ui/button";
@@ -20,41 +21,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import { MAX_SKIN_BYTES, validateSkinFile } from "@/lib/line/skin";
-import type {
-  LineServer,
-  SkinLibrarySnapshot,
-  SkinModel,
-  SkinState,
+import {
+  toLineError,
+  type SkinLibrarySnapshot,
+  type SkinModel,
+  type SkinState,
 } from "@/types/line";
 
 export interface WardrobeScreenProps {
-  /** Absent when no server is selected: the local library still works. */
-  server?: LineServer | null;
   username?: string;
-  /** True when the signed-in server exposes skin endpoints. */
+  /** True when the signed-in project exposes wardrobe endpoints. */
   canSync: boolean;
+  /** Bumped after sign-in/out so the automatic sync runs for the new account. */
+  accountKey?: string;
+  /** The backend rejected the session: the shell must ask for a new sign-in. */
+  onAuthRequired?: () => void;
   disabled?: boolean;
 }
 
+type SyncPhase = "idle" | "sending" | "done" | "failed";
+
 /**
- * Local-first wardrobe.
+ * Local-first wardrobe with automatic upload.
  *
- * The history lives on this machine and is usable before login, offline, and on
- * servers with no skin API. Only the skin marked active is ever uploaded, and
- * only when the player asks — choosing a texture never silently contacts the
- * provider.
+ * History lives on this machine and works signed out and offline. The active
+ * skin belongs to the project account and is pushed to the provider by itself —
+ * there is no send button. `active` vs `synced` in the index makes that
+ * idempotent, so mounting this screen or signing in again does not re-upload.
  */
 export default function WardrobeScreen({
-  server,
   username,
   canSync,
+  accountKey,
+  onAuthRequired,
   disabled = false,
 }: WardrobeScreenProps) {
   const [snapshot, setSnapshot] = useState<SkinLibrarySnapshot | null>(null);
@@ -63,6 +64,8 @@ export default function WardrobeScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [sync, setSync] = useState<SyncPhase>("idle");
+  const [syncError, setSyncError] = useState<string>();
   const [model, setModel] = useState<SkinModel>("classic");
   const [name, setName] = useState("");
   const [pending, setPending] = useState<{
@@ -72,10 +75,44 @@ export default function WardrobeScreen({
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const generation = useRef(0);
+  const syncGeneration = useRef(0);
+  // Kept in a ref on purpose: putting the callback in autoSync's dependencies
+  // would re-run the mount effect on every parent render (an inline arrow is a
+  // new function each time) and fetch the library in a loop.
+  const authRequired = useRef(onAuthRequired);
+  useEffect(() => {
+    authRequired.current = onAuthRequired;
+  }, [onAuthRequired]);
 
-  const serverId = server?.id;
-  const activeId = serverId ? snapshot?.library.active[serverId] : undefined;
+  const activeId = snapshot?.library.active ?? undefined;
   const active = snapshot?.library.skins.find((s) => s.id === activeId);
+  const syncedId = snapshot?.library.synced ?? undefined;
+
+  /**
+   * Pushes the active skin without being asked. Safe to call repeatedly: Rust
+   * compares active with synced and does nothing when they already match.
+   */
+  const autoSync = useCallback(async () => {
+    if (!canSync) return;
+    const ticket = ++syncGeneration.current;
+    setSync("sending");
+    setSyncError(undefined);
+    try {
+      const result = await lineApi.syncActiveSkin();
+      if (syncGeneration.current !== ticket) return;
+      // "unchanged" carries no skin: the account keeps what it already had, so
+      // overwriting the known state with null would show a wrong status.
+      if (result.status === "synced") setRemote(result.skin);
+      setSnapshot(await lineApi.skinLibrary());
+      setSync("done");
+    } catch (cause) {
+      if (syncGeneration.current !== ticket) return;
+      // A failed upload keeps the local choice; the next mount/sign-in retries.
+      setSync("failed");
+      setSyncError(errorMessage(cause));
+      if (toLineError(cause).code === "AUTH_REQUIRED") authRequired.current?.();
+    }
+  }, [canSync]);
 
   useEffect(() => {
     const ticket = ++generation.current;
@@ -84,7 +121,13 @@ export default function WardrobeScreen({
     void lineApi
       .skinLibrary()
       .then((value) => {
-        if (generation.current === ticket) setSnapshot(value);
+        if (generation.current !== ticket) return;
+        setSnapshot(value);
+        // Signing in, opening the screen or coming back online all settle the
+        // account's skin automatically.
+        if (canSync && value.library.active !== value.library.synced) {
+          void autoSync();
+        }
       })
       .catch((cause) => {
         if (generation.current === ticket) setError(errorMessage(cause));
@@ -94,17 +137,20 @@ export default function WardrobeScreen({
       });
     return () => {
       generation.current += 1;
+      syncGeneration.current += 1;
     };
-  }, []);
+  }, [canSync, accountKey, autoSync]);
 
-  // The provider's current skin is informational only. Failing to read it must
-  // not take the local library down with it.
+  // What the account currently wears is informational; failing to read it must
+  // not take the local library down.
   useEffect(() => {
-    setRemote(null);
-    if (!serverId || !canSync) return;
+    if (!canSync) {
+      setRemote(null);
+      return;
+    }
     let cancelled = false;
     void lineApi
-      .skin(serverId)
+      .skin()
       .then((skin) => {
         if (!cancelled) setRemote(skin);
       })
@@ -112,7 +158,7 @@ export default function WardrobeScreen({
     return () => {
       cancelled = true;
     };
-  }, [serverId, canSync]);
+  }, [canSync, accountKey]);
 
   useEffect(() => {
     return () => {
@@ -158,21 +204,15 @@ export default function WardrobeScreen({
         model,
         Array.from(pending.bytes),
       );
-      setSnapshot(next);
-      // Adding a texture makes it active locally, but never uploads it.
-      if (serverId) {
-        const entry = next.library.skins[0];
-        if (entry) setSnapshot(await lineApi.setActiveSkin(serverId, entry.id));
-      }
-      setNotice(
-        canSync
-          ? "Скин сохранён в истории и выбран активным. Отправьте его на сервер кнопкой ниже."
-          : "Скин сохранён в локальной истории и выбран активным.",
-      );
+      // The newest texture becomes active and uploads itself.
+      const entry = next.library.skins[0];
+      setSnapshot(entry ? await lineApi.setActiveSkin(entry.id) : next);
+      setNotice("Скин сохранён в истории и сделан активным.");
       URL.revokeObjectURL(pending.url);
       setPending(null);
       setName("");
       if (inputRef.current) inputRef.current.value = "";
+      await autoSync();
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -180,14 +220,18 @@ export default function WardrobeScreen({
     }
   }
 
-  async function activate(id: string) {
-    if (!serverId) return;
+  async function activate(id: string | null) {
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
     try {
-      setSnapshot(await lineApi.setActiveSkin(serverId, id));
-      setNotice("Активный скин изменён локально. История сохранена.");
+      setSnapshot(await lineApi.setActiveSkin(id));
+      setNotice(
+        id
+          ? "Активный скин изменён."
+          : "Выбран стандартный скин. Прежние остались в истории.",
+      );
+      await autoSync();
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -200,43 +244,11 @@ export default function WardrobeScreen({
     setError(undefined);
     setNotice(undefined);
     try {
-      setSnapshot(await lineApi.deleteSkin(id));
+      const next = await lineApi.deleteSkin(id);
+      setSnapshot(next);
       setNotice("Скин удалён из локальной истории.");
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sync() {
-    if (!serverId) return;
-    setBusy(true);
-    setError(undefined);
-    setNotice(undefined);
-    try {
-      setRemote(await lineApi.syncActiveSkin(serverId));
-      setNotice(
-        "Активный скин отправлен на сервер. Остальные остались локально.",
-      );
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function resetRemote() {
-    if (!serverId) return;
-    setBusy(true);
-    setError(undefined);
-    setNotice(undefined);
-    try {
-      await lineApi.resetSkin(serverId);
-      setRemote(null);
-      setNotice(
-        "На сервере возвращён стандартный скин. Локальная история цела.",
-      );
+      // Deleting the worn texture falls back to the standard look on the account.
+      if (activeId === id || syncedId === id) await autoSync();
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -248,15 +260,34 @@ export default function WardrobeScreen({
   const skins = snapshot?.library.skins ?? [];
   const limit = snapshot?.limit ?? 64;
 
-  const syncHint = !server
-    ? "Откройте сервер, чтобы отправить скин провайдеру"
-    : !canSync
-      ? username
-        ? "Провайдер этого сервера не настроил гардероб — скины хранятся только локально"
-        : "Войдите в аккаунт, чтобы отправить скин на сервер"
-      : !active
-        ? "Сначала выберите активный скин в истории"
-        : undefined;
+  const syncStatus = !canSync
+    ? {
+        icon: CloudOff,
+        tone: "text-muted-foreground",
+        text: username
+          ? "Проект не настроил гардероб — скины хранятся только локально."
+          : "Войдите в аккаунт проекта, чтобы скин применился на серверах.",
+      }
+    : sync === "sending"
+      ? {
+          icon: Loader2,
+          tone: "text-muted-foreground",
+          text: "Отправляем активный скин на сервер…",
+        }
+      : sync === "failed"
+        ? {
+            icon: CloudOff,
+            tone: "text-destructive",
+            text: `Не удалось отправить: ${syncError ?? "попробуем снова при подключении"}`,
+          }
+        : {
+            icon: Check,
+            tone: "text-emerald-400",
+            text: active
+              ? `«${active.name}» активен и отправлен на сервер автоматически.`
+              : "На сервере стандартный скин.",
+          };
+  const SyncIcon = syncStatus.icon;
 
   return (
     <section className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -265,9 +296,8 @@ export default function WardrobeScreen({
           Гардероб
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          История скинов хранится на этом компьютере
-          {server ? ` · активный выбирается для «${server.name}»` : ""}. На
-          сервер отправляется только активный скин и только по вашей кнопке.
+          История скинов хранится на этом компьютере. Активный скин один на весь
+          проект и отправляется на сервер сам — ничего нажимать не нужно.
         </p>
       </div>
 
@@ -394,23 +424,51 @@ export default function WardrobeScreen({
       </div>
 
       <div className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
-              <History className="h-4 w-4" aria-hidden="true" />
-            </div>
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <h3 className="text-foreground text-sm font-semibold">
-                Локальная история
-              </h3>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                {loading
-                  ? "Загрузка…"
-                  : `${skins.length} из ${limit}. Старые скины остаются здесь и никуда не отправляются.`}
-              </p>
-            </div>
+        <div className="flex items-start gap-3">
+          <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
+            <History className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h3 className="text-foreground text-sm font-semibold">
+              Локальная история
+            </h3>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {loading
+                ? "Загрузка…"
+                : `${skins.length} из ${limit}. Прежние скины остаются здесь и никуда не отправляются.`}
+            </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          disabled={controlsDisabled || !activeId}
+          onClick={() => void activate(null)}
+          aria-label="Выбрать стандартный скин"
+          className={
+            !activeId
+              ? "border-primary/40 bg-primary/5 flex cursor-pointer items-center gap-3 rounded-lg border p-2 text-left disabled:cursor-default"
+              : "border-border/40 bg-card/40 hover:border-primary/40 flex cursor-pointer items-center gap-3 rounded-lg border p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+          }
+        >
+          <span className="bg-muted text-muted-foreground flex h-16 w-8 shrink-0 items-center justify-center rounded">
+            <UserRound className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-foreground text-xs font-medium">
+              Стандартный скин
+            </span>
+            <span className="text-muted-foreground text-[10px]">
+              {!activeId ? "выбран" : "вернуть обычный вид"}
+            </span>
+          </span>
+          {!activeId && (
+            <Check
+              className="text-primary h-3.5 w-3.5 shrink-0"
+              aria-hidden="true"
+            />
+          )}
+        </button>
 
         {!loading && skins.length === 0 && (
           <p className="text-muted-foreground border-border/40 rounded-lg border border-dashed p-6 text-center text-xs">
@@ -457,7 +515,7 @@ export default function WardrobeScreen({
                     <Button
                       variant="outline"
                       size="xs"
-                      disabled={controlsDisabled || isActive || !server}
+                      disabled={controlsDisabled || isActive}
                       onClick={() => void activate(skin.id)}
                       aria-label={`Сделать активным: ${skin.name}`}
                       className="flex-1 cursor-pointer text-[10px]"
@@ -482,65 +540,28 @@ export default function WardrobeScreen({
         )}
       </div>
 
-      <div className="border-border/40 bg-card/60 flex flex-col gap-3 rounded-xl border p-4 backdrop-blur-sm">
-        <div className="flex items-start gap-3">
-          <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
-            <Shirt className="h-4 w-4" aria-hidden="true" />
-          </div>
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <h3 className="text-foreground text-sm font-semibold">
-              Скины на сервере
-            </h3>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              {canSync && username
-                ? `${server?.name} · ${username}. Отправляется только активный скин.`
-                : (syncHint ?? "Локальный режим")}
-            </p>
-          </div>
+      <div className="border-border/40 bg-card/60 flex items-start gap-3 rounded-xl border p-4 backdrop-blur-sm">
+        <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
+          <Shirt className="h-4 w-4" aria-hidden="true" />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {syncHint ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="sm"
-                    disabled
-                    focusableWhenDisabled
-                    className="items-center gap-1.5 text-xs opacity-50"
-                  >
-                    <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
-                    Отправить на сервер
-                  </Button>
-                }
-              />
-              <TooltipContent className="max-w-64">{syncHint}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              size="sm"
-              disabled={controlsDisabled}
-              onClick={() => void sync()}
-              className="cursor-pointer items-center gap-1.5 text-xs"
-            >
-              <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
-              {busy ? "Отправка…" : "Отправить на сервер"}
-            </Button>
-          )}
-          {canSync && remote && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={controlsDisabled}
-              onClick={() => void resetRemote()}
-              className="cursor-pointer items-center gap-1.5 text-xs"
-            >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              Сбросить на стандартный
-            </Button>
-          )}
+        <div className="flex min-w-0 flex-col gap-1">
+          <h3 className="text-foreground text-sm font-semibold">
+            Скин на серверах проекта
+          </h3>
+          <p
+            role="status"
+            aria-live="polite"
+            className={`flex items-start gap-1.5 text-xs leading-relaxed ${syncStatus.tone}`}
+          >
+            <SyncIcon
+              className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${sync === "sending" ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            <span>{syncStatus.text}</span>
+          </p>
           {canSync && (
             <span className="text-muted-foreground font-mono text-[10px]">
+              {username ? `${username} · ` : ""}
               {remote
                 ? `на сервере: ${remote.model}`
                 : "на сервере: стандартный"}

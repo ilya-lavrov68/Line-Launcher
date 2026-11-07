@@ -2,10 +2,12 @@ import { m, useReducedMotion } from "framer-motion";
 import {
   ChevronLeft,
   Info,
+  LogOut,
   RefreshCw,
   Server,
   Settings,
   Shirt,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { brand } from "@/brand/generated";
@@ -24,6 +26,9 @@ export interface SideNavProps {
   section: LineSection;
   collapsed: boolean;
   providerName?: string;
+  /** The one project account; shown so it is clear it is shared by all servers. */
+  username?: string;
+  onLogout: () => void;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
   onChangeProvider: () => void;
@@ -54,6 +59,8 @@ export default function SideNav({
   section,
   collapsed,
   providerName,
+  username,
+  onLogout,
   onNavigate,
   onToggleCollapsed,
   onChangeProvider,
@@ -136,6 +143,38 @@ export default function SideNav({
       </div>
 
       <div className="border-border/50 flex shrink-0 flex-col gap-1 border-t p-2">
+        {username && (
+          <div
+            className={cn(
+              "flex items-center gap-2",
+              collapsed ? "flex-col px-0" : "px-2.5 py-1.5",
+            )}
+          >
+            <UserRound
+              className="text-muted-foreground h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
+            {!collapsed && (
+              <span
+                className="text-foreground min-w-0 flex-1 truncate text-xs font-medium"
+                title={username}
+              >
+                {username}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              disabled={actionsDisabled}
+              aria-label={`Выйти из аккаунта ${username}`}
+              title={`Выйти из аккаунта ${username}`}
+              onClick={onLogout}
+              className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer disabled:cursor-not-allowed"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          </div>
+        )}
         <Button
           variant="ghost"
           disabled={actionsDisabled}

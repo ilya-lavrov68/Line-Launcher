@@ -16,6 +16,7 @@ pub fn run() {
             line::auth::line_login,
             line::auth::line_register,
             line::auth::line_logout,
+            line::auth::line_session,
             line::install::download_and_extract_zip,
             line::install::cancel_install,
             line::install::get_installed_build,
@@ -29,8 +30,6 @@ pub fn run() {
             line::settings::list_java_runtimes,
             line::settings::clear_config_cache,
             line::wardrobe::get_skin,
-            line::wardrobe::upload_skin,
-            line::wardrobe::reset_skin,
             line::skin_library::list_skin_library,
             line::skin_library::add_skin_to_library,
             line::skin_library::rename_skin,
@@ -38,6 +37,7 @@ pub fn run() {
             line::skin_library::read_skin_texture,
             line::skin_library::set_active_skin,
             line::skin_library::sync_active_skin,
+            line::skin_library::forget_synced_skin,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Line Launcher");

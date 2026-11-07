@@ -70,10 +70,10 @@ function icon(from, to, letter) {
 
 // The demo config ships without launch endpoints. Enable them so the screenshots
 // show the real play state rather than "Запуск не настроен".
-config.servers[0].auth.launch_ticket_url =
-  "https://auth.example.com/v1/launcher/ticket";
-config.servers[0].auth.session_exchange_url =
-  "https://auth.example.com/v1/launcher/exchange";
+config.servers[0].auth = {
+  launch_ticket_url: "https://auth.example.com/v1/launcher/ticket",
+  session_exchange_url: "https://auth.example.com/v1/launcher/exchange",
+};
 
 const themes = [
   ["#0f766e", "#052e2b", "SURVIVAL", "S"],
@@ -207,7 +207,9 @@ await page.addInitScript(
     window.__installed = installed;
     window.__library = {
       skins: skins.map((s) => s.entry),
-      active: { [config.servers[0].id]: skins[0].entry.id },
+      active: skins[0].entry.id,
+      // Already accepted by the provider: the status shows the settled state.
+      synced: skins[0].entry.id,
     };
     const bytes = Object.fromEntries(skins.map((s) => [s.entry.id, s.bytes]));
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
@@ -292,7 +294,31 @@ await page.addInitScript(
         if (cmd === "list_skin_library")
           return { library: window.__library, limit: 64 };
         if (cmd === "read_skin_texture") return bytes[args.id] || [];
-        if (cmd === "get_skin") return null;
+        // Mirrors Rust: the account wears the texture it last accepted.
+        const remoteSkin = () => {
+          const id = window.__library.synced;
+          if (!window.__session || !id) return null;
+          const entry = window.__library.skins.find((s) => s.id === id);
+          if (!entry) return null;
+          return {
+            model: entry.model,
+            textureUrl: `data:image/png;base64,${btoa(
+              String.fromCharCode(...bytes[id]),
+            )}`,
+          };
+        };
+        if (cmd === "get_skin") return remoteSkin();
+        if (cmd === "sync_active_skin") {
+          if (window.__library.active === window.__library.synced)
+            return { status: "unchanged", skin: null };
+          window.__library.synced = window.__library.active;
+          return { status: "synced", skin: remoteSkin() };
+        }
+        if (cmd === "forget_synced_skin") {
+          window.__library.synced = null;
+          return { library: window.__library, limit: 64 };
+        }
+        if (cmd === "line_session") return window.__session;
         if (cmd === "get_installed_build") return window.__installed;
         if (cmd === "get_game_status")
           return { serverId: args.serverId, revision: 1, phase: "idle" };
@@ -303,13 +329,11 @@ await page.addInitScript(
           };
         if (cmd === "line_login" || cmd === "line_register") {
           window.__session = {
-            serverId: args.request?.serverId ?? config.servers[0].id,
             username: args.request?.username ?? "Player_1",
             expiresAt: Date.now() + 86_400_000,
           };
           return window.__session;
         }
-        if (cmd === "get_session") return window.__session;
         return null;
       },
     };
@@ -342,26 +366,18 @@ try {
     );
   }
 
-  await page
-    .getByRole("button", { name: /Survival/ })
-    .first()
-    .waitFor();
-  await shot("servers");
-
-  // Server page with the provider account form.
-  await page
-    .getByRole("button", { name: /Survival/ })
-    .first()
-    .click();
-  await page.getByText("Аккаунт провайдера", { exact: true }).waitFor();
+  // The single sign-in gate: one account for the whole project.
+  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
   await shot("account");
 
-  // Signed in with a build installed: the play state.
-  await page.getByLabel("Логин").fill("Player_1");
+  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
   await page.getByLabel("Пароль", { exact: true }).fill("demo-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  // Stay on the page: selectServer intentionally clears the UI session, so
-  // navigating away and back would show the auth form again.
+  await page.getByRole("button", { name: /Открыть сервер Survival/ }).waitFor();
+  await shot("servers");
+
+  // Every server is already unlocked: no second login, straight to the build.
+  await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("server");
 

@@ -744,7 +744,7 @@ pub async fn download_and_extract_zip(
     let (_, config) = state.fresh_config()?;
     config.validate(LAUNCHER_VERSION)?;
     let server = config.server(&server_id)?.clone();
-    state.session(&server_id)?;
+    state.session()?;
     let root = app
         .path()
         .app_data_dir()

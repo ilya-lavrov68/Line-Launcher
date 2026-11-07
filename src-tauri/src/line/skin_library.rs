@@ -1,5 +1,5 @@
-//! Local skin library: history stays on this machine, only the active skin is
-//! sent to the provider.
+//! Local skin library: history stays on this machine, and the one active skin
+//! is pushed to the project account automatically.
 //!
 //! Why this exists: the wardrobe used to be a thin proxy over provider
 //! endpoints, so it was unusable until a provider implemented `wardrobe` AND the
@@ -7,7 +7,7 @@
 //! offline, before login, and on servers that have no skin API at all.
 //!
 //! Layout under app-data:
-//!   skins/index.json        metadata + which skin is active per server
+//!   skins/index.json        metadata + the active skin + what was last synced
 //!   skins/<sha256>.png      texture bytes, content-addressed
 //!
 //! Content addressing gives deduplication for free and makes every id safe to
@@ -19,7 +19,6 @@ use super::storage::{atomic_write, create_private_dir};
 use super::wardrobe::{validate_skin_png, SkinModel};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 
@@ -47,8 +46,12 @@ pub struct SkinEntry {
 pub struct SkinLibrary {
     /// Newest first.
     pub skins: Vec<SkinEntry>,
-    /// server slug -> active skin id. A server with no entry has no local choice.
-    pub active: BTreeMap<String, String>,
+    /// The active skin for the whole project account. None = standard look.
+    pub active: Option<String>,
+    /// What the provider last accepted. Comparing it with `active` is what makes
+    /// the sync automatic and idempotent: no button, and no re-upload on every
+    /// launch. Cleared when the account changes so a new player is not skipped.
+    pub synced: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -124,9 +127,8 @@ fn read_index(dir: &Path) -> SkinLibrary {
     library.skins.retain(|s| valid_skin_id(&s.id));
     library.skins.truncate(MAX_LIBRARY_SKINS);
     let known: Vec<String> = library.skins.iter().map(|s| s.id.clone()).collect();
-    library
-        .active
-        .retain(|server, id| super::config::validate_slug(server) && known.contains(id));
+    library.active.retain(|id| known.contains(id));
+    library.synced.retain(|id| known.contains(id));
     library
 }
 
@@ -230,7 +232,10 @@ pub async fn delete_skin_from_library(
         let path = texture_path(&dir, &id)?;
         let mut library = read_index(&dir);
         library.skins.retain(|s| s.id != id);
-        library.active.retain(|_, active| *active != id);
+        library.active.retain(|active| active != &id);
+        // Deleting the texture the account still wears must make the next sync
+        // fall back to the standard look instead of pointing at missing bytes.
+        library.synced.retain(|synced| synced != &id);
         match std::fs::remove_file(&path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -265,31 +270,22 @@ pub async fn read_skin_texture(id: String, app: AppHandle) -> LineResult<Vec<u8>
     .map_err(|_| LineError::storage())?
 }
 
-/// Marks a skin active for a server. Purely local: it works signed out and on
-/// servers without a skin API. Syncing to the provider is a separate step.
+/// Chooses the active skin for the account. Local-only: the caller runs the
+/// automatic sync afterwards, so a failed upload never loses the local choice.
 #[tauri::command]
 pub async fn set_active_skin(
-    server_id: String,
     id: Option<String>,
     app: AppHandle,
 ) -> LineResult<SkinLibrarySnapshot> {
-    if !super::config::validate_slug(&server_id) {
-        return Err(LineError::input("Некорректный идентификатор сервера."));
-    }
     let dir = skins_dir(&app)?;
     let library = tauri::async_runtime::spawn_blocking(move || -> LineResult<SkinLibrary> {
         let mut library = read_index(&dir);
-        match &id {
-            Some(id) => {
-                if !library.skins.iter().any(|s| &s.id == id) {
-                    return Err(LineError::input("Скин не найден в истории."));
-                }
-                library.active.insert(server_id, id.clone());
-            }
-            None => {
-                library.active.remove(&server_id);
+        if let Some(id) = &id {
+            if !library.skins.iter().any(|s| &s.id == id) {
+                return Err(LineError::input("Скин не найден в истории."));
             }
         }
+        library.active = id;
         write_index(&dir, &library)?;
         Ok(library)
     })
@@ -298,36 +294,136 @@ pub async fn set_active_skin(
     Ok(snapshot(library))
 }
 
-/// Uploads the locally active skin — and only that one — to the provider.
+/// The decision, as a pure function of the index so it can be unit-tested
+/// without a provider or a filesystem.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SyncAction {
+    Unchanged,
+    Reset,
+    Upload(String),
+}
+
+fn sync_action(library: &SkinLibrary) -> SyncAction {
+    if library.active == library.synced {
+        return SyncAction::Unchanged;
+    }
+    match &library.active {
+        None => SyncAction::Reset,
+        Some(id) => SyncAction::Upload(id.clone()),
+    }
+}
+
+/// What the automatic sync has to do, decided from the index alone.
+enum SyncPlan {
+    /// `active == synced`: the account already has this look (including the
+    /// standard one). Nothing is sent.
+    Unchanged,
+    /// The player chose the standard look; clear it on the account.
+    Reset,
+    Upload(SkinEntry, Vec<u8>),
+}
+
+fn plan_sync(dir: &Path) -> LineResult<SyncPlan> {
+    let library = read_index(dir);
+    let id = match sync_action(&library) {
+        SyncAction::Unchanged => return Ok(SyncPlan::Unchanged),
+        SyncAction::Reset => return Ok(SyncPlan::Reset),
+        SyncAction::Upload(id) => id,
+    };
+    let entry = library
+        .skins
+        .iter()
+        .find(|s| s.id == id)
+        .cloned()
+        .ok_or_else(|| LineError::input("Активный скин не найден в истории."))?;
+    let bytes = std::fs::read(texture_path(&dir, &entry.id)?)
+        .map_err(|_| LineError::input("Файл активного скина отсутствует."))?;
+    validate_skin_png(&bytes)?;
+    Ok(SyncPlan::Upload(entry, bytes))
+}
+
+/// Pushes the active skin to the project account, automatically.
+///
+/// Idempotent: when the provider already accepted this exact texture it does
+/// nothing, so calling this on every mount/login is cheap. With no active skin
+/// it resets the account to the standard look. The result reports what the
+/// provider now has, so the UI shows a status instead of a send button.
 #[tauri::command]
 pub async fn sync_active_skin(
-    server_id: String,
     app: AppHandle,
     state: State<'_, super::state::LineState>,
-) -> LineResult<super::wardrobe::SkinState> {
+) -> LineResult<SkinSyncResult> {
+    // Held across the upload: two automatic syncs must not interleave, or the
+    // "already uploaded" marker could describe a texture the account no longer has.
+    let _serialize = state.skin_sync.lock().await;
     let dir = skins_dir(&app)?;
-    let wanted = server_id.clone();
-    let (entry, bytes) =
-        tauri::async_runtime::spawn_blocking(move || -> LineResult<(SkinEntry, Vec<u8>)> {
-            let library = read_index(&dir);
-            let id = library
-                .active
-                .get(&wanted)
-                .ok_or_else(|| LineError::input("Сначала выберите активный скин в истории."))?;
-            let entry = library
-                .skins
-                .iter()
-                .find(|s| &s.id == id)
-                .cloned()
-                .ok_or_else(|| LineError::input("Активный скин не найден в истории."))?;
-            let bytes = std::fs::read(texture_path(&dir, &entry.id)?)
-                .map_err(|_| LineError::input("Файл активного скина отсутствует."))?;
-            validate_skin_png(&bytes)?;
-            Ok((entry, bytes))
-        })
+    let plan_dir = dir.clone();
+    let plan = tauri::async_runtime::spawn_blocking(move || plan_sync(&plan_dir))
         .await
         .map_err(|_| LineError::storage())??;
-    super::wardrobe::push_skin(&server_id, entry.model, bytes, &state).await
+
+    let (id, skin) = match plan {
+        SyncPlan::Unchanged => {
+            return Ok(SkinSyncResult {
+                status: SkinSyncStatus::Unchanged,
+                skin: None,
+            });
+        }
+        SyncPlan::Reset => {
+            super::wardrobe::reset_skin(&state).await?;
+            (None, None)
+        }
+        SyncPlan::Upload(entry, bytes) => {
+            let skin = super::wardrobe::push_skin(entry.model, bytes, &state).await?;
+            (Some(entry.id), Some(skin))
+        }
+    };
+    // Remember only after the provider accepted it, so a failed upload is
+    // retried by the next automatic sync instead of being silently skipped.
+    tauri::async_runtime::spawn_blocking(move || -> LineResult<()> {
+        let mut library = read_index(&dir);
+        library.synced = id;
+        write_index(&dir, &library)
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    Ok(SkinSyncResult {
+        status: SkinSyncStatus::Synced,
+        skin,
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SkinSyncStatus {
+    /// The provider already had this texture; nothing was sent.
+    Unchanged,
+    /// The active skin (or the standard look) is now on the account.
+    Synced,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinSyncResult {
+    pub status: SkinSyncStatus,
+    pub skin: Option<super::wardrobe::SkinState>,
+}
+
+/// Forgets what the provider accepted, so the next automatic sync re-uploads.
+/// Called after sign-in/out and provider changes: a different account must not
+/// inherit the previous player's "already synced" marker.
+#[tauri::command]
+pub async fn forget_synced_skin(app: AppHandle) -> LineResult<SkinLibrarySnapshot> {
+    let dir = skins_dir(&app)?;
+    let library = tauri::async_runtime::spawn_blocking(move || -> LineResult<SkinLibrary> {
+        let mut library = read_index(&dir);
+        library.synced = None;
+        write_index(&dir, &library)?;
+        Ok(library)
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    Ok(snapshot(library))
 }
 
 #[cfg(test)]
@@ -378,5 +474,41 @@ mod tests {
         // Updating an existing texture must still work when the shelf is full.
         assert!(ensure_capacity(&library, &format!("{:064x}", 0)).is_ok());
         assert!(ensure_capacity(&library, &"f".repeat(64)).is_err());
+    }
+
+    #[test]
+    fn automatic_sync_is_idempotent_and_resets_the_standard_look() {
+        let mut library = SkinLibrary::default();
+        // Fresh install: nothing chosen, nothing uploaded, nothing to send.
+        assert_eq!(sync_action(&library), SyncAction::Unchanged);
+
+        let id = "a".repeat(64);
+        library.active = Some(id.clone());
+        assert_eq!(sync_action(&library), SyncAction::Upload(id.clone()));
+
+        // The provider accepted it: opening the wardrobe again sends nothing.
+        library.synced = Some(id.clone());
+        assert_eq!(sync_action(&library), SyncAction::Unchanged);
+
+        // Back to the standard look clears it on the account exactly once.
+        library.active = None;
+        assert_eq!(sync_action(&library), SyncAction::Reset);
+        library.synced = None;
+        assert_eq!(sync_action(&library), SyncAction::Unchanged);
+    }
+
+    #[test]
+    fn an_unconfirmed_or_forgotten_upload_is_retried_not_skipped() {
+        let id = "b".repeat(64);
+        let mut library = SkinLibrary {
+            active: Some(id.clone()),
+            synced: Some("c".repeat(64)),
+            ..SkinLibrary::default()
+        };
+        // A failed upload leaves the old marker, so the next sync tries again.
+        assert_eq!(sync_action(&library), SyncAction::Upload(id.clone()));
+        // Signing in as somebody else forgets the marker for the same reason.
+        library.synced = None;
+        assert_eq!(sync_action(&library), SyncAction::Upload(id));
     }
 }

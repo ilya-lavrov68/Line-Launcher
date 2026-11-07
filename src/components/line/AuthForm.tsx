@@ -8,7 +8,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AuthMode } from "@/types/line";
 
 export interface AuthFormProps {
-  serverName: string;
+  /** The project name: one account unlocks all of its servers. */
+  providerName: string;
   /** False means the provider does not offer registration. */
   registrationAvailable?: boolean;
   loading?: boolean;
@@ -23,7 +24,7 @@ export interface AuthFormProps {
  * ConfigFieldRow. Colours and radii are inherited, never redefined.
  */
 export default function AuthForm({
-  serverName,
+  providerName,
   registrationAvailable = true,
   loading = false,
   error,
@@ -74,11 +75,11 @@ export default function AuthForm({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-0.5">
         <span className="text-foreground text-sm font-semibold">
-          Аккаунт провайдера
+          Аккаунт проекта
         </span>
         <span className="text-muted-foreground text-[11px] leading-tight">
-          {serverName} использует собственную авторизацию. Аккаунт Microsoft не
-          нужен.
+          Один аккаунт {providerName} на все серверы проекта. Аккаунт Microsoft
+          не нужен.
         </span>
       </div>
 
@@ -219,8 +220,8 @@ export default function AuthForm({
       </form>
 
       <p className="text-muted-foreground text-[10px] leading-relaxed">
-        Пароль передаётся только API провайдера по HTTPS. Токен сессии остаётся
-        в Rust и не сохраняется в браузере.
+        Пароль передаётся только API проекта по HTTPS. Токен сессии остаётся в
+        Rust и не сохраняется в браузере.
       </p>
     </div>
   );

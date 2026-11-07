@@ -19,6 +19,7 @@ import {
   type SkinModel,
   type SkinState,
   type SkinLibrarySnapshot,
+  type SkinSyncResult,
 } from "@/types/line";
 
 export class DesktopRequiredError extends Error {
@@ -48,7 +49,9 @@ export const lineApi = {
     call<AuthSessionInfo>(mode === "login" ? "line_login" : "line_register", {
       request: credentials,
     }),
-  logout: (serverId: string) => call<void>("line_logout", { serverId }),
+  logout: () => call<void>("line_logout"),
+  /** Restores the account after a reload; never returns a token. */
+  session: () => call<AuthSessionInfo | null>("line_session"),
   installedBuild: (serverId: string) =>
     call<InstallReceipt | null>("get_installed_build", { serverId }),
   install: (serverId: string, operationId: string) =>
@@ -68,10 +71,7 @@ export const lineApi = {
     call<SettingsSnapshot>("save_settings", { settings }),
   javaRuntimes: () => call<JavaRuntimeInfo[]>("list_java_runtimes"),
   clearConfigCache: () => call<boolean>("clear_config_cache"),
-  skin: (serverId: string) => call<SkinState | null>("get_skin", { serverId }),
-  uploadSkin: (serverId: string, model: SkinModel, png: number[]) =>
-    call<SkinState>("upload_skin", { serverId, model, png }),
-  resetSkin: (serverId: string) => call<void>("reset_skin", { serverId }),
+  skin: () => call<SkinState | null>("get_skin"),
   skinLibrary: () => call<SkinLibrarySnapshot>("list_skin_library"),
   addSkin: (name: string, model: SkinModel, png: number[]) =>
     call<SkinLibrarySnapshot>("add_skin_to_library", { name, model, png }),
@@ -80,10 +80,12 @@ export const lineApi = {
   deleteSkin: (id: string) =>
     call<SkinLibrarySnapshot>("delete_skin_from_library", { id }),
   skinTexture: (id: string) => call<number[]>("read_skin_texture", { id }),
-  setActiveSkin: (serverId: string, id: string | null) =>
-    call<SkinLibrarySnapshot>("set_active_skin", { serverId, id }),
-  syncActiveSkin: (serverId: string) =>
-    call<SkinState>("sync_active_skin", { serverId }),
+  setActiveSkin: (id: string | null) =>
+    call<SkinLibrarySnapshot>("set_active_skin", { id }),
+  /** Automatic and idempotent: pushes the active skin, or resets when none. */
+  syncActiveSkin: () => call<SkinSyncResult>("sync_active_skin"),
+  /** Drops the "already uploaded" marker after an account change. */
+  forgetSyncedSkin: () => call<SkinLibrarySnapshot>("forget_synced_skin"),
   onGame: async (
     serverId: string,
     callback: (status: GameStatus) => void,

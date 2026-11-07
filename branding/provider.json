@@ -1,0 +1,5 @@
+{
+  "$comment": "Адреса провайдеров задаются здесь ДО сборки. Собранное приложение подключается само: игрок только регистрируется и входит. Пример: {\"allow_manual_url\": false, \"providers\": [{\"id\":\"my\",\"name\":\"My Server\",\"config_url\":\"https://example.com/config.json\"}]}. Пустой список требует allow_manual_url=true (универсальная сборка).",
+  "allow_manual_url": true,
+  "providers": []
+}

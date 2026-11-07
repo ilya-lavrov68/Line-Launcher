@@ -23,10 +23,6 @@ export type LineSection = "servers" | "wardrobe" | "settings";
 export interface SideNavProps {
   section: LineSection;
   collapsed: boolean;
-  /** Wardrobe needs a signed-in server that advertises the endpoints. */
-  wardrobeAvailable: boolean;
-  /** Why the wardrobe is unavailable, phrased as the next step for the player. */
-  wardrobeHint?: string;
   providerName?: string;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
@@ -57,8 +53,6 @@ interface NavItem {
 export default function SideNav({
   section,
   collapsed,
-  wardrobeAvailable,
-  wardrobeHint,
   providerName,
   onNavigate,
   onToggleCollapsed,
@@ -69,16 +63,8 @@ export default function SideNav({
   const reducedMotion = useReducedMotion();
   const items: NavItem[] = [
     { id: "servers", label: "Серверы", icon: Server },
-    {
-      id: "wardrobe",
-      label: "Гардероб",
-      icon: Shirt,
-      disabled: !wardrobeAvailable,
-      hint: wardrobeAvailable
-        ? undefined
-        : (wardrobeHint ??
-          "Войдите на сервер, у которого провайдер настроил гардероб"),
-    },
+    // Never gated: the local history works signed out and offline.
+    { id: "wardrobe", label: "Гардероб", icon: Shirt },
     { id: "settings", label: "Настройки", icon: Settings },
   ];
 

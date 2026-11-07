@@ -36,6 +36,7 @@ import {
   renderTs,
   validateBrand,
 } from "./brand-config.ts";
+import { renderProviderTs, validateProviders } from "./provider-config.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BRANDING = join(ROOT, "branding");
@@ -44,6 +45,8 @@ const PRESETS_PATH = join(BRANDING, "presets.json");
 const OUT_CSS = join(ROOT, "src/brand/generated.css");
 const OUT_TS = join(ROOT, "src/brand/generated.ts");
 const OUT_TAURI = join(ROOT, "src-tauri/tauri.brand.conf.json");
+const PROVIDER_PATH = join(BRANDING, "provider.json");
+const OUT_PROVIDER = join(ROOT, "src/brand/providers.generated.ts");
 const ICONS_DIR = join(ROOT, "src-tauri/icons");
 
 const CHECK_ONLY = process.argv.includes("--check");
@@ -83,6 +86,19 @@ function main(): void {
   };
   const { palette, logoPath, appIconPath } = validateBrand(config, presets);
   const changed: string[] = [];
+
+  // Provider catalogue: baked at build time so players never type a URL.
+  if (existsSync(PROVIDER_PATH)) {
+    const providers = validateProviders(
+      JSON.parse(readFileSync(PROVIDER_PATH, "utf8")),
+    );
+    if (writeIfChanged(OUT_PROVIDER, renderProviderTs(providers))) {
+      changed.push("src/brand/providers.generated.ts");
+    }
+    console.log(
+      `[provider] ${providers.providers.length} baked, manual URL ${providers.allowManualUrl ? "allowed" : "hidden"}`,
+    );
+  }
 
   if (writeIfChanged(OUT_CSS, renderCss(palette))) {
     changed.push("src/brand/generated.css");

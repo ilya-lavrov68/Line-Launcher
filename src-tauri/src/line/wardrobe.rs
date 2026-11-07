@@ -141,21 +141,23 @@ pub async fn get_skin(
     Ok(Some(parse_skin(&bytes)?))
 }
 
-#[tauri::command]
-pub async fn upload_skin(
-    server_id: String,
+/// Shared upload path. Both the direct command and the library sync use it, so
+/// validation, HTTPS rules and bearer handling cannot drift between them.
+pub async fn push_skin(
+    server_id: &str,
     model: SkinModel,
     png: Vec<u8>,
-    state: State<'_, LineState>,
+    state: &State<'_, LineState>,
 ) -> LineResult<SkinState> {
     validate_skin_png(&png)?;
     let (_, config) = state.fresh_config()?;
-    let server = config.server(&server_id)?;
-    let wardrobe = server
-        .wardrobe
-        .as_ref()
-        .ok_or_else(|| LineError::input("Провайдер не настроил гардероб для этого сервера."))?;
-    let session = state.session(&server_id)?;
+    let server = config.server(server_id)?;
+    let wardrobe = server.wardrobe.as_ref().ok_or_else(|| {
+        LineError::input(
+            "Провайдер не настроил гардероб для этого сервера. Скин сохранён локально.",
+        )
+    })?;
+    let session = state.session(server_id)?;
     let url = validate_https(&wardrobe.skin_upload_url)?;
     let token = session.secret_token();
     let mut response = http::send_bearer_bytes(
@@ -171,6 +173,16 @@ pub async fn upload_skin(
     .map_err(auth_error)?;
     let bytes = http::read_limited(&mut response, 16 * 1024).await?;
     parse_skin(&bytes)
+}
+
+#[tauri::command]
+pub async fn upload_skin(
+    server_id: String,
+    model: SkinModel,
+    png: Vec<u8>,
+    state: State<'_, LineState>,
+) -> LineResult<SkinState> {
+    push_skin(&server_id, model, png, &state).await
 }
 
 #[tauri::command]

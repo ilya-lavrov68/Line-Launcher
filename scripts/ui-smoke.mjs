@@ -58,7 +58,7 @@ config.servers.push({
 });
 
 /** Minimal valid 64x64 RGBA PNG, built with node:zlib (no extra dependency). */
-function skinPng() {
+function skinPng(tint = 90) {
   const size = 64;
   const raw = Buffer.alloc((size * 4 + 1) * size);
   for (let y = 0; y < size; y++) {
@@ -66,7 +66,7 @@ function skinPng() {
     raw[row] = 0; // filter: none
     for (let x = 0; x < size; x++) {
       const at = row + 1 + x * 4;
-      raw[at] = 90;
+      raw[at] = tint;
       raw[at + 1] = 140;
       raw[at + 2] = 200;
       raw[at + 3] = 255;
@@ -101,6 +101,8 @@ function skinPng() {
   ]);
 }
 const skinBytes = skinPng();
+// A different texture, so content-addressing stores two entries instead of one.
+const secondSkinBytes = skinPng(200);
 
 mkdirSync(outDir, { recursive: true });
 // --hide-scrollbars is a Playwright default; keeping it would hide the custom
@@ -211,6 +213,65 @@ await page.addInitScript(
         if (cmd === "list_java_runtimes")
           return [{ path: "/usr/bin/java", major: 21, version: "21.0.5" }];
         if (cmd === "clear_config_cache") return true;
+        // Local skin library. Independent of session/provider on purpose.
+        window.__library ||= { skins: [], active: {} };
+        const librarySnapshot = () => ({
+          library: JSON.parse(JSON.stringify(window.__library)),
+          limit: 64,
+        });
+        if (cmd === "list_skin_library") return librarySnapshot();
+        if (cmd === "add_skin_to_library") {
+          // Content-addressed in Rust; a stable fake digest is enough here.
+          let hash = 0;
+          for (const byte of args.png) hash = (hash * 31 + byte) >>> 0;
+          const id = hash.toString(16).padStart(8, "0").repeat(8);
+          window.__library.skins = window.__library.skins.filter(
+            (s) => s.id !== id,
+          );
+          window.__library.skins.unshift({
+            id,
+            name: args.name,
+            model: args.model,
+            width: 64,
+            height: 64,
+            sizeBytes: args.png.length,
+            addedAt: Date.now(),
+          });
+          window.__libraryBytes ||= {};
+          window.__libraryBytes[id] = args.png;
+          return librarySnapshot();
+        }
+        if (cmd === "rename_skin") {
+          const skin = window.__library.skins.find((s) => s.id === args.id);
+          if (skin) skin.name = args.name;
+          return librarySnapshot();
+        }
+        if (cmd === "delete_skin_from_library") {
+          window.__library.skins = window.__library.skins.filter(
+            (s) => s.id !== args.id,
+          );
+          for (const [server, id] of Object.entries(window.__library.active))
+            if (id === args.id) delete window.__library.active[server];
+          return librarySnapshot();
+        }
+        if (cmd === "read_skin_texture")
+          return (window.__libraryBytes || {})[args.id] || [];
+        if (cmd === "set_active_skin") {
+          if (args.id === null) delete window.__library.active[args.serverId];
+          else window.__library.active[args.serverId] = args.id;
+          return librarySnapshot();
+        }
+        if (cmd === "sync_active_skin") {
+          const id = window.__library.active[args.serverId];
+          if (!id)
+            throw { code: "INVALID_INPUT", message: "Нет активного скина." };
+          const entry = window.__library.skins.find((s) => s.id === id);
+          window.__skin = {
+            model: entry.model,
+            textureUrl: "data:image/png;base64," + window.__skinPng,
+          };
+          return window.__skin;
+        }
         if (cmd === "get_skin") return window.__skin || null;
         if (cmd === "upload_skin") {
           window.__skin = {
@@ -404,39 +465,42 @@ try {
     check(mark.loaded, "the colour brand mark did not load");
   }
 
-  // The disabled wardrobe must explain itself. A native title on a disabled
-  // button never fires (pointer-events:none) and is invisible to keyboard users.
+  // The wardrobe must be usable BEFORE login and without any provider skin API.
+  // Round 10 only explained the lock; that still left it impossible to test.
   const wardrobeNav = page.getByRole("button", { name: "Гардероб" });
-  const wardrobeState = await wardrobeNav.evaluate((el) => ({
-    ariaDisabled: el.getAttribute("aria-disabled"),
-    pointerEvents: getComputedStyle(el).pointerEvents,
-    opacity: getComputedStyle(el).opacity,
+  check(
+    (await wardrobeNav.getAttribute("aria-disabled")) !== "true",
+    "the wardrobe is still gated behind login/provider",
+  );
+  await wardrobeNav.click();
+  await page.getByRole("heading", { name: "Гардероб" }).waitFor();
+  check(
+    await page.getByText("История пуста.", { exact: false }).isVisible(),
+    "the local library did not render while signed out",
+  );
+  await shot("wardrobe-signed-out");
+  await page.locator("#skin-file").setInputFiles({
+    name: "local.png",
+    mimeType: "image/png",
+    buffer: skinBytes,
+  });
+  await page.getByRole("button", { name: "В историю" }).click();
+  await page.getByText("активный", { exact: false }).first().waitFor();
+  const savedLocally = await page.evaluate(() => ({
+    added: window.__calls.some((c) => c[0] === "add_skin_to_library"),
+    uploaded: window.__calls.some(
+      (c) => c[0] === "upload_skin" || c[0] === "sync_active_skin",
+    ),
+    count: window.__library.skins.length,
   }));
-  if (wardrobeState.ariaDisabled === "true") {
-    check(
-      wardrobeState.pointerEvents !== "none",
-      "the disabled wardrobe cannot be hovered, so its reason is unreachable",
-    );
-    check(
-      Number(wardrobeState.opacity) < 1,
-      "the disabled wardrobe must still look inactive",
-    );
-    await wardrobeNav.hover();
-    const reason = await page
-      .locator('[data-slot="tooltip-content"]')
-      .innerText({ timeout: 5000 });
-    check(
-      reason.trim().length > 10,
-      "the disabled wardrobe showed no explanation",
-    );
-    // Reachable by keyboard, not only by pointer.
-    const focusable = await wardrobeNav.evaluate((el) => {
-      el.focus();
-      return document.activeElement === el;
-    });
-    check(focusable, "the disabled wardrobe is not focusable");
-    await page.mouse.move(600, 400);
-  }
+  check(savedLocally.added, "the skin never reached the local library");
+  check(savedLocally.count === 1, "the skin was not kept in history");
+  check(
+    !savedLocally.uploaded,
+    "saving a skin locally must not contact the provider",
+  );
+  await shot("wardrobe-local-history");
+  await page.getByRole("button", { name: "Серверы" }).click();
 
   // Custom scrollbar: the pill must be drawn by ::-webkit-scrollbar. Setting
   // scrollbar-width in Chromium disables those pseudo-elements entirely, so
@@ -557,36 +621,96 @@ try {
     "a reordered older event resurrected the running state",
   );
 
-  // Wardrobe: a real file through the real validator, preview, upload and reset.
+  // Wardrobe after login: history persists, choosing is local, syncing is explicit.
   await page.getByRole("button", { name: "Гардероб" }).click();
   await page.getByRole("heading", { name: "Гардероб" }).waitFor();
-  await page.locator("#skin-file").setInputFiles({
-    name: "skin.png",
-    mimeType: "image/png",
-    buffer: skinBytes,
-  });
-  await page.getByRole("button", { name: "Применить скин" }).waitFor();
-  await shot("wardrobe");
-  await page.getByRole("button", { name: "Применить скин" }).click();
-  await page.getByRole("button", { name: "Сбросить на стандартный" }).waitFor();
-  const upload = await page.evaluate(
-    () => window.__calls.find((c) => c[0] === "upload_skin")?.[1] ?? null,
-  );
-  check(upload, "the skin was never uploaded");
-  check(upload.model === "classic", "the chosen model was not sent");
   check(
-    Array.isArray(upload.png) && upload.png.length > 33,
-    "the PNG bytes were not sent to the backend",
+    (await page.evaluate(() => window.__library.skins.length)) === 1,
+    "history added while signed out was lost after login",
   );
-  await page.getByRole("button", { name: "Сбросить на стандартный" }).click();
-  const reset = await page.evaluate(() =>
-    window.__calls.some((c) => c[0] === "reset_skin"),
-  );
-  check(reset, "resetting the skin never reached the backend");
+  // Add a second texture so "active" is a real choice, not the only option.
+  await page.locator("#skin-file").setInputFiles({
+    name: "second.png",
+    mimeType: "image/png",
+    buffer: secondSkinBytes,
+  });
+  await page.getByLabel("Название").fill("Второй");
+  await page.getByRole("button", { name: "В историю" }).click();
+  await page.getByText("Второй", { exact: true }).waitFor();
+  await shot("wardrobe");
 
-  // A wrong-sized PNG must be rejected in the UI, without an upload call.
+  // Choosing a skin must NOT upload anything.
+  const beforeChoose = await page.evaluate(
+    () =>
+      window.__calls.filter(
+        (c) => c[0] === "sync_active_skin" || c[0] === "upload_skin",
+      ).length,
+  );
+  await page
+    .locator('button[aria-label^="Сделать активным:"]:not([disabled])')
+    .first()
+    .click();
+  await page.getByRole("status").filter({ hasText: "локально" }).waitFor();
+  const afterChoose = await page.evaluate(
+    () =>
+      window.__calls.filter(
+        (c) => c[0] === "sync_active_skin" || c[0] === "upload_skin",
+      ).length,
+  );
+  check(
+    afterChoose === beforeChoose,
+    "choosing a skin uploaded it instead of keeping it local",
+  );
+
+  // Only the explicit sync sends anything, and it sends the active id only.
+  await page.getByRole("button", { name: "Отправить на сервер" }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Остальные остались локально" })
+    .waitFor();
+  const sync = await page.evaluate(() => {
+    const calls = window.__calls.filter((c) => c[0] === "sync_active_skin");
+    return {
+      count: calls.length,
+      args: calls[0]?.[1] ?? null,
+      activeCount: Object.keys(window.__library.active).length,
+      history: window.__library.skins.length,
+    };
+  });
+  check(sync.count === 1, "exactly one sync call was expected");
+  check(
+    sync.args && Object.keys(sync.args).join(",") === "serverId",
+    "sync must send a server id, not a pile of textures",
+  );
+  check(sync.history === 2, "syncing must not clear local history");
+  check(sync.activeCount === 1, "only one skin may be active per server");
+
+  await page.getByRole("button", { name: "Сбросить на стандартный" }).click();
+  check(
+    await page.evaluate(() =>
+      window.__calls.some((c) => c[0] === "reset_skin"),
+    ),
+    "resetting the skin never reached the backend",
+  );
+  check(
+    (await page.evaluate(() => window.__library.skins.length)) === 2,
+    "resetting the remote skin must not delete local history",
+  );
+
+  // Deleting from history is local and immediate.
+  await page
+    .getByRole("button", { name: /^Удалить из истории:/ })
+    .first()
+    .click();
+  await page.getByRole("status").filter({ hasText: "удалён" }).waitFor();
+  check(
+    (await page.evaluate(() => window.__library.skins.length)) === 1,
+    "deleting from history did not reach the backend",
+  );
+
+  // A wrong-sized PNG must be rejected in the UI, without touching the library.
   const before = await page.evaluate(
-    () => window.__calls.filter((c) => c[0] === "upload_skin").length,
+    () => window.__calls.filter((c) => c[0] === "add_skin_to_library").length,
   );
   await page.locator("#skin-file").setInputFiles({
     name: "bad.png",
@@ -595,9 +719,9 @@ try {
   });
   await page.getByRole("alert").filter({ hasText: "PNG" }).waitFor();
   const after = await page.evaluate(
-    () => window.__calls.filter((c) => c[0] === "upload_skin").length,
+    () => window.__calls.filter((c) => c[0] === "add_skin_to_library").length,
   );
-  check(after === before, "an invalid PNG was sent to the provider");
+  check(after === before, "an invalid PNG reached the local library");
   await page.getByRole("button", { name: "Серверы" }).click();
 
   // Mandatory licence credit stays visible and inside the viewport.
@@ -633,8 +757,13 @@ try {
     "save_settings",
     "list_java_runtimes",
     "get_skin",
-    "upload_skin",
     "reset_skin",
+    "list_skin_library",
+    "add_skin_to_library",
+    "read_skin_texture",
+    "set_active_skin",
+    "sync_active_skin",
+    "delete_skin_from_library",
   ]) {
     check(commands.includes(required), `command was never called: ${required}`);
   }

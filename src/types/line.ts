@@ -52,6 +52,29 @@ export interface LineWardrobeConfig {
 }
 
 /** Current skin as reported by the provider. */
+/** One texture kept in the local history. `id` is the SHA-256 of the PNG. */
+export interface SkinEntry {
+  id: string;
+  name: string;
+  model: SkinModel;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  addedAt: number;
+}
+
+export interface SkinLibrary {
+  /** Newest first. */
+  skins: SkinEntry[];
+  /** server id -> active skin id. */
+  active: Record<string, string>;
+}
+
+export interface SkinLibrarySnapshot {
+  library: SkinLibrary;
+  limit: number;
+}
+
 export interface SkinState {
   model: SkinModel;
   textureUrl: string;

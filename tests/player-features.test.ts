@@ -354,24 +354,64 @@ test("the scrollbar pill is token-driven and not disabled by the standard props"
   );
 });
 
-test("the unavailable wardrobe explains itself and stays reachable", () => {
+test("the wardrobe is reachable without a session, provider API or network", () => {
   const nav = read("src/components/line/SideNav.tsx");
-  // A disabled button gets pointer-events:none, so a native title never shows.
-  // Assert the prop itself, not the word: a comment mentioning it would
-  // otherwise let the regression through (verified by mutation).
-  assert.match(nav, /focusableWhenDisabled=\{/);
-  assert.match(nav, /TooltipTrigger/);
-  assert.match(nav, /opacity-50/, "it must still look inactive");
+  // The nav entry must not be gated at all: local history works signed out.
+  assert.doesNotMatch(nav, /disabled:\s*!wardrobeAvailable/);
+  assert.doesNotMatch(nav, /wardrobeAvailable/);
+
   const shell = read("src/components/line/LineLauncher.tsx");
-  assert.match(shell, /TooltipProvider/);
-  // One generic hint left players guessing; each prerequisite is named.
-  assert.match(shell, /wardrobeHint/);
-  for (const reason of [
-    "подключите провайдера",
-    "Откройте сервер",
-    "не настроил гардероб",
-    "Войдите в аккаунт",
-  ]) {
-    assert.ok(shell.includes(reason), `missing wardrobe reason: ${reason}`);
-  }
+  // No guard may bounce the player out of the section or swallow the click.
+  assert.doesNotMatch(shell, /section === "wardrobe" && !wardrobeAvailable/);
+  assert.doesNotMatch(
+    shell,
+    /section === "wardrobe" && selected && session &&/,
+    "the screen must render with no server and no session",
+  );
+  assert.match(shell, /canSync=\{canSyncSkin\}/);
+
+  const screen = read("src/components/line/WardrobeScreen.tsx");
+  // Choosing a texture is local; only an explicit button contacts the provider.
+  assert.match(screen, /lineApi\.setActiveSkin\(/);
+  assert.match(screen, /lineApi\.syncActiveSkin\(/);
+  const activate = screen.slice(
+    screen.indexOf("async function activate("),
+    screen.indexOf("async function remove("),
+  );
+  assert.doesNotMatch(
+    activate,
+    /syncActiveSkin|uploadSkin|lineApi\.skin\(/,
+    "activating a skin must not upload it",
+  );
+  // The library loads unconditionally, not behind canSync.
+  const libraryEffect = screen.slice(
+    screen.indexOf("void lineApi\n      .skinLibrary()"),
+    screen.indexOf("// The provider's current skin"),
+  );
+  assert.ok(libraryEffect.length > 0, "library must load on mount");
+  assert.doesNotMatch(libraryEffect, /if \(!serverId|if \(!canSync/);
+});
+
+test("only the active skin is uploaded, and history is kept locally", () => {
+  const library = read("src-tauri/src/line/skin_library.rs");
+  // Sync reads the *active* id for this server, never the whole shelf.
+  const sync = library.slice(library.indexOf("pub async fn sync_active_skin("));
+  assert.match(sync, /\.active\s*\.get\(/);
+  assert.match(sync, /push_skin\(/);
+  assert.doesNotMatch(sync, /for .* in .*skins/, "no bulk upload");
+  // Selecting is purely local.
+  const setActive = library.slice(
+    library.indexOf("pub async fn set_active_skin("),
+    library.indexOf("pub async fn sync_active_skin("),
+  );
+  assert.doesNotMatch(setActive, /push_skin|reqwest|session\(\)/);
+  // Capacity is refused on add, not silently pruned: history is the point.
+  // (read_index may still bound a hand-edited file — that is not the add path.)
+  const add = library.slice(
+    library.indexOf("pub async fn add_skin_to_library("),
+    library.indexOf("pub async fn rename_skin("),
+  );
+  assert.ok(add.length > 0, "add command must exist");
+  assert.match(add, /ensure_capacity\(/);
+  assert.doesNotMatch(add, /\.truncate\(|\.pop\(\)|\.remove\(0\)/);
 });

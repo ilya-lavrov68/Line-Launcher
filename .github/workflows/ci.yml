@@ -51,6 +51,32 @@ jobs:
           npm run doctor -- --frontend-only
           npm run tauri -- --version
 
+  ui-smoke:
+    # The browser suites need a real Chromium and a running dev server, so they
+    # cannot live in the frontend job. test:boot guards the single-connect
+    # startup invariant (a StrictMode double-fetch was found this way).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright-core install --with-deps chromium
+      - name: Dev server
+        run: npm run dev &
+      - name: Wait for Vite
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5173 >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "dev server did not start" >&2
+          exit 1
+      - run: npm run test:boot
+      - run: npm run test:ui
+
   rust-pure:
     # Runs the dependency-free Rust logic with plain rustc. This is a fast
     # smoke signal, NOT a replacement for the full `rust` job below.

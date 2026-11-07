@@ -5,17 +5,21 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (113 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (123 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, wardrobe contract, custom-frame permissions, window-geometry survival
-  through the branding overlay, and token-only styling of the new chrome)
+  through the branding overlay, and token-only styling of the new chrome),
+  the local-first wardrobe contract (reachable signed out, activation never
+  uploads, only the active skin syncs, history is never silently pruned), and the
+  build-time provider catalogue (HTTPS-only baked URLs, an unconnectable build is
+  refused, duplicates/unknown keys rejected, locked builds ignore a foreign cache)
 - `npm run brand:check` (generated branding is current)
 - License/metadata tests: custom Line license, verbatim upstream MIT hash,
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 25 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 28 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -26,7 +30,9 @@ Checked in the implementation sandbox:
   skin PNG validation (both accepted sizes, rejected dimensions/depth/colour type/
   interlace, non-PNG and oversize input), and the player heap policy (RAM-share
   ceiling, hard cap, rejection instead of clamping, automatic value always inside
-  the selectable range).
+  the selectable range), and the local skin library (SHA-256-only ids reject
+  traversal/absolute/uppercase paths, name normalisation, capacity refused while
+  re-adding an existing texture still succeeds).
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -57,18 +63,33 @@ Checked in the implementation sandbox:
   labels rather than raw `keep`/`auto` values and expose no JVM-argument field,
   loaded server banner/icon must render, and the wardrobe runs a real 64×64 PNG
   through validation → preview → upload → reset while a malformed PNG is rejected
-  without any upload call. 34 IPC calls, 0 page errors. Uses a test-only injected
+  without any upload call. Extended for the local-first wardrobe: the section is
+  reachable before login, a texture is saved to local history with no provider
+  call at all, history survives login, choosing a different skin uploads nothing,
+  the explicit sync sends only a server id, reset keeps local history, and
+  deleting reaches the backend. 49 IPC calls, 0 page errors. Uses a test-only injected
   Tauri IPC stub — the real window plugin and Rust commands are not exercised.
 - Layout-stability regressions measured in Chromium, not assumed: the provider
   submit button holds its position within 1px across idle → error → loading
   (it used to jump 24px), the scrollbar thumb computes to a pill
   (`border-radius`, `background-clip: content-box`) and follows `--foreground`
-  when the token changes, and the disabled wardrobe is hoverable, focusable and
-  shows a reason naming the missing prerequisite. Playwright's default
+  when the token changes, and the wardrobe nav entry is no longer disabled while
+  signed out — only the sync button is, and it names the missing prerequisite. Playwright's default
   `--hide-scrollbars` is disabled for this suite, otherwise the scrollbar under
   test would be invisible. The three new static assertions were mutation-checked:
   restoring the unconditional `scrollbar-width` or dropping
   `focusableWhenDisabled` makes them fail.
+- `npm run test:boot`: Chromium assertion that startup connects exactly once.
+  Found and fixed a real StrictMode race — a shared `mounted` ref is set back to
+  true by the second mount, so the first run's pending promise also connected and
+  the config was fetched twice. Covered for a slow cache read, an instant cache
+  read and a cold start. Mutation-checked: restoring the shared-ref guard makes
+  two of the checks fail.
+- Build-time provider flow verified in Chromium with a temporarily baked
+  catalogue (then restored): two providers render «Выберите проект» with both
+  names, no URL input and no manual-entry button; picking one fetches exactly
+  that baked address; a single provider connects on its own with no picker and no
+  URL field. 0 page errors in both cases.
 - Chromium smoke test of the browser fallback screen
 - Chromium screenshots of the config, server list, auth, installed, server detail
   (banner + icon), settings and wardrobe states, reviewed visually

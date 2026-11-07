@@ -70,6 +70,25 @@ function attributed(file, signature, options) {
   return [...lines.slice(first, start), body].join("\n");
 }
 
+/**
+ * Copy a serde data type but drop only the serde plumbing. The field list stays
+ * verbatim, so a renamed/removed field still breaks this harness instead of
+ * drifting away from what the crate actually serialises.
+ */
+function plain(file, signature) {
+  return attributed(file, signature)
+    .replace(/^\s*#\[serde\([^\n]*\)\]\n/gm, "")
+    .replace(/^\s*#\[derive\(([^\n]*)\)\]\s*$/gm, (_m, list) => {
+      const kept = list
+        .split(",")
+        .map((part) => part.trim())
+        .filter(
+          (part) => part && part !== "Serialize" && part !== "Deserialize",
+        );
+      return kept.length ? `#[derive(${kept.join(", ")})]` : "";
+    });
+}
+
 // The real error module derives Serialize and converts reqwest errors; neither
 // is available without crates.io. Codes, messages and constructors are kept.
 const shim = `
@@ -78,6 +97,7 @@ const shim = `
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -151,6 +171,14 @@ const items = [
   attributed("wardrobe.rs", "pub fn validate_skin_png("),
   attributed("dev_ca.rs", "pub fn candidate_paths("),
   attributed("install.rs", "fn has_path_conflict("),
+  plain("wardrobe.rs", "pub enum SkinModel {"),
+  plain("skin_library.rs", "pub const MAX_LIBRARY_SKINS:"),
+  plain("skin_library.rs", "const MAX_NAME_CHARS:"),
+  plain("skin_library.rs", "pub struct SkinEntry {"),
+  plain("skin_library.rs", "pub struct SkinLibrary {"),
+  attributed("skin_library.rs", "pub fn valid_skin_id("),
+  attributed("skin_library.rs", "pub fn normalize_name("),
+  attributed("skin_library.rs", "pub fn ensure_capacity("),
 ];
 
 // Real unit tests, copied from the crate so expectations have one source of truth.
@@ -172,6 +200,15 @@ const tests = [
   attributed("wardrobe.rs", "fn accepts_both_minecraft_skin_sizes("),
   attributed("wardrobe.rs", "fn rejects_wrong_dimensions_depth_and_interlace("),
   attributed("wardrobe.rs", "fn rejects_non_png_and_oversize("),
+  attributed("skin_library.rs", "fn only_lowercase_sha256_is_a_valid_id("),
+  attributed(
+    "skin_library.rs",
+    "fn names_are_trimmed_bounded_and_control_free(",
+  ),
+  attributed(
+    "skin_library.rs",
+    "fn capacity_refuses_new_skins_but_allows_duplicates(",
+  ),
 ];
 
 // Extra coverage for helpers whose crate tests need serde/tempfile/zip.

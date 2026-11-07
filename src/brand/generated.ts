@@ -3,6 +3,9 @@
  */
 import type { Brand } from "./types";
 
+import logoUrl from "./logo.svg";
+
+
 export const brand: Brand = {
   name: "Line Launcher",
   shortName: "Line",
@@ -10,7 +13,8 @@ export const brand: Brand = {
   publisher: "Plus In Plus",
   windowTitle: "Line Launcher",
   description: "Provider-configured Minecraft launcher",
-  logo: null,
+  logo: logoUrl,
+  logoTinted: true,
   attribution: {
     placement: "footer",
     language: "en",

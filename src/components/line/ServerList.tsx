@@ -86,7 +86,8 @@ export default function ServerList({
             <ServerCard
               name={server.name}
               description={server.description}
-              logoUrl={server.logo_url}
+              iconUrl={server.icon_url ?? server.logo_url}
+              bannerUrl={server.banner_url}
               version={server.version}
               minecraftVersion={server.minecraft_version}
               installed={installedIds.has(server.id)}

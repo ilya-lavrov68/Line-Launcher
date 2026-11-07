@@ -13,6 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
         "title": "Line Launcher — Plus In Plus",
         "width": 1100,
         "height": 720,
@@ -20,7 +21,8 @@
         "minHeight": 560,
         "resizable": true,
         "center": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": false
       }
     ],
     "security": {

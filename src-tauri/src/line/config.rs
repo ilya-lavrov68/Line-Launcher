@@ -38,13 +38,29 @@ pub struct Distribution {
     pub unpacked_size_bytes: u64,
 }
 
+/// Optional wardrobe endpoints. Both must be present together so a provider
+/// cannot advertise an upload target the launcher can never read back.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WardrobeConfig {
+    /// GET with bearer session -> { model, texture_url }, or 404 when unset.
+    pub skin_url: String,
+    /// POST raw PNG with bearer session and `X-Skin-Model`; DELETE resets.
+    pub skin_upload_url: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Server {
     pub id: String,
     pub name: String,
     pub description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub logo_url: Option<String>,
+    /// Square mark. `logo_url` is still accepted from older provider configs.
+    #[serde(default, alias = "logo_url", skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    /// Wide hero image for the server card and detail header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banner_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wardrobe: Option<WardrobeConfig>,
     pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minecraft_version: Option<String>,
@@ -167,7 +183,11 @@ impl LineConfig {
         if self.required_features.iter().any(|f| {
             !matches!(
                 f.as_str(),
-                "custom-auth-v1" | "zip-sha256-v1" | "launch-manifest-v1" | "private-ipc-v1"
+                "custom-auth-v1"
+                    | "zip-sha256-v1"
+                    | "launch-manifest-v1"
+                    | "private-ipc-v1"
+                    | "skin-upload-v1"
             )
         }) {
             return Err(LineError::new(
@@ -213,8 +233,15 @@ impl LineConfig {
                     "Некорректное название, описание или версия сервера.",
                 ));
             }
-            if let Some(url) = &server.logo_url {
+            if let Some(url) = &server.icon_url {
                 validate_https(url)?;
+            }
+            if let Some(url) = &server.banner_url {
+                validate_https(url)?;
+            }
+            if let Some(wardrobe) = &server.wardrobe {
+                validate_https(&wardrobe.skin_url)?;
+                validate_https(&wardrobe.skin_upload_url)?;
             }
             validate_https(&server.auth.login_url)?;
             if let Some(url) = &server.auth.register_url {

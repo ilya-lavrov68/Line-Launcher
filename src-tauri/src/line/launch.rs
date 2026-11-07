@@ -32,6 +32,8 @@ pub struct LaunchSpec {
     /// Non-secret rendezvous identifier for the private IPC channel.
     pub session_channel_id: String,
     pub total_memory_bytes: u64,
+    /// Player override from settings; None keeps the automatic sizing.
+    pub heap_mb: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -57,6 +59,28 @@ pub enum GamePhase {
     Running,
     Exited,
     Failed,
+}
+
+pub const MIN_HEAP_MB: u32 = 1024;
+pub const MAX_HEAP_MB: u32 = 16_384;
+
+/// Upper player-selectable heap: at most 3/4 of physical memory, capped at
+/// MAX_HEAP_MB. Leaves the OS and the launcher itself room to breathe.
+pub fn heap_ceiling(total_memory_bytes: u64) -> u32 {
+    let mib = total_memory_bytes / (1024 * 1024);
+    let ceiling = (mib / 4) * 3;
+    ceiling.clamp(MIN_HEAP_MB as u64, MAX_HEAP_MB as u64) as u32
+}
+
+/// Reject rather than clamp, so the saved settings and the UI cannot disagree.
+pub fn validate_heap(requested: u32, total_memory_bytes: u64) -> LineResult<u32> {
+    let ceiling = heap_ceiling(total_memory_bytes);
+    if requested < MIN_HEAP_MB || requested > ceiling {
+        return Err(LineError::input(format!(
+            "Объём памяти должен быть от {MIN_HEAP_MB} до {ceiling} МБ."
+        )));
+    }
+    Ok(requested)
 }
 
 pub fn optimal_heap_mb(total_memory_bytes: u64) -> u32 {
@@ -112,7 +136,10 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
     if classpath.contains(['\n', '\r', '\0']) {
         return Err(LineError::input("Некорректный classpath."));
     }
-    let heap = optimal_heap_mb(spec.total_memory_bytes);
+    let heap = match spec.heap_mb {
+        Some(requested) => validate_heap(requested, spec.total_memory_bytes)?,
+        None => optimal_heap_mb(spec.total_memory_bytes),
+    };
     let mut args = vec![
         spec.java.to_string_lossy().into_owned(),
         format!("-Xmx{heap}M"),
@@ -266,6 +293,27 @@ fn publish(app: &AppHandle, state: &LineState, status: GameStatus) -> GameStatus
     status
 }
 
+/// A saved Java path is honoured only when the launcher can still discover that
+/// exact executable and its major matches the manifest. Otherwise fall back to
+/// normal discovery instead of executing an arbitrary stored path.
+async fn select_runtime(
+    preferences: &super::settings::LauncherSettings,
+    required_major: u16,
+) -> LineResult<java::JavaRuntime> {
+    if let Some(requested) = &preferences.java_path {
+        if let Ok(canonical) = std::fs::canonicalize(Path::new(requested)) {
+            let runtimes = java::list_runtimes().await;
+            if let Some(found) = runtimes
+                .into_iter()
+                .find(|r| r.path == canonical && r.major == required_major)
+            {
+                return Ok(found);
+            }
+        }
+    }
+    java::discover(required_major).await
+}
+
 fn total_memory() -> u64 {
     use sysinfo::System;
     let mut system = System::new();
@@ -280,6 +328,8 @@ pub async fn launch_game(
     state: State<'_, LineState>,
 ) -> LineResult<GameStatus> {
     let (_, config) = state.fresh_config()?;
+    let total_memory_bytes = total_memory();
+    let preferences = super::settings::load(&app, total_memory_bytes);
     let server = config.server(&server_id)?.clone();
     let session = state.session(&server_id)?;
     let ticket_url = server
@@ -338,7 +388,7 @@ pub async fn launch_game(
             return Err(cancelled());
         }
         let runtime = tokio::select! {
-            result = java::discover(resolved.manifest.java_major) => result?,
+            result = select_runtime(&preferences, resolved.manifest.java_major) => result?,
             _ = wait_stop(&stop) => return Err(cancelled()),
         };
         if stop.load(Ordering::Acquire) {
@@ -373,7 +423,8 @@ pub async fn launch_game(
             assets_dir: resolved.assets_dir,
             natives_dir: resolved.natives_dir,
             session_channel_id: channel.id.clone(),
-            total_memory_bytes: total_memory(),
+            total_memory_bytes,
+            heap_mb: preferences.heap_mb,
         };
         let args = build_java_command(&spec)?;
         let mut command = tokio::process::Command::new(&args[0]);
@@ -591,6 +642,7 @@ mod tests {
             natives_dir: None,
             session_channel_id: "launch-channel-1".into(),
             total_memory_bytes: 16 * 1024 * 1024 * 1024,
+            heap_mb: None,
         }
     }
 

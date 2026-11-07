@@ -110,3 +110,53 @@ pub async fn post_bearer_json<T: serde::Serialize>(
         .map_err(|e| LineError::network(&e))?;
     success(response)
 }
+
+/// Direct-only bearer GET. Used by the wardrobe to read the current skin; a
+/// redirect must never receive the provider access token.
+pub async fn get_bearer(client: &reqwest::Client, url: &Url, token: &str) -> LineResult<Response> {
+    validate_https(url.as_str())?;
+    let bearer = zeroize::Zeroizing::new(format!("Bearer {token}"));
+    let value = header::HeaderValue::from_str(&bearer)
+        .map_err(|_| LineError::input("Некорректная сессия провайдера."))?;
+    let response = client
+        .get(url.clone())
+        .timeout(std::time::Duration::from_secs(30))
+        .header(header::ACCEPT, "application/json")
+        .header(header::AUTHORIZATION, value)
+        .send()
+        .await
+        .map_err(|e| LineError::network(&e))?;
+    Ok(response)
+}
+
+/// Direct-only bearer request with an opaque binary body. Skin PNGs are uploaded
+/// as `image/png` rather than multipart so no part boundary can be injected.
+pub async fn send_bearer_bytes(
+    client: &reqwest::Client,
+    method: reqwest::Method,
+    url: &Url,
+    token: &str,
+    content_type: &str,
+    extra_header: Option<(&str, &str)>,
+    body: Vec<u8>,
+) -> LineResult<Response> {
+    validate_https(url.as_str())?;
+    let bearer = zeroize::Zeroizing::new(format!("Bearer {token}"));
+    let value = header::HeaderValue::from_str(&bearer)
+        .map_err(|_| LineError::input("Некорректная сессия провайдера."))?;
+    let mut request = client
+        .request(method, url.clone())
+        .timeout(std::time::Duration::from_secs(60))
+        .header(header::ACCEPT, "application/json")
+        .header(header::AUTHORIZATION, value)
+        .header(header::CONTENT_TYPE, content_type);
+    if let Some((name, val)) = extra_header {
+        request = request.header(name, val);
+    }
+    let response = request
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| LineError::network(&e))?;
+    success(response)
+}

@@ -9,7 +9,7 @@
     "description": "Provider-configured Minecraft launcher"
   },
   "assets": {
-    "logo": null,
+    "logo": "assets/logo.svg",
     "app_icon": "assets/app-icon.svg"
   },
   "palette": {},

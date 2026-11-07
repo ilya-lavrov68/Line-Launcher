@@ -13,6 +13,11 @@ import {
   type GameStatus,
   type ReleaseHistory,
   type RollbackResult,
+  type JavaRuntimeInfo,
+  type LauncherSettings,
+  type SettingsSnapshot,
+  type SkinModel,
+  type SkinState,
 } from "@/types/line";
 
 export class DesktopRequiredError extends Error {
@@ -57,6 +62,15 @@ export const lineApi = {
     call<ReleaseHistory>("list_release_history", { serverId }),
   rollback: (serverId: string, sha256: string) =>
     call<RollbackResult>("rollback_release", { serverId, sha256 }),
+  settings: () => call<SettingsSnapshot>("get_settings"),
+  saveSettings: (settings: LauncherSettings) =>
+    call<SettingsSnapshot>("save_settings", { settings }),
+  javaRuntimes: () => call<JavaRuntimeInfo[]>("list_java_runtimes"),
+  clearConfigCache: () => call<boolean>("clear_config_cache"),
+  skin: (serverId: string) => call<SkinState | null>("get_skin", { serverId }),
+  uploadSkin: (serverId: string, model: SkinModel, png: number[]) =>
+    call<SkinState>("upload_skin", { serverId, model, png }),
+  resetSkin: (serverId: string) => call<void>("reset_skin", { serverId }),
   onGame: async (
     serverId: string,
     callback: (status: GameStatus) => void,

@@ -8,3 +8,8 @@ package-lock.json
 src-tauri/Cargo.lock
 .smoke
 .provider
+
+# Branding generator output: byte-compared by `npm run brand:check`.
+# Reformatting it here makes the check fail on a clean tree.
+src/brand/generated.ts
+src/brand/generated.css

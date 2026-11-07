@@ -5,6 +5,7 @@ export const LINE_SUPPORTED_FEATURES = [
   "zip-sha256-v1",
   "launch-manifest-v1",
   "private-ipc-v1",
+  "skin-upload-v1",
 ] as const;
 export type LineFeature = (typeof LINE_SUPPORTED_FEATURES)[number];
 
@@ -36,11 +37,37 @@ export interface LineDistribution {
   unpacked_size_bytes: number;
 }
 
+/** Skin model. "classic" = 4px arms, "slim" = 3px arms. */
+export type SkinModel = "classic" | "slim";
+
+/**
+ * Optional wardrobe endpoints. Rust requires both together and HTTPS for each.
+ * Providers that rely on it should list `skin-upload-v1` in required_features.
+ */
+export interface LineWardrobeConfig {
+  /** GET with bearer session -> { model, texture_url }; 404 when unset. */
+  skin_url: string;
+  /** POST raw PNG with bearer + X-Skin-Model; DELETE resets to the default. */
+  skin_upload_url: string;
+}
+
+/** Current skin as reported by the provider. */
+export interface SkinState {
+  model: SkinModel;
+  textureUrl: string;
+}
+
 export interface LineServer {
   /** Stable, lowercase ASCII slug; never accept a filesystem path from JSON. */
   id: string;
   name: string;
   description: string;
+  /** Square mark. Rust normalizes the legacy `logo_url` into this field. */
+  icon_url?: string;
+  /** Wide hero image for the card and the detail header. */
+  banner_url?: string;
+  wardrobe?: LineWardrobeConfig;
+  /** @deprecated Accepted from providers, normalized to icon_url by Rust. */
   logo_url?: string;
   /** Provider's release identifier. Change it when the distribution changes. */
   version: string;
@@ -59,6 +86,40 @@ export interface LineConfig {
   /** Additional required capabilities. Unknown features fail closed. */
   required_features?: LineFeature[];
   servers: LineServer[];
+}
+
+/** What the launcher window does once the game starts. */
+export type AfterLaunch = "keep" | "minimize" | "close";
+
+/**
+ * Player settings. Deliberately narrow: there is no free-form JVM argument
+ * field, because launch hardening rejects -javaagent and classpath injection.
+ * `javaPath` is only a hint — Rust re-checks it against the runtimes it can
+ * actually discover and execute.
+ */
+export interface LauncherSettings {
+  /** null = size the heap from physical memory automatically. */
+  heapMb: number | null;
+  javaPath: string | null;
+  sidebarCollapsed: boolean;
+  afterLaunch: AfterLaunch;
+  windowWidth: number;
+  windowHeight: number;
+  windowMaximized: boolean;
+}
+
+export interface SettingsSnapshot {
+  settings: LauncherSettings;
+  /** Upper selectable heap on this machine (3/4 of RAM, capped). */
+  heapCeilingMb: number;
+  suggestedHeapMb: number;
+  totalMemoryMb: number;
+}
+
+export interface JavaRuntimeInfo {
+  path: string;
+  major: number;
+  version: string;
 }
 
 /** Rust IPC DTOs use camelCase (Tauri's default argument conversion). */

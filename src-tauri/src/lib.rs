@@ -24,6 +24,13 @@ pub fn run() {
             line::launch::get_game_status,
             line::rollback::list_release_history,
             line::rollback::rollback_release,
+            line::settings::get_settings,
+            line::settings::save_settings,
+            line::settings::list_java_runtimes,
+            line::settings::clear_config_cache,
+            line::wardrobe::get_skin,
+            line::wardrobe::upload_skin,
+            line::wardrobe::reset_skin,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Line Launcher");

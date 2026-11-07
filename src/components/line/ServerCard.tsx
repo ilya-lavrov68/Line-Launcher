@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 export interface ServerCardProps {
   name: string;
   description: string;
-  logoUrl?: string;
+  iconUrl?: string;
+  bannerUrl?: string;
   version?: string;
   minecraftVersion?: string;
   installed?: boolean;
@@ -25,7 +26,8 @@ export interface ServerCardProps {
 export default function ServerCard({
   name,
   description,
-  logoUrl,
+  iconUrl,
+  bannerUrl,
   version,
   minecraftVersion,
   installed = false,
@@ -34,8 +36,10 @@ export default function ServerCard({
 }: ServerCardProps) {
   const reducedMotion = useReducedMotion();
   const [imageFailed, setImageFailed] = useState(false);
+  const [bannerFailed, setBannerFailed] = useState(false);
 
-  useEffect(() => setImageFailed(false), [logoUrl]);
+  useEffect(() => setImageFailed(false), [iconUrl]);
+  useEffect(() => setBannerFailed(false), [bannerUrl]);
 
   return (
     <m.div
@@ -52,15 +56,27 @@ export default function ServerCard({
         aria-label={`Открыть сервер ${name}`}
         className={cn(
           "border-border/40 bg-card/60 hover:border-border/70 h-full w-full",
-          "flex-col items-stretch justify-start gap-3 rounded-xl border p-3.5",
+          "flex-col items-stretch justify-start gap-3 overflow-hidden rounded-xl border p-3.5",
           "text-left whitespace-normal backdrop-blur-sm transition-colors",
         )}
       >
+        {bannerUrl && !bannerFailed && (
+          <div className="bg-muted/40 -mx-3.5 -mt-3.5 mb-0.5 h-24 w-[calc(100%+1.75rem)] overflow-hidden">
+            <img
+              src={bannerUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setBannerFailed(true)}
+            />
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3">
           <div className="bg-primary/10 text-primary border-primary/20 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
-            {logoUrl && !imageFailed ? (
+            {iconUrl && !imageFailed ? (
               <img
-                src={logoUrl}
+                src={iconUrl}
                 alt=""
                 className="h-full w-full object-cover"
                 loading="lazy"

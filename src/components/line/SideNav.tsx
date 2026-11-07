@@ -1,0 +1,182 @@
+import { m, useReducedMotion } from "framer-motion";
+import {
+  ChevronLeft,
+  Info,
+  Link2,
+  Server,
+  Settings,
+  Shirt,
+  type LucideIcon,
+} from "lucide-react";
+import { brand } from "@/brand/generated";
+import Attribution from "@/components/line/Attribution";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+export type LineSection = "servers" | "wardrobe" | "settings";
+
+export interface SideNavProps {
+  section: LineSection;
+  collapsed: boolean;
+  /** Wardrobe needs a signed-in server that advertises the endpoints. */
+  wardrobeAvailable: boolean;
+  providerName?: string;
+  onNavigate: (section: LineSection) => void;
+  onToggleCollapsed: () => void;
+  onChangeProvider: () => void;
+  onAbout: () => void;
+  actionsDisabled?: boolean;
+}
+
+interface NavItem {
+  id: LineSection;
+  label: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  hint?: string;
+}
+
+/**
+ * Collapsible left navigation.
+ *
+ * Colours come from the shared semantic tokens (`bg-card/50`, `bg-primary/10`,
+ * `text-muted-foreground`, `border-border/50`) rather than a bespoke palette, so
+ * every branding preset restyles it with no extra CSS. Geometry reuses Obsy's
+ * radii and the shared Button primitive keeps keyboard/focus semantics.
+ *
+ * Collapsed mode keeps the same targets as icon buttons with accessible names
+ * and native tooltips, so nothing becomes unreachable.
+ */
+export default function SideNav({
+  section,
+  collapsed,
+  wardrobeAvailable,
+  providerName,
+  onNavigate,
+  onToggleCollapsed,
+  onChangeProvider,
+  onAbout,
+  actionsDisabled = false,
+}: SideNavProps) {
+  const reducedMotion = useReducedMotion();
+  const items: NavItem[] = [
+    { id: "servers", label: "Серверы", icon: Server },
+    {
+      id: "wardrobe",
+      label: "Гардероб",
+      icon: Shirt,
+      disabled: !wardrobeAvailable,
+      hint: wardrobeAvailable
+        ? undefined
+        : "Войдите на сервер, у которого провайдер настроил гардероб",
+    },
+    { id: "settings", label: "Настройки", icon: Settings },
+  ];
+
+  return (
+    <m.nav
+      aria-label="Основная навигация"
+      initial={false}
+      animate={{ width: collapsed ? 60 : 208 }}
+      transition={
+        reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
+      }
+      className={cn(
+        "border-border/50 bg-card/40 relative z-20 flex min-h-0 shrink-0",
+        "flex-col border-r backdrop-blur-md",
+      )}
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        {!collapsed && providerName && (
+          <p
+            className="text-muted-foreground truncate px-2.5 pt-1.5 pb-2 font-mono text-[10px]"
+            title={providerName}
+          >
+            {providerName}
+          </p>
+        )}
+        {items.map((item) => {
+          const active = section === item.id;
+          const Icon = item.icon;
+          return (
+            <Button
+              key={item.id}
+              variant="ghost"
+              disabled={item.disabled}
+              aria-current={active ? "page" : undefined}
+              aria-label={item.label}
+              title={collapsed ? (item.hint ?? item.label) : item.hint}
+              onClick={() => onNavigate(item.id)}
+              className={cn(
+                "h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs font-medium",
+                collapsed ? "justify-center px-0" : "justify-start px-2.5",
+                active
+                  ? "bg-primary/10 text-primary hover:bg-primary/15"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Button>
+          );
+        })}
+      </div>
+
+      <div className="border-border/50 flex shrink-0 flex-col gap-1 border-t p-2">
+        <Button
+          variant="ghost"
+          disabled={actionsDisabled}
+          aria-label="Сменить провайдера"
+          title={collapsed ? "Сменить провайдера" : undefined}
+          onClick={onChangeProvider}
+          className={cn(
+            "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            collapsed ? "justify-center px-0" : "justify-start px-2.5",
+          )}
+        >
+          <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {!collapsed && <span className="truncate">Сменить провайдера</span>}
+        </Button>
+        <Button
+          variant="ghost"
+          aria-label="О программе"
+          title={collapsed ? "О программе" : undefined}
+          onClick={onAbout}
+          className={cn(
+            "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            collapsed ? "justify-center px-0" : "justify-start px-2.5",
+          )}
+        >
+          <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {!collapsed && <span className="truncate">О программе</span>}
+        </Button>
+        {/* The credit is a license condition: it stays visible when collapsed. */}
+        {!collapsed && brand.attribution.placement === "header" && (
+          <div className="px-2.5 pt-1 pb-0.5 text-[10px]">
+            <Attribution />
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          title={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          className={cn(
+            "text-muted-foreground hover:text-foreground h-8 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            collapsed ? "justify-center px-0" : "justify-start px-2.5",
+          )}
+        >
+          <ChevronLeft
+            className={cn(
+              "h-4 w-4 shrink-0 transition-transform",
+              collapsed && "rotate-180",
+            )}
+            aria-hidden="true"
+          />
+          {!collapsed && <span className="truncate">Свернуть</span>}
+        </Button>
+      </div>
+    </m.nav>
+  );
+}

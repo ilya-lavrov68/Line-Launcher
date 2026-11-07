@@ -198,7 +198,11 @@ export function renderCss(palette: Record<string, string>): string {
   return `${CSS_HEADER}\n:root {\n${body}\n}\n`;
 }
 
-export function renderTs(config: BrandConfig, logoExt: string | null): string {
+export function renderTs(
+  config: BrandConfig,
+  logoExt: string | null,
+  logoTinted = false,
+): string {
   const p = config.product;
   const attribution = {
     placement: config.attribution.placement,
@@ -226,12 +230,30 @@ export const brand: Brand = {
   windowTitle: ${JSON.stringify(p.window_title)},
   description: ${JSON.stringify(p.description)},
   logo: ${logoExt ? "logoUrl" : "null"},
+  logoTinted: ${logoExt === ".svg" && logoTinted ? "true" : "false"},
   attribution: {
 ${attributionBody}
   },
 };
 `;
 }
+
+/**
+ * Mirrors the window block in src-tauri/tauri.conf.json. Kept next to the
+ * renderer and asserted against the real file by tests/brand.test.ts, so the two
+ * cannot drift apart silently.
+ */
+export const BASE_WINDOW = {
+  label: "main",
+  width: 1100,
+  height: 720,
+  minWidth: 800,
+  minHeight: 560,
+  resizable: true,
+  center: true,
+  fullscreen: false,
+  decorations: false,
+} as const;
 
 export function renderTauriOverlay(
   config: BrandConfig,
@@ -255,7 +277,11 @@ export function renderTauriOverlay(
     {
       productName: p.name,
       identifier: p.app_id,
-      app: { windows: [{ title: p.window_title }] },
+      // Tauri merges configs with RFC 7386, which REPLACES arrays. Emitting a
+      // bare [{ title }] here would drop width/height/min*/decorations from
+      // tauri.conf.json and bring the native title bar back over the custom one.
+      // Carry the full window object so branding only changes the title.
+      app: { windows: [{ ...BASE_WINDOW, title: p.window_title }] },
       bundle,
     },
     null,

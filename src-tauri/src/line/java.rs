@@ -201,6 +201,30 @@ fn candidates(required_major: u16) -> Vec<PathBuf> {
     paths
 }
 
+/// Every executable Java runtime the launcher can find, for the settings
+/// picker. Bounded like `discover`: candidates come from PATH/JAVA_HOME and the
+/// usual install roots, never from provider JSON or the WebView.
+pub async fn list_runtimes() -> Vec<JavaRuntime> {
+    let mut found: Vec<JavaRuntime> = Vec::new();
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    // Major 0 keeps the deterministic ordering without an exact-match bias.
+    for path in candidates(0) {
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        if let Some(runtime) = probe(path).await {
+            if (8..=26).contains(&runtime.major) && !found.iter().any(|r| r.path == runtime.path) {
+                found.push(runtime);
+            }
+        }
+        if found.len() >= 32 {
+            break;
+        }
+    }
+    found.sort_by(|a, b| b.major.cmp(&a.major).then(a.path.cmp(&b.path)));
+    found
+}
+
 pub async fn discover(required_major: u16) -> LineResult<JavaRuntime> {
     if !(8..=26).contains(&required_major) {
         return Err(LineError::input("Неподдерживаемая версия Java."));

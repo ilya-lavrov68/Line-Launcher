@@ -90,6 +90,7 @@ function main(): void {
 
   // Copy the header mark next to generated.ts so Vite can hash the import.
   let logoExt: string | null = null;
+  let logoTinted = false;
   if (logoPath) {
     logoExt = extname(logoPath).toLowerCase();
     const target = join(ROOT, "src/brand", `logo${logoExt}`);
@@ -97,6 +98,9 @@ function main(): void {
     if (!existsSync(logoSource))
       fail(missingAsset("assets.logo", logoPath, logoSource));
     const bytes = readFileSync(logoSource);
+    // A monochrome mark authored with currentColor is tinted by the palette.
+    logoTinted =
+      logoExt === ".svg" && /\bcurrentColor\b/i.test(bytes.toString("utf8"));
     const current = existsSync(target) ? readFileSync(target) : null;
     if (!current || !current.equals(bytes)) {
       if (CHECK_ONLY) fail(`${target} is out of date. Run: npm run brand`);
@@ -114,7 +118,7 @@ function main(): void {
     }
   }
 
-  if (writeIfChanged(OUT_TS, renderTs(config, logoExt))) {
+  if (writeIfChanged(OUT_TS, renderTs(config, logoExt, logoTinted))) {
     changed.push("src/brand/generated.ts");
   }
 

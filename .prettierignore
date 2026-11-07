@@ -13,4 +13,4 @@ src-tauri/Cargo.lock
 # Reformatting it here makes the check fail on a clean tree.
 src/brand/generated.ts
 src/brand/generated.css
-src/brand/providers.generated.ts
+src/brand/provider.generated.ts

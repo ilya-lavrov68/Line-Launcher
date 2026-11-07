@@ -21,6 +21,7 @@
     "test:rust": "node scripts/test-rust-pure.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",
     "test:boot": "node scripts/ui-boot-smoke.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
     "test:provider": "node scripts/test-provider.mjs",
     "test:wardrobe": "node scripts/test-wardrobe-provider.mjs",
     "provider:pack": "node examples/provider/build-pack.mjs",

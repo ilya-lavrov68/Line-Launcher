@@ -26,13 +26,9 @@ import AboutDialog from "./AboutDialog";
 import Attribution from "./Attribution";
 import AuthForm from "./AuthForm";
 import ConfigUrlInput from "./ConfigUrlInput";
-import ProviderPicker from "./ProviderPicker";
-import { bakedProviders } from "@/brand/providers.generated";
-import {
-  autoConnectProvider,
-  isAllowedCachedUrl,
-  startsWithManualEntry,
-} from "@/lib/line/provider-flow";
+import ConnectingScreen from "./ConnectingScreen";
+import { bakedProvider } from "@/brand/provider.generated";
+import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import InstallProgress from "./InstallProgress";
 import LaunchControls from "./LaunchControls";
 import ServerBanner from "./ServerBanner";
@@ -51,12 +47,11 @@ const LAUNCHER_VERSION = "0.1.0";
 export default function LineLauncher() {
   const [screen, setScreen] = useState<Screen>("config");
   /**
-   * A build with baked providers starts on the picker, never on the URL field.
-   * Typing a URL is only reachable when the build explicitly allows it.
+   * One provider per build. A configured build connects to its baked address and
+   * never shows an address field; only an unconfigured template under `npm run
+   * dev` lets a developer type one.
    */
-  const [manualUrl, setManualUrl] = useState(
-    startsWithManualEntry(bakedProviders),
-  );
+  const mode = connectionMode(bakedProvider, import.meta.env.DEV);
   const [section, setSection] = useState<LineSection>("servers");
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -150,7 +145,7 @@ export default function LineLauncher() {
         if (cached) {
           // A universal build's cache must not carry over into a locked branded
           // build: only a baked address is trusted there.
-          if (!isAllowedCachedUrl(bakedProviders, cached.sourceUrl)) {
+          if (!isAllowedCachedUrl(bakedProvider, cached.sourceUrl)) {
             void connectBakedDefault();
             return;
           }
@@ -173,10 +168,9 @@ export default function LineLauncher() {
     };
   }, [loadConfig]);
 
-  /** Single-provider builds connect by themselves; multi-provider builds pick. */
+  /** The build names exactly one provider, so startup connects straight to it. */
   async function connectBakedDefault() {
-    const provider = autoConnectProvider(bakedProviders);
-    if (provider) await loadConfig(provider.configUrl);
+    if (mode === "auto") await loadConfig(bakedProvider.configUrl);
   }
 
   async function refresh() {
@@ -476,16 +470,20 @@ export default function LineLauncher() {
     }
   }
 
-  function changeProvider() {
+  /**
+   * There is no other provider to switch to. This signs out and reconnects to the
+   * same baked address, which is what a player actually wants after an outage.
+   */
+  function reconnect() {
     if (actionsBusy || loading) return;
     if (selected) void lineApi.logout(selected.id).catch(() => undefined);
     detailGeneration.current += 1;
     setScreen("config");
-    setManualUrl(startsWithManualEntry(bakedProviders));
     setSection("servers");
     setSelected(null);
     setSession(null);
     setError(undefined);
+    if (mode === "auto") void loadConfig(bakedProvider.configUrl, true);
   }
 
   return (
@@ -502,7 +500,7 @@ export default function LineLauncher() {
                 actionsDisabled={actionsBusy || loading}
                 onNavigate={navigate}
                 onToggleCollapsed={() => void toggleSidebar()}
-                onChangeProvider={changeProvider}
+                onChangeProvider={reconnect}
                 onAbout={() => setAboutOpen(true)}
               />
               <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
@@ -546,24 +544,21 @@ export default function LineLauncher() {
                       )}
                       {section === "servers" && screen === "config" && (
                         <div className="flex min-h-full items-center justify-center py-4">
-                          {!manualUrl && bakedProviders.providers.length > 0 ? (
-                            <ProviderPicker
-                              providers={bakedProviders.providers}
-                              allowManualUrl={bakedProviders.allowManualUrl}
-                              loading={loading}
-                              error={error}
-                              activeUrl={snapshot?.sourceUrl}
-                              onSelect={(provider) =>
-                                void loadConfig(provider.configUrl)
-                              }
-                              onManual={() => setManualUrl(true)}
-                            />
-                          ) : (
+                          {mode === "dev-url" ? (
                             <ConfigUrlInput
                               initialUrl={snapshot?.sourceUrl}
                               loading={loading}
                               error={error}
                               onSubmit={(url) => void loadConfig(url)}
+                            />
+                          ) : (
+                            <ConnectingScreen
+                              loading={loading}
+                              error={error}
+                              unconfigured={mode === "unconfigured"}
+                              onRetry={() =>
+                                void loadConfig(bakedProvider.configUrl, true)
+                              }
                             />
                           )}
                         </div>

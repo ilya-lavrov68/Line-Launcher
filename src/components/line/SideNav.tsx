@@ -2,7 +2,7 @@ import { m, useReducedMotion } from "framer-motion";
 import {
   ChevronLeft,
   Info,
-  Link2,
+  RefreshCw,
   Server,
   Settings,
   Shirt,
@@ -139,16 +139,16 @@ export default function SideNav({
         <Button
           variant="ghost"
           disabled={actionsDisabled}
-          aria-label="Сменить провайдера"
-          title={collapsed ? "Сменить провайдера" : undefined}
+          aria-label="Переподключиться"
+          title={collapsed ? "Переподключиться" : undefined}
           onClick={onChangeProvider}
           className={cn(
             "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
-          <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {!collapsed && <span className="truncate">Сменить провайдера</span>}
+          <RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {!collapsed && <span className="truncate">Переподключиться</span>}
         </Button>
         <Button
           variant="ghost"

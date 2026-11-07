@@ -12,8 +12,9 @@ Checked in the implementation sandbox:
   through the branding overlay, and token-only styling of the new chrome),
   the local-first wardrobe contract (reachable signed out, activation never
   uploads, only the active skin syncs, history is never silently pruned), and the
-  build-time provider catalogue (HTTPS-only baked URLs, an unconnectable build is
-  refused, duplicates/unknown keys rejected, locked builds ignore a foreign cache)
+  build-time provider address (exactly one provider, the old multi-provider list
+  rejected, HTTPS-only baked URL, an unconfigured installer refused, a configured
+  build ignoring a foreign cache)
 - `npm run brand:check` (generated branding is current)
 - License/metadata tests: custom Line license, verbatim upstream MIT hash,
   npm/Cargo license pointers, and desktop bundle legal resources
@@ -85,11 +86,16 @@ Checked in the implementation sandbox:
   the config was fetched twice. Covered for a slow cache read, an instant cache
   read and a cold start. Mutation-checked: restoring the shared-ref guard makes
   two of the checks fail.
-- Build-time provider flow verified in Chromium with a temporarily baked
-  catalogue (then restored): two providers render «Выберите проект» with both
-  names, no URL input and no manual-entry button; picking one fetches exactly
-  that baked address; a single provider connects on its own with no picker and no
-  URL field. 0 page errors in both cases.
+- Build-time provider flow verified in Chromium with a temporarily baked address
+  (then restored): the launcher shows «Подключение к проекту» and connects to
+  that address exactly once, with no URL input, no provider picker and no
+  provider-switching affordance. An unconfigured **production** bundle was
+  checked separately via `vite preview`: it shows «Сборка не настроена», offers
+  no address field and never guesses a URL. The installer guard exits 1 on an
+  empty `config_url` and passes on a filled one. 0 page errors in every case.
+- `npm run screenshots`: the README images are regenerated from the real
+  components against the demo provider, so documentation cannot silently drift
+  from the interface. 0 page errors.
 - Chromium smoke test of the browser fallback screen
 - Chromium screenshots of the config, server list, auth, installed, server detail
   (banner + icon), settings and wardrobe states, reviewed visually

@@ -3,7 +3,15 @@
   "min_launcher_version": "0.1.0",
   "provider": {
     "id": "example-provider",
-    "name": "Example Server Provider"
+    "name": "Example Server Provider",
+    "auth": {
+      "login_url": "https://auth.example.com/v1/launcher/login",
+      "register_url": "https://auth.example.com/v1/launcher/register"
+    },
+    "wardrobe": {
+      "skin_url": "https://auth.example.com/v1/launcher/skin",
+      "skin_upload_url": "https://auth.example.com/v1/launcher/skin"
+    }
   },
   "cache_ttl_seconds": 300,
   "required_features": [
@@ -20,10 +28,6 @@
       "description": "Классическое выживание с бережным отношением к игровому процессу.",
       "version": "2026.11.1",
       "minecraft_version": "1.21.1",
-      "auth": {
-        "login_url": "https://auth.example.com/v1/launcher/login",
-        "register_url": "https://auth.example.com/v1/launcher/register"
-      },
       "distribution": {
         "url": "https://downloads.example.com/line/survival-2026.11.1.zip",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -31,11 +35,7 @@
         "unpacked_size_bytes": 2097152
       },
       "icon_url": "https://cdn.example.com/line/survival-icon.png",
-      "banner_url": "https://cdn.example.com/line/survival-banner.jpg",
-      "wardrobe": {
-        "skin_url": "https://auth.example.com/v1/launcher/skin",
-        "skin_upload_url": "https://auth.example.com/v1/launcher/skin"
-      }
+      "banner_url": "https://cdn.example.com/line/survival-banner.jpg"
     },
     {
       "id": "skyblock",
@@ -46,7 +46,6 @@
       "version": "2026.11.1",
       "minecraft_version": "1.21.1",
       "auth": {
-        "login_url": "https://auth.example.com/v1/launcher/login",
         "launch_ticket_url": "https://auth.example.com/v1/launcher/ticket",
         "session_exchange_url": "https://auth.example.com/v1/launcher/exchange"
       },

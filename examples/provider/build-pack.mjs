@@ -138,7 +138,19 @@ try {
   const config = {
     schema_version: 1,
     min_launcher_version: "0.1.0",
-    provider: { id: "line-demo", name: "Line Demo Provider" },
+    provider: {
+      id: "line-demo",
+      name: "Line Demo Provider",
+      // One account for the whole project; servers below share it.
+      auth: {
+        login_url: `${base}/v1/login`,
+        register_url: `${base}/v1/register`,
+      },
+      wardrobe: {
+        skin_url: `${base}/v1/launcher/skin`,
+        skin_upload_url: `${base}/v1/launcher/skin`,
+      },
+    },
     cache_ttl_seconds: 60,
     required_features: [
       "custom-auth-v1",
@@ -156,14 +168,8 @@ try {
         version: "1.0.0",
         minecraft_version: "1.21.1",
         auth: {
-          login_url: `${base}/v1/login`,
-          register_url: `${base}/v1/register`,
           launch_ticket_url: `${base}/v1/launcher/ticket`,
           session_exchange_url: `${base}/v1/launcher/exchange`,
-        },
-        wardrobe: {
-          skin_url: `${base}/v1/launcher/skin`,
-          skin_upload_url: `${base}/v1/launcher/skin`,
         },
         distribution: {
           url: `${base}/pack.zip`,

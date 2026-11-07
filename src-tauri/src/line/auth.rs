@@ -8,7 +8,6 @@ use zeroize::Zeroizing;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthRequest {
-    pub server_id: String,
     pub username: String,
     pub password: String,
 }
@@ -17,7 +16,6 @@ pub struct AuthRequest {
 struct ProviderRequest<'a> {
     username: &'a str,
     password: &'a str,
-    server_id: &'a str,
 }
 
 #[derive(Deserialize)]
@@ -54,22 +52,23 @@ async fn authenticate(
     }
     let generation = state.generation();
     let (_, config) = state.fresh_config()?;
-    let server = config.server(&request.server_id)?;
+    // One account for the whole project: the endpoint comes from the provider,
+    // and the session it returns unlocks every server in this config.
     let endpoint = if register {
-        server
+        config
+            .provider
             .auth
             .register_url
             .as_ref()
             .ok_or_else(|| LineError::input("Регистрация отключена провайдером."))?
     } else {
-        &server.auth.login_url
+        &config.provider.auth.login_url
     };
     let url = super::config::validate_https(endpoint)?;
     // Never put this body (or provider response) in logs/errors/events.
     let body = ProviderRequest {
         username: &request.username,
         password: &password,
-        server_id: &server.id,
     };
     let mut response = http::post_json(&state.http, &url, &body).await?;
     let bytes = Zeroizing::new(http::read_limited(&mut response, 16 * 1024).await?);
@@ -103,7 +102,7 @@ async fn authenticate(
         ));
     }
     let session = ProviderSession::new((*token).clone(), username, provider.expires_in);
-    state.save_session(server.id.clone(), session, generation)
+    state.save_session(session, generation)
 }
 
 #[tauri::command]
@@ -122,7 +121,14 @@ pub async fn line_register(
     authenticate(&state, request, true).await
 }
 
+/// Restores the account after a WebView reload without asking for a password.
+/// Returns None when signed out or expired; never returns the token.
 #[tauri::command]
-pub async fn line_logout(server_id: String, state: State<'_, LineState>) -> LineResult<()> {
-    state.logout(&server_id)
+pub async fn line_session(state: State<'_, LineState>) -> LineResult<Option<AuthSessionInfo>> {
+    state.session_info()
+}
+
+#[tauri::command]
+pub async fn line_logout(state: State<'_, LineState>) -> LineResult<()> {
+    state.logout()
 }

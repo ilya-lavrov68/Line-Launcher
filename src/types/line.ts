@@ -9,17 +9,29 @@ export const LINE_SUPPORTED_FEATURES = [
 ] as const;
 export type LineFeature = (typeof LINE_SUPPORTED_FEATURES)[number];
 
+/**
+ * One account per project. The player signs in once and reaches every server
+ * this provider lists, so credentials and the wardrobe live here, not on a
+ * server.
+ */
+export interface LineAccountAuth {
+  /** POST { username, password }; HTTPS only. */
+  login_url: string;
+  /** Same request/response contract as login_url. Omit to disable registration. */
+  register_url?: string;
+}
+
 export interface LineProvider {
   id: string;
   name: string;
   logo_url?: string;
+  auth: LineAccountAuth;
+  /** Account-wide wardrobe. Absent = skins stay local-only. */
+  wardrobe?: LineWardrobeConfig;
 }
 
-export interface LineAuthConfig {
-  /** POST { username, password, server_id }; HTTPS only. */
-  login_url: string;
-  /** Same request/response contract as login_url. Omit to disable registration. */
-  register_url?: string;
+/** Per-server game-join endpoints; a ticket authorises one specific server. */
+export interface LineLaunchAuth {
   /** POST bearer provider session; issues a one-shot launch ticket. */
   launch_ticket_url?: string;
   /** HTTPS endpoint the game mod exchanges the ticket at. */
@@ -66,8 +78,16 @@ export interface SkinEntry {
 export interface SkinLibrary {
   /** Newest first. */
   skins: SkinEntry[];
-  /** server id -> active skin id. */
-  active: Record<string, string>;
+  /** The active skin for the whole account. null = standard look. */
+  active: string | null;
+  /** What the provider last accepted; drives the automatic sync. */
+  synced: string | null;
+}
+
+/** Outcome of the automatic upload. There is no manual send action. */
+export interface SkinSyncResult {
+  status: "unchanged" | "synced";
+  skin: SkinState | null;
 }
 
 export interface SkinLibrarySnapshot {
@@ -89,13 +109,12 @@ export interface LineServer {
   icon_url?: string;
   /** Wide hero image for the card and the detail header. */
   banner_url?: string;
-  wardrobe?: LineWardrobeConfig;
   /** @deprecated Accepted from providers, normalized to icon_url by Rust. */
   logo_url?: string;
   /** Provider's release identifier. Change it when the distribution changes. */
   version: string;
   minecraft_version?: string;
-  auth: LineAuthConfig;
+  auth?: LineLaunchAuth;
   distribution: LineDistribution;
 }
 
@@ -155,7 +174,6 @@ export interface ConfigSnapshot {
 }
 
 export interface AuthSessionInfo {
-  serverId: string;
   username: string;
   /** Unix epoch milliseconds. Never includes the provider access token. */
   expiresAt: number;
@@ -163,7 +181,6 @@ export interface AuthSessionInfo {
 
 export type AuthMode = "login" | "register";
 export interface AuthCredentials {
-  serverId: string;
   username: string;
   password: string;
 }

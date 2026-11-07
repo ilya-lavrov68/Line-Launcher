@@ -45,10 +45,10 @@ const artPng =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
 config.servers[0].icon_url = artPng;
 config.servers[0].banner_url = artPng;
-config.servers[0].auth.launch_ticket_url =
-  "https://auth.example.com/v1/launcher/ticket";
-config.servers[0].auth.session_exchange_url =
-  "https://auth.example.com/v1/launcher/exchange";
+config.servers[0].auth = {
+  launch_ticket_url: "https://auth.example.com/v1/launcher/ticket",
+  session_exchange_url: "https://auth.example.com/v1/launcher/exchange",
+};
 config.servers.push({
   ...config.servers[0],
   id: "creative",
@@ -214,7 +214,7 @@ await page.addInitScript(
           return [{ path: "/usr/bin/java", major: 21, version: "21.0.5" }];
         if (cmd === "clear_config_cache") return true;
         // Local skin library. Independent of session/provider on purpose.
-        window.__library ||= { skins: [], active: {} };
+        window.__library ||= { skins: [], active: null, synced: null };
         const librarySnapshot = () => ({
           library: JSON.parse(JSON.stringify(window.__library)),
           limit: 64,
@@ -250,40 +250,43 @@ await page.addInitScript(
           window.__library.skins = window.__library.skins.filter(
             (s) => s.id !== args.id,
           );
-          for (const [server, id] of Object.entries(window.__library.active))
-            if (id === args.id) delete window.__library.active[server];
+          if (window.__library.active === args.id)
+            window.__library.active = null;
+          if (window.__library.synced === args.id)
+            window.__library.synced = null;
           return librarySnapshot();
         }
         if (cmd === "read_skin_texture")
           return (window.__libraryBytes || {})[args.id] || [];
         if (cmd === "set_active_skin") {
-          if (args.id === null) delete window.__library.active[args.serverId];
-          else window.__library.active[args.serverId] = args.id;
+          window.__library.active = args.id;
           return librarySnapshot();
         }
+        // Mirrors Rust: active == synced means nothing is sent.
         if (cmd === "sync_active_skin") {
-          const id = window.__library.active[args.serverId];
-          if (!id)
-            throw { code: "INVALID_INPUT", message: "Нет активного скина." };
+          const id = window.__library.active;
+          if (id === window.__library.synced)
+            return { status: "unchanged", skin: null };
+          if (id === null) {
+            window.__skin = null;
+            window.__library.synced = null;
+            return { status: "synced", skin: null };
+          }
           const entry = window.__library.skins.find((s) => s.id === id);
           window.__skin = {
             model: entry.model,
             textureUrl: "data:image/png;base64," + window.__skinPng,
           };
-          return window.__skin;
+          // Counts real uploads, not IPC calls: an idempotent sync sends nothing.
+          window.__uploads = (window.__uploads || 0) + 1;
+          window.__library.synced = id;
+          return { status: "synced", skin: window.__skin };
+        }
+        if (cmd === "forget_synced_skin") {
+          window.__library.synced = null;
+          return librarySnapshot();
         }
         if (cmd === "get_skin") return window.__skin || null;
-        if (cmd === "upload_skin") {
-          window.__skin = {
-            model: args.model,
-            textureUrl: "data:image/png;base64," + window.__skinPng,
-          };
-          return window.__skin;
-        }
-        if (cmd === "reset_skin") {
-          window.__skin = null;
-          return null;
-        }
         if (cmd === "get_cached_config") return null;
         if (cmd === "fetch_line_config" && window.__failConfigOnce) {
           window.__failConfigOnce = false;
@@ -319,6 +322,15 @@ await page.addInitScript(
             releases: window.__installed ? [window.__installed] : [],
           };
         if (cmd === "launch_game") {
+          if (window.__expireSession) {
+            window.__expireSession = false;
+            window.__session = null;
+            throw {
+              code: "AUTH_REQUIRED",
+              message: "Войдите в аккаунт проекта.",
+              retryable: false,
+            };
+          }
           const status = {
             serverId: args.serverId,
             revision: ++window.__revision,
@@ -340,12 +352,14 @@ await page.addInitScript(
           window.__emit("line://game-status", window.__lastStatus);
           return true;
         }
-        if (cmd === "line_login" || cmd === "line_register")
-          return {
-            serverId: args.request.serverId,
+        if (cmd === "line_login" || cmd === "line_register") {
+          window.__session = {
             username: args.request.username,
             expiresAt: Date.now() + 3_600_000,
           };
+          return window.__session;
+        }
+        if (cmd === "line_session") return window.__session || null;
         if (cmd === "plugin:event|listen") {
           const id = window.__eid++;
           window.__events.set(id, { event: args.event, handler: args.handler });
@@ -383,7 +397,10 @@ await page.addInitScript(
           };
           return window.__installed;
         }
-        if (cmd === "line_logout") return null;
+        if (cmd === "line_logout") {
+          window.__session = null;
+          return null;
+        }
         throw new Error(`unexpected command: ${cmd}`);
       },
     };
@@ -437,8 +454,14 @@ try {
     `the submit button moved: idle=${idleY} error=${errorY} loading=${loadingY}`,
   );
 
+  // One account for the whole project: the sign-in gate comes before any server.
   await page.getByRole("heading", { name: "Plus In Plus Demo" }).waitFor();
-  await shot("servers");
+  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  check(
+    !(await page.getByRole("button", { name: /^Открыть сервер/ }).count()),
+    "the server list appeared before the single sign-in",
+  );
+  await shot("account");
 
   // The mark is tinted through a CSS mask. Vite inlines the SVG as a data: URL
   // with single quotes inside; an unquoted url(...) is dropped by the CSS parser
@@ -579,10 +602,40 @@ try {
     !(await page.getByLabel(/JVM|аргументы/i).count()),
     "settings must not expose arbitrary JVM arguments",
   );
-  await page.getByRole("button", { name: "Серверы" }).click();
+  await page.getByRole("button", { name: "Серверы", exact: true }).click();
+
+  // Signing in once, with no server selected at all.
+  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: "Регистрация" }).click();
+  await page.getByRole("tab", { name: "Вход" }).click();
+  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
+  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
+  const login = await page.evaluate(() => {
+    const call = window.__calls.find((c) => c[0] === "line_login");
+    return {
+      keys: Object.keys(call?.[1]?.request ?? {})
+        .sort()
+        .join(","),
+      restored: window.__calls.some((c) => c[0] === "line_session"),
+      forgotten: window.__calls.some((c) => c[0] === "forget_synced_skin"),
+    };
+  });
+  check(
+    login.keys === "password,username",
+    `login must not carry a server id: ${login.keys}`,
+  );
+  check(login.restored, "the shell never asked the backend for the session");
+  check(login.forgotten, "signing in must reset the uploaded-skin marker");
+  await shot("servers");
 
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
-  await page.getByText("Аккаунт провайдера", { exact: true }).waitFor();
+  // No second login on the server screen.
+  check(
+    !(await page.getByText("Аккаунт проекта", { exact: true }).count()),
+    "the server screen asked for credentials again",
+  );
   // Server artwork must render when it loads, not only fall back when it fails.
   const artwork = await page.evaluate(() =>
     [...document.querySelectorAll("main img")].map((img) => ({
@@ -595,11 +648,6 @@ try {
     `server banner/icon did not render: ${JSON.stringify(artwork)}`,
   );
   await shot("server-detail");
-  await page.getByRole("tab", { name: "Регистрация" }).click();
-  await page.getByRole("tab", { name: "Вход" }).click();
-  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
-  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
-  await page.getByRole("button", { name: "Войти", exact: true }).click();
   await page.getByRole("button", { name: "Установить сборку" }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("installed");
@@ -621,13 +669,51 @@ try {
     "a reordered older event resurrected the running state",
   );
 
-  // Wardrobe after login: history persists, choosing is local, syncing is explicit.
+  // Wardrobe after login: history persists and the active skin uploads itself.
   await page.getByRole("button", { name: "Гардероб" }).click();
   await page.getByRole("heading", { name: "Гардероб" }).waitFor();
   check(
     (await page.evaluate(() => window.__library.skins.length)) === 1,
     "history added while signed out was lost after login",
   );
+  // The texture chosen while signed out is pushed automatically on sign-in.
+  await page
+    .getByRole("status")
+    .filter({ hasText: "отправлен на сервер автоматически" })
+    .waitFor();
+  const firstSync = await page.evaluate(() => {
+    const calls = window.__calls.filter((c) => c[0] === "sync_active_skin");
+    return {
+      uploads: window.__uploads || 0,
+      keys: Object.keys(calls[0]?.[1] ?? {}).join(","),
+      synced: window.__library.synced,
+      active: window.__library.active,
+    };
+  });
+  check(firstSync.uploads === 1, `expected one upload: ${firstSync.uploads}`);
+  check(firstSync.keys === "", "the automatic sync must not name a server");
+  check(
+    firstSync.synced === firstSync.active && firstSync.active !== null,
+    "the uploaded marker does not match the active skin",
+  );
+
+  // Re-opening the screen must not re-upload: the sync is idempotent.
+  await page.getByRole("button", { name: "Серверы", exact: true }).click();
+  await page.getByRole("button", { name: "Гардероб" }).click();
+  await page.getByRole("heading", { name: "Гардероб" }).waitFor();
+  // The controls stay disabled until the local index is read; interacting any
+  // earlier is a race, not a product bug.
+  await page.waitForFunction(() => {
+    const input = document.querySelector("#skin-file");
+    return input && !input.disabled;
+  });
+  check(
+    (await page.evaluate(
+      () => window.__calls.filter((c) => c[0] === "sync_active_skin").length,
+    )) === 1,
+    "re-opening the wardrobe re-uploaded an unchanged skin",
+  );
+
   // Add a second texture so "active" is a real choice, not the only option.
   await page.locator("#skin-file").setInputFiles({
     name: "second.png",
@@ -637,65 +723,89 @@ try {
   await page.getByLabel("Название").fill("Второй");
   await page.getByRole("button", { name: "В историю" }).click();
   await page.getByText("Второй", { exact: true }).waitFor();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "«Второй» активен и отправлен" })
+    .waitFor();
   await shot("wardrobe");
+  check(
+    (await page.evaluate(() => window.__uploads || 0)) === 2,
+    "saving a new active skin did not upload it automatically",
+  );
 
-  // Choosing a skin must NOT upload anything.
-  const beforeChoose = await page.evaluate(
-    () =>
-      window.__calls.filter(
-        (c) => c[0] === "sync_active_skin" || c[0] === "upload_skin",
-      ).length,
+  // Re-adding the same texture is content-addressed: nothing changes on the
+  // account. Regression: an "unchanged" result used to wipe the known remote
+  // skin and report the standard look while the account still wore the texture.
+  await page.locator("#skin-file").setInputFiles({
+    name: "second.png",
+    mimeType: "image/png",
+    buffer: secondSkinBytes,
+  });
+  await page.getByLabel("Название").fill("Второй");
+  await page.getByRole("button", { name: "В историю" }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "отправлен на сервер автоматически" })
+    .waitFor();
+  const unchanged = await page.evaluate(() => ({
+    text: document.querySelector("main").innerText,
+    uploads: window.__uploads || 0,
+    history: window.__library.skins.length,
+  }));
+  check(
+    unchanged.uploads === 2,
+    `an unchanged skin was uploaded again: ${unchanged.uploads} uploads`,
+  );
+  check(unchanged.history === 2, "the same texture was stored twice");
+  check(
+    unchanged.text.includes("на сервере: classic") &&
+      !unchanged.text.includes("на сервере: стандартный"),
+    "an idempotent sync forgot what the account is wearing",
+  );
+
+  // Choosing another texture uploads it too — there is no send button.
+  check(
+    !(await page.getByRole("button", { name: /Отправить на сервер/ }).count()),
+    "the manual send button is still in the wardrobe",
   );
   await page
     .locator('button[aria-label^="Сделать активным:"]:not([disabled])')
     .first()
     .click();
-  await page.getByRole("status").filter({ hasText: "локально" }).waitFor();
-  const afterChoose = await page.evaluate(
-    () =>
-      window.__calls.filter(
-        (c) => c[0] === "sync_active_skin" || c[0] === "upload_skin",
-      ).length,
-  );
-  check(
-    afterChoose === beforeChoose,
-    "choosing a skin uploaded it instead of keeping it local",
-  );
-
-  // Only the explicit sync sends anything, and it sends the active id only.
-  await page.getByRole("button", { name: "Отправить на сервер" }).click();
   await page
     .getByRole("status")
-    .filter({ hasText: "Остальные остались локально" })
+    .filter({ hasText: "Активный скин изменён" })
     .waitFor();
-  const sync = await page.evaluate(() => {
-    const calls = window.__calls.filter((c) => c[0] === "sync_active_skin");
-    return {
-      count: calls.length,
-      args: calls[0]?.[1] ?? null,
-      activeCount: Object.keys(window.__library.active).length,
-      history: window.__library.skins.length,
-    };
-  });
-  check(sync.count === 1, "exactly one sync call was expected");
+  const afterChoose = await page.evaluate(() => ({
+    uploads: window.__uploads || 0,
+    synced: window.__library.synced,
+    active: window.__library.active,
+    history: window.__library.skins.length,
+  }));
   check(
-    sync.args && Object.keys(sync.args).join(",") === "serverId",
-    "sync must send a server id, not a pile of textures",
+    afterChoose.uploads === 3,
+    "choosing a skin did not sync automatically",
   );
-  check(sync.history === 2, "syncing must not clear local history");
-  check(sync.activeCount === 1, "only one skin may be active per server");
+  check(
+    afterChoose.synced === afterChoose.active,
+    "the chosen skin was not confirmed as uploaded",
+  );
+  check(afterChoose.history === 2, "syncing must not clear local history");
 
-  await page.getByRole("button", { name: "Сбросить на стандартный" }).click();
-  check(
-    await page.evaluate(() =>
-      window.__calls.some((c) => c[0] === "reset_skin"),
-    ),
-    "resetting the skin never reached the backend",
-  );
-  check(
-    (await page.evaluate(() => window.__library.skins.length)) === 2,
-    "resetting the remote skin must not delete local history",
-  );
+  // The standard look is a choice too: it clears the account skin by itself.
+  await page.getByRole("button", { name: "Выбрать стандартный скин" }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "На сервере стандартный скин" })
+    .waitFor();
+  const reset = await page.evaluate(() => ({
+    skin: window.__skin,
+    active: window.__library.active,
+    history: window.__library.skins.length,
+  }));
+  check(reset.skin === null, "the standard look was not pushed to the account");
+  check(reset.active === null, "the standard look is not the active choice");
+  check(reset.history === 2, "resetting must not delete local history");
 
   // Deleting from history is local and immediate.
   await page
@@ -722,7 +832,75 @@ try {
     () => window.__calls.filter((c) => c[0] === "add_skin_to_library").length,
   );
   check(after === before, "an invalid PNG reached the local library");
-  await page.getByRole("button", { name: "Серверы" }).click();
+
+  // Signing out is account-wide and re-arms the automatic sync for the next
+  // account: the previous player's "already uploaded" marker must not survive.
+  await page
+    .locator('button[aria-label^="Сделать активным:"]:not([disabled])')
+    .first()
+    .click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "отправлен на сервер автоматически" })
+    .waitFor();
+  const beforeLogout = await page.evaluate(() => window.__uploads || 0);
+  await page.getByRole("button", { name: "Серверы", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Выйти из аккаунта Player_1" })
+    .click();
+  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  const signedOut = await page.evaluate(() => ({
+    logoutKeys: Object.keys(
+      window.__calls.find((c) => c[0] === "line_logout")?.[1] ?? {},
+    ).join(","),
+    forgot: window.__calls.filter((c) => c[0] === "forget_synced_skin").length,
+    synced: window.__library.synced,
+    servers: [...document.querySelectorAll("main button")].some((b) =>
+      (b.getAttribute("aria-label") || "").startsWith("Открыть сервер"),
+    ),
+  }));
+  check(signedOut.logoutKeys === "", "logout must not be per-server");
+  check(
+    signedOut.forgot >= 2,
+    "signing out did not forget the uploaded marker",
+  );
+  check(signedOut.synced === null, "the uploaded marker survived sign-out");
+  check(!signedOut.servers, "the server list stayed open after signing out");
+
+  await page.getByLabel("Логин", { exact: true }).fill("Player_2");
+  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
+  await page.getByRole("button", { name: "Гардероб" }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "отправлен на сервер автоматически" })
+    .waitFor();
+  check(
+    (await page.evaluate(() => window.__uploads || 0)) > beforeLogout,
+    "a new account inherited the previous player's uploaded marker",
+  );
+  await page.getByRole("button", { name: "Серверы", exact: true }).click();
+
+  // An expired account must send the player back to the single sign-in screen,
+  // not leave a dead «Играть» button on the server page.
+  await page.evaluate(() => {
+    window.__expireSession = true;
+  });
+  await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
+  await page.getByRole("button", { name: "Играть", exact: true }).click();
+  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  check(
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "Сессия истекла" })
+      .isVisible(),
+    "an expired session did not explain itself on the sign-in screen",
+  );
+  await page.getByLabel("Логин", { exact: true }).fill("Player_2");
+  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
 
   // Mandatory licence credit stays visible and inside the viewport.
   for (const width of [375, 800, 1280]) {
@@ -757,7 +935,9 @@ try {
     "save_settings",
     "list_java_runtimes",
     "get_skin",
-    "reset_skin",
+    "line_session",
+    "forget_synced_skin",
+    "line_logout",
     "list_skin_library",
     "add_skin_to_library",
     "read_skin_texture",

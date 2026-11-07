@@ -52,7 +52,6 @@ impl ProviderSession {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthSessionInfo {
-    pub server_id: String,
     pub username: String,
     pub expires_at: u64,
 }
@@ -64,6 +63,9 @@ pub struct LineState {
     /// Serializes config publication so an older slow response cannot overwrite
     /// a newer config/session invalidation. Never hold a std mutex over await.
     pub config_publish: tokio::sync::Mutex<()>,
+    /// Serializes the whole automatic skin sync (plan -> upload -> marker) so
+    /// two overlapping calls cannot record the older texture as uploaded.
+    pub skin_sync: tokio::sync::Mutex<()>,
     pub config_generation: std::sync::atomic::AtomicU64,
     /// Monotonic across the whole process so the WebView can drop reordered
     /// events instead of guessing from the phase alone.
@@ -74,7 +76,8 @@ pub struct LineState {
 struct Inner {
     active: Option<(String, LineConfig)>,
     active_fetched_at: u64,
-    sessions: HashMap<String, ProviderSession>,
+    /// One account per provider: signing in once unlocks every server.
+    session: Option<ProviderSession>,
     installations: HashSet<String>,
     operations: HashMap<String, Arc<AtomicBool>>,
     launches: HashMap<String, Arc<AtomicBool>>,
@@ -112,6 +115,7 @@ impl LineState {
             http,
             inner: Mutex::new(Inner::default()),
             config_publish: tokio::sync::Mutex::new(()),
+            skin_sync: tokio::sync::Mutex::new(()),
             config_generation: std::sync::atomic::AtomicU64::new(0),
             game_revision: std::sync::atomic::AtomicU64::new(0),
         })
@@ -137,20 +141,17 @@ impl LineState {
             ));
         }
         self.config_generation.fetch_add(1, Ordering::Release);
-        // Changing providers/endpoints must not reuse a session from the old config.
+        // The account belongs to the provider. Changing the provider or its auth
+        // endpoints must not reuse the old session; adding/removing servers or
+        // changing their launch endpoints must NOT sign the player out.
         if inner.active.as_ref().is_some_and(|(old_url, old)| {
             old_url != &url
                 || old.provider.id != config.provider.id
-                || old.servers.iter().any(|old_server| {
-                    config
-                        .server(&old_server.id)
-                        .is_ok_and(|new_server| old_server.auth != new_server.auth)
-                })
+                || old.provider.auth != config.provider.auth
         }) {
-            inner.sessions.clear();
+            inner.session = None;
         }
         let ids: HashSet<_> = config.servers.iter().map(|s| s.id.clone()).collect();
-        inner.sessions.retain(|id, _| ids.contains(id));
         inner.game_status.retain(|id, _| ids.contains(id));
         inner.active = Some((url, config));
         inner.active_fetched_at = fetched_at;
@@ -187,23 +188,27 @@ impl LineState {
         self.config_generation.load(Ordering::Acquire)
     }
 
+    /// Any server being busy blocks an account change: one session is shared by
+    /// all of them, so swapping it mid-install would pull the rug from under a
+    /// running download or game.
+    fn any_build_active(inner: &Inner) -> bool {
+        !inner.installations.is_empty()
+            || !inner.launches.is_empty()
+            || !inner.rollbacks.is_empty()
+            || !inner.running.is_empty()
+    }
+
     pub fn save_session(
         &self,
-        id: String,
         session: ProviderSession,
         generation: u64,
     ) -> LineResult<AuthSessionInfo> {
         let info = AuthSessionInfo {
-            server_id: id.clone(),
             username: session.username.clone(),
             expires_at: session.expires_at,
         };
         let mut inner = self.lock()?;
-        if inner.installations.contains(&id)
-            || inner.launches.contains_key(&id)
-            || inner.rollbacks.contains(&id)
-            || inner.running.contains_key(&id)
-        {
+        if Self::any_build_active(&inner) {
             return Err(LineError::new(
                 ErrorCode::Busy,
                 "Нельзя изменить сессию во время установки, отката или игры.",
@@ -217,40 +222,45 @@ impl LineState {
                 false,
             ));
         }
-        inner.sessions.retain(|_, s| s.expires_at > epoch_millis());
-        inner.sessions.insert(id, session);
+        inner.session = Some(session);
         Ok(info)
     }
 
-    pub fn session(&self, id: &str) -> LineResult<ProviderSession> {
+    /// The single project account, or AuthRequired. Never per-server.
+    pub fn session(&self) -> LineResult<ProviderSession> {
         self.lock()?
-            .sessions
-            .get(id)
+            .session
+            .as_ref()
             .filter(|s| s.expires_at > epoch_millis())
             .cloned()
             .ok_or_else(|| {
-                LineError::new(
-                    ErrorCode::AuthRequired,
-                    "Войдите в аккаунт провайдера перед установкой.",
-                    false,
-                )
+                LineError::new(ErrorCode::AuthRequired, "Войдите в аккаунт проекта.", false)
             })
     }
 
-    pub fn logout(&self, id: &str) -> LineResult<()> {
+    /// Non-throwing read so the UI can restore its state after a reload.
+    pub fn session_info(&self) -> LineResult<Option<AuthSessionInfo>> {
+        Ok(self
+            .lock()?
+            .session
+            .as_ref()
+            .filter(|s| s.expires_at > epoch_millis())
+            .map(|s| AuthSessionInfo {
+                username: s.username.clone(),
+                expires_at: s.expires_at,
+            }))
+    }
+
+    pub fn logout(&self) -> LineResult<()> {
         let mut inner = self.lock()?;
-        if inner.installations.contains(id)
-            || inner.launches.contains_key(id)
-            || inner.rollbacks.contains(id)
-            || inner.running.contains_key(id)
-        {
+        if Self::any_build_active(&inner) {
             return Err(LineError::new(
                 ErrorCode::Busy,
                 "Выход из аккаунта недоступен во время установки, отката или игры.",
                 false,
             ));
         }
-        inner.sessions.remove(id);
+        inner.session = None;
         Ok(())
     }
 
@@ -468,12 +478,9 @@ mod tests {
             )
             .unwrap();
         let session = ProviderSession::new("secret".into(), "player".into(), 60);
-        let result = state.save_session("survival".into(), session, generation);
+        let result = state.save_session(session, generation);
         assert_eq!(result.unwrap_err().code, ErrorCode::AuthRequired);
-        assert_eq!(
-            state.session("survival").unwrap_err().code,
-            ErrorCode::AuthRequired
-        );
+        assert_eq!(state.session().unwrap_err().code, ErrorCode::AuthRequired);
     }
 
     #[test]
@@ -537,7 +544,7 @@ mod tests {
             state.begin_rollback("survival").unwrap_err().code,
             ErrorCode::Busy
         );
-        assert_eq!(state.logout("survival").unwrap_err().code, ErrorCode::Busy);
+        assert_eq!(state.logout().unwrap_err().code, ErrorCode::Busy);
         assert_eq!(
             state
                 .set_config(
@@ -588,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn changing_launch_endpoints_invalidates_session() {
+    fn server_changes_keep_the_account_but_provider_auth_change_drops_it() {
         let state = LineState::new().unwrap();
         let mut config: LineConfig =
             serde_json::from_str(include_str!("../../../examples/config.json")).unwrap();
@@ -602,16 +609,29 @@ mod tests {
                 epoch_millis(),
             )
             .unwrap();
-        let generation = state.generation();
         state
             .save_session(
-                "survival".into(),
                 ProviderSession::new("secret".into(), "player".into(), 60),
-                generation,
+                state.generation(),
             )
             .unwrap();
+
+        // One account covers every server, so editing a server's launch
+        // endpoints (or dropping a server) must not sign the player out.
         config.servers[0].auth.session_exchange_url =
             Some("https://new.example.com/exchange".into());
+        config.servers.pop();
+        state
+            .set_config(
+                "https://provider.example/config.json".into(),
+                config.clone(),
+                epoch_millis(),
+            )
+            .unwrap();
+        assert_eq!(state.session().unwrap().username, "player");
+
+        // Moving the account endpoint does invalidate it.
+        config.provider.auth.login_url = "https://new.example.com/login".into();
         state
             .set_config(
                 "https://provider.example/config.json".into(),
@@ -619,9 +639,48 @@ mod tests {
                 epoch_millis(),
             )
             .unwrap();
+        assert_eq!(state.session().unwrap_err().code, ErrorCode::AuthRequired);
+    }
+
+    #[test]
+    fn one_session_is_shared_and_busy_on_any_server_blocks_logout() {
+        let state = LineState::new().unwrap();
+        let config: LineConfig =
+            serde_json::from_str(include_str!("../../../examples/config.json")).unwrap();
+        state
+            .set_config(
+                "https://provider.example/config.json".into(),
+                config,
+                epoch_millis(),
+            )
+            .unwrap();
+        assert!(state.session_info().unwrap().is_none());
+        let info = state
+            .save_session(
+                ProviderSession::new("secret".into(), "player".into(), 60),
+                state.generation(),
+            )
+            .unwrap();
+        assert_eq!(info.username, "player");
+        // The same account answers for a server it was never told about.
+        assert_eq!(state.session().unwrap().username, "player");
+        assert_eq!(state.session_info().unwrap().unwrap().username, "player");
+
+        // Busy on a *different* server still blocks signing out of the account.
+        let _stop = state.begin_launch("skyblock").unwrap();
+        assert_eq!(state.logout().unwrap_err().code, ErrorCode::Busy);
         assert_eq!(
-            state.session("survival").unwrap_err().code,
-            ErrorCode::AuthRequired
+            state
+                .save_session(
+                    ProviderSession::new("other".into(), "other".into(), 60),
+                    state.generation(),
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::Busy
         );
+        state.finish_launch("skyblock");
+        assert!(state.logout().is_ok());
+        assert!(state.session_info().unwrap().is_none());
     }
 }

@@ -158,12 +158,11 @@ test("the example ships several servers, each with its own artwork", () => {
 
 test("wardrobe endpoints are paired and advertised as a feature", () => {
   const config = readJson("examples/config.json") as LineConfig;
-  const withWardrobe = config.servers.filter((s) => s.wardrobe);
-  assert.ok(withWardrobe.length > 0);
-  for (const server of withWardrobe) {
-    assert.equal(new URL(server.wardrobe!.skin_url).protocol, "https:");
-    assert.equal(new URL(server.wardrobe!.skin_upload_url).protocol, "https:");
-  }
+  // The wardrobe is account-wide: one texture for every server in the project.
+  const wardrobe = config.provider.wardrobe;
+  assert.ok(wardrobe, "the example project must expose a wardrobe");
+  assert.equal(new URL(wardrobe.skin_url).protocol, "https:");
+  assert.equal(new URL(wardrobe.skin_upload_url).protocol, "https:");
   assert.ok(config.required_features?.includes("skin-upload-v1"));
   assert.ok(
     (LINE_SUPPORTED_FEATURES as readonly string[]).includes("skin-upload-v1"),
@@ -371,39 +370,62 @@ test("the wardrobe is reachable without a session, provider API or network", () 
   assert.match(shell, /canSync=\{canSyncSkin\}/);
 
   const screen = read("src/components/line/WardrobeScreen.tsx");
-  // Choosing a texture is local; only an explicit button contacts the provider.
   assert.match(screen, /lineApi\.setActiveSkin\(/);
-  assert.match(screen, /lineApi\.syncActiveSkin\(/);
-  const activate = screen.slice(
-    screen.indexOf("async function activate("),
-    screen.indexOf("async function remove("),
-  );
-  assert.doesNotMatch(
-    activate,
-    /syncActiveSkin|uploadSkin|lineApi\.skin\(/,
-    "activating a skin must not upload it",
-  );
   // The library loads unconditionally, not behind canSync.
+  const start = screen.indexOf("void lineApi\n      .skinLibrary()");
+  assert.ok(start > 0, "library must load on mount");
   const libraryEffect = screen.slice(
-    screen.indexOf("void lineApi\n      .skinLibrary()"),
-    screen.indexOf("// The provider's current skin"),
+    start,
+    screen.indexOf("}, [canSync, accountKey"),
   );
-  assert.ok(libraryEffect.length > 0, "library must load on mount");
-  assert.doesNotMatch(libraryEffect, /if \(!serverId|if \(!canSync/);
+  assert.ok(libraryEffect.length > 0, "the mount effect must be found");
+  assert.doesNotMatch(
+    libraryEffect,
+    /if \(!canSync\) return|if \(!serverId|if \(!username/,
+    "loading local history must not require an account",
+  );
+  // Only the upload itself is gated, and a failure must not break local use.
+  const autoSync = screen.slice(
+    screen.indexOf("const autoSync ="),
+    screen.indexOf("useEffect(() => {", screen.indexOf("const autoSync =")),
+  );
+  assert.ok(autoSync.length > 0, "autoSync must exist");
+  assert.match(autoSync, /if \(!canSync\) return;/);
+  assert.match(autoSync, /setSync\("failed"\)/);
+  assert.doesNotMatch(autoSync, /setSnapshot\(null\)|setError\(/);
 });
 
-test("only the active skin is uploaded, and history is kept locally", () => {
+test("the active skin uploads itself, and history stays local", () => {
   const library = read("src-tauri/src/line/skin_library.rs");
-  // Sync reads the *active* id for this server, never the whole shelf.
   const sync = library.slice(library.indexOf("pub async fn sync_active_skin("));
-  assert.match(sync, /\.active\s*\.get\(/);
+  // Only the active texture is sent, never the shelf.
+  assert.match(sync, /plan_sync\(/);
   assert.match(sync, /push_skin\(/);
   assert.doesNotMatch(sync, /for .* in .*skins/, "no bulk upload");
-  // Selecting is purely local.
+  // Idempotent, and serialized so a stale upload cannot win the marker.
+  assert.match(library, /library\.active == library\.synced/);
+  assert.match(sync, /state\.skin_sync\.lock\(\)\.await/);
+  // The marker is written only after the provider answered, and the id comes
+  // from that same successful call — not from the plan before it ran.
+  const uploadArm = sync.slice(
+    sync.indexOf("SyncPlan::Upload(entry, bytes) => {"),
+    sync.indexOf("};", sync.indexOf("SyncPlan::Upload(entry, bytes) => {")),
+  );
+  assert.match(
+    uploadArm,
+    /let skin = super::wardrobe::push_skin\(entry\.model, bytes, &state\)\.await\?;\s*\(Some\(entry\.id\), Some\(skin\)\)/,
+    "the uploaded id must be derived from the awaited upload result",
+  );
+  assert.ok(
+    sync.indexOf("push_skin(") < sync.indexOf("library.synced = id"),
+    "the uploaded marker must follow a successful upload",
+  );
+  // Selecting a texture stays purely local: the sync is a separate step.
   const setActive = library.slice(
     library.indexOf("pub async fn set_active_skin("),
-    library.indexOf("pub async fn sync_active_skin("),
+    library.indexOf("enum SyncAction {"),
   );
+  assert.ok(setActive.length > 0, "set_active_skin must exist");
   assert.doesNotMatch(setActive, /push_skin|reqwest|session\(\)/);
   // Capacity is refused on add, not silently pruned: history is the point.
   // (read_index may still bound a hand-edited file — that is not the add path.)
@@ -414,4 +436,87 @@ test("only the active skin is uploaded, and history is kept locally", () => {
   assert.ok(add.length > 0, "add command must exist");
   assert.match(add, /ensure_capacity\(/);
   assert.doesNotMatch(add, /\.truncate\(|\.pop\(\)|\.remove\(0\)/);
+});
+
+test("there is no manual send button: the sync runs by itself", () => {
+  const screen = read("src/components/line/WardrobeScreen.tsx");
+  assert.doesNotMatch(screen, /Отправить на сервер|Сбросить на стандартный/);
+  assert.doesNotMatch(screen, /uploadSkin|resetSkin/);
+  // Mounting the screen with an unsynced choice triggers the upload.
+  assert.match(screen, /value\.library\.active !== value\.library\.synced/);
+  // Every local change that affects the worn look re-syncs automatically.
+  for (const fn of [
+    "async function save(",
+    "async function activate(",
+    "async function remove(",
+  ]) {
+    const at = screen.indexOf(fn);
+    assert.ok(at > 0, `${fn} must exist`);
+    const body = screen.slice(at, screen.indexOf("\n  }", at));
+    assert.match(body, /autoSync\(\)/, `${fn} must sync without a button`);
+  }
+  // The mount effect must not depend on a callback identity: an inline arrow
+  // from the shell would re-run it on every render and loop the library read.
+  const autoSyncDeps = screen.slice(
+    screen.indexOf("const autoSync ="),
+    screen.indexOf("useEffect(() => {", screen.indexOf("const autoSync =")),
+  );
+  assert.match(autoSyncDeps, /\}, \[canSync\]\);/);
+  assert.match(screen, /authRequired\.current\?\.\(\)/);
+  // An idempotent sync carries no skin: it must not erase the known one.
+  assert.match(
+    screen,
+    /if \(result\.status === "synced"\) setRemote\(result\.skin\)/,
+  );
+  // The player sees a status, not an action.
+  assert.match(screen, /Отправляем активный скин/);
+  assert.match(screen, /автоматически/);
+  // Manual upload commands are gone from the whole IPC surface.
+  const commands = read("src-tauri/src/lib.rs");
+  assert.doesNotMatch(commands, /upload_skin|wardrobe::reset_skin/);
+  assert.match(commands, /sync_active_skin/);
+  assert.match(commands, /forget_synced_skin/);
+  const api = read("src/lib/line/api.ts");
+  assert.doesNotMatch(api, /uploadSkin|resetSkin/);
+});
+
+test("one account per project unlocks every server", () => {
+  const api = read("src/lib/line/api.ts");
+  assert.match(api, /logout: \(\) =>/);
+  assert.match(api, /"line_session"/);
+  assert.match(api, /setActiveSkin: \(id: string \| null\)/);
+  assert.doesNotMatch(api, /serverId, model|\{ serverId, username/);
+
+  const auth = read("src-tauri/src/line/auth.rs");
+  const request = auth.slice(
+    auth.indexOf("pub struct AuthRequest {"),
+    auth.indexOf("pub async fn"),
+  );
+  assert.ok(request.length > 0, "AuthRequest must exist");
+  assert.doesNotMatch(request, /server_id/);
+  assert.match(auth, /provider\.auth/);
+
+  const state = read("src-tauri/src/line/state.rs");
+  assert.match(state, /session: Option<ProviderSession>/);
+  assert.doesNotMatch(state, /sessions: HashMap/);
+
+  const shell = read("src/components/line/LineLauncher.tsx");
+  assert.match(
+    shell,
+    /lineApi\.authenticate\(mode, \{ username, password \}\)/,
+  );
+  // The account screen is a real screen, before the server list.
+  assert.match(shell, /screen === "account"/);
+  assert.match(shell, /<AccountScreen/);
+  // Opening a server must not ask for credentials again.
+  const select = shell.slice(
+    shell.indexOf("function selectServer("),
+    shell.indexOf("async function authenticate("),
+  );
+  assert.ok(select.length > 0, "selectServer must exist");
+  assert.doesNotMatch(select, /setSession\(null\)|AuthForm/);
+  assert.doesNotMatch(shell, /<AuthForm/);
+  // Signing out is available and account-wide.
+  assert.match(shell, /await lineApi\.logout\(\)/);
+  assert.match(shell, /onLogout=\{/);
 });

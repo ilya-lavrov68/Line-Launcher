@@ -127,7 +127,10 @@ async function boot(cached, delay) {
             };
           if (cmd === "list_java_runtimes") return [];
           if (cmd === "list_skin_library")
-            return { library: { skins: [], active: {} }, limit: 64 };
+            return {
+              library: { skins: [], active: null, synced: null },
+              limit: 64,
+            };
           if (cmd === "get_installed_build") return null;
           return null;
         },

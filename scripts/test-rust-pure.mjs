@@ -179,6 +179,8 @@ const items = [
   attributed("skin_library.rs", "pub fn valid_skin_id("),
   attributed("skin_library.rs", "pub fn normalize_name("),
   attributed("skin_library.rs", "pub fn ensure_capacity("),
+  plain("skin_library.rs", "enum SyncAction {"),
+  attributed("skin_library.rs", "fn sync_action("),
 ];
 
 // Real unit tests, copied from the crate so expectations have one source of truth.
@@ -208,6 +210,14 @@ const tests = [
   attributed(
     "skin_library.rs",
     "fn capacity_refuses_new_skins_but_allows_duplicates(",
+  ),
+  attributed(
+    "skin_library.rs",
+    "fn automatic_sync_is_idempotent_and_resets_the_standard_look(",
+  ),
+  attributed(
+    "skin_library.rs",
+    "fn an_unconfirmed_or_forgotten_upload_is_retried_not_skipped(",
   ),
 ];
 

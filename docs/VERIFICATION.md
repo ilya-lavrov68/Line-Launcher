@@ -5,22 +5,26 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (123 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (125 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
-  artwork, wardrobe contract, custom-frame permissions, window-geometry survival
-  through the branding overlay, and token-only styling of the new chrome),
-  the local-first wardrobe contract (reachable signed out, activation never
-  uploads, only the active skin syncs, history is never silently pruned), and the
-  build-time provider address (exactly one provider, the old multi-provider list
-  rejected, HTTPS-only baked URL, an unconfigured installer refused, a configured
-  build ignoring a foreign cache)
+  artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
+  survival through the branding overlay, and token-only styling of the new chrome),
+  the local-first wardrobe contract (reachable signed out, only the active skin
+  syncs, history is never silently pruned), the single-account contract (login and
+  logout carry no server id, one `Option<ProviderSession>`, opening a server keeps
+  the session, no per-server auth form) and the automatic-sync contract (no manual
+  send button or upload/reset commands, every local change re-syncs, the uploaded
+  marker follows the awaited provider response, an `unchanged` result never erases
+  the known skin), and the build-time provider address (exactly one provider, the
+  old multi-provider list rejected, HTTPS-only baked URL, an unconfigured installer
+  refused, a configured build ignoring a foreign cache)
 - `npm run brand:check` (generated branding is current)
 - License/metadata tests: custom Line license, verbatim upstream MIT hash,
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 28 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 30 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -33,7 +37,9 @@ Checked in the implementation sandbox:
   ceiling, hard cap, rejection instead of clamping, automatic value always inside
   the selectable range), and the local skin library (SHA-256-only ids reject
   traversal/absolute/uppercase paths, name normalisation, capacity refused while
-  re-adding an existing texture still succeeds).
+  re-adding an existing texture still succeeds), and the automatic sync decision
+  (`active == synced` sends nothing, the standard look resets once, an unconfirmed
+  or forgotten upload is retried rather than skipped).
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -63,19 +69,28 @@ Checked in the implementation sandbox:
   `save_settings` and keep accessible names, the settings screen must show human
   labels rather than raw `keep`/`auto` values and expose no JVM-argument field,
   loaded server banner/icon must render, and the wardrobe runs a real 64×64 PNG
-  through validation → preview → upload → reset while a malformed PNG is rejected
-  without any upload call. Extended for the local-first wardrobe: the section is
-  reachable before login, a texture is saved to local history with no provider
-  call at all, history survives login, choosing a different skin uploads nothing,
-  the explicit sync sends only a server id, reset keeps local history, and
-  deleting reaches the backend. 49 IPC calls, 0 page errors. Uses a test-only injected
+  through validation → preview → automatic upload → standard look while a
+  malformed PNG is rejected without any upload call. Extended for the single
+  account: the sign-in screen appears before any server, `line_login` carries only
+  username/password, `line_session` is consulted, opening a server does not ask
+  for credentials again, and signing out closes the whole list. Extended for the
+  automatic wardrobe: the section is reachable before login, a texture is saved to
+  local history with no provider call at all, history survives login and is then
+  uploaded by itself, re-opening the screen uploads nothing, re-adding identical
+  bytes performs no second upload and keeps the correct remote status, choosing
+  another texture and the standard look both sync without a button, deleting
+  reaches the backend, and a new account re-uploads instead of inheriting the
+  previous player's marker. An expired account (`AUTH_REQUIRED` from launch)
+  returns the player to the sign-in screen with an explanation instead of a dead
+  «Играть» button. 87 IPC calls, 0 page errors. Uses a test-only injected
   Tauri IPC stub — the real window plugin and Rust commands are not exercised.
 - Layout-stability regressions measured in Chromium, not assumed: the provider
   submit button holds its position within 1px across idle → error → loading
   (it used to jump 24px), the scrollbar thumb computes to a pill
   (`border-radius`, `background-clip: content-box`) and follows `--foreground`
   when the token changes, and the wardrobe nav entry is no longer disabled while
-  signed out — only the sync button is, and it names the missing prerequisite. Playwright's default
+  signed out — the reason a skin is not syncing is a status line, not a disabled
+  button. Playwright's default
   `--hide-scrollbars` is disabled for this suite, otherwise the scrollbar under
   test would be invisible. The three new static assertions were mutation-checked:
   restoring the unconditional `scrollbar-width` or dropping
@@ -95,7 +110,18 @@ Checked in the implementation sandbox:
   empty `config_url` and passes on a filled one. 0 page errors in every case.
 - `npm run screenshots`: the README images are regenerated from the real
   components against the demo provider, so documentation cannot silently drift
-  from the interface. 0 page errors.
+  from the interface. Captured after this change: the single account screen, the
+  server list unlocked by it, and the wardrobe with a sync status instead of a
+  send button. 0 page errors.
+- Mutation-checked the new guarantees (12 mutations, all caught): clearing the
+  session in `selectServer`, putting `server_id` back into the login request or
+  the Rust `AuthRequest`, turning the session back into a per-server map, making
+  `logout` take a server id, restoring a manual send button, dropping the
+  automatic sync after activation, letting an `unchanged` result wipe the known
+  skin, ignoring the `synced` marker, and deriving the uploaded marker from the
+  plan instead of the awaited upload result, putting the auth callback back into
+  `autoSync`'s dependencies (which re-runs the mount effect on every render), and
+  swallowing an expired session instead of returning to the sign-in screen.
 - Chromium smoke test of the browser fallback screen
 - Chromium screenshots of the config, server list, auth, installed, server detail
   (banner + icon), settings and wardrobe states, reviewed visually

@@ -331,7 +331,7 @@ pub async fn launch_game(
     let total_memory_bytes = total_memory();
     let preferences = super::settings::load(&app, total_memory_bytes);
     let server = config.server(&server_id)?.clone();
-    let session = state.session(&server_id)?;
+    let session = state.session()?;
     let ticket_url = server
         .auth
         .launch_ticket_url

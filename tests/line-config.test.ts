@@ -20,8 +20,27 @@ test("example satisfies the public schema contract", () => {
     assert.match(server.distribution.sha256, /^[a-f0-9]{64}$/);
     assert.ok(server.distribution.size_bytes > 0);
     assert.ok(server.distribution.unpacked_size_bytes > 0);
-    assert.equal(new URL(server.auth.login_url).protocol, "https:");
+    // Launch endpoints are per-server and optional; the account is not.
+    if (server.auth?.launch_ticket_url) {
+      assert.ok(server.auth.session_exchange_url);
+      assert.equal(new URL(server.auth.launch_ticket_url).protocol, "https:");
+      assert.equal(
+        new URL(server.auth.session_exchange_url).protocol,
+        "https:",
+      );
+    }
+    assert.equal(
+      (server.auth as Record<string, unknown> | undefined)?.login_url,
+      undefined,
+      "login must live on the provider: one account per project",
+    );
+    assert.equal(
+      (server as unknown as Record<string, unknown>).wardrobe,
+      undefined,
+    );
   }
+  // The single sign-in endpoint belongs to the project, not to a server.
+  assert.equal(new URL(example.provider.auth.login_url).protocol, "https:");
 });
 
 test("IPC error guard accepts only the typed public DTO", () => {

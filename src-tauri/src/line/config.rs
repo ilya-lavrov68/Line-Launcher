@@ -11,22 +11,36 @@ pub const MAX_ARCHIVE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 pub const MAX_UNPACKED_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 pub const MAX_ZIP_ENTRIES: usize = 50_000;
 
+/// One account per project. The player signs in once and reaches every server
+/// this provider lists, so credentials and the skin belong to the provider, not
+/// to an individual server.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountAuth {
+    pub login_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub register_url: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provider {
     pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo_url: Option<String>,
+    pub auth: AccountAuth,
+    /// Account-wide wardrobe. Absent = the project has no skin API and skins
+    /// stay local-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wardrobe: Option<WardrobeConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct AuthConfig {
-    pub login_url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub register_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+/// Per-server game-join endpoints. These stay on the server because a launch
+/// ticket authorises joining that specific server, not the account.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LaunchAuth {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub launch_ticket_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_exchange_url: Option<String>,
 }
 
@@ -59,12 +73,11 @@ pub struct Server {
     /// Wide hero image for the server card and detail header.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub banner_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub wardrobe: Option<WardrobeConfig>,
     pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minecraft_version: Option<String>,
-    pub auth: AuthConfig,
+    #[serde(default)]
+    pub auth: LaunchAuth,
     pub distribution: Distribution,
 }
 
@@ -202,6 +215,18 @@ impl LineConfig {
         if let Some(url) = &self.provider.logo_url {
             validate_https(url)?;
         }
+        validate_https(&self.provider.auth.login_url).map_err(|_| {
+            LineError::input(
+                "provider.auth.login_url обязателен: в лаунчере один аккаунт на проект.",
+            )
+        })?;
+        if let Some(url) = &self.provider.auth.register_url {
+            validate_https(url)?;
+        }
+        if let Some(wardrobe) = &self.provider.wardrobe {
+            validate_https(&wardrobe.skin_url)?;
+            validate_https(&wardrobe.skin_upload_url)?;
+        }
         if self.servers.is_empty() || self.servers.len() > MAX_SERVERS {
             return Err(LineError::input(
                 "Конфигурация должна содержать от 1 до 100 серверов.",
@@ -237,14 +262,6 @@ impl LineConfig {
                 validate_https(url)?;
             }
             if let Some(url) = &server.banner_url {
-                validate_https(url)?;
-            }
-            if let Some(wardrobe) = &server.wardrobe {
-                validate_https(&wardrobe.skin_url)?;
-                validate_https(&wardrobe.skin_upload_url)?;
-            }
-            validate_https(&server.auth.login_url)?;
-            if let Some(url) = &server.auth.register_url {
                 validate_https(url)?;
             }
             match (

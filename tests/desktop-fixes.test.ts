@@ -99,7 +99,14 @@ test("offline launch is explicit, compatible and never inferred from missing aut
   assert.match(ui, /offline \|\|/);
   assert.match(read("src/types/line.ts"), /launch_mode\?: LaunchMode/);
   const build = read("examples/provider/build-pack.mjs");
-  assert.match(build, /launchable \? \{ launch_mode: "offline" \} : \{\}/);
+  assert.match(
+    build,
+    /const offline = launchable && launch_mode === "offline"/,
+  );
+  assert.match(
+    build,
+    /launchable && !offline && !installOnly \? \{ auth: launchAuth \} : \{\}/,
+  );
   assert.match(
     read("scripts/demo-selftest.mjs"),
     /creative\.launch_mode === "offline" && creative\.auth === undefined/,

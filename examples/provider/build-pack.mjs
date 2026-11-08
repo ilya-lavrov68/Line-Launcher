@@ -351,18 +351,26 @@ try {
     launch_ticket_url: `${base}/v1/launcher/ticket`,
     session_exchange_url: `${base}/v1/launcher/exchange`,
   };
-  const server = (id, name, description, art, file, extra = {}) => ({
-    id,
-    name,
-    description,
-    version: packs[file].version,
-    minecraft_version: "1.21.1",
-    icon_url: `${base}/art/${art}-icon.svg`,
-    banner_url: `${base}/art/${art}-banner.svg`,
-    ...(launchable ? { auth: launchAuth } : {}),
-    distribution: distribution(file),
-    ...extra,
-  });
+  const server = (id, name, description, art, file, extra = {}) => {
+    const { launch_mode, ...rest } = extra;
+    // Offline and install-only servers must not inherit the ticket endpoints:
+    // the launcher rejects `offline` together with ticket/exchange URLs.
+    const offline = launchable && launch_mode === "offline";
+    const installOnly = id === "showcase";
+    return {
+      id,
+      name,
+      description,
+      version: packs[file].version,
+      minecraft_version: "1.21.1",
+      icon_url: `${base}/art/${art}-icon.svg`,
+      banner_url: `${base}/art/${art}-banner.svg`,
+      ...(launchable && !offline && !installOnly ? { auth: launchAuth } : {}),
+      ...(offline ? { launch_mode: "offline" } : {}),
+      distribution: distribution(file),
+      ...rest,
+    };
+  };
 
   const config = {
     schema_version: 1,
@@ -403,7 +411,7 @@ try {
         "Офлайн-сборка того же проекта: свой ник, без ticket и Microsoft-входа.",
         "creative",
         "pack-creative.zip",
-        launchable ? { launch_mode: "offline" } : {},
+        { launch_mode: "offline" },
       ),
       // No launch endpoints on purpose: the launcher must say so, not fail.
       server(

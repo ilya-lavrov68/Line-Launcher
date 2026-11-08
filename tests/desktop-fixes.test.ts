@@ -129,6 +129,25 @@ test("offline packs create no ticket channel and do not wait for an auth handsha
   );
 });
 
+test("the game monitor aborts the optional IPC handle inside its own scope", () => {
+  const launch = read("src-tauri/src/line/launch.rs");
+  const stop = launch.slice(
+    launch.indexOf("if monitor_stop.load(Ordering::Acquire)"),
+    launch.indexOf("if ipc_done {"),
+  );
+  assert.match(
+    stop,
+    /if let Some\(task\) = &ipc_task \{\s*task\.abort\(\);\s*\}/,
+  );
+  assert.ok(
+    stop.indexOf("if let Some(task) = &ipc_task") <
+      stop.indexOf("task.abort()"),
+  );
+  const settings = read("src-tauri/src/line/settings.rs");
+  assert.match(settings, /use std::path::PathBuf;/);
+  assert.doesNotMatch(settings, /use std::path::\{Path, PathBuf\}/);
+});
+
 test("installers reject dev/debug feature arguments before doing any work", () => {
   for (const args of [
     ["--features", "dev-provider-ca"],

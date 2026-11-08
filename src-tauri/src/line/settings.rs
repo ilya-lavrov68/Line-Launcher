@@ -9,7 +9,7 @@ use super::error::{LineError, LineResult};
 use super::launch::{heap_ceiling, validate_heap};
 use super::storage::atomic_write;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 pub const MIN_WINDOW_WIDTH: u32 = 800;

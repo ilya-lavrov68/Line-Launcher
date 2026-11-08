@@ -795,7 +795,9 @@ pub async fn launch_game(
                 if monitor_stop.load(Ordering::Acquire) {
                     stopped = true;
                     let _ = child.kill().await;
-                    task.abort();
+                    if let Some(task) = &ipc_task {
+                        task.abort();
+                    }
                     break None;
                 }
                 if ipc_done {

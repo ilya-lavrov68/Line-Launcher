@@ -292,6 +292,10 @@ try {
     main_class: "DemoGame",
     classpath: ["client.jar"],
     minecraft_version: "1.21.1",
+    // Exercises the allow-listed extra game arguments: DemoGame prints every
+    // flag it receives, so the demo log shows the identity arguments too.
+    game_args: ["--demoMode", "line"],
+    user_type: "mojang",
   };
 
   /** Every release differs in bytes, so sha256 — and the rollback — is real. */

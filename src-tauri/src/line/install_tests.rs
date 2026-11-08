@@ -50,7 +50,20 @@ fn extracts_regular_files_and_checks_actual_size() {
     .unwrap();
     let target = temp.path().join("content");
     let cancel = AtomicBool::new(false);
-    extract_verified_zip(&zip, &target, 10, &cancel, |_| {}).unwrap();
+    let index = extract_verified_zip(&zip, &target, 10, &cancel, |_| {}).unwrap();
+    // The index must describe exactly what was written, with real hashes.
+    index.validate().unwrap();
+    assert_eq!(index.files.len(), 2);
+    let expected: std::collections::BTreeMap<String, (String, u64)> = index
+        .files
+        .iter()
+        .map(|e| (e.path.clone(), (e.sha256.clone(), e.size)))
+        .collect();
+    assert_eq!(
+        expected["mods/a.txt"],
+        (format!("{:x}", Sha256::digest(b"hello")), 5)
+    );
+    assert_eq!(expected["config/b.txt"].1, 5);
     assert_eq!(fs::read(target.join("mods/a.txt")).unwrap(), b"hello");
     assert_eq!(fs::read(target.join("config/b.txt")).unwrap(), b"world");
     assert!(fs::symlink_metadata(target.join("mods"))
@@ -223,4 +236,21 @@ fn lock_is_recoverable_after_owner_drop_and_file_is_never_unlinked() {
     }
     let _again = InstallLock::acquire(temp.path()).unwrap();
     assert!(temp.path().join(".install.lock").exists());
+}
+
+#[test]
+fn a_pack_cannot_forge_the_integrity_index_or_the_marker() {
+    let temp = tempfile::tempdir().unwrap();
+    let cancel = AtomicBool::new(false);
+    for reserved in [
+        super::super::integrity::INDEX_FILE,
+        super::super::integrity::COMPLETE_MARKER,
+    ] {
+        let zip = temp.path().join("archive.zip");
+        fs::write(&zip, archive(&[(reserved, b"forged")])).unwrap();
+        let target = temp.path().join(reserved.trim_start_matches('.'));
+        let error = extract_verified_zip(&zip, &target, 6, &cancel, |_| {}).unwrap_err();
+        assert_eq!(error.code, ErrorCode::UnsafeArchive, "accepted {reserved}");
+        assert!(!target.exists());
+    }
 }

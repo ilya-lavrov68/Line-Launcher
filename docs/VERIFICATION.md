@@ -5,7 +5,7 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (125 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (145 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
@@ -24,7 +24,7 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 30 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 42 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -39,7 +39,14 @@ Checked in the implementation sandbox:
   traversal/absolute/uppercase paths, name normalisation, capacity refused while
   re-adding an existing texture still succeeds), and the automatic sync decision
   (`active == synced` sends nothing, the standard look resets once, an unconfirmed
-  or forgotten upload is retried rather than skipped).
+  or forgotten upload is retried rather than skipped), and the launch/integrity
+  guard: the published index versus the tree (clean, foreign, missing, edited with
+  an identical size), index validation (traversal, duplicate and reserved paths),
+  bookkeeping names exempt only at the release root, real deletion of foreign
+  files without escaping the release, pruning only the emptied directories, a
+  separate writable `game/` per server, the real-client identity arguments with a
+  placeholder token, `-Xss1M`, UUID version/variant bits, and the game-argument
+  allow-list (no JVM flags, no duplicates, no overriding launcher-owned flags).
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -75,6 +82,22 @@ Checked in the implementation sandbox:
   The desktop window itself cannot be opened here (no crates.io), so
   `tauri dev --features dev-provider-ca` is the part that still needs a real
   machine.
+- Launch integrity and per-server instances: the wiring is asserted by
+  `tests/game-integrity.test.ts` (index published before the completion marker,
+  every extracted file hashed, archive cannot ship the bookkeeping names, scan
+  runs under the install lease before Java is spawned, the lease is dropped before
+  repairing, a second mismatch after repair aborts the launch, `--gameDir` and the
+  process cwd point at `instances/<id>/game`, every launcher-owned argument is
+  shielded from pack overrides, progress notes are actually rendered while the
+  files are checked). **20/20 targeted mutations were caught** by `npm test` or
+  `npm run test:rust`: ignoring foreign files, size-only comparison, deletion
+  without path validation, reserved names accepted in the index, marker written
+  before the index, extraction not hashing content, repair short-circuiting to
+  "already installed", archive forging `.line-files.json`, repairing while holding
+  the lease, launch bypassing the scan, an unreadable index passing silently, the
+  game writing into the immutable release again, a real value instead of the token
+  placeholder, missing `-Xss1M`, `--uuid` overridable, odd-length/duplicate/JVM
+  game arguments accepted, and hidden progress notes.
 - `npm run test:wardrobe`: 21 checks against the reference provider's skin contract
   over real HTTPS (self-signed cert pinned): missing/unknown bearer rejected, 404
   for a player without a skin, missing and unknown model rejected, wrong
@@ -206,6 +229,11 @@ pipe with a pending read.
 
 Not checked here or by CI:
 
+- The full extract → index → scan → repair cycle on a real filesystem: the
+  decision and the deletion are executed by `npm run test:rust`, but hashing,
+  index serialisation and the extraction changes need `cargo test`
+  (`integrity::filesystem_tests`, `install_tests`). Those tests are written and
+  formatted, not executed here (no crates.io access).
 - Tauri desktop shell, real ZIP installation through Rust commands, and
   Java/Minecraft launch. The reference provider and generated pack exist
   (`examples/provider/`), but the desktop app itself was never run: CI compiles
@@ -217,8 +245,10 @@ Not checked here or by CI:
 
 The browser fallback is intentionally read-only and explains that desktop
 operations require Tauri. It does not simulate successful authentication or
-installation. Real Minecraft launch, provider ticket exchange, OS-specific IPC
-permissions still require a real desktop run; Rust unit tests now run in CI on
+installation. Real Minecraft launch (the launcher now emits the identity arguments,
+`-Xss1M`, the macOS first-thread flag, LWJGL/log4j properties and allow-listed game
+arguments, but no actual Minecraft client was run here), provider ticket exchange,
+OS-specific IPC permissions still require a real desktop run; Rust unit tests now run in CI on
 all three platforms.
 
 Additional Chromium smoke coverage used a test-only injected Tauri IPC stub

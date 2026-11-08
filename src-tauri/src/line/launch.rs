@@ -7,13 +7,15 @@ use super::ipc::{PrivateChannel, TicketGrant};
 use super::java;
 use super::launch_manifest::read_optional;
 use super::state::LineState;
-use super::storage::{is_real_dir, is_real_file, server_dir, InstallLock};
+use super::storage::{create_private_dir, is_real_dir, is_real_file, server_dir, InstallLock};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
+use uuid::Uuid;
 use zeroize::Zeroizing;
 
 pub const GAME_EVENT: &str = "line://game-status";
@@ -29,6 +31,15 @@ pub struct LaunchSpec {
     pub asset_index: Option<String>,
     pub assets_dir: Option<PathBuf>,
     pub natives_dir: Option<PathBuf>,
+    /// log4j2 configuration from the pack, already resolved inside the release.
+    pub logging_config: Option<PathBuf>,
+    /// Extra game arguments from the manifest; validated twice.
+    pub game_args: Vec<String>,
+    /// Stable per-account identifier handed to the client. The authoritative
+    /// UUID still comes from the provider's session exchange over private IPC.
+    pub player_uuid: String,
+    /// mojang | msa | legacy, as declared by the pack.
+    pub user_type: String,
     /// Non-secret rendezvous identifier for the private IPC channel.
     pub session_channel_id: String,
     pub total_memory_bytes: u64,
@@ -88,6 +99,49 @@ pub fn optimal_heap_mb(total_memory_bytes: u64) -> u32 {
     (mib / 2).clamp(1024, 8192) as u32
 }
 
+/// Formats 16 bytes as a UUID and sets the RFC 4122 version/variant bits, so the
+/// client always receives a well-formed identifier. Pure: unit-tested without a
+/// hasher.
+pub fn format_uuid(bytes: &[u8]) -> String {
+    let mut raw = [0u8; 16];
+    for (index, slot) in raw.iter_mut().enumerate() {
+        *slot = bytes.get(index).copied().unwrap_or(0);
+    }
+    raw[6] = (raw[6] & 0x0f) | 0x40;
+    raw[8] = (raw[8] & 0x3f) | 0x80;
+    let hex: String = raw.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    )
+}
+
+/// Deterministic UUID for a provider account: the same login always produces the
+/// same client-side identity (so single-player worlds keep their player data),
+/// and two accounts never collide. This is *not* an authentication artefact —
+/// the provider's session exchange decides the real profile.
+pub fn player_uuid(username: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(format!("line-launcher:player:{username}").as_bytes());
+    format_uuid(&digest[..16])
+}
+
+pub fn valid_uuid(value: &str) -> bool {
+    let groups = [8usize, 4, 4, 4, 12];
+    let parts: Vec<&str> = value.split('-').collect();
+    parts.len() == groups.len()
+        && parts.iter().zip(groups).all(|(part, len)| {
+            part.len() == len
+                && part
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+}
+
 pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
     if !spec.java.is_absolute()
         || !spec.game_dir.is_absolute()
@@ -115,6 +169,13 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
         || spec.assets_dir.as_ref().is_some_and(|p| !p.is_absolute())
         || spec.natives_dir.as_ref().is_some_and(|p| !p.is_absolute())
         || spec.asset_index.is_some() != spec.assets_dir.is_some()
+        || !valid_uuid(&spec.player_uuid)
+        || !matches!(spec.user_type.as_str(), "mojang" | "msa" | "legacy")
+        || spec
+            .logging_config
+            .as_ref()
+            .is_some_and(|p| !p.is_absolute())
+        || !super::launch_manifest::game_args_are_safe(&spec.game_args)
     {
         return Err(LineError::input("Некорректные параметры запуска Java."));
     }
@@ -144,6 +205,10 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
         spec.java.to_string_lossy().into_owned(),
         format!("-Xmx{heap}M"),
         format!("-Xms{heap}M"),
+        // Vanilla's world generation needs a larger thread stack than the JVM
+        // default on several platforms; without it the game dies with a
+        // StackOverflowError during chunk loading.
+        "-Xss1M".into(),
         "-XX:+UseG1GC".into(),
         "-XX:+ParallelRefProcEnabled".into(),
         "-XX:MaxGCPauseMillis=200".into(),
@@ -160,8 +225,23 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
         "-XX:MaxTenuringThreshold=1".into(),
         format!("-DlineLauncher.sessionChannel={}", spec.session_channel_id),
     ];
+    // LWJGL 3 (every modern Minecraft) must own the first thread on macOS.
+    if cfg!(target_os = "macos") {
+        args.push("-XstartOnFirstThread".into());
+    }
     if let Some(natives) = &spec.natives_dir {
         args.push(format!("-Djava.library.path={}", natives.to_string_lossy()));
+        // LWJGL 3 reads its own property, not java.library.path.
+        args.push(format!(
+            "-Dorg.lwjgl.librarypath={}",
+            natives.to_string_lossy()
+        ));
+    }
+    if let Some(config) = &spec.logging_config {
+        args.push(format!(
+            "-Dlog4j.configurationFile={}",
+            config.to_string_lossy()
+        ));
     }
     args.extend([
         "-cp".into(),
@@ -174,6 +254,20 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
         "--version".into(),
         spec.minecraft_version.clone(),
     ]);
+    // Identity arguments the real client expects. The access token is a
+    // deliberately empty placeholder: the provider's real ticket travels only
+    // over the private one-shot channel, never through argv, where any local
+    // process could read it from the process list.
+    args.extend([
+        "--uuid".into(),
+        spec.player_uuid.clone(),
+        "--accessToken".into(),
+        "0".into(),
+        "--userType".into(),
+        spec.user_type.clone(),
+        "--versionType".into(),
+        "release".into(),
+    ]);
     if let (Some(index), Some(assets)) = (&spec.asset_index, &spec.assets_dir) {
         args.extend([
             "--assetIndex".into(),
@@ -182,6 +276,8 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
             assets.to_string_lossy().into_owned(),
         ]);
     }
+    // Pack-supplied extras go last and cannot shadow anything above.
+    args.extend(spec.game_args.iter().cloned());
     if args.iter().any(|arg| {
         let lower = arg.to_ascii_lowercase();
         lower.starts_with("-javaagent:")
@@ -197,6 +293,15 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
     Ok(args)
 }
 
+/// Writable per-server directory for saves, options, resource packs and logs.
+/// It lives next to `releases/`, not inside one: updating or repairing a build
+/// must never touch the player's worlds, and two servers must never share them.
+pub fn instance_game_dir(base: &Path) -> LineResult<PathBuf> {
+    let dir = base.join("game");
+    create_private_dir(&dir)?;
+    Ok(dir)
+}
+
 pub fn verified_game_dir(base: &Path, sha256: &str) -> LineResult<PathBuf> {
     if sha256.len() != 64
         || !sha256
@@ -207,7 +312,10 @@ pub fn verified_game_dir(base: &Path, sha256: &str) -> LineResult<PathBuf> {
     }
     let releases = base.join("releases");
     let dir = releases.join(sha256);
-    if !is_real_dir(&releases) || !is_real_dir(&dir) || !is_real_file(&dir.join(".line-complete")) {
+    if !is_real_dir(&releases)
+        || !is_real_dir(&dir)
+        || !is_real_file(&dir.join(super::integrity::COMPLETE_MARKER))
+    {
         return Err(LineError::new(
             ErrorCode::Integrity,
             "Сборка не установлена полностью.",
@@ -321,6 +429,153 @@ fn total_memory() -> u64 {
     system.total_memory()
 }
 
+/// Result of checking one release under the cross-process lock.
+struct ReleaseLease {
+    lock: InstallLock,
+    receipt: super::install::InstallReceipt,
+    release: PathBuf,
+    /// Missing index, missing files or changed bytes: only the archive can fix it.
+    repair_needed: bool,
+    /// Foreign files already deleted while the lock was held.
+    removed: usize,
+}
+
+/// Hashes every file of this server's own release and deletes anything the
+/// provider did not publish. Runs under the install lock so a concurrent
+/// install/rollback cannot race the scan.
+fn scan_release_blocking(base: &Path, server_id: &str) -> LineResult<ReleaseLease> {
+    let lock = InstallLock::acquire(base)?;
+    let receipt = current_receipt(base, server_id)
+        .ok_or_else(|| LineError::new(ErrorCode::Integrity, "Сначала установите сборку.", false))?;
+    let release = verified_game_dir(base, &receipt.sha256)?;
+    let (repair_needed, removed) = match super::integrity::scan(&release) {
+        Ok(report) => {
+            let removed = if report.foreign.is_empty() {
+                0
+            } else {
+                let count = super::integrity::remove_foreign(&release, &report.foreign)?;
+                super::integrity::prune_empty_dirs(&release, &report.foreign)?;
+                count
+            };
+            (report.needs_download(), removed)
+        }
+        // No index (installed by an older launcher), an unreadable tree or a
+        // planted symlink: do not guess, re-download the verified archive.
+        Err(_) => (true, 0),
+    };
+    Ok(ReleaseLease {
+        lock,
+        receipt,
+        release,
+        repair_needed,
+        removed,
+    })
+}
+
+/// Guarantees the release about to be launched matches the provider's published
+/// bytes: foreign files are deleted, missing/changed ones are re-downloaded.
+async fn prepare_release(
+    app: &AppHandle,
+    state: &LineState,
+    server: &super::config::Server,
+    base: &Path,
+    stop: &Arc<AtomicBool>,
+) -> LineResult<ReleaseLease> {
+    // Hashing a multi-gigabyte release takes seconds; say what is happening
+    // instead of leaving the button spinning without an explanation.
+    publish(
+        app,
+        state,
+        GameStatus {
+            server_id: server.id.clone(),
+            revision: 0,
+            phase: GamePhase::Starting,
+            sha256: None,
+            started_at: None,
+            exit_code: None,
+            message: Some("Проверка файлов сборки…".into()),
+        },
+    );
+    let scan_base = base.to_path_buf();
+    let scan_server = server.id.clone();
+    let lease = tauri::async_runtime::spawn_blocking(move || {
+        scan_release_blocking(&scan_base, &scan_server)
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    if !lease.repair_needed {
+        if lease.removed > 0 {
+            publish(
+                app,
+                state,
+                GameStatus {
+                    server_id: server.id.clone(),
+                    revision: 0,
+                    phase: GamePhase::Starting,
+                    sha256: Some(lease.receipt.sha256.clone()),
+                    started_at: None,
+                    exit_code: None,
+                    message: Some(format!(
+                        "Проверка файлов: удалено посторонних — {}.",
+                        lease.removed
+                    )),
+                },
+            );
+        }
+        return Ok(lease);
+    }
+    publish(
+        app,
+        state,
+        GameStatus {
+            server_id: server.id.clone(),
+            revision: 0,
+            phase: GamePhase::Starting,
+            sha256: Some(lease.receipt.sha256.clone()),
+            started_at: None,
+            exit_code: None,
+            message: Some(
+                "Проверка файлов: сборка изменена или неполная — скачиваем заново.".into(),
+            ),
+        },
+    );
+    // install takes the same lock itself, so the whole lease (lock included)
+    // must be released before calling it.
+    drop(lease);
+    let operation_id = Uuid::new_v4().to_string();
+    let emitter = app.clone();
+    let sink = super::install::ProgressSink::new(move |progress| {
+        let _ = emitter.emit(super::install::PROGRESS_EVENT, progress);
+    });
+    super::install::repair(
+        &state.http,
+        server,
+        base,
+        &operation_id,
+        stop.clone(),
+        &sink,
+    )
+    .await?;
+    if stop.load(Ordering::Acquire) {
+        return Err(cancelled());
+    }
+    let scan_base = base.to_path_buf();
+    let scan_server = server.id.clone();
+    let lease = tauri::async_runtime::spawn_blocking(move || {
+        scan_release_blocking(&scan_base, &scan_server)
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    if lease.repair_needed || lease.removed > 0 {
+        return Err(LineError::new(
+            ErrorCode::Integrity,
+            "Файлы сборки меняются снова сразу после восстановления. Проверьте диск, антивирус и сторонние программы.",
+            false,
+        ));
+    }
+    Ok(lease)
+}
+
 #[tauri::command]
 pub async fn launch_game(
     server_id: String,
@@ -362,25 +617,35 @@ pub async fn launch_game(
         },
     );
     let result = async {
-        // Hold the same cross-process lock used by install/rollback/prune for
-        // the whole game lifetime. Another launcher process cannot delete a live release.
+        // Verify every file of this server's own release, then hold the same
+        // cross-process lock used by install/rollback/prune for the whole game
+        // lifetime, so another launcher process cannot delete a live release.
+        let lease = tokio::select! {
+            result = prepare_release(&app, &state, &server, &base, &stop) => result?,
+            _ = wait_stop(&stop) => return Err(cancelled()),
+        };
+        let ReleaseLease {
+            lock,
+            receipt,
+            release,
+            ..
+        } = lease;
+        if stop.load(Ordering::Acquire) {
+            return Err(cancelled());
+        }
+        // The manifest is read from the immutable release; the game itself runs
+        // in the server's writable directory so worlds and settings survive
+        // updates and repairs.
+        let io_release = release;
         let io_base = base.clone();
-        let io_server = server_id.clone();
-        // The blocking task keeps the lease only until it finishes; dropping the
-        // handle on cancellation releases it, so "Отменить запуск" stays responsive
-        // even while another process holds the lock.
         let io = tauri::async_runtime::spawn_blocking(move || {
-            let lock = InstallLock::acquire(&io_base)?;
-            let receipt = current_receipt(&io_base, &io_server).ok_or_else(|| {
-                LineError::new(ErrorCode::Integrity, "Сначала установите сборку.", false)
-            })?;
-            let game_dir = verified_game_dir(&io_base, &receipt.sha256)?;
-            let resolved = read_optional(&game_dir)?.ok_or_else(|| {
+            let resolved = read_optional(&io_release)?.ok_or_else(|| {
                 LineError::input("В сборке нет манифеста запуска line-launch.json.")
             })?;
-            Ok::<_, LineError>((lock, receipt, game_dir, resolved))
+            let game_dir = instance_game_dir(&io_base)?;
+            Ok::<_, LineError>((resolved, game_dir))
         });
-        let (lock, receipt, game_dir, resolved) = tokio::select! {
+        let (resolved, game_dir) = tokio::select! {
             result = io => result.map_err(|_| LineError::storage())??,
             _ = wait_stop(&stop) => return Err(cancelled()),
         };
@@ -422,6 +687,13 @@ pub async fn launch_game(
             asset_index: resolved.manifest.asset_index,
             assets_dir: resolved.assets_dir,
             natives_dir: resolved.natives_dir,
+            logging_config: resolved.logging_config,
+            game_args: resolved.manifest.game_args,
+            player_uuid: player_uuid(&session.username),
+            user_type: resolved
+                .manifest
+                .user_type
+                .unwrap_or_else(|| "mojang".to_owned()),
             session_channel_id: channel.id.clone(),
             total_memory_bytes,
             heap_mb: preferences.heap_mb,
@@ -653,6 +925,10 @@ mod tests {
             asset_index: None,
             assets_dir: None,
             natives_dir: None,
+            logging_config: None,
+            game_args: Vec::new(),
+            player_uuid: format_uuid(&[7u8; 16]),
+            user_type: "mojang".into(),
             session_channel_id: "launch-channel-1".into(),
             total_memory_bytes: 16 * 1024 * 1024 * 1024,
             heap_mb: None,
@@ -671,6 +947,72 @@ mod tests {
         assert!(!args
             .iter()
             .any(|a| a.to_ascii_lowercase().contains("accesstoken=")));
+    }
+
+    #[test]
+    fn real_client_gets_identity_arguments_but_never_a_secret() {
+        let mut s = spec();
+        s.game_args = vec!["--launchTarget".into(), "forgeclient".into()];
+        let args = build_java_command(&s).unwrap();
+        let value = |flag: &str| {
+            let at = args.iter().position(|a| a == flag).expect(flag);
+            args[at + 1].clone()
+        };
+        assert!(valid_uuid(&value("--uuid")));
+        assert_eq!(value("--accessToken"), "0");
+        assert_eq!(value("--userType"), "mojang");
+        assert_eq!(value("--versionType"), "release");
+        assert_eq!(value("--launchTarget"), "forgeclient");
+        assert!(args.contains(&"-Xss1M".to_owned()));
+        // The placeholder must be the only token-looking argument.
+        assert!(!args
+            .iter()
+            .any(|a| a.to_ascii_lowercase().contains("accesstoken=")));
+        assert!(!args.iter().any(|a| a == "--session"));
+    }
+
+    #[test]
+    fn player_uuid_is_stable_per_account_and_well_formed() {
+        // Same account -> same uuid, different account -> different uuid.
+        assert_eq!(player_uuid("Player_1"), player_uuid("Player_1"));
+        assert_ne!(player_uuid("Player_1"), player_uuid("Player_2"));
+        assert!(valid_uuid(&player_uuid("Player_1")));
+        assert!(valid_uuid(&player_uuid("")));
+    }
+
+    #[test]
+    fn pack_arguments_cannot_override_the_launcher_owned_ones() {
+        let mut s = spec();
+        for pair in [
+            vec!["--username".to_string(), "Impostor".to_string()],
+            vec![
+                "--gameDir".to_string(),
+                abs("elsewhere").to_string_lossy().into_owned(),
+            ],
+            vec!["-javaagent:evil".to_string()],
+        ] {
+            s.game_args = pair;
+            assert!(build_java_command(&s).is_err());
+        }
+        s.game_args = Vec::new();
+        s.player_uuid = "not-a-uuid".into();
+        assert!(build_java_command(&s).is_err());
+        s.player_uuid = format_uuid(&[1u8; 16]);
+        s.user_type = "pirate".into();
+        assert!(build_java_command(&s).is_err());
+    }
+
+    #[test]
+    fn uuid_formatting_sets_version_and_variant_bits() {
+        let value = format_uuid(&[0xff; 16]);
+        assert!(valid_uuid(&value));
+        assert_eq!(value.len(), 36);
+        assert_eq!(value.as_bytes()[14], b'4');
+        assert!(matches!(value.as_bytes()[19], b'8' | b'9' | b'a' | b'b'));
+        // Short input must still produce a well-formed value, not panic.
+        assert!(valid_uuid(&format_uuid(&[1, 2, 3])));
+        assert!(!valid_uuid(""));
+        assert!(!valid_uuid(&"A".repeat(36)));
     }
 
     #[test]

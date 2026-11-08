@@ -253,6 +253,12 @@ export interface LaunchManifest {
   asset_index?: string;
   assets_dir?: string;
   natives_dir?: string;
+  /** log4j2 configuration inside the release. */
+  logging_config?: string;
+  /** Extra game arguments as `--name value` pairs; never JVM arguments. */
+  game_args?: string[];
+  /** Account type reported to the client. Defaults to `mojang`. */
+  user_type?: "mojang" | "msa" | "legacy";
 }
 
 export type GamePhase = "idle" | "starting" | "running" | "exited" | "failed";

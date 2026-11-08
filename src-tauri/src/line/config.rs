@@ -94,6 +94,13 @@ pub struct Server {
     pub server_address: Option<String>,
     #[serde(default)]
     pub auth: LaunchAuth,
+    /// `pack.json` beside the archive: { schema_version, url, sha256,
+    /// size_bytes, unpacked_size_bytes }. When present it, not the pinned
+    /// distribution below, decides whether the pack changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pack_manifest_url: Option<String>,
+    /// Fallback/bootstrap description of the same archive. Still required so
+    /// older configs and the ticket flow keep working unchanged.
     pub distribution: Distribution,
 }
 
@@ -283,6 +290,9 @@ impl LineConfig {
             }
             if let Some(address) = &server.server_address {
                 super::minecraft_core::validate_server_address(address)?;
+            }
+            if let Some(url) = &server.pack_manifest_url {
+                validate_https(url)?;
             }
             if server.launch_mode == LaunchMode::Offline
                 && (server.auth.launch_ticket_url.is_some()

@@ -24,6 +24,7 @@
     "screenshots": "node scripts/screenshots.mjs",
     "test:provider": "node scripts/test-provider.mjs",
     "test:wardrobe": "node scripts/test-wardrobe-provider.mjs",
+    "pack:manifest": "node scripts/pack-manifest.mjs",
     "provider:pack": "node examples/provider/build-pack.mjs",
     "provider:serve": "node examples/provider/server.mjs",
     "demo": "node scripts/demo.mjs",

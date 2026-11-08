@@ -3,7 +3,12 @@
 ## Current desktop-fix pass
 
 Minecraft mode (`mc-launcher-core` 0.1.2): server-only, offline identity, no
-Microsoft path. Auto-join is built here rather than through the crate's
+Microsoft path. The pack is a provider ZIP of a whole `.minecraft`, described by
+`pack.json`; download/verify reuses the existing verified installer, and the live
+game directory is separate so player data and mod-config edits survive updates.
+Layout, loader detection and overlay rules are pure Rust with unit tests;
+`scripts/pack-manifest.mjs` is covered by tests that build real ZIP archives and
+cross-check the limits against `config.rs`. Auto-join is built here rather than through the crate's
 `LaunchOptions::server`, because Mojang removed `--server`/`--port` in 23w14a;
 the Quick Play path is chosen by exact-token detection in the merged version
 metadata and covered by pure Rust tests. the crate-facing code (install,
@@ -30,13 +35,13 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **176 tests, 175 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **185 tests, 184 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
   regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
   offline mode, accepted dev release flags, the Windows `task` scope error, and
   ticket endpoints leaking into offline/install-only demo servers).
-- `npm run test:rust`: **58/58** compiled pure-logic tests, including PATH entries
+- `npm run test:rust`: **66/66** compiled pure-logic tests, including PATH entries
   that already end in `bin`, verbatim Windows path normalisation, stdout/stderr
   version parsing and the offline Java command without a session-channel property.
   This is still not a full `cargo check` of the async/Tauri crate graph.

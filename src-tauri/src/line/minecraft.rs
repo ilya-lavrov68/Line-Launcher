@@ -1,8 +1,10 @@
 //! Minecraft profiles installed and launched through `mc-launcher-core`.
 //!
-//! Additive mode: provider ZIP packs, the private ticket channel and the demo
-//! keep working untouched. Nothing here reads or writes their directories —
-//! profiles live under `<app-data>/minecraft/<instance>/`.
+//! Additive mode: the ticket channel, the private IPC and the demo keep working
+//! untouched. `mc_play` does reuse the provider's verified ZIP pipeline — it
+//! reads `servers/<id>/releases/<sha>/` through `install`/`integrity` and never
+//! writes there. The playable copy lives in `<app-data>/minecraft/<instance>/`,
+//! with the live `.minecraft` in its `game/` subdirectory.
 //!
 //! # Threading
 //!
@@ -20,6 +22,8 @@
 //! account has an empty access token: servers running `online-mode=true` reject
 //! it. That check happens on the server and is deliberately not defeated here.
 use super::error::{ErrorCode, LineError, LineResult};
+use super::install::{self, InstallPhase, InstallProgress, ProgressSink};
+use super::integrity;
 use super::java;
 use super::launch::{optimal_heap_mb, player_uuid, validate_heap, GamePhase};
 use super::minecraft_core::{
@@ -27,9 +31,10 @@ use super::minecraft_core::{
     validate_instance_id, validate_loader, validate_server_address, validate_version_id,
     LoaderChoice,
 };
+use super::pack::{self, DetectedInstance};
 use super::settings::{self, LauncherSettings};
 use super::state::{epoch_millis, LineState};
-use super::storage::create_private_dir;
+use super::storage::{create_private_dir, server_dir};
 use super::LAUNCHER_VERSION;
 // Imported from the prelude, but not as a glob: the crate also exports a
 // one-parameter `Result` alias that would shadow `std::result::Result` here.
@@ -50,6 +55,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
+use uuid::Uuid;
 
 pub const MC_INSTALL_EVENT: &str = "line://mc-install-progress";
 pub const MC_GAME_EVENT: &str = "line://mc-game-status";
@@ -94,11 +100,16 @@ pub struct McLaunchRequest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct McPlayRequest {
-    pub instance_id: String,
-    pub minecraft_version: String,
+    /// Everything else defaults to what the provider published for this server.
+    pub server_id: String,
+    #[serde(default)]
+    pub instance_id: Option<String>,
+    #[serde(default)]
+    pub minecraft_version: Option<String>,
     #[serde(default)]
     pub loader: Option<McLoaderRequest>,
-    pub server_address: String,
+    #[serde(default)]
+    pub server_address: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -173,6 +184,16 @@ fn instance_root(app: &AppHandle, instance_id: &str) -> LineResult<PathBuf> {
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
     let dir = root.join("minecraft").join(instance_id);
+    create_private_dir(&dir)?;
+    Ok(dir)
+}
+
+/// The live game directory. It is a plain `.minecraft`: the pack's mods, config
+/// and (when present) versions/libraries/assets are copied here, and the crate
+/// fills in whatever the archive did not carry. The Java runtime is kept one
+/// level up so it is never mistaken for pack content.
+fn game_root(app: &AppHandle, instance_id: &str) -> LineResult<PathBuf> {
+    let dir = instance_root(app, instance_id)?.join("game");
     create_private_dir(&dir)?;
     Ok(dir)
 }
@@ -357,7 +378,7 @@ async fn install_profile(
         }
     }
 
-    let dir = instance_root(app, &instance_id)?;
+    let dir = game_root(app, &instance_id)?;
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
     let installed = tokio::task::spawn_blocking(move || -> LineResult<String> {
@@ -409,7 +430,7 @@ async fn install_profile(
 #[tauri::command]
 pub async fn mc_list_installed(app: AppHandle, instance_id: String) -> LineResult<Vec<String>> {
     let instance_id = validate_instance_id(&instance_id)?;
-    let dir = instance_root(&app, &instance_id)?.join("versions");
+    let dir = game_root(&app, &instance_id)?.join("versions");
     let mut found = Vec::new();
     let entries = match std::fs::read_dir(&dir) {
         Ok(entries) => entries,
@@ -514,7 +535,9 @@ pub async fn mc_launch(
     launch_profile(&app, &line, &state, instance_id, version_id, host, port).await
 }
 
-/// Verify-or-download, then launch straight into the server: one button.
+/// «Играть»: read `pack.json`, download the instance ZIP or confirm the copy on
+/// disk is still the published revision, copy it into the live game directory,
+/// fetch only what the archive lacks, then join the server without a menu step.
 #[tauri::command]
 pub async fn mc_play(
     app: AppHandle,
@@ -522,21 +545,164 @@ pub async fn mc_play(
     state: State<'_, MinecraftState>,
     request: McPlayRequest,
 ) -> LineResult<McGameStatus> {
-    let instance_id = validate_instance_id(&request.instance_id)?;
-    let version = validate_version_id(&request.minecraft_version)?;
-    let (host, port) = validate_server_address(&request.server_address)?;
-    let loader = parse_loader(request.loader.as_ref())?;
-    let installed = install_profile(&app, &state, instance_id.clone(), version, loader).await?;
-    launch_profile(
+    let (_, config) = line.fresh_config()?;
+    config.validate(LAUNCHER_VERSION)?;
+    let server = config.server(&request.server_id)?.clone();
+    let instance_id = validate_instance_id(request.instance_id.as_deref().unwrap_or(&server.id))?;
+    let address = request
+        .server_address
+        .clone()
+        .or_else(|| server.server_address.clone())
+        .ok_or_else(|| {
+            LineError::input(
+                "Провайдер не указал адрес сервера: добавьте server_address в config.json.",
+            )
+        })?;
+    let (host, port) = validate_server_address(&address)?;
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| LineError::storage())?;
+    let base = server_dir(&root, &server.id)?;
+
+    // 1. What is published right now. The pinned distribution is the fallback
+    //    for providers that do not host a pack.json.
+    let effective = pack::effective_server(&line.http, &server, &base).await?;
+    emit_mc_progress(
         &app,
-        &line,
-        &state,
-        instance_id,
-        installed.version_id,
-        host,
-        port,
-    )
-    .await
+        &instance_id,
+        "resolve",
+        "Проверка сборки на сервере…",
+        0,
+        None,
+        false,
+    );
+
+    // 2. Download or verify. `download_and_extract` returns the existing receipt
+    //    untouched when its sha256 already matches, so an unchanged pack costs
+    //    one small JSON request, not a re-download.
+    let operation_id = Uuid::new_v4().to_string();
+    let cancel = line.begin_install(&server.id, &operation_id)?;
+    let sink_app = app.clone();
+    let sink_instance = instance_id.clone();
+    let sink = ProgressSink::new(move |progress: InstallProgress| {
+        let _ = sink_app.emit(install::PROGRESS_EVENT, &progress);
+        let (stage, label) = match progress.phase {
+            InstallPhase::Downloading => ("download", "Скачивание сборки"),
+            InstallPhase::Verifying => ("verify", "Проверка архива"),
+            InstallPhase::Extracting => ("extract", "Распаковка сборки"),
+            InstallPhase::Committing => ("commit", "Применение сборки"),
+            InstallPhase::Completed => ("completed", "Сборка готова"),
+            InstallPhase::Cancelled => ("task", "Отменено"),
+            InstallPhase::Failed => ("task", "Ошибка установки"),
+        };
+        let total = (progress.total_bytes > 0).then_some(progress.total_bytes);
+        emit_mc_progress(
+            &sink_app,
+            &sink_instance,
+            stage,
+            label,
+            progress.received_bytes,
+            total,
+            matches!(progress.phase, InstallPhase::Completed),
+        );
+    });
+    let installed =
+        install::download_and_extract(&line.http, &effective, &base, &operation_id, cancel, &sink)
+            .await;
+    line.finish_install(&server.id, &operation_id);
+    let receipt = installed?;
+    if receipt.already_installed {
+        emit_mc_progress(
+            &app,
+            &instance_id,
+            "cached",
+            "Сборка не изменилась",
+            0,
+            None,
+            false,
+        );
+    }
+
+    // 3. Read the instance and bring the live game directory up to date. Both
+    //    steps touch thousands of files, so they stay off the async workers.
+    let hint = request
+        .minecraft_version
+        .clone()
+        .or_else(|| server.minecraft_version.clone());
+    let release_base = base.clone();
+    let sha256 = receipt.sha256.clone();
+    let instance_dir = instance_root(&app, &instance_id)?;
+    let inspect_instance = instance_id.clone();
+    let inspect_app = app.clone();
+    let detected: DetectedInstance =
+        tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
+            let release = pack::release_dir(&release_base, &sha256)?;
+            let index = integrity::read_index(&release)?;
+            let detected = pack::inspect(&release, &index, hint.as_deref())?;
+            emit_mc_progress(
+                &inspect_app,
+                &inspect_instance,
+                "verify",
+                "Проверка файлов экземпляра…",
+                0,
+                None,
+                false,
+            );
+            pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
+            Ok(detected)
+        })
+        .await
+        .map_err(|_| join_error())??;
+
+    // 4. Fill only the gaps. A loader found inside the instance is used as is;
+    //    one requested by the provider is installed only when none is there.
+    let requested_loader = parse_loader(request.loader.as_ref())?;
+    let mut launch_version = detected.version_id.clone();
+    let loader_inside = detected.loader.is_some();
+    if !detected.missing.is_empty() || (!loader_inside && requested_loader.is_some()) {
+        let loader = if loader_inside {
+            None
+        } else {
+            requested_loader
+        };
+        let filled = install_profile(
+            &app,
+            &state,
+            instance_id.clone(),
+            detected.minecraft_version.clone(),
+            loader,
+        )
+        .await?;
+        if !loader_inside && request.loader.is_some() {
+            launch_version = filled.version_id;
+        }
+    }
+
+    // 5. Straight into the server.
+    launch_profile(&app, &line, &state, instance_id, launch_version, host, port).await
+}
+
+fn emit_mc_progress(
+    app: &AppHandle,
+    instance_id: &str,
+    stage: &str,
+    label: &str,
+    received_bytes: u64,
+    total_bytes: Option<u64>,
+    finished: bool,
+) {
+    let _ = app.emit(
+        MC_INSTALL_EVENT,
+        McInstallProgress {
+            instance_id: instance_id.to_string(),
+            stage: stage.to_string(),
+            label: label.to_string(),
+            received_bytes,
+            total_bytes,
+            finished,
+        },
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -602,6 +768,7 @@ async fn launch_profile(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 async fn start_game(
     app: &AppHandle,
     state: &MinecraftState,
@@ -628,7 +795,7 @@ async fn start_game(
         },
     );
 
-    let load_dir = dir.clone();
+    let load_dir = game_dir.clone();
     let load_id = version_id.to_string();
     let (version, component, required_major, quick_play) = tokio::task::spawn_blocking(
         move || -> LineResult<(VersionJson, Option<String>, u16, bool)> {
@@ -656,7 +823,7 @@ async fn start_game(
     };
     let java_path = resolve_java(&dir, component, required_major, &preferences).await?;
 
-    let build_dir = dir.clone();
+    let build_dir = game_dir.clone();
     let account_name = username.to_string();
     let account_uuid = uuid.to_string();
     let window = (preferences.window_width, preferences.window_height);

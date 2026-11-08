@@ -12,6 +12,8 @@ const read = (file: string) =>
 
 const rust = read("src-tauri/src/line/minecraft.rs");
 const core = read("src-tauri/src/line/minecraft_core.rs");
+const pack = read("src-tauri/src/line/pack.rs");
+const instance = read("src-tauri/src/line/instance.rs");
 
 test("the crate is pinned and the prelude is imported without shadowing Result", () => {
   const manifest = read("src-tauri/Cargo.toml");
@@ -128,6 +130,7 @@ test("commands, state and the additive boundary are wired", () => {
     "mc_install",
     "mc_list_installed",
     "mc_launch",
+    "mc_play",
     "mc_stop",
     "mc_status",
   ]) {
@@ -140,10 +143,19 @@ test("commands, state and the additive boundary are wired", () => {
   const mod = read("src-tauri/src/line/mod.rs");
   assert.match(mod, /pub mod minecraft;/);
   assert.match(mod, /pub mod minecraft_core;/);
-  // Provider releases stay untouched: no shared directory helpers.
+  assert.match(mod, /pub mod instance;/);
+  assert.match(mod, /pub mod pack;/);
+  // The pack flow reads the provider's verified release through the existing
+  // installer. It must never open the private ticket channel or write into the
+  // release itself: the live copy lives under minecraft/<instance>/game.
   assert.doesNotMatch(
     rust,
-    /server_dir\(|releases|current_receipt|PrivateChannel/,
+    /PrivateChannel|current_receipt|remove_dir_if_present/,
+  );
+  assert.match(rust, /install::download_and_extract\(/);
+  assert.doesNotMatch(
+    pack,
+    /remove_dir_if_present|releases"\)\.join\(instance/,
   );
   assert.match(rust, /root\.join\("minecraft"\)\.join\(instance_id\)/);
   // The provider pipeline itself is still registered.
@@ -167,6 +179,7 @@ test("the WebView contract matches the Rust event names and payload shape", () =
     "mc_install",
     "mc_list_installed",
     "mc_launch",
+    "mc_play",
     "mc_stop",
     "mc_status",
   ]) {
@@ -218,14 +231,27 @@ test("Играть verifies-or-downloads and then joins the server in one comman
     rust.indexOf("pub async fn mc_play("),
     rust.indexOf("async fn launch_profile("),
   );
-  assert.match(play, /validate_server_address\(&request\.server_address\)\?/);
+  assert.match(play, /validate_server_address\(&address\)\?/);
+  assert.match(play, /config\.server\(&request\.server_id\)\?/);
   assert.ok(
-    play.indexOf("install_profile(") < play.indexOf("launch_profile("),
-    "the profile must be verified/downloaded before the client starts",
+    play.indexOf("pack::effective_server(") <
+      play.indexOf("install::download_and_extract("),
+    "pack.json must decide the revision before anything is downloaded",
   );
-  // Re-running install is the verify step: unchanged files are skipped.
-  assert.match(rust, /skips every file whose checksum still matches/);
-  assert.match(read("src/types/line.ts"), /serverAddress: string;/);
+  for (const [earlier, later] of [
+    ["install::download_and_extract(", "pack::inspect("],
+    ["pack::inspect(", "pack::sync_game_dir("],
+    ["pack::sync_game_dir(", "launch_profile("],
+  ]) {
+    assert.ok(
+      play.indexOf(earlier) < play.indexOf(later),
+      `${earlier} must run before ${later}`,
+    );
+  }
+  // The existing installer is reused, not a second downloader.
+  assert.match(rust, /receipt\.already_installed/);
+  assert.doesNotMatch(rust, /reqwest::blocking::Client|ZipArchive::new/);
+  assert.match(read("src/types/line.ts"), /serverAddress\?: string;/);
 });
 
 test("auto-join uses Quick Play on 1.20+ and the legacy pair only on older clients", () => {
@@ -284,4 +310,68 @@ test("no Microsoft or third-party auth logic is reachable from this mode", () =>
   }
   // The identity is offline by construction, not by configuration.
   assert.match(rust, /Account::Offline \{/);
+});
+
+test("the pack is a ZIP of a whole instance, verified through pack.json", () => {
+  // Freshness comes from a small JSON, and the pinned distribution stays a
+  // fallback for providers that do not host one.
+  assert.match(pack, /pub struct PackManifest/);
+  assert.match(pack, /pack_manifest_url/);
+  assert.match(pack, /schema_version: u32/);
+  assert.match(pack, /integrity::valid_sha256\(&self\.sha256\)/);
+  assert.match(pack, /MAX_ARCHIVE_BYTES/);
+  assert.match(pack, /MAX_UNPACKED_BYTES/);
+  assert.match(
+    read("src-tauri/src/line/config.rs"),
+    /pub pack_manifest_url: Option<String>/,
+  );
+  // A malformed manifest is a provider bug; only a network failure may fall
+  // back to the cached copy.
+  const effective = pack.slice(
+    pack.indexOf("pub async fn effective_server("),
+    pack.indexOf("fn apply("),
+  );
+  assert.match(effective, /PackManifest::parse\(&bytes\)\?;/);
+  assert.match(effective, /if !is_real_file\(&cache\)/);
+  assert.match(read("package.json"), /"pack:manifest"/);
+});
+
+test("the live game directory is writable and player data survives updates", () => {
+  // Two directories: the hash-verified release and the live `.minecraft`.
+  assert.match(pack, /releases/);
+  assert.match(pack, /instance_root\.join\("game"\)/);
+  assert.match(rust, /fn game_root\(/);
+  assert.match(rust, /instance_root\(app, instance_id\)\?\.join\("game"\)/);
+  // An unchanged revision is not re-copied, so mod config edits survive.
+  assert.match(pack, /previous\.sha256 == sha256/);
+  assert.match(pack, /keep_local\(relative\) && is_real_file\(&target\)/);
+  assert.match(pack, /overlay_removals\(&previous\.files, &detected\.files\)/);
+  // Every copied or deleted path goes through the archive path validator.
+  assert.equal(pack.match(/safe_entry_path\(relative\)\?/g)?.length, 2);
+  assert.match(pack, /fs::rename\(&temp, target\)/);
+  for (const guarded of ["saves/", "logs/", "screenshots/", "crash-reports/"]) {
+    assert.ok(
+      instance.includes(`"${guarded}"`),
+      `${guarded} must be protected`,
+    );
+  }
+  assert.match(instance, /pub fn is_user_data/);
+});
+
+test("the loader inside the instance wins over the provider's request", () => {
+  assert.match(pack, /loader_from_libraries\(&library_names\(json\)\)/);
+  assert.match(pack, /inheritsFrom/);
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("fn emit_mc_progress("),
+  );
+  assert.match(play, /let loader_inside = detected\.loader\.is_some\(\);/);
+  assert.match(play, /let loader = if loader_inside \{/);
+  // Only the gaps are fetched, and the pack's own profile is what launches.
+  assert.match(play, /if !detected\.missing\.is_empty\(\)/);
+  assert.match(
+    play,
+    /let mut launch_version = detected\.version_id\.clone\(\);/,
+  );
+  assert.match(instance, /pub fn missing_parts/);
 });

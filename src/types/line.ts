@@ -121,6 +121,8 @@ export interface LineServer {
   launch_mode?: LaunchMode;
   /** Host or host:port the client joins right after launch (Minecraft mode). */
   server_address?: string;
+  /** `pack.json` beside the instance ZIP; it decides whether the pack changed. */
+  pack_manifest_url?: string;
   auth?: LineLaunchAuth;
   distribution: LineDistribution;
 }
@@ -381,12 +383,28 @@ export interface McLaunchRequest {
   serverAddress: string;
 }
 
-/** «Играть»: verify-or-download the profile, then join the server. */
+/**
+ * «Играть»: read `pack.json`, download the instance ZIP or confirm the installed
+ * copy is current, fill any gaps from the official hosts, then join the server.
+ * Everything except `serverId` defaults to what the provider published.
+ */
 export interface McPlayRequest {
-  instanceId: string;
-  minecraftVersion: string;
+  serverId: string;
+  instanceId?: string;
+  minecraftVersion?: string;
   loader?: McLoaderRequest;
-  serverAddress: string;
+  serverAddress?: string;
+}
+
+/** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */
+export interface LinePackManifest {
+  schema_version: number;
+  url: string;
+  sha256: string;
+  size_bytes: number;
+  unpacked_size_bytes: number;
+  revision?: string;
+  minecraft_version?: string;
 }
 
 export interface McInstallProgress {

@@ -2,6 +2,8 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   LINE_GAME_EVENT,
+  LINE_MC_GAME_EVENT,
+  LINE_MC_INSTALL_EVENT,
   LINE_PROGRESS_EVENT,
   toLineError,
   type AuthCredentials,
@@ -15,6 +17,11 @@ import {
   type RollbackResult,
   type JavaRuntimeInfo,
   type LauncherSettings,
+  type McGameStatus,
+  type McInstallProgress,
+  type McInstallRequest,
+  type McInstalled,
+  type McLaunchRequest,
   type SettingsSnapshot,
   type SkinModel,
   type SkinState,
@@ -88,6 +95,36 @@ export const lineApi = {
   syncActiveSkin: () => call<SkinSyncResult>("sync_active_skin"),
   /** Drops the "already uploaded" marker after an account change. */
   forgetSyncedSkin: () => call<SkinLibrarySnapshot>("forget_synced_skin"),
+  // ------------------------------------------------------------- Minecraft
+  /** Installs a vanilla or loader profile from the official endpoints. */
+  mcInstall: (request: McInstallRequest) =>
+    call<McInstalled>("mc_install", { request }),
+  mcListInstalled: (instanceId: string) =>
+    call<string[]>("mc_list_installed", { instanceId }),
+  /** Offline identity: provider nickname + the launcher's stable UUID. */
+  mcLaunch: (request: McLaunchRequest) =>
+    call<McGameStatus>("mc_launch", { request }),
+  mcStop: (instanceId: string) => call<boolean>("mc_stop", { instanceId }),
+  mcStatus: (instanceId: string) =>
+    call<McGameStatus>("mc_status", { instanceId }),
+  onMcGame: async (
+    instanceId: string,
+    callback: (status: McGameStatus) => void,
+  ): Promise<UnlistenFn> => {
+    if (!isTauri()) throw new DesktopRequiredError();
+    return listen<McGameStatus>(LINE_MC_GAME_EVENT, (event) => {
+      if (event.payload.instanceId === instanceId) callback(event.payload);
+    });
+  },
+  onMcProgress: async (
+    instanceId: string,
+    callback: (progress: McInstallProgress) => void,
+  ): Promise<UnlistenFn> => {
+    if (!isTauri()) throw new DesktopRequiredError();
+    return listen<McInstallProgress>(LINE_MC_INSTALL_EVENT, (event) => {
+      if (event.payload.instanceId === instanceId) callback(event.payload);
+    });
+  },
   onGame: async (
     serverId: string,
     callback: (status: GameStatus) => void,

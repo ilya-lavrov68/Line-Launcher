@@ -342,3 +342,55 @@ export function toLineError(value: unknown): LineError {
     retryable: false,
   };
 }
+
+/**
+ * Minecraft profiles installed through `mc-launcher-core` (official Mojang and
+ * loader endpoints). Additive to the provider ZIP pipeline: these instances
+ * live under `<app-data>/minecraft/<instanceId>/` and never touch provider
+ * releases. The account is offline: `online-mode=true` servers reject it.
+ */
+export const LINE_MC_INSTALL_EVENT = "line://mc-install-progress";
+export const LINE_MC_GAME_EVENT = "line://mc-game-status";
+
+export type McLoaderKind = "fabric" | "quilt" | "forge" | "neoforge";
+
+export interface McLoaderRequest {
+  kind: McLoaderKind;
+  /** Omitted or empty = latest stable version of that loader. */
+  version?: string;
+}
+
+export interface McInstallRequest {
+  instanceId: string;
+  minecraftVersion: string;
+  loader?: McLoaderRequest;
+}
+
+export interface McInstalled {
+  instanceId: string;
+  /** With a loader this differs from the requested Minecraft version. */
+  versionId: string;
+}
+
+export interface McLaunchRequest {
+  instanceId: string;
+  versionId: string;
+}
+
+export interface McInstallProgress {
+  instanceId: string;
+  stage: string;
+  label: string;
+  receivedBytes: number;
+  totalBytes?: number;
+  finished: boolean;
+}
+
+export interface McGameStatus {
+  instanceId: string;
+  versionId: string;
+  phase: GamePhase;
+  startedAt?: number;
+  exitCode?: number;
+  message?: string;
+}

@@ -143,6 +143,13 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
+  attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
+  attributed("minecraft_core.rs", "pub fn validate_instance_id("),
+  attributed("minecraft_core.rs", "pub fn validate_version_id("),
+  attributed("minecraft_core.rs", "pub fn validate_loader("),
+  attributed("minecraft_core.rs", "pub fn apply_heap("),
+  attributed("minecraft_core.rs", "pub fn reject_dangerous_args("),
   attributed("install.rs", "pub fn safe_entry_path("),
   attributed("java.rs", "fn java_name("),
   plain("java.rs", "pub struct JavaRuntime {"),
@@ -222,6 +229,19 @@ const tests = [
   installTestPrelude,
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
+  attributed(
+    "minecraft_core.rs",
+    "fn loader_selection_defaults_to_latest_stable(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn heap_replaces_metadata_memory_flags_exactly_once(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn metadata_cannot_inject_an_agent_or_hijack_the_ipc_namespace(",
+  ),
   attributed(
     "java.rs",
     "fn path_bin_directory_finds_java_without_doubling_bin(",

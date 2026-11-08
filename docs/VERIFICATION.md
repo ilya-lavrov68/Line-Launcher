@@ -2,6 +2,16 @@
 
 ## Current desktop-fix pass
 
+Minecraft mode (`mc-launcher-core` 0.1.2): the crate-facing code (install,
+load_version, LaunchOptions/LaunchCommand, Java runtime helpers, the exhaustive
+`LauncherError` mapping) was typechecked with `rustc` against a stand-in built
+from the crate's real 0.1.2 signatures. The dependency-free rules run in the pure
+Rust suite (4 new tests) and `tests/minecraft-mode.test.ts` guards the wiring
+(pinned version, prelude import, spawn_blocking, stable UUID, heap/argument
+hardening, Java fallback order, additive boundary). **The full cargo graph is
+still not built here** — `cargo check --all-targets` on a real machine remains
+required, and the Minecraft UI screen is not implemented yet.
+
 Follow-up to the first Windows `cargo run`: the stop branch now aborts the IPC
 handle only inside `if let Some(task) = &ipc_task`, and the unused `Path` import
 was removed. The new regression fails if the out-of-scope `task.abort()` returns.
@@ -16,13 +26,13 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **162 tests, 161 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **172 tests, 171 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
   regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
   offline mode, accepted dev release flags, the Windows `task` scope error, and
   ticket endpoints leaking into offline/install-only demo servers).
-- `npm run test:rust`: **50/50** compiled pure-logic tests, including PATH entries
+- `npm run test:rust`: **54/54** compiled pure-logic tests, including PATH entries
   that already end in `bin`, verbatim Windows path normalisation, stdout/stderr
   version parsing and the offline Java command without a session-channel property.
   This is still not a full `cargo check` of the async/Tauri crate graph.

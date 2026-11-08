@@ -8,6 +8,7 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             app.manage(LineState::new()?);
+            app.manage(line::minecraft::MinecraftState::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -30,6 +31,11 @@ pub fn run() {
             line::settings::list_java_runtimes,
             line::settings::probe_java_path,
             line::settings::clear_config_cache,
+            line::minecraft::mc_install,
+            line::minecraft::mc_list_installed,
+            line::minecraft::mc_launch,
+            line::minecraft::mc_stop,
+            line::minecraft::mc_status,
             line::wardrobe::get_skin,
             line::skin_library::list_skin_library,
             line::skin_library::add_skin_to_library,

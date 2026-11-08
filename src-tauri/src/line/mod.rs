@@ -11,6 +11,8 @@ pub mod ipc;
 pub mod java;
 pub mod launch;
 pub mod launch_manifest;
+pub mod minecraft;
+pub mod minecraft_core;
 pub mod rollback;
 pub mod settings;
 pub mod skin_library;

@@ -124,12 +124,34 @@ fn read_index(dir: &Path) -> SkinLibrary {
     let Ok(mut library) = serde_json::from_slice::<SkinLibrary>(&bytes) else {
         return SkinLibrary::default();
     };
+    prune_library(&mut library);
+    library
+}
+
+/// `Option` has no `retain`. Keeps the slot only while `keep` holds for the id
+/// inside it, and clears it otherwise.
+pub fn keep_slot(slot: &mut Option<String>, keep: impl Fn(&str) -> bool) {
+    if !slot.as_deref().is_some_and(keep) {
+        *slot = None;
+    }
+}
+
+/// Repairs an index read from disk: invalid or surplus textures go, and the
+/// active/synced slots are cleared when they point at a skin that is gone.
+pub fn prune_library(library: &mut SkinLibrary) {
     library.skins.retain(|s| valid_skin_id(&s.id));
     library.skins.truncate(MAX_LIBRARY_SKINS);
     let known: Vec<String> = library.skins.iter().map(|s| s.id.clone()).collect();
-    library.active.retain(|id| known.contains(id));
-    library.synced.retain(|id| known.contains(id));
-    library
+    keep_slot(&mut library.active, |id| known.iter().any(|k| k == id));
+    keep_slot(&mut library.synced, |id| known.iter().any(|k| k == id));
+}
+
+/// Forgets a deleted texture everywhere. Clearing `synced` is what makes the
+/// next sync fall back to the standard look instead of pointing at lost bytes.
+pub fn forget_skin(library: &mut SkinLibrary, id: &str) {
+    library.skins.retain(|s| s.id != id);
+    keep_slot(&mut library.active, |active| active != id);
+    keep_slot(&mut library.synced, |synced| synced != id);
 }
 
 fn write_index(dir: &Path, library: &SkinLibrary) -> LineResult<()> {
@@ -231,11 +253,7 @@ pub async fn delete_skin_from_library(
     let library = tauri::async_runtime::spawn_blocking(move || -> LineResult<SkinLibrary> {
         let path = texture_path(&dir, &id)?;
         let mut library = read_index(&dir);
-        library.skins.retain(|s| s.id != id);
-        library.active.retain(|active| active != &id);
-        // Deleting the texture the account still wears must make the next sync
-        // fall back to the standard look instead of pointing at missing bytes.
-        library.synced.retain(|synced| synced != &id);
+        forget_skin(&mut library, &id);
         match std::fs::remove_file(&path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -474,6 +492,75 @@ mod tests {
         // Updating an existing texture must still work when the shelf is full.
         assert!(ensure_capacity(&library, &format!("{:064x}", 0)).is_ok());
         assert!(ensure_capacity(&library, &"f".repeat(64)).is_err());
+    }
+
+    fn skin_entry(id: &str) -> SkinEntry {
+        SkinEntry {
+            id: id.into(),
+            name: String::from("s"),
+            model: SkinModel::Classic,
+            width: 64,
+            height: 64,
+            size_bytes: 1,
+            added_at: 0,
+        }
+    }
+
+    #[test]
+    fn an_index_pointing_at_a_lost_texture_is_repaired_not_trusted() {
+        let keep = "a".repeat(64);
+        let mut library = SkinLibrary {
+            skins: vec![
+                skin_entry(&keep),
+                skin_entry("not-a-sha"),
+                skin_entry(&"b".repeat(64)),
+            ],
+            active: Some("c".repeat(64)),
+            synced: Some(keep.clone()),
+        };
+        prune_library(&mut library);
+        // The invalid id is gone, the good ones stay in order.
+        assert_eq!(library.skins.len(), 2);
+        assert_eq!(library.skins[0].id, keep);
+        // `active` pointed at a skin that is not on the shelf: cleared.
+        assert_eq!(library.active, None);
+        // `synced` still exists: kept, so the sync stays idempotent.
+        assert_eq!(library.synced, Some(keep));
+    }
+
+    #[test]
+    fn deleting_the_worn_skin_clears_both_slots() {
+        let id = "a".repeat(64);
+        let other = "b".repeat(64);
+        let mut library = SkinLibrary {
+            skins: vec![skin_entry(&id), skin_entry(&other)],
+            active: Some(id.clone()),
+            synced: Some(id.clone()),
+        };
+        forget_skin(&mut library, &id);
+        assert_eq!(library.skins.len(), 1);
+        assert_eq!(library.skins[0].id, other);
+        assert_eq!(library.active, None);
+        // Otherwise the next sync would think the deleted bytes are uploaded.
+        assert_eq!(library.synced, None);
+        // Deleting something else must not touch the current choice.
+        library.active = Some(other.clone());
+        library.synced = Some(other.clone());
+        forget_skin(&mut library, &id);
+        assert_eq!(library.active, Some(other.clone()));
+        assert_eq!(library.synced, Some(other));
+    }
+
+    #[test]
+    fn keep_slot_only_clears_when_the_predicate_fails() {
+        let mut slot = None;
+        keep_slot(&mut slot, |_| false);
+        assert_eq!(slot, None);
+        slot = Some(String::from("a"));
+        keep_slot(&mut slot, |id| id == "a");
+        assert_eq!(slot, Some(String::from("a")));
+        keep_slot(&mut slot, |id| id == "b");
+        assert_eq!(slot, None);
     }
 
     #[test]

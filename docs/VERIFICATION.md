@@ -5,7 +5,7 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (150 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (152 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
@@ -24,7 +24,7 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 42 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 46 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -232,6 +232,25 @@ Checked in the implementation sandbox:
   The registry itself cannot be queried from this Linux sandbox.
 
 Verified by CI (not reproducible in this sandbox):
+
+**First real `cargo run` (Windows 11, rustc 1.99.1, MSVC VS18, JDK 25).** The demo
+orchestrator itself worked end to end — packs built, provider served HTTPS,
+branding applied, Vite started, `cargo run --features dev-provider-ca` launched —
+and then the crate failed to compile. Five errors and one warning, all in code
+that no local check could see:
+
+- `Option::retain` does not exist (`skin_library.rs`, four call sites). The rule
+  now lives in `keep_slot`/`prune_library`/`forget_skin`, which the pure harness
+  compiles and unit-tests, so this cannot regress silently again.
+- `staging.join(relative)` moved the `PathBuf` that the new integrity index still
+  needed (`install.rs`); it now borrows.
+- `unused_mut` on the first `response` binding in `wardrobe.rs`.
+
+Two test-only defects were found by review while fixing those: the reserved-name
+test asserted the staging directory did not exist (the extractor creates it up
+front — it now asserts no file landed inside), and the symlink test called
+`symlink_file` unconditionally, which needs Developer Mode on Windows (it now
+skips with a message instead of failing).
 
 Crate archives cannot be downloaded from crates.io here, so the full graph was
 first compiled on GitHub Actions. As of PR #1 all ten jobs are green, including

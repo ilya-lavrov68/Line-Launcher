@@ -312,7 +312,7 @@ pub fn extract_verified_zip(
         check_cancelled(cancel)?;
         let mut entry = archive.by_index(index).map_err(zip_error)?;
         let relative = safe_entry_path(entry.name())?;
-        let target = staging.join(relative);
+        let target = staging.join(&relative);
         if entry.is_dir() {
             create_private_dir(&target)?;
             continue;

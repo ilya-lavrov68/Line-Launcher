@@ -251,6 +251,7 @@ fn a_pack_cannot_forge_the_integrity_index_or_the_marker() {
         let target = temp.path().join(reserved.trim_start_matches('.'));
         let error = extract_verified_zip(&zip, &target, 6, &cancel, |_| {}).unwrap_err();
         assert_eq!(error.code, ErrorCode::UnsafeArchive, "accepted {reserved}");
-        assert!(!target.exists());
+        // The staging directory itself is created up front; nothing may land in it.
+        assert!(!target.join(reserved).exists());
     }
 }

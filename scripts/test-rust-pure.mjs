@@ -204,6 +204,10 @@ const items = [
   attributed("skin_library.rs", "pub fn valid_skin_id("),
   attributed("skin_library.rs", "pub fn normalize_name("),
   attributed("skin_library.rs", "pub fn ensure_capacity("),
+  attributed("skin_library.rs", "fn texture_path("),
+  attributed("skin_library.rs", "pub fn keep_slot("),
+  attributed("skin_library.rs", "pub fn prune_library("),
+  attributed("skin_library.rs", "pub fn forget_skin("),
   plain("skin_library.rs", "enum SyncAction {"),
   attributed("skin_library.rs", "fn sync_action("),
 ];
@@ -261,6 +265,16 @@ const tests = [
   attributed("wardrobe.rs", "fn accepts_both_minecraft_skin_sizes("),
   attributed("wardrobe.rs", "fn rejects_wrong_dimensions_depth_and_interlace("),
   attributed("wardrobe.rs", "fn rejects_non_png_and_oversize("),
+  attributed("skin_library.rs", "fn skin_entry("),
+  attributed(
+    "skin_library.rs",
+    "fn an_index_pointing_at_a_lost_texture_is_repaired_not_trusted(",
+  ),
+  attributed("skin_library.rs", "fn deleting_the_worn_skin_clears_both_slots("),
+  attributed(
+    "skin_library.rs",
+    "fn keep_slot_only_clears_when_the_predicate_fails(",
+  ),
   attributed("skin_library.rs", "fn only_lowercase_sha256_is_a_valid_id("),
   attributed(
     "skin_library.rs",
@@ -555,6 +569,24 @@ fn harness_each_server_has_its_own_writable_game_directory() {
     assert_eq!(instance_game_dir(&one).unwrap(), a);
     assert_eq!(std::fs::read(a.join("options.txt")).unwrap(), b"fov:90");
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn harness_skin_texture_path_cannot_escape_the_library() {
+    let dir = Path::new("/data/skins");
+    let id = "a".repeat(64);
+    assert_eq!(
+        texture_path(dir, &id).unwrap(),
+        dir.join(format!("{id}.png"))
+    );
+    for bad in [
+        String::from("../evil"),
+        format!("../{}", "a".repeat(61)),
+        "A".repeat(64),
+        String::new(),
+    ] {
+        assert!(texture_path(dir, &bad).is_err(), "accepted {bad:?}");
+    }
 }
 
 #[test]

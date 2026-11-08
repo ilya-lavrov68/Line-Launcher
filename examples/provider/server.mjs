@@ -19,7 +19,7 @@ const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-const dir = path.join(root, ".provider");
+const dir = path.resolve(root, process.env.LINE_PROVIDER_DIR || ".provider");
 const port = Number(process.env.LINE_PROVIDER_PORT || 8443);
 // Loopback only. Use 127.0.0.1 rather than `localhost`: on some hosts
 // `localhost` resolves to ::1 first while this server binds IPv4.
@@ -81,10 +81,32 @@ if (!existsSync(keyPath) || !existsSync(certPath)) {
   console.log(`Created self-signed certificate: ${certPath}`);
 }
 
-const configBytes = readFileSync(path.join(dir, "config.json"));
-const packBytes = readFileSync(path.join(dir, "pack.zip"));
-const etag = `"${createHash("sha256").update(configBytes).digest("hex").slice(0, 32)}"`;
-const packSha = createHash("sha256").update(packBytes).digest("hex");
+/**
+ * The config is read per request, not cached at startup: `publish-release.mjs`
+ * rewrites it while this server runs, which is how the demo exercises
+ * update → install → rollback without restarting anything.
+ */
+function readConfig() {
+  const bytes = readFileSync(path.join(dir, "config.json"));
+  const etag = `"${createHash("sha256").update(bytes).digest("hex").slice(0, 32)}"`;
+  return { bytes, etag };
+}
+
+/**
+ * Only archives this demo published are served, and only by bare file name —
+ * a request can never walk out of `.provider/`.
+ */
+function packPath(name) {
+  if (!/^pack[a-z0-9.-]*\.zip$/.test(name)) return null;
+  const file = path.join(dir, name);
+  return existsSync(file) ? file : null;
+}
+
+function artPath(name) {
+  if (!/^[a-z0-9-]+\.svg$/.test(name)) return null;
+  const file = path.join(dir, "art", name);
+  return existsSync(file) ? file : null;
+}
 
 const accounts = new Map([[demoUser, demoPassword]]);
 const sessions = new Map(); // token -> {username, expiresAt}
@@ -190,25 +212,45 @@ const server = https.createServer(
     const url = new URL(req.url, `https://${host}:${port}`);
     try {
       if (req.method === "GET" && url.pathname === "/config.json") {
-        if (req.headers["if-none-match"] === etag) {
-          res.writeHead(304, { ETag: etag }).end();
+        const config = readConfig();
+        if (req.headers["if-none-match"] === config.etag) {
+          res.writeHead(304, { ETag: config.etag }).end();
           return;
         }
         res.writeHead(200, {
           "Content-Type": "application/json",
-          "Content-Length": configBytes.length,
-          ETag: etag,
+          "Content-Length": config.bytes.length,
+          ETag: config.etag,
         });
-        res.end(configBytes);
+        res.end(config.bytes);
         return;
       }
-      if (req.method === "GET" && url.pathname === "/pack.zip") {
+      if (req.method === "GET" && url.pathname.startsWith("/art/")) {
+        const file = artPath(url.pathname.slice("/art/".length));
+        if (!file) return json(res, 404, { error: "not_found" });
+        const bytes = readFileSync(file);
+        res.writeHead(200, {
+          "Content-Type": "image/svg+xml",
+          "Content-Length": bytes.length,
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-cache",
+        });
+        res.end(bytes);
+        return;
+      }
+      if (
+        req.method === "GET" &&
+        /^\/pack[a-z0-9.-]*\.zip$/.test(url.pathname)
+      ) {
+        const file = packPath(url.pathname.slice(1));
+        if (!file) return json(res, 404, { error: "not_found" });
+        const bytes = readFileSync(file);
         res.writeHead(200, {
           "Content-Type": "application/zip",
-          "Content-Length": packBytes.length,
-          ETag: `"${packSha}"`,
+          "Content-Length": bytes.length,
+          ETag: `"${createHash("sha256").update(bytes).digest("hex")}"`,
         });
-        res.end(packBytes);
+        res.end(bytes);
         return;
       }
       if (url.pathname === "/v1/launcher/skin") {
@@ -382,10 +424,22 @@ const server = https.createServer(
   },
 );
 
-server.listen(port, "127.0.0.1", () => {
+server.listen(port, host, () => {
   log(`Reference provider listening on https://${host}:${port}`);
   log(`Config URL: https://${host}:${port}/config.json`);
   log(`Demo account: ${demoUser} / ${demoPassword}`);
+  try {
+    const config = JSON.parse(readConfig().bytes.toString("utf8"));
+    log(`Project: ${config.provider.name}`);
+    for (const server of config.servers) {
+      log(
+        `  ${server.id.padEnd(10)} ${server.name} v${server.version}` +
+          `${server.auth?.launch_ticket_url ? "" : "  (без запуска)"}`,
+      );
+    }
+  } catch {
+    // A hand-written fixture config may be minimal; serving it is still fine.
+  }
   log("Development only — do not expose this server to a network.");
 });
 

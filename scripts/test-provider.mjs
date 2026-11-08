@@ -132,7 +132,12 @@ function runDemo(channel, trustStore, packDir) {
         "--version",
         "1.21.1",
       ],
-      { stdio: ["ignore", "pipe", "pipe"] },
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+        // The demo game stays alive for manual stop-button testing; the
+        // automated handshake check must not wait for that heartbeat.
+        env: { ...process.env, LINE_DEMO_SECONDS: "0" },
+      },
     );
     let stdout = "";
     let stderr = "";
@@ -263,7 +268,6 @@ try {
     body: {
       username: process.env.LINE_DEMO_USER || "Player_1",
       password: process.env.LINE_DEMO_PASSWORD || "demo-password",
-      server_id: "demo",
     },
   });
   check(login.status === 200, "demo login succeeds");

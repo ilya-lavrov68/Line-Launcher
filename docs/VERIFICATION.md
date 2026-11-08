@@ -53,6 +53,28 @@ Checked in the implementation sandbox:
   bearer ticket issuance, a real JVM demo game completing the private-IPC
   handshake and exchange, ticket never printed, replay rejected (409), binding
   mismatch rejected (403). Node plays the launcher IPC peer; Rust is not involved.
+- `npm run demo:check`: 59 checks over real HTTPS against the demo project the
+  user clicks through — config schema and ETag/304, every published sha256/size
+  and unpacked size verified against the served bytes, a valid launch manifest in
+  each pack, archive paths that cannot escape `.provider/`, SVG artwork with CORS,
+  registration/duplicate/wrong-password, **one account issuing tickets for two
+  different servers**, the wardrobe the launcher syncs automatically (upload,
+  read-back, byte-identical texture, repeat upload, reset), one-shot tickets
+  (exchange, replay 409, cross-server binding 403, anonymous 401), publishing a
+  second release while the provider keeps running with the previous one still
+  downloadable for rollback, and neither token nor ticket in the log. Needs only
+  Node and openssl; the launchable variant is checked additionally where a JDK
+  exists (skipped here).
+- `npm run demo -- --provider-only` exercised end to end in the sandbox: it built
+  the packs, baked the address, started the provider, verified `config.json` over
+  HTTPS, and on SIGTERM restored `branding/provider.json` **byte for byte** and
+  freed the port. `npm run demo:update` republished Demo Survival 1.0.0 → 1.1.0
+  while it ran and the provider served the new version without a restart. The
+  failure paths were checked too: no Rust → actionable message and untouched
+  branding; port already taken → exit 1 with a port hint and branding restored.
+  The desktop window itself cannot be opened here (no crates.io), so
+  `tauri dev --features dev-provider-ca` is the part that still needs a real
+  machine.
 - `npm run test:wardrobe`: 21 checks against the reference provider's skin contract
   over real HTTPS (self-signed cert pinned): missing/unknown bearer rejected, 404
   for a player without a skin, missing and unknown model rejected, wrong
@@ -113,7 +135,12 @@ Checked in the implementation sandbox:
   from the interface. Captured after this change: the single account screen, the
   server list unlocked by it, and the wardrobe with a sync status instead of a
   send button. 0 page errors.
-- Mutation-checked the new guarantees (12 mutations, all caught): clearing the
+- Demo-mode guarantees mutation-checked (7 of 7 caught): skipping the branding
+  restore, not passing `LINE_DEV_CA_CERT` to the app, serving arbitrary file names
+  from `.provider/`, caching the config at startup again (which breaks the live
+  update), advertising a launch on the install-only server, discarding the game
+  log, and inverting the demo game's run guard so the stop button is untestable.
+- Mutation-checked the account/sync guarantees (12 mutations, all caught): clearing the
   session in `selectServer`, putting `server_id` back into the login request or
   the Rust `AuthRequest`, turning the session back into a per-server map, making
   `logout` take a server id, restoring a manual send button, dropping the

@@ -144,7 +144,15 @@ fixture(
     JSON.stringify({
       schema_version: 1,
       min_launcher_version: "0.1.0",
-      provider: { id: "wardrobe-test", name: "Wardrobe Test" },
+      provider: {
+        id: "wardrobe-test",
+        name: "Wardrobe Test",
+        auth: { login_url: `${base}/v1/login` },
+        wardrobe: {
+          skin_url: `${base}/v1/launcher/skin`,
+          skin_upload_url: `${base}/v1/launcher/skin`,
+        },
+      },
       required_features: ["custom-auth-v1", "zip-sha256-v1", "skin-upload-v1"],
       servers: [
         {
@@ -152,13 +160,6 @@ fixture(
           name: "Demo",
           description: "fixture",
           version: "1.0.0",
-          auth: {
-            login_url: `${base}/v1/login`,
-          },
-          wardrobe: {
-            skin_url: `${base}/v1/launcher/skin`,
-            skin_upload_url: `${base}/v1/launcher/skin`,
-          },
           distribution: {
             url: `${base}/pack.zip`,
             sha256: "0".repeat(64),

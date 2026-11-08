@@ -10,21 +10,34 @@ end to end without a production backend.
 
 ## What it implements
 
-| Endpoint                              | Contract                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------- |
-| `GET /config.json`                    | Schema 1 config with ETag/304, pointing at the generated pack                         |
-| `GET /pack.zip`                       | The immutable archive whose SHA-256 is published in the config                        |
-| `POST /v1/login`, `POST /v1/register` | `{username, password, server_id}` → `{access_token, expires_in, username}`            |
-| `POST /v1/launcher/ticket`            | Bearer session → one-shot `{ticket, expires_in}` bound to server/release/channel/user |
-| `POST /v1/launcher/exchange`          | Consumes the ticket once; rejects replay (409), expiry (401), binding mismatch (403)  |
+| Endpoint                              | Contract                                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `GET /config.json`                    | Schema 1 config with ETag/304, pointing at the generated pack                            |
+| `GET /pack.zip`                       | The immutable archive whose SHA-256 is published in the config                           |
+| `POST /v1/login`, `POST /v1/register` | `{username, password}` → `{access_token, expires_in, username}`; one account per project |
+| `POST /v1/launcher/ticket`            | Bearer session → one-shot `{ticket, expires_in}` bound to server/release/channel/user    |
+| `POST /v1/launcher/exchange`          | Consumes the ticket once; rejects replay (409), expiry (401), binding mismatch (403)     |
 
 Every rejected exchange is logged with a reason, which makes it usable as an
 oracle during manual desktop testing.
 
 ## Run
 
+The easy path is one command from the repository root — it builds the demo,
+bakes the address, starts this provider, runs the desktop app with the local
+certificate trusted, and restores `branding/provider.json` on exit:
+
 ```sh
-node examples/provider/build-pack.mjs      # writes .provider/pack.zip + config
+npm run demo              # provider + app
+npm run demo:check        # verify this provider over HTTPS, no JDK/Rust needed
+npm run demo:update       # publish the second release (update + rollback)
+```
+
+See [docs/DEMO.md](../../docs/DEMO.md) for the click-through checklist. The
+manual steps below are for controlling each part separately:
+
+```sh
+node examples/provider/build-pack.mjs      # writes .provider/pack*.zip + config
 node examples/provider/server.mjs          # https://127.0.0.1:8443/config.json
 ```
 
@@ -59,8 +72,18 @@ section 3.2.
 ## Files
 
 - `build-pack.mjs` — compiles `DemoGame.java` + the reference `LineTicketClient`,
-  builds `client.jar`, writes the manifest and the archive, prints the hashes.
+  builds `client.jar`, writes the manifest and three archives (two Demo Survival
+  releases plus Demo Creative), generates server artwork and two ready-made skin
+  PNGs, and prints the hashes. `--no-java` builds an install-only demo when no
+  compiler is available.
 - `DemoGame.java` — minimal main class: requests the ticket, exchanges it, prints
   a redacted result, exits with 0 on success and 1 on failure.
-- `server.mjs` — the HTTPS provider described above.
-- Output goes to `.provider/` (gitignored).
+- `server.mjs` — the HTTPS provider described above. It re-reads `config.json`
+  per request, so a release can be published while it runs.
+- `publish-release.mjs` — switches Demo Survival between the two published
+  releases; the launcher then sees a new version and the old one stays available
+  for rollback.
+- `DemoGame.java` stays alive for `LINE_DEMO_SECONDS` (default 20) after the
+  handshake so the stop button can be exercised; the launcher keeps its output in
+  `instances/<server>/logs/launch.log`.
+- Output goes to `.provider/` (gitignored, override with `LINE_PROVIDER_DIR`).

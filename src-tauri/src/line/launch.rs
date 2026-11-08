@@ -427,13 +427,26 @@ pub async fn launch_game(
             heap_mb: preferences.heap_mb,
         };
         let args = build_java_command(&spec)?;
+        // Keep the game's own output instead of discarding it: a failed launch
+        // (missing class, mod handshake error) is otherwise invisible. The log
+        // lives in the server directory, never inside the immutable release,
+        // and is truncated per launch so it cannot grow without bound.
+        let log_dir = base.join("logs");
+        super::storage::create_private_dir(&log_dir)?;
+        let log_file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(log_dir.join("launch.log"))
+            .map_err(|e| LineError::io(&e))?;
+        let log_copy = log_file.try_clone().map_err(|e| LineError::io(&e))?;
         let mut command = tokio::process::Command::new(&args[0]);
         command
             .args(&args[1..])
             .current_dir(&game_dir)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stdout(Stdio::from(log_file))
+            .stderr(Stdio::from(log_copy))
             .kill_on_drop(true);
         #[cfg(windows)]
         {

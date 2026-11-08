@@ -4,12 +4,14 @@
 //! certificate. The launcher deliberately never disables certificate
 //! verification, so that provider is rejected out of the box.
 //!
-//! This module adds *one* extra trust anchor to this process only, via
-//! `ClientBuilder::add_root_certificate`. It does not touch the OS trust store,
-//! needs no administrator rights, and keeps every public root in place. The
-//! feature is not enabled by default and must never be enabled in a distributed
-//! build: a shipped launcher that trusts a repo-local CA could be used to
-//! man-in-the-middle pack downloads and auth tokens.
+//! This module adds one extra trust anchor to this process only, via
+//! `ClientBuilder::tls_certs_merge`. On Apple platforms the platform verifier
+//! cannot merge extra roots, so `tls_certs_only` replaces the store with just
+//! this CA instead. Either way certificate and hostname verification stay on.
+//! Nothing is written to the OS trust store and no administrator rights are
+//! needed. The feature is not enabled by default and must never be enabled in a
+//! distributed build: a shipped launcher that trusts a repo-local CA could be
+//! used to man-in-the-middle pack downloads and auth tokens.
 use super::error::{ErrorCode, LineError, LineResult};
 use std::path::{Path, PathBuf};
 
@@ -62,15 +64,6 @@ pub fn apply(builder: reqwest::ClientBuilder) -> LineResult<reqwest::ClientBuild
         }
     };
 
-    // reqwest's rustls platform verifier cannot take extra roots on macOS:
-    // ClientBuilder::build() would fail with an opaque "could not load extra
-    // certs". Fail early with something actionable instead.
-    if cfg!(target_os = "macos") {
-        return Err(bad_request(
-            "dev-provider-ca не поддерживается на macOS: добавьте .provider/tls.crt в System keychain (docs/RUNBOOK.md, раздел 3.2).",
-        ));
-    }
-
     let cwd = std::env::current_dir().ok();
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let candidates = candidate_paths(&raw, cwd.as_deref(), manifest_dir);
@@ -109,13 +102,24 @@ pub fn apply(builder: reqwest::ClientBuilder) -> LineResult<reqwest::ClientBuild
     }
 
     let count = certs.len();
-    let mut builder = builder;
-    for cert in certs {
-        builder = builder.add_root_certificate(cert);
-    }
+    // Windows and Linux merge the extra anchor into the platform verifier, so
+    // public HTTPS keeps working next to the local provider.
+    //
+    // Apple's verifier cannot take extra roots at all: reqwest would fail with
+    // "rustls-platform-verifier could not load extra certs". There the dev build
+    // trusts *only* this CA. Certificate and hostname verification stay fully
+    // enabled — it is a smaller trust store, never a bypass — which is why this
+    // feature must not ship.
+    let only = cfg!(target_os = "macos");
+    let builder = if only {
+        builder.tls_certs_only(certs)
+    } else {
+        builder.tls_certs_merge(certs)
+    };
     // Loud on purpose: this must never be mistaken for a normal run.
     eprintln!(
-        "[line] WARNING: dev-provider-ca active — trusting {count} extra root(s) from {}. Development only, never ship this build.",
+        "[line] WARNING: dev-provider-ca active — {} {count} root(s) from {}. Development only, never ship this build.",
+        if only { "trusting only" } else { "trusting extra" },
         resolved.display()
     );
     Ok(builder)

@@ -3,6 +3,8 @@
 //
 //   npm run demo                  # provider + desktop app (needs Rust)
 //   npm run demo -- --provider-only   # provider only, app started separately
+//   npm run demo:app              # attach the desktop app to that provider
+//   npm run demo:doctor           # check the whole chain, change nothing
 //   npm run demo -- --no-java     # skip the JDK: everything except launching
 //   npm run demo -- --port 8553   # another port when 8443 is busy
 //   npm run demo:update           # publish the second release (update/rollback)
@@ -26,6 +28,7 @@ import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { findOpenSsl, openSslHelp } from "./lib/find-openssl.mjs";
+import { inspectCertificate } from "./lib/demo-cert.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -38,6 +41,7 @@ const port = Number(
     8443,
 );
 const providerOnly = flags.has("--provider-only");
+const appOnly = flags.has("--app-only");
 const noJava = flags.has("--no-java");
 const skipDoctor = flags.has("--skip-doctor");
 const host = "127.0.0.1";
@@ -46,6 +50,7 @@ const configUrl = `${base}/config.json`;
 const dir = path.join(root, ".provider");
 const certPath = path.join(dir, "tls.crt");
 const brandFile = path.join(root, "branding", "provider.json");
+const stateFile = path.join(dir, "demo-state.json");
 
 const C = {
   dim: (s) => `\u001b[38;2;130;130;130m${s}\u001b[m`,
@@ -73,6 +78,107 @@ function run(cmd, args, options = {}) {
   return result.status ?? 1;
 }
 
+/** Reads what a running `--provider-only` session published. */
+function readDemoState() {
+  if (!existsSync(stateFile)) return null;
+  try {
+    return JSON.parse(readFileSync(stateFile, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** True when the demo provider answers on HTTPS with its own certificate. */
+function probeProvider(url, cert) {
+  return new Promise((resolve) => {
+    if (!existsSync(cert)) return resolve(false);
+    const request = https.get(
+      url,
+      { ca: readFileSync(cert), timeout: 5000 },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode === 200);
+      },
+    );
+    request.on("error", () => resolve(false));
+    request.on("timeout", () => {
+      request.destroy();
+      resolve(false);
+    });
+  });
+}
+
+/** Starts the desktop app against an already running demo provider. */
+async function runApp(state) {
+  step(
+    5,
+    "Запускаю приложение (первая сборка Rust может занять несколько минут)",
+  );
+  info("dev-provider-ca добавляет локальный сертификат только этому процессу");
+  const app = spawn(
+    process.execPath,
+    [
+      path.join(root, "scripts/tauri.mjs"),
+      "dev",
+      "--features",
+      "dev-provider-ca",
+    ],
+    {
+      cwd: root,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        LINE_PROVIDER_URL: state.configUrl,
+        LINE_PROVIDER_PORT: String(state.port),
+        LINE_DEV_CA_CERT: state.certPath,
+        LINE_DEMO_SECONDS: process.env.LINE_DEMO_SECONDS || "20",
+        LINE_SKIP_DOCTOR: "1",
+      },
+    },
+  );
+  return await new Promise((resolve) => {
+    app.once("exit", (value) => resolve(value ?? 0));
+    app.once("error", (error) => {
+      console.error(error.message);
+      resolve(1);
+    });
+  });
+}
+
+if (appOnly) {
+  const state = readDemoState();
+  if (!state) {
+    fail(
+      "Демо-провайдер не запущен.",
+      "Сначала в другом терминале: npm run demo -- --provider-only",
+    );
+  }
+  const cert = inspectCertificate(state.certPath, "127.0.0.1");
+  if (!cert.valid) {
+    fail(
+      `Сертификат демо непригоден: ${cert.reason}.`,
+      "Перезапустите провайдера: npm run demo -- --provider-only",
+    );
+  }
+  if (!(await probeProvider(state.configUrl, state.certPath))) {
+    fail(
+      `Провайдер не отвечает на ${state.configUrl}.`,
+      "Перезапустите его: npm run demo -- --provider-only",
+    );
+  }
+  console.log(`${C.green("✔")} Провайдер найден: ${C.bold(state.configUrl)}`);
+  if (
+    !skipDoctor &&
+    run(process.execPath, [path.join(root, "scripts/doctor.mjs")]) !== 0
+  ) {
+    fail(
+      "Окружение не готово к запуску приложения (обычно нет Rust).",
+      "Что именно не хватает: npm run demo:doctor. Установка с нуля: docs/BUILD.md",
+    );
+  }
+  process.exit(await runApp(state));
+}
+
 // ---------------------------------------------------------------- preflight
 step(1, "Проверяю окружение");
 const nodeMajor = Number(process.versions.node.split(".")[0]);
@@ -88,9 +194,10 @@ if (!openssl)
 info(`openssl ${openssl.version.split("\n")[0]} [${openssl.via}]`);
 
 if (process.platform === "darwin" && !providerOnly) {
-  fail(
-    "На macOS демо-сертификат нельзя подключить к процессу лаунчера.",
-    "Добавьте .provider/tls.crt в System keychain (docs/RUNBOOK.md, 3.2) и запустите npm run demo -- --provider-only, а приложение — обычным npm run tauri dev.",
+  // reqwest cannot merge an extra root into Apple's verifier, so the dev build
+  // trusts only the demo CA. Verification stays on; nothing enters the keychain.
+  info(
+    "macOS: демо-сборка доверяет только локальному сертификату, keychain не меняется",
   );
 }
 if (!providerOnly && !skipDoctor) {
@@ -98,7 +205,7 @@ if (!providerOnly && !skipDoctor) {
   if (doctor !== 0) {
     fail(
       "Окружение не готово к запуску приложения (обычно нет Rust).",
-      "Поставьте Rust stable и зависимости Tauri, либо запустите только провайдера: npm run demo -- --provider-only",
+      "Что именно не хватает: npm run demo:doctor. Установка с нуля: docs/BUILD.md. Только провайдер: npm run demo -- --provider-only",
     );
   }
 }
@@ -139,6 +246,7 @@ function restore() {
     );
     console.log(`\n${C.dim("branding/provider.json восстановлен")}`);
   }
+  if (brandChanged) rmSync(stateFile, { force: true });
   if (provider && provider.exitCode === null) {
     provider.kill("SIGTERM");
     // Windows has no SIGTERM semantics for a detached child; be firm.
@@ -229,21 +337,7 @@ if (!listening) {
 }
 
 // A listening socket is not proof of a working TLS + config path; ask it.
-const probe = await new Promise((resolve) => {
-  const request = https.get(
-    configUrl,
-    { ca: readFileSync(certPath), timeout: 5000 },
-    (response) => {
-      response.resume();
-      resolve(response.statusCode === 200);
-    },
-  );
-  request.on("error", () => resolve(false));
-  request.on("timeout", () => {
-    request.destroy();
-    resolve(false);
-  });
-});
+const probe = await probeProvider(configUrl, certPath);
 if (!probe) {
   restore();
   fail("Провайдер не отдал config.json по HTTPS.", providerLog.slice(-2000));
@@ -251,56 +345,34 @@ if (!probe) {
 
 const config = JSON.parse(readFileSync(path.join(dir, "config.json"), "utf8"));
 const launchable = config.servers.some((s) => s.auth?.launch_ticket_url);
+// `npm run demo:app` reads this instead of asking the user to export an env var
+// with shell-specific syntax.
+writeFileSync(
+  stateFile,
+  `${JSON.stringify({ configUrl, port, certPath, launchable, pid: provider.pid }, null, 2)}\n`,
+);
 console.log(`
 ${C.green("✔")} Демо-проект готов
       Адрес:        ${C.bold(configUrl)}
       Аккаунт:      ${C.bold("Player_1 / demo-password")} ${C.dim("(или зарегистрируйте свой)")}
       Серверы:      ${config.servers.map((s) => s.name).join(", ")}
       Запуск игры:  ${launchable ? C.green("включён") : C.yellow("выключен — нет JDK")}
-      Сертификат:   ${certPath}
+      Сертификат:   ${certPath} ${C.dim(`(годен до ${inspectCertificate(certPath, host).validTo})`)}
       Лог провайдера ниже показывает login / ticket / exchange / skin updated.
       Что нажимать: ${C.bold("docs/DEMO.md")}
       Обновление и откат: ${C.bold("npm run demo:update")} в другом терминале.`);
 
 if (providerOnly) {
   console.log(
-    `\n${C.dim("Провайдер работает. Приложение: npm run tauri dev -- --features dev-provider-ca")}` +
-      `\n${C.dim(`LINE_DEV_CA_CERT=${certPath}`)}\n${C.dim("Остановить: Ctrl+C")}`,
+    `\n${C.bold("Провайдер работает.")} Приложение — во втором терминале:` +
+      `\n\n      ${C.green("npm run demo:app")}\n` +
+      `\n${C.dim("Команда сама подставит сертификат — ничего экспортировать не нужно.")}` +
+      `\n${C.dim("Остановить провайдера: Ctrl+C в этом терминале.")}`,
   );
   await new Promise(() => {});
 }
 
 // ---------------------------------------------------------------- app
-step(
-  5,
-  "Запускаю приложение (первая сборка Rust может занять несколько минут)",
-);
-info("dev-provider-ca добавляет локальный сертификат только этому процессу");
-const app = spawn(
-  process.execPath,
-  [
-    path.join(root, "scripts/tauri.mjs"),
-    "dev",
-    "--features",
-    "dev-provider-ca",
-  ],
-  {
-    cwd: root,
-    stdio: "inherit",
-    env: {
-      ...packEnv,
-      LINE_DEV_CA_CERT: certPath,
-      LINE_DEMO_SECONDS: process.env.LINE_DEMO_SECONDS || "20",
-      LINE_SKIP_DOCTOR: "1",
-    },
-  },
-);
-const code = await new Promise((resolve) => {
-  app.once("exit", (value) => resolve(value ?? 0));
-  app.once("error", (error) => {
-    console.error(error.message);
-    resolve(1);
-  });
-});
+const code = await runApp({ configUrl, port, certPath });
 restore();
 process.exit(code);

@@ -1,7 +1,7 @@
 {
   "name": "line-launcher",
   "private": true,
-  "description": "Line Launcher by Plus In Plus \u2014 provider-configured Minecraft launcher",
+  "description": "Line Launcher by Plus In Plus — provider-configured Minecraft launcher",
   "version": "0.1.0",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
@@ -27,6 +27,8 @@
     "provider:pack": "node examples/provider/build-pack.mjs",
     "provider:serve": "node examples/provider/server.mjs",
     "demo": "node scripts/demo.mjs",
+    "demo:app": "node scripts/demo.mjs --app-only",
+    "demo:doctor": "node scripts/demo-doctor.mjs",
     "demo:update": "node examples/provider/publish-release.mjs",
     "demo:check": "node scripts/demo-selftest.mjs",
     "doctor": "node scripts/doctor.mjs",

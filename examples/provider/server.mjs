@@ -7,13 +7,12 @@
 //
 // Env: LINE_PROVIDER_PORT (8443), LINE_PROVIDER_HOST (127.0.0.1),
 //      LINE_DEMO_USER (Player_1), LINE_DEMO_PASSWORD (demo-password).
-import { spawnSync } from "node:child_process";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { findOpenSsl, openSslHelp } from "../../scripts/lib/find-openssl.mjs";
+import { ensureCertificate } from "../../scripts/lib/demo-cert.mjs";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -37,48 +36,18 @@ for (const file of ["pack.zip", "config.json"]) {
 }
 
 mkdirSync(dir, { recursive: true });
-const keyPath = path.join(dir, "tls.key");
-const certPath = path.join(dir, "tls.crt");
-if (!existsSync(keyPath) || !existsSync(certPath)) {
-  const openssl = findOpenSsl();
-  if (!openssl) {
-    console.error(openSslHelp());
-    process.exit(2);
-  }
-  if (openssl.via !== "PATH") {
-    console.log(`Using openssl from ${openssl.via}: ${openssl.path}`);
-  }
-  const result = spawnSync(
-    openssl.path,
-    [
-      "req",
-      "-x509",
-      "-newkey",
-      "rsa:2048",
-      "-nodes",
-      "-keyout",
-      keyPath,
-      "-out",
-      certPath,
-      "-days",
-      "30",
-      "-subj",
-      `/CN=${host}`,
-      "-addext",
-      "subjectAltName=DNS:localhost,IP:127.0.0.1",
-    ],
-    { encoding: "utf8" },
-  );
-  if (result.error || result.status !== 0) {
-    console.error(
-      `Не удалось создать сертификат разработки (${openssl.path}).\n` +
-        (result.stderr || String(result.error)) +
-        "\n" +
-        openSslHelp(),
-    );
-    process.exit(2);
-  }
-  console.log(`Created self-signed certificate: ${certPath}`);
+// Reuses the pair only while it is actually valid: `.provider/` survives between
+// demos and a 30-day certificate would otherwise expire silently.
+let cert;
+try {
+  cert = ensureCertificate(dir, host);
+} catch (error) {
+  console.error(error.message);
+  process.exit(2);
+}
+const { certPath, keyPath } = cert;
+if (cert.created) {
+  console.log(`Created self-signed certificate (${cert.reason}): ${certPath}`);
 }
 
 /**

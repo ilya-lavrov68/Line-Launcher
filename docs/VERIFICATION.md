@@ -5,7 +5,7 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (145 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (150 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
@@ -98,6 +98,28 @@ Checked in the implementation sandbox:
   game writing into the immutable release again, a real value instead of the token
   placeholder, missing `-Xss1M`, `--uuid` overridable, odd-length/duplicate/JVM
   game arguments accepted, and hidden progress notes.
+- Demo mode hardened after "it does not work" reports. Two real defects fixed:
+  the provider reused `.provider/tls.crt` forever, so a demo left for a month
+  failed with an expired certificate (now `scripts/lib/demo-cert.mjs` checks
+  expiry, clock skew and SAN with `X509Certificate` and reissues the pair), and
+  macOS was refused outright because reqwest cannot merge an extra root into
+  Apple's verifier (now the dev build uses `tls_certs_only` there — verification
+  stays on, the keychain is untouched; Windows/Linux keep `tls_certs_merge`,
+  confirmed against the reqwest 0.13.4/0.13.5 and rustls-platform-verifier
+  sources). `npm run demo:app` attaches the desktop app to a running
+  `--provider-only` session through `.provider/demo-state.json`, replacing the
+  POSIX-only `LINE_DEV_CA_CERT=...` hint that could not work in PowerShell.
+  `npm run demo:doctor` checks Node, dependencies, openssl, Rust, MSVC, WebView2,
+  JDK, the cargo feature, the port, the certificate and free space without
+  writing anything. Verified live here: provider-only run → state published →
+  `demo:app` found it and stopped at the missing-Rust doctor with an actionable
+  message → SIGTERM restored `branding/provider.json` byte for byte and removed
+  the state file. Certificate reissue was exercised on a real one-day cert.
+  **15/15 targeted mutations were caught**, including a disabled expiry branch
+  (caught behaviourally against PEM fixtures, not by grep), a surviving stale
+  key, a provider that reuses any existing file, an attach path that skips the
+  probe or the doctor, an unpinned probe, a doctor that writes files or exits 0,
+  and a dev build that disables verification.
 - `npm run test:wardrobe`: 21 checks against the reference provider's skin contract
   over real HTTPS (self-signed cert pinned): missing/unknown bearer rejected, 404
   for a player without a skin, missing and unknown model rejected, wrong

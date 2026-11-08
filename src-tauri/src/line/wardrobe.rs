@@ -134,7 +134,7 @@ pub async fn get_skin(state: State<'_, LineState>) -> LineResult<Option<SkinStat
     let session = state.session()?;
     let url = validate_https(&wardrobe.skin_url)?;
     let token = session.secret_token();
-    let mut response = http::get_bearer(&state.http, &url, &token).await?;
+    let response = http::get_bearer(&state.http, &url, &token).await?;
     if response.status().as_u16() == 404 {
         return Ok(None);
     }

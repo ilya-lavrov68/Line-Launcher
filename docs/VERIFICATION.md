@@ -1,11 +1,75 @@
 # Verification status
 
+## Current desktop-fix pass
+
+Minecraft mode (`mc-launcher-core` 0.1.2): server-only, offline identity, no
+Microsoft path. The pack is a provider ZIP of a whole `.minecraft`, described by
+`pack.json`; download/verify reuses the existing verified installer, and the live
+game directory is separate so player data and mod-config edits survive updates.
+Layout, loader detection and overlay rules are pure Rust with unit tests;
+`scripts/pack-manifest.mjs` is covered by tests that build real ZIP archives and
+cross-check the limits against `config.rs`. Auto-join is built here rather than through the crate's
+`LaunchOptions::server`, because Mojang removed `--server`/`--port` in 23w14a;
+the Quick Play path is chosen by exact-token detection in the merged version
+metadata and covered by pure Rust tests. the crate-facing code (install,
+load_version, LaunchOptions/LaunchCommand, Java runtime helpers, the exhaustive
+`LauncherError` mapping) was typechecked with `rustc` against a stand-in built
+from the crate's real 0.1.2 signatures. The dependency-free rules run in the pure
+Rust suite (4 new tests) and `tests/minecraft-mode.test.ts` guards the wiring
+(pinned version, prelude import, spawn_blocking, stable UUID, heap/argument
+hardening, Java fallback order, additive boundary). **The full cargo graph is
+still not built here** — `cargo check --all-targets` on a real machine remains
+required, and the Minecraft UI screen is not implemented yet.
+
+Follow-up to the first Windows `cargo run`: the stop branch now aborts the IPC
+handle only inside `if let Some(task) = &ipc_task`, and the unused `Path` import
+was removed. The new regression fails if the out-of-scope `task.abort()` returns.
+The demo generator also no longer attaches ticket/exchange URLs to offline
+Creative or install-only Showcase; the launchable config wiring was checked with
+a compiler stub (Survival=ticket, Creative=offline/no auth, Showcase=install-only).
+The next Windows error (`E0382`, moved `task`) is fixed by reborrowing the handle
+in the select arm and grace timeout (`&mut *task`), matching the previously
+compiling non-optional monitor; a regression catches a moved `result = task`.
+
+Checked in the implementation sandbox after the Java/UI/demo/offline changes:
+
+- `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
+  and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm test`: **185 tests, 184 passing, 1 skipped** (the JDK-dependent contract
+  case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
+  regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
+  doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
+  offline mode, accepted dev release flags, the Windows `task` scope error, and
+  ticket endpoints leaking into offline/install-only demo servers).
+- `npm run test:rust`: **66/66** compiled pure-logic tests, including PATH entries
+  that already end in `bin`, verbatim Windows path normalisation, stdout/stderr
+  version parsing and the offline Java command without a session-channel property.
+  This is still not a full `cargo check` of the async/Tauri crate graph.
+- `npm run test:ui`: passed in real Chromium (99 IPC calls, 0 page errors),
+  including the manual Adoptium-style path, unframed icons, the removed upload
+  plus, per-server install receipts and an explicit offline server launch.
+  `npm run test:boot`: passed; `npm run screenshots` regenerated the guide images.
+- `npm run demo:check`: **59 checks passed, 1 skipped** (no JDK here, so the
+  launchable/offline pack variant is not built in this run). `npm run
+test:wardrobe`: **21/21**. The real-JVM `test:java`/`test:provider` suites were
+  verified in earlier passes but could not be rerun in this sandbox because no
+  JDK/keytool is installed now; their historical results below are not a claim
+  about this run.
+
+Still required on the Windows machine: `cargo check --manifest-path
+src-tauri/Cargo.toml --all-targets`, `cargo test --locked --manifest-path
+src-tauri/Cargo.toml`, `npm run demo` with the installed Adoptium JDK, and a real
+provider-pack install/launch. No pirate Minecraft downloader or license bypass
+was added; offline mode launches only the provider's own published ZIP.
+
+## Earlier verification history
+
 Checked in the implementation sandbox:
 
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (150 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (then 152 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
@@ -24,7 +88,7 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 42 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: then 46 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -232,6 +296,25 @@ Checked in the implementation sandbox:
   The registry itself cannot be queried from this Linux sandbox.
 
 Verified by CI (not reproducible in this sandbox):
+
+**First real `cargo run` (Windows 11, rustc 1.99.1, MSVC VS18, JDK 25).** The demo
+orchestrator itself worked end to end — packs built, provider served HTTPS,
+branding applied, Vite started, `cargo run --features dev-provider-ca` launched —
+and then the crate failed to compile. Five errors and one warning, all in code
+that no local check could see:
+
+- `Option::retain` does not exist (`skin_library.rs`, four call sites). The rule
+  now lives in `keep_slot`/`prune_library`/`forget_skin`, which the pure harness
+  compiles and unit-tests, so this cannot regress silently again.
+- `staging.join(relative)` moved the `PathBuf` that the new integrity index still
+  needed (`install.rs`); it now borrows.
+- `unused_mut` on the first `response` binding in `wardrobe.rs`.
+
+Two test-only defects were found by review while fixing those: the reserved-name
+test asserted the staging directory did not exist (the extractor creates it up
+front — it now asserts no file landed inside), and the symlink test called
+`symlink_file` unconditionally, which needs Developer Mode on Windows (it now
+skips with a message instead of failing).
 
 Crate archives cannot be downloaded from crates.io here, so the full graph was
 first compiled on GitHub Actions. As of PR #1 all ten jobs are green, including

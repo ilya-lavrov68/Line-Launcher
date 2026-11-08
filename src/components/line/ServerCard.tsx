@@ -19,7 +19,7 @@ export interface ServerCardProps {
 /**
  * Server card. Directly follows Obsy's StoreAddonCard / InstalledAddonCard:
  * `border-border/40 bg-card/60 rounded-xl border p-3.5 backdrop-blur-sm`,
- * `bg-primary/10 text-primary border-primary/20` icon tile, muted meta text and
+ * an unframed provider logo, muted meta text and
  * the emerald update/status badge. A real Button supplies keyboard, focus and
  * disabled semantics; there are no nested interactive elements.
  */
@@ -65,7 +65,7 @@ export default function ServerCard({
             <img
               src={bannerUrl}
               alt=""
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
               loading="lazy"
               referrerPolicy="no-referrer"
               onError={() => setBannerFailed(true)}
@@ -73,7 +73,10 @@ export default function ServerCard({
           </div>
         )}
         <div className="flex items-start justify-between gap-3">
-          <div className="bg-primary/10 text-primary border-primary/20 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
+          <div
+            data-line-icon
+            className="text-primary flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden"
+          >
             {iconUrl && !imageFailed ? (
               <img
                 src={iconUrl}
@@ -84,17 +87,17 @@ export default function ServerCard({
                 onError={() => setImageFailed(true)}
               />
             ) : (
-              <Server className="h-5 w-5" />
+              <Server className="h-7 w-7" />
             )}
           </div>
           {installed ? (
             <span className="inline-flex items-center gap-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400">
-              <Check className="h-3 w-3" aria-hidden="true" />
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Установлен</span>
             </span>
           ) : (
             <ArrowUpRight
-              className="text-muted-foreground h-4 w-4"
+              className="text-muted-foreground h-5 w-5"
               aria-hidden="true"
             />
           )}

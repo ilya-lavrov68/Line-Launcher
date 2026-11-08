@@ -1,7 +1,8 @@
 import { Check, Coffee, MemoryStick, RefreshCw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import type {
   SettingsSnapshot,
 } from "@/types/line";
 import { cn } from "@/lib/utils";
+import SectionIcon from "@/components/line/SectionIcon";
 
 export interface SettingsScreenProps {
   snapshot: SettingsSnapshot;
@@ -56,9 +58,7 @@ function Section({
   return (
     <section className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
       <div className="flex items-start gap-3">
-        <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </div>
+        <SectionIcon icon={Icon} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <h3 className="text-foreground text-sm font-semibold">{title}</h3>
           <p className="text-muted-foreground text-xs leading-relaxed">
@@ -87,6 +87,10 @@ export default function SettingsScreen({
   const { settings, heapCeilingMb, suggestedHeapMb, totalMemoryMb } = snapshot;
   const [runtimes, setRuntimes] = useState<JavaRuntimeInfo[]>([]);
   const [javaLoading, setJavaLoading] = useState(true);
+  const [javaChecking, setJavaChecking] = useState(false);
+  const [javaSearchError, setJavaSearchError] = useState<string>();
+  const [javaPathInput, setJavaPathInput] = useState(settings.javaPath ?? "");
+  const javaRequest = useRef(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -96,23 +100,67 @@ export default function SettingsScreen({
     setHeap(settings.heapMb ?? suggestedHeapMb);
   }, [settings.heapMb, suggestedHeapMb]);
 
+  const refreshRuntimes = useCallback(async () => {
+    const ticket = ++javaRequest.current;
+    setJavaLoading(true);
+    setJavaSearchError(undefined);
+    try {
+      const list = await lineApi.javaRuntimes();
+      // A manually verified JDK need not be on PATH or in a vendor directory.
+      if (
+        settings.javaPath &&
+        !list.some((r) => r.path === settings.javaPath)
+      ) {
+        try {
+          list.push(await lineApi.probeJavaPath(settings.javaPath));
+        } catch (cause) {
+          if (ticket === javaRequest.current)
+            setJavaSearchError(errorMessage(cause));
+        }
+      }
+      if (ticket === javaRequest.current) setRuntimes(list);
+    } catch (cause) {
+      if (ticket === javaRequest.current)
+        setJavaSearchError(errorMessage(cause));
+    } finally {
+      if (ticket === javaRequest.current) setJavaLoading(false);
+    }
+  }, [settings.javaPath]);
+
   useEffect(() => {
-    let mounted = true;
-    void lineApi
-      .javaRuntimes()
-      .then((list) => {
-        if (mounted) setRuntimes(list);
-      })
-      .catch((cause) => {
-        if (mounted) setError(errorMessage(cause));
-      })
-      .finally(() => {
-        if (mounted) setJavaLoading(false);
-      });
+    void refreshRuntimes();
     return () => {
-      mounted = false;
+      javaRequest.current += 1;
     };
-  }, []);
+  }, [refreshRuntimes]);
+
+  async function chooseJavaPath() {
+    if (busy || !javaPathInput.trim()) return;
+    setJavaChecking(true);
+    setError(undefined);
+    setNotice(undefined);
+    try {
+      const runtime = await lineApi.probeJavaPath(javaPathInput.trim());
+      const next = await lineApi.saveSettings({
+        ...settings,
+        javaPath: runtime.path,
+      });
+      onChange(next);
+      setRuntimes((previous) => [
+        runtime,
+        ...previous.filter((r) => r.path !== runtime.path),
+      ]);
+      setJavaPathInput(next.settings.javaPath ?? runtime.path);
+      setJavaSearchError(undefined);
+      setNotice(
+        `Java ${runtime.major} (${runtime.version}) проверена и выбрана для запуска.`,
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setJavaChecking(false);
+    }
+  }
 
   async function persist(next: LauncherSettings) {
     setSaving(true);
@@ -150,7 +198,7 @@ export default function SettingsScreen({
     }
   }
 
-  const busy = disabled || saving;
+  const busy = disabled || saving || javaChecking;
   const automatic = settings.heapMb === null;
 
   return (
@@ -178,7 +226,7 @@ export default function SettingsScreen({
           role="status"
           className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400"
         >
-          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{notice}</span>
         </p>
       )}
@@ -247,7 +295,7 @@ export default function SettingsScreen({
               })
             }
           >
-            <SelectTrigger className="w-full text-xs">
+            <SelectTrigger id="java-runtime" className="w-full text-xs">
               <SelectValue>
                 {(value: string | null) =>
                   javaLoading
@@ -274,11 +322,74 @@ export default function SettingsScreen({
               {settings.javaPath}
             </p>
           )}
-          {!javaLoading && runtimes.length === 0 && (
-            <p className="text-xs text-amber-300">
-              Java не найдена. Установите JDK или задайте JAVA_HOME.
+          {javaSearchError && (
+            <p
+              role="alert"
+              className="text-destructive text-xs leading-relaxed"
+            >
+              {javaSearchError}
             </p>
           )}
+          {!javaLoading && runtimes.length === 0 && !javaSearchError && (
+            <p className="text-xs leading-relaxed text-amber-300">
+              Автоматический поиск не нашёл доступную Java. Если JDK установлен,
+              укажите путь ниже или повторите поиск.
+            </p>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy || javaLoading}
+            onClick={() => void refreshRuntimes()}
+            className="text-muted-foreground cursor-pointer self-start text-xs"
+          >
+            <RefreshCw
+              className={javaLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+              aria-hidden="true"
+            />
+            {javaLoading ? "Проверяем Java…" : "Повторить поиск Java"}
+          </Button>
+          <div className="border-border/40 flex flex-col gap-2 border-t pt-3">
+            <Label
+              htmlFor="java-path"
+              className="text-muted-foreground text-xs"
+            >
+              Или укажите установленную Java вручную
+            </Label>
+            <Input
+              id="java-path"
+              value={javaPathInput}
+              disabled={busy}
+              onChange={(event) => setJavaPathInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void chooseJavaPath();
+                }
+              }}
+              placeholder="C:\Program Files\Eclipse Adoptium\jdk-25…\bin\java.exe"
+              spellCheck={false}
+              autoComplete="off"
+              className="font-mono text-xs"
+              aria-describedby="java-path-help"
+            />
+            <p
+              id="java-path-help"
+              className="text-muted-foreground text-[11px] leading-relaxed"
+            >
+              Полный путь к java.exe, папке bin или JDK. Лаунчер проверит его
+              запуском java -version; переустанавливать Java не нужно.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy || !javaPathInput.trim()}
+              onClick={() => void chooseJavaPath()}
+              className="cursor-pointer self-start text-xs"
+            >
+              {javaChecking ? "Проверяем путь…" : "Проверить и выбрать"}
+            </Button>
+          </div>
         </div>
       </Section>
 

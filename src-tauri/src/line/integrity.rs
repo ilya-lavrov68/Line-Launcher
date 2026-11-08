@@ -469,9 +469,15 @@ mod filesystem_tests {
         fs::write(&outside, b"outside").unwrap();
         fs::remove_file(release.join("client.jar")).unwrap();
         #[cfg(unix)]
-        std::os::unix::fs::symlink(&outside, release.join("client.jar")).unwrap();
+        let linked = std::os::unix::fs::symlink(&outside, release.join("client.jar"));
         #[cfg(windows)]
-        std::os::windows::fs::symlink_file(&outside, release.join("client.jar")).unwrap();
+        let linked = std::os::windows::fs::symlink_file(&outside, release.join("client.jar"));
+        if linked.is_err() {
+            // Windows only allows symlinks with Developer Mode or elevation.
+            // The guard is still covered on Linux/macOS and by the pure tests.
+            eprintln!("skipped: creating a symlink is not permitted here");
+            return;
+        }
         assert!(scan(&release).is_err());
         assert_eq!(fs::read(&outside).unwrap(), b"outside");
     }

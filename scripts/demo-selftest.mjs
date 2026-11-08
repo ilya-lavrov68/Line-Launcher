@@ -217,7 +217,8 @@ try {
     );
   }
   check(
-    config.servers.find((s) => s.id === "showcase").auth === undefined,
+    config.servers.find((s) => s.id === "showcase").auth === undefined &&
+      config.servers.find((s) => s.id === "showcase").launch_mode === undefined,
     "the showcase server advertises no launch, so the UI can explain it",
   );
 
@@ -447,17 +448,25 @@ try {
     const fullConfig = JSON.parse(
       readFileSync(path.join(dir, "full", "config.json"), "utf8"),
     );
-    for (const id of ["demo", "creative"]) {
-      const server = fullConfig.servers.find((s) => s.id === id);
-      check(
-        Boolean(
-          server.auth?.launch_ticket_url && server.auth?.session_exchange_url,
-        ),
-        `${id}: launch endpoints are published as a pair`,
-      );
-    }
+    const survival = fullConfig.servers.find((s) => s.id === "demo");
     check(
-      fullConfig.servers.find((s) => s.id === "showcase").auth === undefined,
+      Boolean(
+        survival.auth?.launch_ticket_url && survival.auth?.session_exchange_url,
+      ),
+      "demo: ticket endpoints are published as a pair",
+    );
+    const creative = fullConfig.servers.find((s) => s.id === "creative");
+    check(
+      creative.launch_mode === "offline" && creative.auth === undefined,
+      "creative: explicit offline launch needs no ticket endpoints",
+    );
+    check(
+      fullConfig.required_features.includes("offline-launch-v1"),
+      "old launchers must reject the new offline capability instead of guessing",
+    );
+    const showcase = fullConfig.servers.find((s) => s.id === "showcase");
+    check(
+      showcase.auth === undefined && showcase.launch_mode === undefined,
       "the showcase server stays install-only even with a JDK",
     );
   } else {

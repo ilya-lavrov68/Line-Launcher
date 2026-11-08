@@ -520,3 +520,33 @@ test("one account per project unlocks every server", () => {
   assert.match(shell, /await lineApi\.logout\(\)/);
   assert.match(shell, /onLogout=\{/);
 });
+
+// Regression: `Option` has no `retain`. This compiled nowhere locally (the pure
+// harness skipped it, CI was unavailable) and broke the first real `cargo run`
+// on Windows. The rule now lives in helpers the harness compiles and tests.
+test("skin index slots are repaired by compiled helpers, not Option::retain", () => {
+  const library = read("src-tauri/src/line/skin_library.rs");
+  assert.doesNotMatch(library, /\.(active|synced)\.retain\(/);
+  for (const helper of [
+    "keep_slot",
+    "prune_library",
+    "forget_skin",
+    "texture_path",
+  ]) {
+    assert.match(library, new RegExp(`fn ${helper}\\(`));
+    // Must stay inside the subset that `npm run test:rust` actually compiles.
+    assert.ok(
+      read("scripts/test-rust-pure.mjs").includes(`fn ${helper}("`),
+      `${helper} is no longer compiled by the pure Rust harness`,
+    );
+  }
+  assert.match(library, /prune_library\(&mut library\);/);
+  assert.match(library, /forget_skin\(&mut library, &id\);/);
+});
+
+test("the extractor keeps the entry path alive for the integrity index", () => {
+  const install = read("src-tauri/src/line/install.rs");
+  // `staging.join(relative)` moved the PathBuf and broke the index write.
+  assert.match(install, /let target = staging\.join\(&relative\);/);
+  assert.match(install, /path: relative\.to_string_lossy\(\)/);
+});

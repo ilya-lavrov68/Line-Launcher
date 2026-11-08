@@ -99,7 +99,7 @@ const shim = `
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -143,7 +143,41 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
+  attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
+  attributed("minecraft_core.rs", "pub fn validate_instance_id("),
+  attributed("minecraft_core.rs", "pub fn validate_version_id("),
+  attributed("minecraft_core.rs", "pub fn validate_loader("),
+  attributed("minecraft_core.rs", "pub fn apply_heap("),
+  attributed("minecraft_core.rs", "pub fn reject_dangerous_args("),
+  attributed("minecraft_core.rs", "pub const DEFAULT_SERVER_PORT:"),
+  attributed("minecraft_core.rs", "pub const QUICK_PLAY_MULTIPLAYER:"),
+  attributed("minecraft_core.rs", "fn parse_port("),
+  attributed("minecraft_core.rs", "pub fn validate_server_address("),
+  attributed("minecraft_core.rs", "pub fn has_quick_play_token("),
+  attributed("minecraft_core.rs", "pub fn server_join_args("),
+  attributed("minecraft_core.rs", "pub fn ensure_server_join("),
+  attributed("instance.rs", "pub const GAME_MARKERS:"),
+  attributed("instance.rs", "pub const USER_DATA_PREFIXES:"),
+  attributed("instance.rs", "pub const KEEP_LOCAL_FILES:"),
+  attributed("instance.rs", "pub fn normalize_rel("),
+  attributed("instance.rs", "fn marker_present("),
+  attributed("instance.rs", "pub fn find_game_prefix("),
+  attributed("instance.rs", "pub fn version_profile_ids("),
+  attributed("instance.rs", "pub fn choose_version("),
+  attributed("instance.rs", "pub fn maven_parts("),
+  attributed("instance.rs", "pub fn loader_from_libraries("),
+  attributed("instance.rs", "pub fn loader_from_main_class("),
+  attributed("instance.rs", "pub fn is_user_data("),
+  attributed("instance.rs", "pub fn keep_local("),
+  attributed("instance.rs", "pub fn overlay_removals("),
+  attributed("instance.rs", "pub fn missing_parts("),
   attributed("install.rs", "pub fn safe_entry_path("),
+  attributed("java.rs", "fn java_name("),
+  plain("java.rs", "pub struct JavaRuntime {"),
+  attributed("java.rs", "pub fn process_path("),
+  attributed("java.rs", "pub fn validate_path("),
+  attributed("java.rs", "fn push_java_candidates("),
   attributed("java.rs", "pub fn parse_java_version("),
   attributed("launch.rs", "pub struct LaunchSpec {"),
   attributed("launch.rs", "pub const MIN_HEAP_MB:"),
@@ -204,6 +238,10 @@ const items = [
   attributed("skin_library.rs", "pub fn valid_skin_id("),
   attributed("skin_library.rs", "pub fn normalize_name("),
   attributed("skin_library.rs", "pub fn ensure_capacity("),
+  attributed("skin_library.rs", "fn texture_path("),
+  attributed("skin_library.rs", "pub fn keep_slot("),
+  attributed("skin_library.rs", "pub fn prune_library("),
+  attributed("skin_library.rs", "pub fn forget_skin("),
   plain("skin_library.rs", "enum SyncAction {"),
   attributed("skin_library.rs", "fn sync_action("),
 ];
@@ -213,6 +251,65 @@ const tests = [
   installTestPrelude,
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
+  attributed(
+    "minecraft_core.rs",
+    "fn server_addresses_parse_host_port_and_ipv6(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn quick_play_detection_requires_the_exact_token(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn modern_clients_get_quick_play_and_legacy_ones_get_server_port(",
+  ),
+  attributed("minecraft_core.rs", "fn join_arguments_are_never_duplicated("),
+  attributed("instance.rs", "fn paths("),
+  attributed(
+    "instance.rs",
+    "fn relative_paths_refuse_traversal_and_absolute_forms(",
+  ),
+  attributed(
+    "instance.rs",
+    "fn game_directory_is_found_plain_wrapped_and_named(",
+  ),
+  attributed("instance.rs", "fn version_profiles_are_paired_with_their_json("),
+  attributed(
+    "instance.rs",
+    "fn profile_choice_prefers_the_hint_then_the_single_loader(",
+  ),
+  attributed(
+    "instance.rs",
+    "fn loader_comes_from_coordinates_and_beats_the_ambiguous_main_class(",
+  ),
+  attributed("instance.rs", "fn pack_updates_never_delete_player_data("),
+  attributed("instance.rs", "fn personal_settings_survive_an_update("),
+  attributed(
+    "instance.rs",
+    "fn missing_runtime_parts_separate_full_instances_from_mods_only(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn loader_selection_defaults_to_latest_stable(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn heap_replaces_metadata_memory_flags_exactly_once(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn metadata_cannot_inject_an_agent_or_hijack_the_ipc_namespace(",
+  ),
+  attributed(
+    "java.rs",
+    "fn path_bin_directory_finds_java_without_doubling_bin(",
+  ),
+  attributed(
+    "java.rs",
+    "fn verbatim_drive_prefix_is_removed_but_unc_is_preserved(",
+  ),
+  attributed("java.rs", "fn version_banners_do_not_hide_a_valid_version("),
   attributed("launch.rs", "fn abs("),
   attributed("launch.rs", "fn spec()"),
   attributed(
@@ -230,6 +327,10 @@ const tests = [
   attributed(
     "launch.rs",
     "fn pack_arguments_cannot_override_the_launcher_owned_ones(",
+  ),
+  attributed(
+    "launch.rs",
+    "fn offline_command_has_no_session_channel_or_ticket_requirement(",
   ),
   attributed("launch.rs", "fn uuid_formatting_sets_version_and_variant_bits("),
   attributed(
@@ -261,6 +362,16 @@ const tests = [
   attributed("wardrobe.rs", "fn accepts_both_minecraft_skin_sizes("),
   attributed("wardrobe.rs", "fn rejects_wrong_dimensions_depth_and_interlace("),
   attributed("wardrobe.rs", "fn rejects_non_png_and_oversize("),
+  attributed("skin_library.rs", "fn skin_entry("),
+  attributed(
+    "skin_library.rs",
+    "fn an_index_pointing_at_a_lost_texture_is_repaired_not_trusted(",
+  ),
+  attributed("skin_library.rs", "fn deleting_the_worn_skin_clears_both_slots("),
+  attributed(
+    "skin_library.rs",
+    "fn keep_slot_only_clears_when_the_predicate_fails(",
+  ),
   attributed("skin_library.rs", "fn only_lowercase_sha256_is_a_valid_id("),
   attributed(
     "skin_library.rs",
@@ -555,6 +666,24 @@ fn harness_each_server_has_its_own_writable_game_directory() {
     assert_eq!(instance_game_dir(&one).unwrap(), a);
     assert_eq!(std::fs::read(a.join("options.txt")).unwrap(), b"fov:90");
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn harness_skin_texture_path_cannot_escape_the_library() {
+    let dir = Path::new("/data/skins");
+    let id = "a".repeat(64);
+    assert_eq!(
+        texture_path(dir, &id).unwrap(),
+        dir.join(format!("{id}.png"))
+    );
+    for bad in [
+        String::from("../evil"),
+        format!("../{}", "a".repeat(61)),
+        "A".repeat(64),
+        String::new(),
+    ] {
+        assert!(texture_path(dir, &bad).is_err(), "accepted {bad:?}");
+    }
 }
 
 #[test]

@@ -8,3 +8,4 @@ export interface BuildPass {
 
 /** Bundling passes for a platform, in order. */
 export declare function buildPasses(platform: string): BuildPass[];
+export function assertReleaseArgs(args: string[]): void;

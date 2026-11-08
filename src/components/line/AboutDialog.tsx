@@ -43,14 +43,14 @@ export default function AboutDialog({
             />
           }
         >
-          <Info className="h-4 w-4" />
+          <Info data-line-icon className="h-6 w-6" />
           <span className="sr-only">О программе / About</span>
         </DialogTrigger>
       )}
       <DialogContent className="p-5 sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">
-            <BrandMark className="h-5 w-5" />
+            <BrandMark className="h-6 w-6" />
             {brand.name}
           </DialogTitle>
         </DialogHeader>

@@ -88,7 +88,16 @@ test("the demo project is one account with three servers and two releases", () =
   assert.match(build, /packs\.json/);
   // Without a JDK the demo degrades honestly instead of failing at spawn.
   assert.match(build, /--no-java/);
-  assert.match(build, /\.\.\.\(launchable \? \{ auth: launchAuth \} : \{\}\)/);
+  assert.match(
+    build,
+    /launchable && !offline && !installOnly \? \{ auth: launchAuth \} : \{\}/,
+  );
+  assert.match(
+    build,
+    /const offline = launchable && launch_mode === "offline"/,
+  );
+  assert.match(build, /const installOnly = id === "showcase"/);
+  assert.match(build, /offline \? \{ launch_mode: "offline" \} : \{\}/);
   // Ready-made textures, so the wardrobe is testable immediately.
   assert.match(build, /demo-classic\.png/);
   assert.match(build, /demo-slim\.png/);

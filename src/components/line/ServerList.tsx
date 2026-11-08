@@ -55,7 +55,7 @@ export default function ServerList({
           className="flex cursor-pointer items-center gap-1.5 text-xs"
         >
           <RefreshCw
-            className={refreshing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"}
+            className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
             aria-hidden="true"
           />
           <span>{refreshing ? "Обновление…" : "Обновить"}</span>
@@ -67,7 +67,7 @@ export default function ServerList({
           role="status"
           className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
         >
-          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Показана сохранённая конфигурация. Для входа и установки требуется
             актуальная конфигурация и доступ к провайдеру.

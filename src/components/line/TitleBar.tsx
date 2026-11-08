@@ -61,7 +61,7 @@ export default function TitleBar({ context }: TitleBarProps) {
         data-tauri-drag-region
         className="pointer-events-none flex min-w-0 items-center gap-2"
       >
-        <BrandMark className="h-4 w-4" />
+        <BrandMark className="h-5 w-5" />
         <span
           data-tauri-drag-region
           className="text-foreground truncate text-xs font-semibold tracking-tight"
@@ -94,7 +94,7 @@ export default function TitleBar({ context }: TitleBarProps) {
             aria-label="Свернуть окно"
             className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
           >
-            <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+            <Minus className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
@@ -104,9 +104,9 @@ export default function TitleBar({ context }: TitleBarProps) {
             className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
           >
             {maximized ? (
-              <Copy className="h-3 w-3" aria-hidden="true" />
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             ) : (
-              <Square className="h-3 w-3" aria-hidden="true" />
+              <Square className="h-3.5 w-3.5" aria-hidden="true" />
             )}
           </Button>
           <Button
@@ -116,7 +116,7 @@ export default function TitleBar({ context }: TitleBarProps) {
             aria-label="Закрыть окно"
             className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
           >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       )}

@@ -23,9 +23,11 @@ export default function ConnectingScreen({
   if (unconfigured) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
-          <AlertTriangle className="h-5 w-5" aria-hidden="true" />
-        </div>
+        <AlertTriangle
+          data-line-icon
+          className="h-7 w-7 text-amber-400"
+          aria-hidden="true"
+        />
         <h2 className="text-foreground text-lg font-bold tracking-tight">
           Сборка не настроена
         </h2>
@@ -44,13 +46,19 @@ export default function ConnectingScreen({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 text-center">
-      <div className="bg-primary/10 text-primary border-primary/20 flex h-10 w-10 items-center justify-center rounded-xl border">
-        {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-        ) : (
-          <Server className="h-5 w-5" aria-hidden="true" />
-        )}
-      </div>
+      {loading ? (
+        <Loader2
+          data-line-icon
+          className="text-primary h-7 w-7 animate-spin"
+          aria-hidden="true"
+        />
+      ) : (
+        <Server
+          data-line-icon
+          className="text-primary h-7 w-7"
+          aria-hidden="true"
+        />
+      )}
       <h2 className="text-foreground text-lg font-bold tracking-tight">
         {loading ? "Подключение к проекту" : "Нет соединения"}
       </h2>

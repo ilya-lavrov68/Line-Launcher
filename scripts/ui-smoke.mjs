@@ -39,6 +39,10 @@ const config = JSON.parse(
   ).readFile(path.join(root, "examples/config.json"), "utf8"),
 );
 config.provider.name = "Plus In Plus Demo";
+// Exercise the explicit provider-pack offline path in the real UI as well.
+config.servers[1].launch_mode = "offline";
+delete config.servers[1].auth;
+config.required_features.push("offline-launch-v1");
 // The shipped example points at cdn.example.com, which only exercises the
 // fallback. Give the first server real bytes so the loaded path is covered too.
 const artPng =
@@ -210,8 +214,12 @@ await page.addInitScript(
             suggestedHeapMb: 4096,
             totalMemoryMb: 16384,
           };
-        if (cmd === "list_java_runtimes")
-          return [{ path: "/usr/bin/java", major: 21, version: "21.0.5" }];
+        if (cmd === "list_java_runtimes") return window.__javaRuntimes || [];
+        if (cmd === "probe_java_path") {
+          const runtime = { path: args.path, major: 25, version: "25.0.3" };
+          window.__javaRuntimes = [runtime];
+          return runtime;
+        }
         if (cmd === "clear_config_cache") return true;
         // Local skin library. Independent of session/provider on purpose.
         window.__library ||= { skins: [], active: null, synced: null };
@@ -309,7 +317,8 @@ await page.addInitScript(
             stale: false,
           };
         }
-        if (cmd === "get_installed_build") return window.__installed || null;
+        if (cmd === "get_installed_build")
+          return window.__builds?.[args.serverId] || null;
         if (cmd === "get_game_status")
           return {
             serverId: args.serverId,
@@ -319,7 +328,9 @@ await page.addInitScript(
         if (cmd === "list_release_history")
           return {
             serverId: args.serverId,
-            releases: window.__installed ? [window.__installed] : [],
+            releases: window.__builds?.[args.serverId]
+              ? [window.__builds[args.serverId]]
+              : [],
           };
         if (cmd === "launch_game") {
           if (window.__expireSession) {
@@ -395,6 +406,8 @@ await page.addInitScript(
             installedAt: Date.now(),
             alreadyInstalled: false,
           };
+          window.__builds ||= {};
+          window.__builds[args.serverId] = window.__installed;
           return window.__installed;
         }
         if (cmd === "line_logout") {
@@ -498,6 +511,12 @@ try {
   await wardrobeNav.click();
   await page.getByRole("heading", { name: "Гардероб" }).waitFor();
   check(
+    await page
+      .getByRole("heading", { name: "Добавить скин в историю" })
+      .evaluate((node) => node.parentElement.querySelector("svg") === null),
+    "the non-interactive plus icon is still beside the upload heading",
+  );
+  check(
     await page.getByText("История пуста.", { exact: false }).isVisible(),
     "the local library did not render while signed out",
   );
@@ -584,6 +603,58 @@ try {
   // Settings screen renders the safe controls, with no free-form JVM field.
   await page.getByRole("button", { name: "Настройки" }).click();
   await page.getByText("Память игры", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Повторить поиск Java" }).waitFor();
+  const sectionIcons = await page
+    .locator('[data-line-icon="section"]')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const cs = getComputedStyle(node);
+        return {
+          background: cs.backgroundColor,
+          border: cs.borderTopWidth,
+          width: node.getBoundingClientRect().width,
+        };
+      }),
+    );
+  check(
+    sectionIcons.length === 4 &&
+      sectionIcons.every(
+        (icon) =>
+          icon.background === "rgba(0, 0, 0, 0)" &&
+          icon.border === "0px" &&
+          icon.width >= 20,
+      ),
+    `section icons are still framed or too small: ${JSON.stringify(sectionIcons)}`,
+  );
+  check(
+    !(await page
+      .getByText("Java не найдена. Установите JDK", { exact: false })
+      .count()),
+    "an empty automatic search still claims the installed JDK is absent",
+  );
+  const javaPath =
+    "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.3.9-hotspot\\bin\\java.exe";
+  await page
+    .getByLabel("Или укажите установленную Java вручную")
+    .fill(javaPath);
+  await page
+    .getByRole("button", { name: "Проверить и выбрать", exact: true })
+    .click();
+  await page
+    .getByText("Java 25 (25.0.3) проверена и выбрана", { exact: false })
+    .waitFor();
+  const manualJava = await page.evaluate(() => ({
+    probed: window.__calls.some((c) => c[0] === "probe_java_path"),
+    saved: window.__calls.some(
+      (c) =>
+        c[0] === "save_settings" &&
+        c[1].settings.javaPath?.includes("jdk-25.0.3.9-hotspot"),
+    ),
+  }));
+  check(
+    manualJava.probed && manualJava.saved,
+    "manual Java path was not verified and persisted",
+  );
   await shot("settings");
   // Base UI prints the raw value unless SelectValue formats it: "keep"/"auto"
   // in the trigger would be a regression, not a label.
@@ -628,6 +699,21 @@ try {
   );
   check(login.restored, "the shell never asked the backend for the session");
   check(login.forgotten, "signing in must reset the uploaded-skin marker");
+  const logoTiles = await page
+    .locator("main [data-line-icon]")
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const cs = getComputedStyle(node);
+        return (
+          cs.backgroundColor === "rgba(0, 0, 0, 0)" &&
+          cs.borderTopWidth === "0px"
+        );
+      }),
+    );
+  check(
+    logoTiles.length >= 2 && logoTiles.every(Boolean),
+    "provider logos still have a framed background tile",
+  );
   await shot("servers");
 
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
@@ -668,6 +754,31 @@ try {
       .catch(() => false)),
     "a reordered older event resurrected the running state",
   );
+
+  // Explicit offline mode enables play without ticket endpoints. Missing mode
+  // remains disabled (covered by the contract tests and Demo Showcase).
+  await page.getByRole("button", { name: "Все серверы", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть сервер SkyBlock" }).click();
+  await page.getByRole("button", { name: "Установить сборку" }).click();
+  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
+  check(
+    await page
+      .getByText("Офлайн-сборка провайдера", { exact: false })
+      .isVisible(),
+    "offline launch is not explained in the UI",
+  );
+  await page.getByRole("button", { name: "Играть", exact: true }).click();
+  await page.getByRole("button", { name: "Остановить игру" }).waitFor();
+  check(
+    await page.evaluate(() =>
+      window.__calls.some(
+        (c) => c[0] === "launch_game" && c[1].serverId === "skyblock",
+      ),
+    ),
+    "offline server did not reach the launch command",
+  );
+  await page.getByRole("button", { name: "Остановить игру" }).click();
+  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
 
   // Wardrobe after login: history persists and the active skin uploads itself.
   await page.getByRole("button", { name: "Гардероб" }).click();

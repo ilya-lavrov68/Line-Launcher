@@ -39,9 +39,32 @@ export function buildPasses(platform) {
   ];
 }
 
+/** Dev-only trust must never reach an installer, even through extra CLI args. */
+export function assertReleaseArgs(args) {
+  for (const arg of args) {
+    const name = arg.split("=")[0];
+    if (
+      ["--all-features", "--features", "-f", "--debug", "-d"].includes(name) ||
+      (/^-[^-]/.test(name) &&
+        !name.startsWith("--") &&
+        /[df]/.test(name.slice(1)))
+    ) {
+      throw new Error(
+        `Аргумент ${name} запрещён для установщика: релиз собирается без dev-provider-ca и debug-фич. Для демо используйте npm run demo.`,
+      );
+    }
+  }
+}
+
 function main() {
   const root = path.resolve(import.meta.dirname, "..");
   const extraArgs = process.argv.slice(2);
+  try {
+    assertReleaseArgs(extraArgs);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 
   // An installer must name its one provider (branding/provider.json). Reuses the
   // real validator instead of a second copy of the rule. Players never type an

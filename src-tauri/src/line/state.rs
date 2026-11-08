@@ -102,6 +102,12 @@ impl LineState {
             .redirect(reqwest::redirect::Policy::none());
         // Certificate verification is never disabled. The only extra trust
         // anchor is opt-in at compile time and scoped to this process.
+        // The local demo must talk to its own loopback socket, not a VPN/system
+        // proxy. reqwest 0.13 enables system-proxy by default; a proxy can answer
+        // 302 without Location before the request ever reaches our provider.
+        // Scope the bypass to the dev-only feature; release proxy policy is unchanged.
+        #[cfg(feature = "dev-provider-ca")]
+        let builder = builder.no_proxy();
         #[cfg(feature = "dev-provider-ca")]
         let builder = super::dev_ca::apply(builder)?;
         let http = builder.build().map_err(|_| {

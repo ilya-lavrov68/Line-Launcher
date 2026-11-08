@@ -99,8 +99,9 @@ export default function SkinPreview({
 
   return (
     <div
+      data-line-icon
       className={cn(
-        "border-border/40 bg-muted/30 flex items-center justify-center overflow-hidden rounded-lg border",
+        "flex items-center justify-center overflow-hidden",
         className,
       )}
     >

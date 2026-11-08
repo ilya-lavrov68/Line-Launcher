@@ -41,7 +41,7 @@ pub struct LaunchSpec {
     /// mojang | msa | legacy, as declared by the pack.
     pub user_type: String,
     /// Non-secret rendezvous identifier for the private IPC channel.
-    pub session_channel_id: String,
+    pub session_channel_id: Option<String>,
     pub total_memory_bytes: u64,
     /// Player override from settings; None keeps the automatic sizing.
     pub heap_mb: Option<u32>,
@@ -161,7 +161,10 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
         || spec.minecraft_version.is_empty()
         || spec.minecraft_version.len() > 64
         || spec.minecraft_version.chars().any(char::is_control)
-        || !super::config::validate_slug(&spec.session_channel_id)
+        || spec
+            .session_channel_id
+            .as_deref()
+            .is_some_and(|id| !super::config::validate_slug(id))
         || spec
             .asset_index
             .as_deref()
@@ -223,8 +226,11 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
         "-XX:SurvivorRatio=32".into(),
         "-XX:+PerfDisableSharedMem".into(),
         "-XX:MaxTenuringThreshold=1".into(),
-        format!("-DlineLauncher.sessionChannel={}", spec.session_channel_id),
     ];
+    // Offline packs have no ticket channel and no auth mod to contact.
+    if let Some(id) = &spec.session_channel_id {
+        args.push(format!("-DlineLauncher.sessionChannel={id}"));
+    }
     // LWJGL 3 (every modern Minecraft) must own the first thread on macOS.
     if cfg!(target_os = "macos") {
         args.push("-XstartOnFirstThread".into());
@@ -401,23 +407,22 @@ fn publish(app: &AppHandle, state: &LineState, status: GameStatus) -> GameStatus
     status
 }
 
-/// A saved Java path is honoured only when the launcher can still discover that
-/// exact executable and its major matches the manifest. Otherwise fall back to
-/// normal discovery instead of executing an arbitrary stored path.
+/// An explicit choice is re-verified, including its major. A wrong version is
+/// reported instead of silently launching with another JDK.
 async fn select_runtime(
     preferences: &super::settings::LauncherSettings,
     required_major: u16,
 ) -> LineResult<java::JavaRuntime> {
     if let Some(requested) = &preferences.java_path {
-        if let Ok(canonical) = std::fs::canonicalize(Path::new(requested)) {
-            let runtimes = java::list_runtimes().await;
-            if let Some(found) = runtimes
-                .into_iter()
-                .find(|r| r.path == canonical && r.major == required_major)
-            {
-                return Ok(found);
-            }
+        let runtime = java::inspect_path(requested).await?;
+        if runtime.major != required_major {
+            return Err(LineError::new(
+                ErrorCode::JavaRequired,
+                format!("Выбрана Java {}, а сборке нужна Java {required_major}. Выберите другой рантайм в настройках.", runtime.major),
+                false,
+            ));
         }
+        return Ok(runtime);
     }
     java::discover(required_major).await
 }
@@ -587,16 +592,22 @@ pub async fn launch_game(
     let preferences = super::settings::load(&app, total_memory_bytes);
     let server = config.server(&server_id)?.clone();
     let session = state.session()?;
-    let ticket_url = server
-        .auth
-        .launch_ticket_url
-        .as_deref()
-        .ok_or_else(|| LineError::input("Провайдер не настроил запуск для этого сервера."))?;
-    let exchange_url =
-        server.auth.session_exchange_url.as_deref().ok_or_else(|| {
-            LineError::input("Провайдер не настроил обмен сессии для этого сервера.")
-        })?;
-    super::config::validate_https(exchange_url)?;
+    let offline = server.launch_mode == super::config::LaunchMode::Offline;
+    let ticket_url = server.auth.launch_ticket_url.as_deref();
+    if !offline && ticket_url.is_none() {
+        return Err(LineError::input(
+            "Провайдер не настроил запуск для этого сервера.",
+        ));
+    }
+    let exchange_url = server.auth.session_exchange_url.as_deref();
+    if !offline && exchange_url.is_none() {
+        return Err(LineError::input(
+            "Провайдер не настроил обмен сессии для этого сервера.",
+        ));
+    }
+    if let Some(url) = exchange_url {
+        super::config::validate_https(url)?;
+    }
     let root = app
         .path()
         .app_data_dir()
@@ -659,20 +670,24 @@ pub async fn launch_game(
         if stop.load(Ordering::Acquire) {
             return Err(cancelled());
         }
-        // Bind before spawn: a fast mod must never hit connect-before-bind.
-        let channel = PrivateChannel::create()?;
-        // Bind the secret guard and the request body outside the future: a
-        // temporary here would be dropped while the select! still borrows it.
-        let token = session.secret_token();
-        let request = TicketRequest {
-            server_id: &server_id,
-            sha256: &receipt.sha256,
-            channel_id: &channel.id,
-            username: &session.username,
-        };
-        let (ticket, expires_in) = tokio::select! {
-            result = issue_ticket(&state, ticket_url, &token, &request) => result?,
-            _ = wait_stop(&stop) => return Err(cancelled()),
+        // Bind before spawn in ticket mode. Explicit offline packs create no
+        // pipe, request no ticket, and never wait for an auth-mod handshake.
+        let launch_auth = if offline {
+            None
+        } else {
+            let channel = PrivateChannel::create()?;
+            let token = session.secret_token();
+            let request = TicketRequest {
+                server_id: &server_id,
+                sha256: &receipt.sha256,
+                channel_id: &channel.id,
+                username: &session.username,
+            };
+            let (ticket, expires_in) = tokio::select! {
+                result = issue_ticket(&state, ticket_url.ok_or_else(|| LineError::input("Не настроен launch_ticket_url."))?, &token, &request) => result?,
+                _ = wait_stop(&stop) => return Err(cancelled()),
+            };
+            Some((channel, ticket, expires_in))
         };
         if stop.load(Ordering::Acquire) {
             return Err(cancelled());
@@ -694,7 +709,7 @@ pub async fn launch_game(
                 .manifest
                 .user_type
                 .unwrap_or_else(|| "mojang".to_owned()),
-            session_channel_id: channel.id.clone(),
+            session_channel_id: launch_auth.as_ref().map(|(channel, _, _)| channel.id.clone()),
             total_memory_bytes,
             heap_mb: preferences.heap_mb,
         };
@@ -754,36 +769,35 @@ pub async fn launch_game(
         let monitor_app = app.clone();
         let monitor_server = server_id.clone();
         let monitor_sha = receipt.sha256.clone();
-        let exchange_url = exchange_url.to_owned();
+        let exchange_url = exchange_url.map(str::to_owned);
         let username = session.username.clone();
         let monitor_stop = stop.clone();
         tauri::async_runtime::spawn(async move {
             let _lock = lock;
             let ipc_server = monitor_server.clone();
             let ipc_sha = monitor_sha.clone();
-            let mut ipc_task = tauri::async_runtime::spawn(async move {
-                channel
-                    .serve_once(
-                        pid,
-                        ticket,
-                        TicketGrant {
-                            exchange_url: &exchange_url,
-                            server_id: &ipc_server,
-                            sha256: &ipc_sha,
-                            username: &username,
-                            expires_in,
-                        },
-                    )
-                    .await
+            let mut ipc_task = launch_auth.map(|(channel, ticket, expires_in)| {
+                tauri::async_runtime::spawn(async move {
+                    let exchange_url = exchange_url.ok_or_else(|| LineError::input("Не настроен session_exchange_url."))?;
+                    channel.serve_once(pid, ticket, TicketGrant {
+                        exchange_url: &exchange_url,
+                        server_id: &ipc_server,
+                        sha256: &ipc_sha,
+                        username: &username,
+                        expires_in,
+                    }).await
+                })
             });
             let mut ipc_failure: Option<LineError> = None;
-            let mut ipc_done = false;
+            let mut ipc_done = ipc_task.is_none();
             let mut stopped = false;
             let exit = loop {
                 if monitor_stop.load(Ordering::Acquire) {
                     stopped = true;
                     let _ = child.kill().await;
-                    ipc_task.abort();
+                    if let Some(task) = &ipc_task {
+                        task.abort();
+                    }
                     break None;
                 }
                 if ipc_done {
@@ -791,9 +805,9 @@ pub async fn launch_game(
                         result = child.wait() => break result.ok().and_then(|status| status.code()),
                         _ = tokio::time::sleep(Duration::from_millis(100)) => {}
                     }
-                } else {
+                } else if let Some(task) = ipc_task.as_mut() {
                     tokio::select! {
-                        result = &mut ipc_task => {
+                        result = &mut *task => {
                             ipc_done = true;
                             match result {
                                 Ok(Ok(())) => {}
@@ -817,7 +831,7 @@ pub async fn launch_game(
                                 // The mod may have received the ticket and exited in the
                                 // same scheduler tick. Give the IPC task a brief grace
                                 // period before declaring a missing-ticket failure.
-                                match tokio::time::timeout(Duration::from_millis(500), &mut ipc_task).await {
+                                match tokio::time::timeout(Duration::from_millis(500), &mut *task).await {
                                     Ok(Ok(Ok(()))) => {}
                                     Ok(Ok(Err(error))) => ipc_failure = Some(error),
                                     _ => ipc_failure = Some(LineError::new(
@@ -826,12 +840,14 @@ pub async fn launch_game(
                                         false,
                                     )),
                                 }
-                                ipc_task.abort();
+                                task.abort();
                             }
                             break code;
                         }
                         _ = tokio::time::sleep(Duration::from_millis(100)) => {}
                     }
+                } else {
+                    ipc_done = true;
                 }
             };
             // The process is gone; release the filesystem lease before admitting
@@ -929,10 +945,21 @@ mod tests {
             game_args: Vec::new(),
             player_uuid: format_uuid(&[7u8; 16]),
             user_type: "mojang".into(),
-            session_channel_id: "launch-channel-1".into(),
+            session_channel_id: Some("launch-channel-1".into()),
             total_memory_bytes: 16 * 1024 * 1024 * 1024,
             heap_mb: None,
         }
+    }
+
+    #[test]
+    fn offline_command_has_no_session_channel_or_ticket_requirement() {
+        let mut offline = spec();
+        offline.session_channel_id = None;
+        let args = build_java_command(&offline).unwrap();
+        assert!(!args.iter().any(|arg| arg.contains("sessionChannel")));
+        assert!(args.contains(&"--accessToken".to_owned()));
+        assert!(args.contains(&"0".to_owned()));
+        assert!(args.contains(&"--username".to_owned()));
     }
 
     #[test]
@@ -1020,7 +1047,7 @@ mod tests {
         assert_eq!(optimal_heap_mb(0), 1024);
         assert_eq!(optimal_heap_mb(4 * 1024 * 1024 * 1024), 2048);
         let mut s = spec();
-        s.session_channel_id = "-javaagent:evil".into();
+        s.session_channel_id = Some("-javaagent:evil".into());
         assert!(build_java_command(&s).is_err());
     }
 

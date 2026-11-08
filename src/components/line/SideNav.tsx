@@ -126,7 +126,7 @@ export default function SideNav({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Button>
           );
@@ -151,7 +151,7 @@ export default function SideNav({
             )}
           >
             <UserRound
-              className="text-muted-foreground h-4 w-4 shrink-0"
+              className="text-muted-foreground h-5 w-5 shrink-0"
               aria-hidden="true"
             />
             {!collapsed && (
@@ -171,7 +171,7 @@ export default function SideNav({
               onClick={onLogout}
               className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer disabled:cursor-not-allowed"
             >
-              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              <LogOut className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         )}
@@ -186,7 +186,7 @@ export default function SideNav({
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
-          <RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <RefreshCw className="h-5 w-5 shrink-0" aria-hidden="true" />
           {!collapsed && <span className="truncate">Переподключиться</span>}
         </Button>
         <Button
@@ -199,7 +199,7 @@ export default function SideNav({
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
-          <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Info className="h-5 w-5 shrink-0" aria-hidden="true" />
           {!collapsed && <span className="truncate">О программе</span>}
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
@@ -221,7 +221,7 @@ export default function SideNav({
         >
           <ChevronLeft
             className={cn(
-              "h-4 w-4 shrink-0 transition-transform",
+              "h-5 w-5 shrink-0 transition-transform",
               collapsed && "rotate-180",
             )}
             aria-hidden="true"

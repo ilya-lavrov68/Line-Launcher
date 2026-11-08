@@ -60,17 +60,17 @@ export default function InstallProgress({
       <div className="flex items-center gap-2">
         {finished ? (
           <CheckCircle2
-            className="h-4 w-4 text-emerald-400"
+            className="h-5 w-5 text-emerald-400"
             aria-hidden="true"
           />
         ) : failed ? (
           <ShieldAlert
-            className="text-destructive h-4 w-4"
+            className="text-destructive h-5 w-5"
             aria-hidden="true"
           />
         ) : (
           <RefreshCw
-            className="text-primary h-4 w-4 animate-spin"
+            className="text-primary h-5 w-5 animate-spin"
             aria-hidden="true"
           />
         )}

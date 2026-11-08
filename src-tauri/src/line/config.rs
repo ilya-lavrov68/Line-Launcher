@@ -62,6 +62,16 @@ pub struct WardrobeConfig {
     pub skin_upload_url: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LaunchMode {
+    /// Missing endpoints keep launch disabled; they never imply offline.
+    #[default]
+    Ticket,
+    /// A provider-owned local pack: project account, no per-server ticket/IPC.
+    Offline,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Server {
     pub id: String,
@@ -77,7 +87,20 @@ pub struct Server {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minecraft_version: Option<String>,
     #[serde(default)]
+    pub launch_mode: LaunchMode,
+    /// Host or host:port the client joins immediately after launch. Required by
+    /// the Minecraft mode; provider ZIP packs may omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_address: Option<String>,
+    #[serde(default)]
     pub auth: LaunchAuth,
+    /// `pack.json` beside the archive: { schema_version, url, sha256,
+    /// size_bytes, unpacked_size_bytes }. When present it, not the pinned
+    /// distribution below, decides whether the pack changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pack_manifest_url: Option<String>,
+    /// Fallback/bootstrap description of the same archive. Still required so
+    /// older configs and the ticket flow keep working unchanged.
     pub distribution: Distribution,
 }
 
@@ -200,6 +223,7 @@ impl LineConfig {
                     | "zip-sha256-v1"
                     | "launch-manifest-v1"
                     | "private-ipc-v1"
+                    | "offline-launch-v1"
                     | "skin-upload-v1"
             )
         }) {
@@ -263,6 +287,20 @@ impl LineConfig {
             }
             if let Some(url) = &server.banner_url {
                 validate_https(url)?;
+            }
+            if let Some(address) = &server.server_address {
+                super::minecraft_core::validate_server_address(address)?;
+            }
+            if let Some(url) = &server.pack_manifest_url {
+                validate_https(url)?;
+            }
+            if server.launch_mode == LaunchMode::Offline
+                && (server.auth.launch_ticket_url.is_some()
+                    || server.auth.session_exchange_url.is_some())
+            {
+                return Err(LineError::input(
+                    "launch_mode=offline несовместим с launch_ticket_url/session_exchange_url.",
+                ));
             }
             match (
                 &server.auth.launch_ticket_url,
@@ -394,6 +432,26 @@ mod tests {
         let duplicate = c.servers[0].clone();
         c.servers.push(duplicate);
         assert!(c.validate("0.1.0").is_err());
+    }
+
+    #[test]
+    fn offline_is_explicit_and_cannot_carry_ticket_endpoints() {
+        let mut c = config();
+        c.servers[0].launch_mode = LaunchMode::Offline;
+        c.required_features.push("offline-launch-v1".into());
+        c.validate("0.1.0").unwrap();
+        c.servers[0].auth.launch_ticket_url = Some("https://example.com/ticket".into());
+        assert!(c.validate("0.1.0").is_err());
+        // Missing endpoints alone are still the disabled ticket mode, not offline.
+        let plain: Server = serde_json::from_value(serde_json::json!({
+            "id": "local", "name": "Local", "description": "Pack", "version": "1",
+            "distribution": { "url": "https://example.com/pack.zip", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size_bytes": 1, "unpacked_size_bytes": 1 }
+        })).unwrap();
+        assert_eq!(plain.launch_mode, LaunchMode::Ticket);
+        assert!(serde_json::from_value::<Server>(serde_json::json!({
+            "id": "local", "name": "Local", "description": "Pack", "version": "1", "launch_mode": "pirate",
+            "distribution": { "url": "https://example.com/pack.zip", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size_bytes": 1, "unpacked_size_bytes": 1 }
+        })).is_err());
     }
 
     #[test]

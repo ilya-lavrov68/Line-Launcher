@@ -38,7 +38,7 @@ export default function ReleaseHistoryDialog({
       <DialogContent className="p-5 sm:max-w-[460px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">
-            <History className="h-5 w-5" />
+            <History className="h-6 w-6" />
             История сборок
           </DialogTitle>
         </DialogHeader>
@@ -72,7 +72,7 @@ export default function ReleaseHistoryDialog({
                       className="cursor-pointer text-xs"
                     >
                       {loading ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <RefreshCw className="h-4 w-4 animate-spin" />
                       ) : (
                         "Откатить"
                       )}

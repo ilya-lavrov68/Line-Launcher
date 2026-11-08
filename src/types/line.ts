@@ -5,6 +5,7 @@ export const LINE_SUPPORTED_FEATURES = [
   "zip-sha256-v1",
   "launch-manifest-v1",
   "private-ipc-v1",
+  "offline-launch-v1",
   "skin-upload-v1",
 ] as const;
 export type LineFeature = (typeof LINE_SUPPORTED_FEATURES)[number];
@@ -100,6 +101,8 @@ export interface SkinState {
   textureUrl: string;
 }
 
+export type LaunchMode = "ticket" | "offline";
+
 export interface LineServer {
   /** Stable, lowercase ASCII slug; never accept a filesystem path from JSON. */
   id: string;
@@ -114,6 +117,12 @@ export interface LineServer {
   /** Provider's release identifier. Change it when the distribution changes. */
   version: string;
   minecraft_version?: string;
+  /** Missing/default ticket endpoints keep launch disabled. Offline is explicit. */
+  launch_mode?: LaunchMode;
+  /** Host or host:port the client joins right after launch (Minecraft mode). */
+  server_address?: string;
+  /** `pack.json` beside the instance ZIP; it decides whether the pack changed. */
+  pack_manifest_url?: string;
   auth?: LineLaunchAuth;
   distribution: LineDistribution;
 }
@@ -336,4 +345,82 @@ export function toLineError(value: unknown): LineError {
     message: "Не удалось выполнить операцию. Повторите попытку.",
     retryable: false,
   };
+}
+
+/**
+ * Minecraft profiles installed through `mc-launcher-core` (official Mojang and
+ * loader endpoints). Additive to the provider ZIP pipeline: these instances
+ * live under `<app-data>/minecraft/<instanceId>/` and never touch provider
+ * releases. The account is offline: `online-mode=true` servers reject it.
+ */
+export const LINE_MC_INSTALL_EVENT = "line://mc-install-progress";
+export const LINE_MC_GAME_EVENT = "line://mc-game-status";
+
+export type McLoaderKind = "fabric" | "quilt" | "forge" | "neoforge";
+
+export interface McLoaderRequest {
+  kind: McLoaderKind;
+  /** Omitted or empty = latest stable version of that loader. */
+  version?: string;
+}
+
+export interface McInstallRequest {
+  instanceId: string;
+  minecraftVersion: string;
+  loader?: McLoaderRequest;
+}
+
+export interface McInstalled {
+  instanceId: string;
+  /** With a loader this differs from the requested Minecraft version. */
+  versionId: string;
+}
+
+export interface McLaunchRequest {
+  instanceId: string;
+  versionId: string;
+  /** The client joins immediately; the launcher never leaves it in the menu. */
+  serverAddress: string;
+}
+
+/**
+ * «Играть»: read `pack.json`, download the instance ZIP or confirm the installed
+ * copy is current, fill any gaps from the official hosts, then join the server.
+ * Everything except `serverId` defaults to what the provider published.
+ */
+export interface McPlayRequest {
+  serverId: string;
+  instanceId?: string;
+  minecraftVersion?: string;
+  loader?: McLoaderRequest;
+  serverAddress?: string;
+}
+
+/** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */
+export interface LinePackManifest {
+  schema_version: number;
+  url: string;
+  sha256: string;
+  size_bytes: number;
+  unpacked_size_bytes: number;
+  revision?: string;
+  minecraft_version?: string;
+}
+
+export interface McInstallProgress {
+  instanceId: string;
+  stage: string;
+  label: string;
+  receivedBytes: number;
+  totalBytes?: number;
+  finished: boolean;
+}
+
+export interface McGameStatus {
+  instanceId: string;
+  versionId: string;
+  phase: GamePhase;
+  startedAt?: number;
+  exitCode?: number;
+  message?: string;
 }

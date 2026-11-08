@@ -1,7 +1,13 @@
 # Быстрый старт Line Launcher
 
-Короткая инструкция. Подробности — в [RUNBOOK.md](RUNBOOK.md), контракт API — в
+Короткая инструкция. Если собираете впервые и не знаете, с чего начать —
+[BUILD.md](BUILD.md): установка программ, какие файлы менять, сборка установщика.
+Подробности — в [RUNBOOK.md](RUNBOOK.md), контракт API — в
 [PROVIDER.md](PROVIDER.md), брендинг — в [BRANDING.md](BRANDING.md).
+
+Хотите сначала посмотреть, как всё работает? `npm run demo` поднимет локальный
+демо-провайдер и откроет настоящее приложение — [DEMO.md](DEMO.md). Как лаунчер
+запускает сборку и защищает её файлы — [GAME.md](GAME.md).
 
 ## Я игрок
 
@@ -115,6 +121,7 @@ npm run build             # production-сборка интерфейса
 npm run brand:check       # сгенерированный брендинг актуален
 npm run test:rust         # чистая Rust-логика без crates.io
 npm run test:wardrobe     # скин-эндпоинты по HTTPS
+npm run demo:check        # демо-проект целиком по HTTPS, без JDK и Rust
 ```
 
 Браузерные проверки (нужен запущенный `npm run dev` в другом терминале):

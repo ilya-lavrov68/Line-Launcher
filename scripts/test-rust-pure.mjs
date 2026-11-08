@@ -45,8 +45,10 @@ function item(file, signature, { optional = false } = {}) {
   if (lines[start].trimEnd().endsWith(";")) return lines[start];
   const indent = lines[start].length - lines[start].trimStart().length;
   const closing = " ".repeat(indent) + "}";
+  // Multi-line array/slice consts end with `];` at the item's indentation.
+  const closingList = " ".repeat(indent) + "];";
   for (let i = start + 1; i < lines.length; i += 1) {
-    if (lines[i] === closing) {
+    if (lines[i] === closing || lines[i] === closingList) {
       return lines.slice(start, i + 1).join("\n");
     }
   }
@@ -97,7 +99,7 @@ const shim = `
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -149,7 +151,10 @@ const items = [
   attributed("launch.rs", "pub fn heap_ceiling("),
   attributed("launch.rs", "pub fn validate_heap("),
   attributed("launch.rs", "pub fn optimal_heap_mb("),
+  attributed("launch.rs", "pub fn format_uuid("),
+  attributed("launch.rs", "pub fn valid_uuid("),
   attributed("launch.rs", "pub fn build_java_command("),
+  attributed("launch.rs", "pub fn instance_game_dir("),
   attributed("launch.rs", "pub fn verified_game_dir("),
   attributed("storage.rs", "pub fn server_dir("),
   attributed("storage.rs", "pub fn create_private_dir("),
@@ -160,6 +165,26 @@ const items = [
   attributed("storage.rs", "pub fn remove_dir_if_present("),
   attributed("storage.rs", "pub fn is_real_dir("),
   attributed("storage.rs", "pub fn is_real_file("),
+  attributed("config.rs", "pub const MAX_UNPACKED_BYTES:"),
+  attributed("integrity.rs", "pub const INDEX_FILE:"),
+  attributed("integrity.rs", "pub const COMPLETE_MARKER:"),
+  attributed("integrity.rs", "pub const INDEX_SCHEMA:"),
+  attributed("integrity.rs", "pub const MAX_INDEXED_FILES:"),
+  attributed("integrity.rs", "fn invalid_index("),
+  attributed("integrity.rs", "pub fn valid_sha256("),
+  attributed("integrity.rs", "pub fn is_reserved("),
+  attributed("integrity.rs", "fn is_bookkeeping("),
+  plain("integrity.rs", "pub struct FileEntry {"),
+  plain("integrity.rs", "pub struct FileIndex {"),
+  plain("integrity.rs", "pub struct ScanReport {"),
+  attributed("integrity.rs", "impl ScanReport {"),
+  attributed("integrity.rs", "impl FileIndex {"),
+  attributed("integrity.rs", "pub fn compare("),
+  attributed("integrity.rs", "pub fn remove_foreign("),
+  attributed("integrity.rs", "pub fn prune_empty_dirs("),
+  attributed("launch_manifest.rs", "pub const MAX_GAME_ARGS:"),
+  attributed("launch_manifest.rs", "pub const LAUNCHER_OWNED_ARGS:"),
+  attributed("launch_manifest.rs", "pub fn game_args_are_safe("),
   attributed("launch_manifest.rs", "fn invalid("),
   attributed("launch_manifest.rs", "fn validate_main_class("),
   attributed("launch_manifest.rs", "fn resolve_relative("),
@@ -197,6 +222,40 @@ const tests = [
   attributed(
     "launch.rs",
     "fn rejects_agent_injection_and_small_host_memory_is_bounded(",
+  ),
+  attributed(
+    "launch.rs",
+    "fn real_client_gets_identity_arguments_but_never_a_secret(",
+  ),
+  attributed(
+    "launch.rs",
+    "fn pack_arguments_cannot_override_the_launcher_owned_ones(",
+  ),
+  attributed("launch.rs", "fn uuid_formatting_sets_version_and_variant_bits("),
+  attributed(
+    "launch_manifest.rs",
+    "fn extra_game_arguments_cannot_smuggle_jvm_flags_or_identity(",
+  ),
+  attributed("integrity.rs", "fn entry("),
+  attributed("integrity.rs", "fn index()"),
+  attributed("integrity.rs", "fn actual()"),
+  attributed("integrity.rs", "fn an_untouched_release_needs_nothing("),
+  attributed(
+    "integrity.rs",
+    "fn a_dropped_in_file_is_foreign_even_with_a_plausible_name(",
+  ),
+  attributed(
+    "integrity.rs",
+    "fn a_replaced_or_missing_file_forces_a_download(",
+  ),
+  attributed("integrity.rs", "fn a_same_size_edit_is_still_detected_by_hash("),
+  attributed(
+    "integrity.rs",
+    "fn bookkeeping_names_are_exempt_only_at_the_release_root(",
+  ),
+  attributed(
+    "integrity.rs",
+    "fn the_index_rejects_unsafe_and_duplicate_paths(",
   ),
   attributed("wardrobe.rs", "fn header("),
   attributed("wardrobe.rs", "fn accepts_both_minecraft_skin_sizes("),
@@ -447,6 +506,58 @@ fn harness_player_heap_is_rejected_not_clamped() {
 }
 
 #[test]
+fn harness_foreign_files_are_deleted_without_escaping_the_release() {
+    let dir = std::env::temp_dir().join(format!("line-pure-integrity-{}", std::process::id()));
+    let release = dir.join("release");
+    std::fs::create_dir_all(release.join("mods")).unwrap();
+    std::fs::create_dir_all(release.join("libraries")).unwrap();
+    std::fs::write(release.join("libraries/core.jar"), b"library").unwrap();
+    std::fs::write(release.join("client.jar"), b"original").unwrap();
+    std::fs::write(release.join("mods/injected.jar"), b"cheat").unwrap();
+    std::fs::write(release.join(INDEX_FILE), b"{}").unwrap();
+    std::fs::write(release.join(COMPLETE_MARKER), b"line-release-v1").unwrap();
+    let outside = dir.join("outside.jar");
+    std::fs::write(&outside, b"keep me").unwrap();
+    let removed = remove_foreign(
+        &release,
+        &["mods/injected.jar".to_string(), INDEX_FILE.to_string()],
+    )
+    .unwrap();
+    assert_eq!(removed, 1, "the launcher's own index must survive");
+    assert!(!release.join("mods/injected.jar").exists());
+    assert!(release.join("client.jar").exists(), "published file deleted");
+    assert!(release.join(INDEX_FILE).exists());
+    // Traversal is rejected before anything is touched.
+    assert!(remove_foreign(&release, &["../outside.jar".to_string()]).is_err());
+    assert!(outside.exists());
+    // The emptied directory is pruned, the release root is not.
+    prune_empty_dirs(&release, &["mods/injected.jar".to_string()]).unwrap();
+    assert!(!release.join("mods").exists());
+    assert!(release.join("libraries").exists(), "only empty dirs go");
+    assert!(release.exists());
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn harness_each_server_has_its_own_writable_game_directory() {
+    let dir = std::env::temp_dir().join(format!("line-pure-dirs-{}", std::process::id()));
+    let one = dir.join("instances/survival");
+    let two = dir.join("instances/creative");
+    let a = instance_game_dir(&one).unwrap();
+    let b = instance_game_dir(&two).unwrap();
+    assert_eq!(a, one.join("game"));
+    assert_eq!(b, two.join("game"));
+    assert_ne!(a, b, "servers must not share worlds");
+    // Never inside the immutable release tree.
+    assert!(!a.starts_with(one.join("releases")));
+    std::fs::write(a.join("options.txt"), b"fov:90").unwrap();
+    // Idempotent, and re-entering does not truncate player data.
+    assert_eq!(instance_game_dir(&one).unwrap(), a);
+    assert_eq!(std::fs::read(a.join("options.txt")).unwrap(), b"fov:90");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn harness_main_class_and_sha_validation() {
     assert!(validate_main_class("net.minecraft.client.main.Main"));
     for bad in ["", ".Main", "Main.", "a..b", "-javaagent:evil", "a.b.1c", "a/b"] {
@@ -472,6 +583,8 @@ const source = [
   .replace(/super::config::/g, "")
   .replace(/super::storage::/g, "")
   .replace(/super::error::/g, "")
+  .replace(/super::launch_manifest::/g, "")
+  .replace(/super::integrity::/g, "")
   .replace(/crate::line::storage::/g, "");
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "line-rust-pure-"));

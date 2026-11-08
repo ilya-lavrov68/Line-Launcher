@@ -96,6 +96,15 @@ export default function LaunchControls({
           }
         />
       </div>
+      {starting && status?.message && (
+        <p
+          role="status"
+          className="text-muted-foreground flex items-center gap-1.5 text-xs"
+        >
+          <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          {status?.message}
+        </p>
+      )}
       {running && (
         <p
           role="status"

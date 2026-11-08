@@ -6,6 +6,7 @@ pub mod dev_ca;
 pub mod error;
 pub mod http;
 pub mod install;
+pub mod integrity;
 pub mod ipc;
 pub mod java;
 pub mod launch;

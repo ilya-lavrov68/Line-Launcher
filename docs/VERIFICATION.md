@@ -5,7 +5,7 @@ Checked in the implementation sandbox:
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (125 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (150 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
@@ -24,7 +24,7 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 30 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: 42 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component
@@ -39,7 +39,14 @@ Checked in the implementation sandbox:
   traversal/absolute/uppercase paths, name normalisation, capacity refused while
   re-adding an existing texture still succeeds), and the automatic sync decision
   (`active == synced` sends nothing, the standard look resets once, an unconfirmed
-  or forgotten upload is retried rather than skipped).
+  or forgotten upload is retried rather than skipped), and the launch/integrity
+  guard: the published index versus the tree (clean, foreign, missing, edited with
+  an identical size), index validation (traversal, duplicate and reserved paths),
+  bookkeeping names exempt only at the release root, real deletion of foreign
+  files without escaping the release, pruning only the emptied directories, a
+  separate writable `game/` per server, the real-client identity arguments with a
+  placeholder token, `-Xss1M`, UUID version/variant bits, and the game-argument
+  allow-list (no JVM flags, no duplicates, no overriding launcher-owned flags).
   This is a subset — it does not compile the crate graph.
 - `cargo generate-lockfile` against a local clone of the official crates.io index
 - `npm run test:java`: 11/11 real-JVM integration cases on Linux (Temurin 25.0.2
@@ -53,6 +60,66 @@ Checked in the implementation sandbox:
   bearer ticket issuance, a real JVM demo game completing the private-IPC
   handshake and exchange, ticket never printed, replay rejected (409), binding
   mismatch rejected (403). Node plays the launcher IPC peer; Rust is not involved.
+- `npm run demo:check`: 59 checks over real HTTPS against the demo project the
+  user clicks through — config schema and ETag/304, every published sha256/size
+  and unpacked size verified against the served bytes, a valid launch manifest in
+  each pack, archive paths that cannot escape `.provider/`, SVG artwork with CORS,
+  registration/duplicate/wrong-password, **one account issuing tickets for two
+  different servers**, the wardrobe the launcher syncs automatically (upload,
+  read-back, byte-identical texture, repeat upload, reset), one-shot tickets
+  (exchange, replay 409, cross-server binding 403, anonymous 401), publishing a
+  second release while the provider keeps running with the previous one still
+  downloadable for rollback, and neither token nor ticket in the log. Needs only
+  Node and openssl; the launchable variant is checked additionally where a JDK
+  exists (skipped here).
+- `npm run demo -- --provider-only` exercised end to end in the sandbox: it built
+  the packs, baked the address, started the provider, verified `config.json` over
+  HTTPS, and on SIGTERM restored `branding/provider.json` **byte for byte** and
+  freed the port. `npm run demo:update` republished Demo Survival 1.0.0 → 1.1.0
+  while it ran and the provider served the new version without a restart. The
+  failure paths were checked too: no Rust → actionable message and untouched
+  branding; port already taken → exit 1 with a port hint and branding restored.
+  The desktop window itself cannot be opened here (no crates.io), so
+  `tauri dev --features dev-provider-ca` is the part that still needs a real
+  machine.
+- Launch integrity and per-server instances: the wiring is asserted by
+  `tests/game-integrity.test.ts` (index published before the completion marker,
+  every extracted file hashed, archive cannot ship the bookkeeping names, scan
+  runs under the install lease before Java is spawned, the lease is dropped before
+  repairing, a second mismatch after repair aborts the launch, `--gameDir` and the
+  process cwd point at `instances/<id>/game`, every launcher-owned argument is
+  shielded from pack overrides, progress notes are actually rendered while the
+  files are checked). **20/20 targeted mutations were caught** by `npm test` or
+  `npm run test:rust`: ignoring foreign files, size-only comparison, deletion
+  without path validation, reserved names accepted in the index, marker written
+  before the index, extraction not hashing content, repair short-circuiting to
+  "already installed", archive forging `.line-files.json`, repairing while holding
+  the lease, launch bypassing the scan, an unreadable index passing silently, the
+  game writing into the immutable release again, a real value instead of the token
+  placeholder, missing `-Xss1M`, `--uuid` overridable, odd-length/duplicate/JVM
+  game arguments accepted, and hidden progress notes.
+- Demo mode hardened after "it does not work" reports. Two real defects fixed:
+  the provider reused `.provider/tls.crt` forever, so a demo left for a month
+  failed with an expired certificate (now `scripts/lib/demo-cert.mjs` checks
+  expiry, clock skew and SAN with `X509Certificate` and reissues the pair), and
+  macOS was refused outright because reqwest cannot merge an extra root into
+  Apple's verifier (now the dev build uses `tls_certs_only` there — verification
+  stays on, the keychain is untouched; Windows/Linux keep `tls_certs_merge`,
+  confirmed against the reqwest 0.13.4/0.13.5 and rustls-platform-verifier
+  sources). `npm run demo:app` attaches the desktop app to a running
+  `--provider-only` session through `.provider/demo-state.json`, replacing the
+  POSIX-only `LINE_DEV_CA_CERT=...` hint that could not work in PowerShell.
+  `npm run demo:doctor` checks Node, dependencies, openssl, Rust, MSVC, WebView2,
+  JDK, the cargo feature, the port, the certificate and free space without
+  writing anything. Verified live here: provider-only run → state published →
+  `demo:app` found it and stopped at the missing-Rust doctor with an actionable
+  message → SIGTERM restored `branding/provider.json` byte for byte and removed
+  the state file. Certificate reissue was exercised on a real one-day cert.
+  **15/15 targeted mutations were caught**, including a disabled expiry branch
+  (caught behaviourally against PEM fixtures, not by grep), a surviving stale
+  key, a provider that reuses any existing file, an attach path that skips the
+  probe or the doctor, an unpinned probe, a doctor that writes files or exits 0,
+  and a dev build that disables verification.
 - `npm run test:wardrobe`: 21 checks against the reference provider's skin contract
   over real HTTPS (self-signed cert pinned): missing/unknown bearer rejected, 404
   for a player without a skin, missing and unknown model rejected, wrong
@@ -113,7 +180,12 @@ Checked in the implementation sandbox:
   from the interface. Captured after this change: the single account screen, the
   server list unlocked by it, and the wardrobe with a sync status instead of a
   send button. 0 page errors.
-- Mutation-checked the new guarantees (12 mutations, all caught): clearing the
+- Demo-mode guarantees mutation-checked (7 of 7 caught): skipping the branding
+  restore, not passing `LINE_DEV_CA_CERT` to the app, serving arbitrary file names
+  from `.provider/`, caching the config at startup again (which breaks the live
+  update), advertising a launch on the install-only server, discarding the game
+  log, and inverting the demo game's run guard so the stop button is untestable.
+- Mutation-checked the account/sync guarantees (12 mutations, all caught): clearing the
   session in `selectServer`, putting `server_id` back into the login request or
   the Rust `AuthRequest`, turning the session back into a per-server map, making
   `logout` take a server id, restoring a manual send button, dropping the
@@ -179,6 +251,11 @@ pipe with a pending read.
 
 Not checked here or by CI:
 
+- The full extract → index → scan → repair cycle on a real filesystem: the
+  decision and the deletion are executed by `npm run test:rust`, but hashing,
+  index serialisation and the extraction changes need `cargo test`
+  (`integrity::filesystem_tests`, `install_tests`). Those tests are written and
+  formatted, not executed here (no crates.io access).
 - Tauri desktop shell, real ZIP installation through Rust commands, and
   Java/Minecraft launch. The reference provider and generated pack exist
   (`examples/provider/`), but the desktop app itself was never run: CI compiles
@@ -190,8 +267,10 @@ Not checked here or by CI:
 
 The browser fallback is intentionally read-only and explains that desktop
 operations require Tauri. It does not simulate successful authentication or
-installation. Real Minecraft launch, provider ticket exchange, OS-specific IPC
-permissions still require a real desktop run; Rust unit tests now run in CI on
+installation. Real Minecraft launch (the launcher now emits the identity arguments,
+`-Xss1M`, the macOS first-thread flag, LWJGL/log4j properties and allow-listed game
+arguments, but no actual Minecraft client was run here), provider ticket exchange,
+OS-specific IPC permissions still require a real desktop run; Rust unit tests now run in CI on
 all three platforms.
 
 Additional Chromium smoke coverage used a test-only injected Tauri IPC stub

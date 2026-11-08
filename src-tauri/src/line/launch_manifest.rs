@@ -12,6 +12,79 @@ pub const MANIFEST_FILE: &str = "line-launch.json";
 pub const MANIFEST_SCHEMA: u32 = 1;
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024;
 const MAX_CLASSPATH_ENTRIES: usize = 4096;
+/// Enough for Forge/Fabric style argument sets, far below any OS argv limit.
+pub const MAX_GAME_ARGS: usize = 128;
+/// Arguments the launcher owns. A pack may not redefine identity, paths or the
+/// version it claims to be: those come from the verified receipt and the
+/// signed-in provider account, not from a file inside the pack.
+pub const LAUNCHER_OWNED_ARGS: &[&str] = &[
+    "gamedir",
+    "username",
+    "uuid",
+    "accesstoken",
+    "usertype",
+    "version",
+    "versiontype",
+    "assetindex",
+    "assetsdir",
+    "session",
+    "userproperties",
+];
+
+/// Extra *game* arguments, never JVM arguments: strictly `--name value` pairs,
+/// no duplicates, nothing that overrides a launcher-owned flag, no value that
+/// could be read as another flag. This is what lets a modded pack pass
+/// `--launchTarget`/`--fml.*` without opening a hole for `-javaagent`.
+pub fn game_args_are_safe(args: &[String]) -> bool {
+    if args.len() > MAX_GAME_ARGS || args.len() % 2 != 0 {
+        return false;
+    }
+    let mut seen = std::collections::HashSet::new();
+    for pair in args.chunks(2) {
+        let Some(flag) = pair[0].strip_prefix("--") else {
+            return false;
+        };
+        let lower = flag.to_ascii_lowercase();
+        if flag.is_empty()
+            || flag.len() > 64
+            || !flag.as_bytes()[0].is_ascii_alphabetic()
+            || !flag
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+            // The JVM's -X/-XX family and its module/classpath switches are
+            // never game arguments, whatever their spelling with two dashes.
+            || lower.starts_with('x')
+            || matches!(
+                lower.as_str(),
+                "add-opens"
+                    | "add-exports"
+                    | "add-reads"
+                    | "add-modules"
+                    | "patch-module"
+                    | "enable-native-access"
+                    | "jar"
+                    | "module"
+                    | "class-path"
+                    | "classpath"
+                    | "cp"
+                    | "p"
+            )
+            || LAUNCHER_OWNED_ARGS.contains(&lower.as_str())
+            || !seen.insert(lower)
+        {
+            return false;
+        }
+        let value = &pair[1];
+        if value.is_empty()
+            || value.len() > 512
+            || value.starts_with('-')
+            || value.chars().any(char::is_control)
+        {
+            return false;
+        }
+    }
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -29,6 +102,15 @@ pub struct LaunchManifest {
     pub assets_dir: Option<String>,
     #[serde(default)]
     pub natives_dir: Option<String>,
+    /// Optional log4j2 configuration shipped inside the release.
+    #[serde(default)]
+    pub logging_config: Option<String>,
+    /// Extra game arguments (see `game_args_are_safe`). Never JVM arguments.
+    #[serde(default)]
+    pub game_args: Vec<String>,
+    /// Minecraft account type reported to the client: mojang | msa | legacy.
+    #[serde(default)]
+    pub user_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -38,6 +120,7 @@ pub struct ResolvedManifest {
     pub classpath: Vec<PathBuf>,
     pub assets_dir: Option<PathBuf>,
     pub natives_dir: Option<PathBuf>,
+    pub logging_config: Option<PathBuf>,
 }
 
 fn invalid() -> LineError {
@@ -128,8 +211,21 @@ impl LaunchManifest {
                 return Err(invalid());
             }
         }
-        for dir in [&self.assets_dir, &self.natives_dir].into_iter().flatten() {
+        for dir in [&self.assets_dir, &self.natives_dir, &self.logging_config]
+            .into_iter()
+            .flatten()
+        {
             safe_entry_path(dir)?;
+        }
+        if !game_args_are_safe(&self.game_args) {
+            return Err(invalid());
+        }
+        if self
+            .user_type
+            .as_deref()
+            .is_some_and(|kind| !matches!(kind, "mojang" | "msa" | "legacy"))
+        {
+            return Err(invalid());
         }
         Ok(())
     }
@@ -159,11 +255,17 @@ impl LaunchManifest {
         if self.asset_index.is_some() != assets_dir.is_some() {
             return Err(invalid());
         }
+        let logging_config = self
+            .logging_config
+            .as_deref()
+            .map(|file| resolve_relative(release, file, false))
+            .transpose()?;
         Ok(ResolvedManifest {
             manifest: self.clone(),
             classpath,
             assets_dir,
             natives_dir,
+            logging_config,
         })
     }
 }
@@ -200,6 +302,39 @@ mod tests {
             asset_index: None,
             assets_dir: None,
             natives_dir: None,
+            logging_config: None,
+            game_args: Vec::new(),
+            user_type: None,
+        }
+    }
+
+    #[test]
+    fn extra_game_arguments_cannot_smuggle_jvm_flags_or_identity() {
+        let owned = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(game_args_are_safe(&[]));
+        assert!(game_args_are_safe(&owned(&[
+            "--launchTarget",
+            "forgeclient",
+            "--fml.forgeVersion",
+            "47.2.0",
+        ])));
+        for bad in [
+            vec!["-javaagent:evil"],
+            vec!["--username", "SomeoneElse"],
+            vec!["--accessToken", "stolen"],
+            vec!["--gameDir", "/tmp"],
+            vec!["--version", "9.9.9"],
+            vec!["--assetIndex", "other"],
+            vec!["--launchTarget"],
+            vec!["--launchTarget", "-Dfabric.side=client"],
+            vec!["--launchTarget", ""],
+            vec!["--launchTarget", "a", "--launchTarget", "b"],
+            vec!["---launchTarget", "a"],
+            vec!["--Xmx", "16G"],
+            vec!["--add-opens", "java.base/java.lang=ALL-UNNAMED"],
+            vec!["--patch-module", "evil"],
+        ] {
+            assert!(!game_args_are_safe(&owned(&bad)), "accepted {bad:?}");
         }
     }
 

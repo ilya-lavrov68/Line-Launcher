@@ -192,7 +192,7 @@ pub fn extract_verified_zip(
     expected_unpacked: u64,
     cancel: &AtomicBool,
     progress: impl Fn(u64),
-) -> LineResult<()> {
+) -> LineResult<super::integrity::FileIndex> {
     create_private_dir(staging)?;
     let file = File::open(archive_path).map_err(|e| LineError::io(&e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(zip_error)?;
@@ -214,6 +214,14 @@ pub fn extract_verified_zip(
         check_cancelled(cancel)?;
         let entry = archive.by_index_raw(index).map_err(zip_error)?;
         let relative = safe_entry_path(entry.name())?;
+        // A pack must not be able to forge the integrity index or the marker.
+        if super::integrity::is_reserved(entry.name()) {
+            return Err(LineError::new(
+                ErrorCode::UnsafeArchive,
+                "Архив содержит служебное имя файла лаунчера.",
+                false,
+            ));
+        }
         if entry.is_symlink() || entry.encrypted() {
             return Err(LineError::new(
                 ErrorCode::UnsafeArchive,
@@ -299,6 +307,7 @@ pub fn extract_verified_zip(
     let mut extracted = 0u64;
     let mut last_report = Instant::now();
     let mut buffer = vec![0u8; 128 * 1024];
+    let mut indexed: Vec<super::integrity::FileEntry> = Vec::new();
     for index in 0..archive.len() {
         check_cancelled(cancel)?;
         let mut entry = archive.by_index(index).map_err(zip_error)?;
@@ -317,6 +326,7 @@ pub fn extract_verified_zip(
             .open(&target)
             .map_err(|e| LineError::io(&e))?;
         let mut output = BufWriter::with_capacity(128 * 1024, output);
+        let mut hasher = Sha256::new();
         let mut entry_size = 0u64;
         loop {
             check_cancelled(cancel)?;
@@ -333,6 +343,7 @@ pub fn extract_verified_zip(
                     false,
                 ));
             }
+            hasher.update(&buffer[..count]);
             output
                 .write_all(&buffer[..count])
                 .map_err(|e| LineError::io(&e))?;
@@ -350,6 +361,11 @@ pub fn extract_verified_zip(
         }
         output.flush().map_err(|e| LineError::io(&e))?;
         output.get_ref().sync_all().map_err(|e| LineError::io(&e))?;
+        indexed.push(super::integrity::FileEntry {
+            path: relative.to_string_lossy().replace('\\', "/"),
+            sha256: format!("{:x}", hasher.finalize()),
+            size: entry_size,
+        });
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -368,7 +384,12 @@ pub fn extract_verified_zip(
     }
     progress(extracted);
     sync_directory(staging)?;
-    Ok(())
+    let index = super::integrity::FileIndex {
+        schema_version: super::integrity::INDEX_SCHEMA,
+        files: indexed,
+    };
+    index.validate()?;
+    Ok(index)
 }
 
 async fn download_part(
@@ -547,19 +568,46 @@ pub async fn download_and_extract(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
 ) -> LineResult<InstallReceipt> {
+    install_inner(client, server, base, operation_id, cancel, sink, false).await
+}
+
+/// `repair` skips the "already installed" short circuit: the files on disk are
+/// known to be wrong, so the archive must be fetched and unpacked again.
+pub async fn repair(
+    client: &reqwest::Client,
+    server: &Server,
+    base: &Path,
+    operation_id: &str,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+) -> LineResult<InstallReceipt> {
+    install_inner(client, server, base, operation_id, cancel, sink, true).await
+}
+
+async fn install_inner(
+    client: &reqwest::Client,
+    server: &Server,
+    base: &Path,
+    operation_id: &str,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+    repair: bool,
+) -> LineResult<InstallReceipt> {
     server.distribution.validate_bounds()?;
     create_private_dir(base)?;
     let _lock = InstallLock::acquire(base)?;
     // A crash may leave staging behind. Never touch releases/current.json here.
     cleanup_staging(base)?;
-    if let Some(mut receipt) = installed_receipt(base, server) {
-        // A crash can land between current.json and history/prune. Repair those
-        // side effects on the next successful install command instead of leaving
-        // history inconsistent forever.
-        super::rollback::record_release(base, &receipt)?;
-        super::rollback::prune_releases(base, &server.id, None)?;
-        receipt.already_installed = true;
-        return Ok(receipt);
+    if !repair {
+        if let Some(mut receipt) = installed_receipt(base, server) {
+            // A crash can land between current.json and history/prune. Repair those
+            // side effects on the next successful install command instead of leaving
+            // history inconsistent forever.
+            super::rollback::record_release(base, &receipt)?;
+            super::rollback::prune_releases(base, &server.id, None)?;
+            receipt.already_installed = true;
+            return Ok(receipt);
+        }
     }
     available_space(
         base,
@@ -631,7 +679,7 @@ pub async fn download_and_extract(
         let shared = cancel.clone();
         let extract_progress = progress.clone();
         let extract_sink = sink.clone();
-        tauri::async_runtime::spawn_blocking(move || {
+        let index = tauri::async_runtime::spawn_blocking(move || {
             extract_verified_zip(
                 &extract_path,
                 &extract_target,
@@ -660,7 +708,13 @@ pub async fn download_and_extract(
         progress.phase = InstallPhase::Committing;
         progress.percent = 99.0;
         sink.emit(progress.clone());
-        atomic_write(&content.join(".line-complete"), b"line-release-v1\n")?;
+        // The index is written before the marker: a release is never advertised
+        // as complete without the list every later launch is checked against.
+        super::integrity::write_index(&content, &index)?;
+        atomic_write(
+            &content.join(super::integrity::COMPLETE_MARKER),
+            b"line-release-v1\n",
+        )?;
         let releases = base.join("releases");
         create_private_dir(&releases)?;
         let release = releases.join(&server.distribution.sha256);

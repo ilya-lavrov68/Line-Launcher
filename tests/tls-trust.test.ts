@@ -108,16 +108,19 @@ test("the dev CA is opt-in at compile time and off by default", () => {
   );
 });
 
-test("the dev CA only adds a root and warns loudly", () => {
+test("the dev CA adds a root, keeps verification on and warns loudly", () => {
   const src = read("src-tauri/src/line/dev_ca.rs");
-  assert.match(src, /add_root_certificate/);
+  // Merging keeps public roots usable on Windows/Linux. Apple's verifier cannot
+  // merge, so there the dev build trusts only this CA — still verified TLS.
+  assert.match(src, /tls_certs_merge\(certs\)/);
+  assert.match(src, /tls_certs_only\(certs\)/);
+  assert.match(src, /cfg!\(target_os = "macos"\)/);
+  assert.doesNotMatch(src, /danger_accept_invalid_certs|disable_certificate/);
   assert.match(src, /LINE_DEV_CA_CERT/);
   assert.match(src, /WARNING: dev-provider-ca active/);
   assert.match(src, /never ship this build/);
   // An unset variable must be a no-op, not a hard failure.
   assert.match(src, /trust store unchanged/);
-  // macOS cannot take extra roots; it must fail with guidance, not opaque error.
-  assert.match(src, /cfg!\(target_os = "macos"\)/);
 });
 
 test("no shipped build path enables the dev feature", () => {

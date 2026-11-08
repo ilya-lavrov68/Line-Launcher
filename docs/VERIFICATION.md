@@ -5,14 +5,17 @@
 Follow-up to the first Windows `cargo run`: the stop branch now aborts the IPC
 handle only inside `if let Some(task) = &ipc_task`, and the unused `Path` import
 was removed. The new regression fails if the out-of-scope `task.abort()` returns.
+The next Windows error (`E0382`, moved `task`) is fixed by reborrowing the handle
+in the select arm and grace timeout (`&mut *task`), matching the previously
+compiling non-optional monitor; a regression catches a moved `result = task`.
 
 Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **161 tests, 160 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **162 tests, 161 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
-  regressions. **8/8 targeted mutations were caught** (fake plus, framed icon,
+  regressions. **9/9 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
   offline mode, accepted dev release flags, and the Windows `task` scope error).
 - `npm run test:rust`: **50/50** compiled pure-logic tests, including PATH entries

@@ -807,7 +807,7 @@ pub async fn launch_game(
                     }
                 } else if let Some(task) = ipc_task.as_mut() {
                     tokio::select! {
-                        result = task => {
+                        result = &mut *task => {
                             ipc_done = true;
                             match result {
                                 Ok(Ok(())) => {}
@@ -831,7 +831,7 @@ pub async fn launch_game(
                                 // The mod may have received the ticket and exited in the
                                 // same scheduler tick. Give the IPC task a brief grace
                                 // period before declaring a missing-ticket failure.
-                                match tokio::time::timeout(Duration::from_millis(500), task).await {
+                                match tokio::time::timeout(Duration::from_millis(500), &mut *task).await {
                                     Ok(Ok(Ok(()))) => {}
                                     Ok(Ok(Err(error))) => ipc_failure = Some(error),
                                     _ => ipc_failure = Some(LineError::new(
@@ -840,7 +840,7 @@ pub async fn launch_game(
                                         false,
                                     )),
                                 }
-                                if let Some(task) = &ipc_task { task.abort(); }
+                                task.abort();
                             }
                             break code;
                         }

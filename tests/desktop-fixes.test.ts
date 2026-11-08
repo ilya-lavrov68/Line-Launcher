@@ -148,6 +148,14 @@ test("the game monitor aborts the optional IPC handle inside its own scope", () 
   assert.doesNotMatch(settings, /use std::path::\{Path, PathBuf\}/);
 });
 
+test("the IPC select arm reborrows the handle instead of moving it", () => {
+  const launch = read("src-tauri/src/line/launch.rs");
+  assert.match(launch, /result = &mut \*task =>/);
+  assert.match(launch, /timeout\(Duration::from_millis\(500\), &mut \*task\)/);
+  assert.doesNotMatch(launch, /result = task =>/);
+  assert.doesNotMatch(launch, /timeout\(Duration::from_millis\(500\), task\)/);
+});
+
 test("installers reject dev/debug feature arguments before doing any work", () => {
   for (const args of [
     ["--features", "dev-provider-ca"],

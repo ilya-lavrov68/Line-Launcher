@@ -23,7 +23,8 @@ use super::error::{ErrorCode, LineError, LineResult};
 use super::java;
 use super::launch::{optimal_heap_mb, player_uuid, validate_heap, GamePhase};
 use super::minecraft_core::{
-    apply_heap, reject_dangerous_args, validate_instance_id, validate_loader, validate_version_id,
+    apply_heap, ensure_server_join, has_quick_play_token, reject_dangerous_args,
+    validate_instance_id, validate_loader, validate_server_address, validate_version_id,
     LoaderChoice,
 };
 use super::settings::{self, LauncherSettings};
@@ -32,7 +33,7 @@ use super::storage::create_private_dir;
 use super::LAUNCHER_VERSION;
 // Imported from the prelude, but not as a glob: the crate also exports a
 // one-parameter `Result` alias that would shadow `std::result::Result` here.
-use mc_launcher_core::core::version::VersionJson;
+use mc_launcher_core::core::version::{ArgumentValue, StringOrVec, VersionJson};
 use mc_launcher_core::prelude::{
     Account, CompatibilityPolicy, InstallRequest, JavaInstallPolicy, LaunchCommand, LaunchOptions,
     Launcher, LoaderSpec, LoaderVersion, ProgressEvent,
@@ -83,6 +84,21 @@ pub struct McInstalled {
 pub struct McLaunchRequest {
     pub instance_id: String,
     pub version_id: String,
+    /// The client joins this server straight away; there is no menu step.
+    pub server_address: String,
+}
+
+/// What the «Играть» button calls: verify-or-download the profile, then join.
+/// Re-running an install skips every file whose checksum still matches, so an
+/// unchanged profile costs a metadata pass instead of a re-download.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct McPlayRequest {
+    pub instance_id: String,
+    pub minecraft_version: String,
+    #[serde(default)]
+    pub loader: Option<McLoaderRequest>,
+    pub server_address: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -245,6 +261,25 @@ fn loader_spec(choice: LoaderChoice, version: Option<String>) -> LoaderSpec {
     }
 }
 
+/// Every game-argument token the profile advertises, including rule-gated ones
+/// (they are not emitted, but they do tell us what the client understands).
+fn game_argument_tokens(version: &VersionJson) -> Vec<String> {
+    let mut tokens = Vec::new();
+    for argument in &version.arguments.game {
+        match argument {
+            ArgumentValue::String(text) => tokens.push(text.clone()),
+            ArgumentValue::Ruled { value, .. } => match value {
+                StringOrVec::String(text) => tokens.push(text.clone()),
+                StringOrVec::Vec(list) => tokens.extend(list.iter().cloned()),
+            },
+        }
+    }
+    if let Some(legacy) = &version.minecraft_arguments {
+        tokens.extend(legacy.split_whitespace().map(str::to_string));
+    }
+    tokens
+}
+
 fn stage_name(stage: &InstallStage) -> &'static str {
     match stage {
         InstallStage::ResolveVersion => "resolve",
@@ -289,13 +324,29 @@ pub async fn mc_install(
 ) -> LineResult<McInstalled> {
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version = validate_version_id(&request.minecraft_version)?;
-    let loader = match &request.loader {
+    let loader = parse_loader(request.loader.as_ref())?;
+    install_profile(&app, &state, instance_id, version, loader).await
+}
+
+fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpec>> {
+    match loader {
         Some(loader) => {
             let (choice, exact) = validate_loader(&loader.kind, loader.version.as_deref())?;
-            Some(loader_spec(choice, exact))
+            Ok(Some(loader_spec(choice, exact)))
         }
-        None => None,
-    };
+        None => Ok(None),
+    }
+}
+
+/// Idempotent: the crate skips files whose checksum already matches, so this is
+/// both "download" and "verify what is on disk".
+async fn install_profile(
+    app: &AppHandle,
+    state: &MinecraftState,
+    instance_id: String,
+    version: String,
+    loader: Option<LoaderSpec>,
+) -> LineResult<McInstalled> {
     {
         let mut inner = state.lock()?;
         if inner.running.contains_key(&instance_id) || inner.starting.contains(&instance_id) {
@@ -306,7 +357,7 @@ pub async fn mc_install(
         }
     }
 
-    let dir = instance_root(&app, &instance_id)?;
+    let dir = instance_root(app, &instance_id)?;
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
     let installed = tokio::task::spawn_blocking(move || -> LineResult<String> {
@@ -459,6 +510,45 @@ pub async fn mc_launch(
 ) -> LineResult<McGameStatus> {
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version_id = validate_version_id(&request.version_id)?;
+    let (host, port) = validate_server_address(&request.server_address)?;
+    launch_profile(&app, &line, &state, instance_id, version_id, host, port).await
+}
+
+/// Verify-or-download, then launch straight into the server: one button.
+#[tauri::command]
+pub async fn mc_play(
+    app: AppHandle,
+    line: State<'_, LineState>,
+    state: State<'_, MinecraftState>,
+    request: McPlayRequest,
+) -> LineResult<McGameStatus> {
+    let instance_id = validate_instance_id(&request.instance_id)?;
+    let version = validate_version_id(&request.minecraft_version)?;
+    let (host, port) = validate_server_address(&request.server_address)?;
+    let loader = parse_loader(request.loader.as_ref())?;
+    let installed = install_profile(&app, &state, instance_id.clone(), version, loader).await?;
+    launch_profile(
+        &app,
+        &line,
+        &state,
+        instance_id,
+        installed.version_id,
+        host,
+        port,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn launch_profile(
+    app: &AppHandle,
+    line: &LineState,
+    state: &MinecraftState,
+    instance_id: String,
+    version_id: String,
+    host: String,
+    port: u16,
+) -> LineResult<McGameStatus> {
     // One account per project: the nickname and the stable UUID come from it.
     let session = line.session()?;
     let username = session.username.clone();
@@ -475,12 +565,14 @@ pub async fn mc_launch(
     }
 
     let started = start_game(
-        &app,
-        &state,
+        app,
+        state,
         &instance_id,
         &version_id,
         &username,
         &uuid,
+        &host,
+        port,
         stop,
     )
     .await;
@@ -494,7 +586,7 @@ pub async fn mc_launch(
         Ok(status) => Ok(status),
         Err(error) => {
             emit_status(
-                &app,
+                app,
                 McGameStatus {
                     instance_id,
                     version_id,
@@ -517,6 +609,8 @@ async fn start_game(
     version_id: &str,
     username: &str,
     uuid: &str,
+    host: &str,
+    port: u16,
     stop: Arc<AtomicBool>,
 ) -> LineResult<McGameStatus> {
     let dir = instance_root(app, instance_id)?;
@@ -536,8 +630,8 @@ async fn start_game(
 
     let load_dir = dir.clone();
     let load_id = version_id.to_string();
-    let (version, component, required_major) =
-        tokio::task::spawn_blocking(move || -> LineResult<(VersionJson, Option<String>, u16)> {
+    let (version, component, required_major, quick_play) = tokio::task::spawn_blocking(
+        move || -> LineResult<(VersionJson, Option<String>, u16, bool)> {
             let launcher = Launcher::new(load_dir);
             let version = launcher.load_version(&load_id).map_err(mc_error)?;
             let (component, major) = match &version.java_version {
@@ -545,10 +639,14 @@ async fn start_game(
                 None => (None, 8),
             };
             let major = u16::try_from(major).unwrap_or(8).clamp(8, 26);
-            Ok((version, component, major))
-        })
-        .await
-        .map_err(|_| join_error())??;
+            // `load_version` already merged inheritsFrom, so a loader profile
+            // reports the vanilla client's Quick Play support.
+            let quick_play = has_quick_play_token(&game_argument_tokens(&version));
+            Ok((version, component, major, quick_play))
+        },
+    )
+    .await
+    .map_err(|_| join_error())??;
 
     let total = total_memory();
     let preferences = settings::load(app, total);
@@ -562,6 +660,7 @@ async fn start_game(
     let account_name = username.to_string();
     let account_uuid = uuid.to_string();
     let window = (preferences.window_width, preferences.window_height);
+    let join_host = host.to_string();
     let command = tokio::task::spawn_blocking(move || -> LineResult<LaunchCommand> {
         let launcher = Launcher::new(build_dir);
         let options = LaunchOptions {
@@ -576,7 +675,10 @@ async fn start_game(
             launcher_version: LAUNCHER_VERSION.to_string(),
             custom_resolution: Some(window),
             demo: false,
+            // The crate emits the pre-1.20 `--server`/`--port` pair here, which
+            // modern clients ignore. The join args are appended below instead.
             server: None,
+            // Multiplayer is the whole point of this launcher: never disable it.
             disable_multiplayer: false,
             disable_chat: false,
             compatibility: CompatibilityPolicy::Auto,
@@ -587,6 +689,7 @@ async fn start_game(
         let mut args = command.args;
         reject_dangerous_args(&args)?;
         apply_heap(&mut args, heap_mb);
+        ensure_server_join(&mut args, quick_play, &join_host, port);
         Ok(LaunchCommand { args, ..command })
     })
     .await

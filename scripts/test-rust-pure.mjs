@@ -150,6 +150,13 @@ const items = [
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
   attributed("minecraft_core.rs", "pub fn reject_dangerous_args("),
+  attributed("minecraft_core.rs", "pub const DEFAULT_SERVER_PORT:"),
+  attributed("minecraft_core.rs", "pub const QUICK_PLAY_MULTIPLAYER:"),
+  attributed("minecraft_core.rs", "fn parse_port("),
+  attributed("minecraft_core.rs", "pub fn validate_server_address("),
+  attributed("minecraft_core.rs", "pub fn has_quick_play_token("),
+  attributed("minecraft_core.rs", "pub fn server_join_args("),
+  attributed("minecraft_core.rs", "pub fn ensure_server_join("),
   attributed("install.rs", "pub fn safe_entry_path("),
   attributed("java.rs", "fn java_name("),
   plain("java.rs", "pub struct JavaRuntime {"),
@@ -230,6 +237,19 @@ const tests = [
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
+  attributed(
+    "minecraft_core.rs",
+    "fn server_addresses_parse_host_port_and_ipv6(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn quick_play_detection_requires_the_exact_token(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn modern_clients_get_quick_play_and_legacy_ones_get_server_port(",
+  ),
+  attributed("minecraft_core.rs", "fn join_arguments_are_never_duplicated("),
   attributed(
     "minecraft_core.rs",
     "fn loader_selection_defaults_to_latest_stable(",

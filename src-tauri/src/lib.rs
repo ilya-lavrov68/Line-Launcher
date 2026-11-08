@@ -34,6 +34,7 @@ pub fn run() {
             line::minecraft::mc_install,
             line::minecraft::mc_list_installed,
             line::minecraft::mc_launch,
+            line::minecraft::mc_play,
             line::minecraft::mc_stop,
             line::minecraft::mc_status,
             line::wardrobe::get_skin,

@@ -22,6 +22,7 @@ import {
   type McInstallRequest,
   type McInstalled,
   type McLaunchRequest,
+  type McPlayRequest,
   type SettingsSnapshot,
   type SkinModel,
   type SkinState,
@@ -104,6 +105,9 @@ export const lineApi = {
   /** Offline identity: provider nickname + the launcher's stable UUID. */
   mcLaunch: (request: McLaunchRequest) =>
     call<McGameStatus>("mc_launch", { request }),
+  /** One button: verify-or-download the profile, then auto-join the server. */
+  mcPlay: (request: McPlayRequest) =>
+    call<McGameStatus>("mc_play", { request }),
   mcStop: (instanceId: string) => call<boolean>("mc_stop", { instanceId }),
   mcStatus: (instanceId: string) =>
     call<McGameStatus>("mc_status", { instanceId }),

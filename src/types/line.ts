@@ -119,6 +119,8 @@ export interface LineServer {
   minecraft_version?: string;
   /** Missing/default ticket endpoints keep launch disabled. Offline is explicit. */
   launch_mode?: LaunchMode;
+  /** Host or host:port the client joins right after launch (Minecraft mode). */
+  server_address?: string;
   auth?: LineLaunchAuth;
   distribution: LineDistribution;
 }
@@ -375,6 +377,16 @@ export interface McInstalled {
 export interface McLaunchRequest {
   instanceId: string;
   versionId: string;
+  /** The client joins immediately; the launcher never leaves it in the menu. */
+  serverAddress: string;
+}
+
+/** «Играть»: verify-or-download the profile, then join the server. */
+export interface McPlayRequest {
+  instanceId: string;
+  minecraftVersion: string;
+  loader?: McLoaderRequest;
+  serverAddress: string;
 }
 
 export interface McInstallProgress {

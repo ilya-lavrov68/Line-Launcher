@@ -121,9 +121,227 @@ pub fn reject_dangerous_args(args: &[String]) -> LineResult<()> {
     Ok(())
 }
 
+/// Minecraft's default multiplayer port.
+pub const DEFAULT_SERVER_PORT: u16 = 25565;
+/// Mojang removed `--server`/`--port` in 23w14a; 1.20+ only honours Quick Play.
+/// `mc-launcher-core` still emits the legacy pair, so the join args are built
+/// here from what the version metadata actually advertises.
+pub const QUICK_PLAY_MULTIPLAYER: &str = "--quickPlayMultiplayer";
+
+fn parse_port(text: &str) -> LineResult<u16> {
+    let port: u32 = text
+        .parse()
+        .map_err(|_| LineError::input("Порт сервера: число от 1 до 65535."))?;
+    if !(1..=65535).contains(&port) {
+        return Err(LineError::input("Порт сервера: число от 1 до 65535."));
+    }
+    Ok(port as u16)
+}
+
+/// Parses `host`, `host:port` or `[ipv6]:port`. The result is handed to the game
+/// as an argument, so whitespace, control characters and a leading `-` (which
+/// the client would read as another flag) are rejected outright.
+pub fn validate_server_address(raw: &str) -> LineResult<(String, u16)> {
+    let value = raw.trim();
+    if value.is_empty() || value.len() > 255 {
+        return Err(LineError::input(
+            "Укажите адрес сервера, например play.example.com или play.example.com:25565.",
+        ));
+    }
+    if value.starts_with('-') || value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(LineError::input(
+            "Адрес сервера не может содержать пробелы и начинаться с дефиса.",
+        ));
+    }
+    let (host, port) = if let Some(rest) = value.strip_prefix('[') {
+        let Some((inner, tail)) = rest.split_once(']') else {
+            return Err(LineError::input(
+                "IPv6-адрес должен быть в квадратных скобках.",
+            ));
+        };
+        if inner.is_empty()
+            || !inner
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() || matches!(b, b':' | b'.'))
+        {
+            return Err(LineError::input("Некорректный IPv6-адрес сервера."));
+        }
+        let port = match tail {
+            "" => DEFAULT_SERVER_PORT,
+            other => {
+                let Some(digits) = other.strip_prefix(':') else {
+                    return Err(LineError::input("После IPv6-адреса ожидается :порт."));
+                };
+                parse_port(digits)?
+            }
+        };
+        (format!("[{inner}]"), port)
+    } else {
+        match value.split_once(':') {
+            Some((host, digits))
+                if !host.is_empty()
+                    && !digits.is_empty()
+                    && digits.bytes().all(|b| b.is_ascii_digit()) =>
+            {
+                (host.to_string(), parse_port(digits)?)
+            }
+            Some(_) => {
+                return Err(LineError::input(
+                    "Некорректный адрес сервера. IPv6 указывайте в скобках: [::1]:25565.",
+                ))
+            }
+            None => (value.to_string(), DEFAULT_SERVER_PORT),
+        }
+    };
+    if host.starts_with('[') {
+        return Ok((host, port));
+    }
+    if host.starts_with('.')
+        || host.ends_with('.')
+        || host.starts_with('-')
+        || host.ends_with('-')
+        || host.contains("..")
+        || !host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-'))
+    {
+        return Err(LineError::input(
+            "Адрес сервера: латинские буквы, цифры, точка и дефис.",
+        ));
+    }
+    Ok((host, port))
+}
+
+/// Exact-token detection. A substring match would also accept invented flags
+/// such as `--quickPlayMultiplayerLegacy` and pick the wrong join mechanism.
+pub fn has_quick_play_token(tokens: &[String]) -> bool {
+    tokens.iter().any(|token| token == QUICK_PLAY_MULTIPLAYER)
+}
+
+pub fn server_join_args(quick_play: bool, host: &str, port: u16) -> Vec<String> {
+    if quick_play {
+        vec![QUICK_PLAY_MULTIPLAYER.to_string(), format!("{host}:{port}")]
+    } else {
+        vec![
+            "--server".to_string(),
+            host.to_string(),
+            "--port".to_string(),
+            port.to_string(),
+        ]
+    }
+}
+
+/// Appends the join arguments the client actually understands, without ever
+/// duplicating a pair that the metadata already produced.
+pub fn ensure_server_join(args: &mut Vec<String>, quick_play: bool, host: &str, port: u16) {
+    if has_quick_play_token(args) || args.iter().any(|arg| arg == "--server") {
+        return;
+    }
+    args.extend(server_join_args(quick_play, host, port));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn server_addresses_parse_host_port_and_ipv6() {
+        assert_eq!(
+            validate_server_address("play.example.com").unwrap(),
+            ("play.example.com".to_string(), 25565)
+        );
+        assert_eq!(
+            validate_server_address("  192.168.0.10:25577 ").unwrap(),
+            ("192.168.0.10".to_string(), 25577)
+        );
+        assert_eq!(
+            validate_server_address("[::1]:25565").unwrap(),
+            ("[::1]".to_string(), 25565)
+        );
+        assert_eq!(
+            validate_server_address("[2001:db8::1]").unwrap(),
+            ("[2001:db8::1]".to_string(), 25565)
+        );
+        for bad in [
+            "",
+            "host:0",
+            "host:65566",
+            "host:-1",
+            "host:abc",
+            "host:",
+            "-Djavaagent=x",
+            "host --username Impostor",
+            "host\tname",
+            "../escape",
+            "host..name",
+            ".host",
+            "host.",
+            "2001:db8::1",
+            "[::1",
+            "[::1]x",
+        ] {
+            assert!(validate_server_address(bad).is_err(), "accepted {bad:?}");
+        }
+    }
+
+    #[test]
+    fn quick_play_detection_requires_the_exact_token() {
+        assert!(has_quick_play_token(&[
+            "--username".to_string(),
+            QUICK_PLAY_MULTIPLAYER.to_string(),
+        ]));
+        for impostor in [
+            "--quickPlayMultiplayerLegacy",
+            "--no-quickPlayMultiplayer",
+            "prefix--quickPlayMultiplayer",
+            "--quickPlaySingleplayer",
+        ] {
+            assert!(
+                !has_quick_play_token(&[impostor.to_string()]),
+                "accepted {impostor}"
+            );
+        }
+        assert!(!has_quick_play_token(&[]));
+    }
+
+    #[test]
+    fn modern_clients_get_quick_play_and_legacy_ones_get_server_port() {
+        assert_eq!(
+            server_join_args(true, "play.example.com", 25565),
+            vec![
+                "--quickPlayMultiplayer".to_string(),
+                "play.example.com:25565".to_string()
+            ]
+        );
+        assert_eq!(
+            server_join_args(false, "play.example.com", 25577),
+            vec![
+                "--server".to_string(),
+                "play.example.com".to_string(),
+                "--port".to_string(),
+                "25577".to_string()
+            ]
+        );
+        assert_eq!(
+            server_join_args(true, "[::1]", 25565),
+            vec![
+                "--quickPlayMultiplayer".to_string(),
+                "[::1]:25565".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn join_arguments_are_never_duplicated() {
+        let mut fresh = vec!["--username".to_string(), "Player_1".to_string()];
+        ensure_server_join(&mut fresh, true, "host", 25565);
+        assert_eq!(fresh.len(), 4);
+        ensure_server_join(&mut fresh, true, "host", 25565);
+        assert_eq!(fresh.len(), 4, "quick play appended twice");
+        let mut legacy = vec!["--server".to_string(), "other".to_string()];
+        ensure_server_join(&mut legacy, false, "host", 25565);
+        assert_eq!(legacy.len(), 2, "legacy pair duplicated");
+    }
 
     #[test]
     fn version_ids_are_directory_safe() {

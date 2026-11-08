@@ -187,6 +187,10 @@ test("the WebView contract matches the Rust event names and payload shape", () =
 test("the pure Minecraft rules are part of the compiled Rust subset", () => {
   const harness = read("scripts/test-rust-pure.mjs");
   for (const fn of [
+    "validate_server_address(",
+    "has_quick_play_token(",
+    "server_join_args(",
+    "ensure_server_join(",
     "validate_instance_id(",
     "validate_version_id(",
     "validate_loader(",
@@ -207,4 +211,77 @@ test("the guide states what offline mode cannot do", () => {
   assert.match(doc, /JavaInstallPolicy::Auto/);
   assert.match(doc, /spawn_blocking/);
   assert.match(doc, /Microsoft/);
+});
+
+test("Играть verifies-or-downloads and then joins the server in one command", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  assert.match(play, /validate_server_address\(&request\.server_address\)\?/);
+  assert.ok(
+    play.indexOf("install_profile(") < play.indexOf("launch_profile("),
+    "the profile must be verified/downloaded before the client starts",
+  );
+  // Re-running install is the verify step: unchanged files are skipped.
+  assert.match(rust, /skips every file whose checksum still matches/);
+  assert.match(read("src/types/line.ts"), /serverAddress: string;/);
+});
+
+test("auto-join uses Quick Play on 1.20+ and the legacy pair only on older clients", () => {
+  // Mojang removed --server/--port in 23w14a; the crate still emits that pair,
+  // so LaunchOptions.server stays None and the join args are ours.
+  assert.match(rust, /server: None,/);
+  assert.match(rust, /modern clients ignore/);
+  assert.match(
+    rust,
+    /let quick_play = has_quick_play_token\(&game_argument_tokens\(&version\)\);/,
+  );
+  assert.match(
+    rust,
+    /ensure_server_join\(&mut args, quick_play, &join_host, port\);/,
+  );
+  const build = rust.slice(
+    rust.indexOf("let command = launcher"),
+    rust.indexOf("let logs ="),
+  );
+  assert.ok(
+    build.indexOf("apply_heap") < build.indexOf("ensure_server_join"),
+    "join args must be appended after the heap rewrite",
+  );
+  assert.match(
+    core,
+    /pub const QUICK_PLAY_MULTIPLAYER: &str = "--quickPlayMultiplayer";/,
+  );
+  assert.match(core, /token == QUICK_PLAY_MULTIPLAYER/);
+  // Rule-gated metadata is inspected too, and inheritance is already merged.
+  assert.match(rust, /ArgumentValue::Ruled \{ value, \.\. \}/);
+  assert.match(rust, /StringOrVec::Vec\(list\)/);
+  assert.match(rust, /load_version` already merged inheritsFrom/);
+});
+
+test("multiplayer stays enabled and no singleplayer path is offered", () => {
+  assert.match(rust, /disable_multiplayer: false,/);
+  assert.match(rust, /disable_chat: false,/);
+  assert.match(rust, /demo: false,/);
+  // The production half of the module must never offer a singleplayer or
+  // Realms path; the test module may name them as impostors to reject.
+  const coreProduction = core.slice(0, core.indexOf("#[cfg(test)]"));
+  assert.doesNotMatch(rust, /quickPlaySingleplayer|quickPlayRealms/);
+  assert.doesNotMatch(coreProduction, /quickPlaySingleplayer|quickPlayRealms/);
+  assert.match(
+    read("src-tauri/src/line/config.rs"),
+    /validate_server_address\(address\)\?/,
+  );
+});
+
+test("no Microsoft or third-party auth logic is reachable from this mode", () => {
+  for (const source of [rust, core, read("src/types/line.ts")]) {
+    assert.doesNotMatch(
+      source,
+      /microsoft_account|Account::Microsoft|login_with_xbox|authlib/i,
+    );
+  }
+  // The identity is offline by construction, not by configuration.
+  assert.match(rust, /Account::Offline \{/);
 });

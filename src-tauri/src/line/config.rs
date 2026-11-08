@@ -88,6 +88,10 @@ pub struct Server {
     pub minecraft_version: Option<String>,
     #[serde(default)]
     pub launch_mode: LaunchMode,
+    /// Host or host:port the client joins immediately after launch. Required by
+    /// the Minecraft mode; provider ZIP packs may omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_address: Option<String>,
     #[serde(default)]
     pub auth: LaunchAuth,
     pub distribution: Distribution,
@@ -276,6 +280,9 @@ impl LineConfig {
             }
             if let Some(url) = &server.banner_url {
                 validate_https(url)?;
+            }
+            if let Some(address) = &server.server_address {
+                super::minecraft_core::validate_server_address(address)?;
             }
             if server.launch_mode == LaunchMode::Offline
                 && (server.auth.launch_ticket_url.is_some()

@@ -70,6 +70,8 @@ export const lineApi = {
   saveSettings: (settings: LauncherSettings) =>
     call<SettingsSnapshot>("save_settings", { settings }),
   javaRuntimes: () => call<JavaRuntimeInfo[]>("list_java_runtimes"),
+  probeJavaPath: (path: string) =>
+    call<JavaRuntimeInfo>("probe_java_path", { path }),
   clearConfigCache: () => call<boolean>("clear_config_cache"),
   skin: () => call<SkinState | null>("get_skin"),
   skinLibrary: () => call<SkinLibrarySnapshot>("list_skin_library"),

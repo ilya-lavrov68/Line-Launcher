@@ -3,8 +3,8 @@
 //! Deliberately narrow. The launch hardening in `launch.rs` rejects `-javaagent`
 //! and classpath injection, so there is no free-form JVM argument field here:
 //! the player picks a heap size and one of the Java runtimes the launcher itself
-//! discovered. A stored Java path is never trusted on its own — it must still be
-//! found on disk by `java::list_runtimes()` and probe as the required major.
+//! discovered or explicitly selected. A stored Java path is never trusted on
+//! its own: Rust resolves it and executes `java -version` before saving/launch.
 use super::error::{LineError, LineResult};
 use super::launch::{heap_ceiling, validate_heap};
 use super::storage::atomic_write;
@@ -63,12 +63,7 @@ impl LauncherSettings {
             validate_heap(heap, total_memory_bytes)?;
         }
         if let Some(path) = &self.java_path {
-            if path.trim().is_empty() || path.len() > 4096 || path.chars().any(char::is_control) {
-                return Err(LineError::input("Некорректный путь к Java."));
-            }
-            if !Path::new(path).is_absolute() {
-                return Err(LineError::input("Путь к Java должен быть абсолютным."));
-            }
+            super::java::validate_path(path)?;
         }
         if !(MIN_WINDOW_WIDTH..=MAX_WINDOW_DIMENSION).contains(&self.window_width)
             || !(MIN_WINDOW_HEIGHT..=MAX_WINDOW_DIMENSION).contains(&self.window_height)
@@ -150,21 +145,14 @@ pub async fn get_settings(app: AppHandle) -> LineResult<SettingsSnapshot> {
 #[tauri::command]
 pub async fn save_settings(
     app: AppHandle,
-    settings: LauncherSettings,
+    mut settings: LauncherSettings,
 ) -> LineResult<SettingsSnapshot> {
     let total = total_memory();
-    // A Java path from the WebView is only a hint: it must be one of the
-    // runtimes the launcher can actually discover and execute right now.
+    // An explicit path need not be on PATH/JAVA_HOME. Resolve and execute it
+    // directly, then persist the canonical executable rather than the hint.
     if let Some(requested) = &settings.java_path {
-        let runtimes = super::java::list_runtimes().await;
-        let wanted = Path::new(requested);
-        let canonical = std::fs::canonicalize(wanted)
-            .map_err(|_| LineError::input("Выбранная Java больше недоступна."))?;
-        if !runtimes.iter().any(|r| r.path == canonical) {
-            return Err(LineError::input(
-                "Выбранная Java не найдена среди установленных рантаймов.",
-            ));
-        }
+        let runtime = super::java::inspect_path(requested).await?;
+        settings.java_path = Some(runtime.path.to_string_lossy().into_owned());
     }
     save(&app, &settings, total)?;
     Ok(snapshot(settings, total))
@@ -176,6 +164,17 @@ pub struct JavaRuntimeInfo {
     pub path: String,
     pub major: u16,
     pub version: String,
+}
+
+/// Verifies a player-supplied java.exe/JDK path and returns actionable failure.
+#[tauri::command]
+pub async fn probe_java_path(path: String) -> LineResult<JavaRuntimeInfo> {
+    let runtime = super::java::inspect_path(&path).await?;
+    Ok(JavaRuntimeInfo {
+        path: runtime.path.to_string_lossy().into_owned(),
+        major: runtime.major,
+        version: runtime.version,
+    })
 }
 
 #[tauri::command]

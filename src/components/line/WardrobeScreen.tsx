@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SkinPreview from "@/components/line/SkinPreview";
+import SectionIcon from "@/components/line/SectionIcon";
 import SkinThumb from "@/components/line/SkinThumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -315,7 +316,7 @@ export default function WardrobeScreen({
             role="status"
             className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400"
           >
-            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{notice}</span>
           </p>
         )}
@@ -323,9 +324,6 @@ export default function WardrobeScreen({
 
       <div className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
         <div className="flex items-start gap-3">
-          <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </div>
           <div className="flex min-w-0 flex-col gap-0.5">
             <h3 className="text-foreground text-sm font-semibold">
               Добавить скин в историю
@@ -415,7 +413,7 @@ export default function WardrobeScreen({
                 onClick={() => void save()}
                 className="cursor-pointer items-center gap-1.5 text-xs"
               >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                <Plus className="h-4 w-4" aria-hidden="true" />
                 {busy ? "Сохраняем…" : "В историю"}
               </Button>
             </div>
@@ -425,9 +423,7 @@ export default function WardrobeScreen({
 
       <div className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
         <div className="flex items-start gap-3">
-          <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
-            <History className="h-4 w-4" aria-hidden="true" />
-          </div>
+          <SectionIcon icon={History} />
           <div className="flex min-w-0 flex-col gap-0.5">
             <h3 className="text-foreground text-sm font-semibold">
               Локальная история
@@ -451,9 +447,11 @@ export default function WardrobeScreen({
               : "border-border/40 bg-card/40 hover:border-primary/40 flex cursor-pointer items-center gap-3 rounded-lg border p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
           }
         >
-          <span className="bg-muted text-muted-foreground flex h-16 w-8 shrink-0 items-center justify-center rounded">
-            <UserRound className="h-4 w-4" aria-hidden="true" />
-          </span>
+          <UserRound
+            data-line-icon
+            className="text-muted-foreground h-6 w-6 shrink-0"
+            aria-hidden="true"
+          />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-foreground text-xs font-medium">
               Стандартный скин
@@ -464,7 +462,7 @@ export default function WardrobeScreen({
           </span>
           {!activeId && (
             <Check
-              className="text-primary h-3.5 w-3.5 shrink-0"
+              className="text-primary h-4 w-4 shrink-0"
               aria-hidden="true"
             />
           )}
@@ -505,7 +503,7 @@ export default function WardrobeScreen({
                       </span>
                       {isActive && (
                         <span className="text-primary flex items-center gap-1 text-[10px]">
-                          <Check className="h-3 w-3" aria-hidden="true" />
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
                           активный
                         </span>
                       )}
@@ -530,7 +528,7 @@ export default function WardrobeScreen({
                       aria-label={`Удалить из истории: ${skin.name}`}
                       className="text-muted-foreground hover:text-destructive cursor-pointer"
                     >
-                      <Trash2 className="h-3 w-3" aria-hidden="true" />
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
                   </div>
                 </li>
@@ -541,9 +539,7 @@ export default function WardrobeScreen({
       </div>
 
       <div className="border-border/40 bg-card/60 flex items-start gap-3 rounded-xl border p-4 backdrop-blur-sm">
-        <div className="bg-primary/10 text-primary border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
-          <Shirt className="h-4 w-4" aria-hidden="true" />
-        </div>
+        <SectionIcon icon={Shirt} />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-foreground text-sm font-semibold">
             Скин на серверах проекта
@@ -554,7 +550,7 @@ export default function WardrobeScreen({
             className={`flex items-start gap-1.5 text-xs leading-relaxed ${syncStatus.tone}`}
           >
             <SyncIcon
-              className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${sync === "sending" ? "animate-spin" : ""}`}
+              className={`mt-0.5 h-4 w-4 shrink-0 ${sync === "sending" ? "animate-spin" : ""}`}
               aria-hidden="true"
             />
             <span>{syncStatus.text}</span>

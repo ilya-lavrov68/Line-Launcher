@@ -1,11 +1,45 @@
 # Verification status
 
+## Current desktop-fix pass
+
+Checked in the implementation sandbox after the Java/UI/demo/offline changes:
+
+- `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
+  and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm test`: **160 tests, 159 passing, 1 skipped** (the JDK-dependent contract
+  case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
+  regressions. **7/7 targeted mutations were caught** (fake plus, framed icon,
+  doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
+  offline mode, accepted dev release flags).
+- `npm run test:rust`: **50/50** compiled pure-logic tests, including PATH entries
+  that already end in `bin`, verbatim Windows path normalisation, stdout/stderr
+  version parsing and the offline Java command without a session-channel property.
+  This is still not a full `cargo check` of the async/Tauri crate graph.
+- `npm run test:ui`: passed in real Chromium (99 IPC calls, 0 page errors),
+  including the manual Adoptium-style path, unframed icons, the removed upload
+  plus, per-server install receipts and an explicit offline server launch.
+  `npm run test:boot`: passed; `npm run screenshots` regenerated the guide images.
+- `npm run demo:check`: **59 checks passed, 1 skipped** (no JDK here, so the
+  launchable/offline pack variant is not built in this run). `npm run
+test:wardrobe`: **21/21**. The real-JVM `test:java`/`test:provider` suites were
+  verified in earlier passes but could not be rerun in this sandbox because no
+  JDK/keytool is installed now; their historical results below are not a claim
+  about this run.
+
+Still required on the Windows machine: `cargo check --manifest-path
+src-tauri/Cargo.toml --all-targets`, `cargo test --locked --manifest-path
+src-tauri/Cargo.toml`, `npm run demo` with the installed Adoptium JDK, and a real
+provider-pack install/launch. No pirate Minecraft downloader or license bypass
+was added; offline mode launches only the provider's own published ZIP.
+
+## Earlier verification history
+
 Checked in the implementation sandbox:
 
 - `npm ci --ignore-scripts --no-audit --no-fund`
 - `npm run check` (TypeScript project build)
 - `npm run build` (production Vite build)
-- `npm test` (152 passing, 1 skipped: contract, branding, licence/metadata, environment
+- `npm test` (then 152 passing, 1 skipped: contract, branding, licence/metadata, environment
   probe, Windows tool discovery, Tauri version alignment, installer licence encoding,
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
@@ -24,7 +58,7 @@ Checked in the implementation sandbox:
   npm/Cargo license pointers, and desktop bundle legal resources
 - Prettier check and `git diff --check`
 - Rust syntax parse and `rustfmt --edition 2021 --check`
-- `npm run test:rust`: 46 tests compiled and executed by a real `rustc --test`
+- `npm run test:rust`: then 46 tests compiled and executed by a real `rustc --test`
   build (rustc 1.99.0). Covers the dependency-free logic: ZIP path safety,
   server-slug validation, Java version parsing, JVM argument construction and
   agent/secret rejection, classpath-separator injection, manifest component

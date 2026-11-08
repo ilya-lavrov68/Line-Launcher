@@ -386,6 +386,7 @@ try {
       "zip-sha256-v1",
       "launch-manifest-v1",
       "private-ipc-v1",
+      "offline-launch-v1",
       "skin-upload-v1",
     ],
     servers: [
@@ -399,9 +400,10 @@ try {
       server(
         "creative",
         "Demo Creative",
-        "Второй сервер проекта: вход не спрашивается, сборка ставится отдельно.",
+        "Офлайн-сборка того же проекта: свой ник, без ticket и Microsoft-входа.",
         "creative",
         "pack-creative.zip",
+        launchable ? { launch_mode: "offline" } : {},
       ),
       // No launch endpoints on purpose: the launcher must say so, not fail.
       server(

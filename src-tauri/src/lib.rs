@@ -28,6 +28,7 @@ pub fn run() {
             line::settings::get_settings,
             line::settings::save_settings,
             line::settings::list_java_runtimes,
+            line::settings::probe_java_path,
             line::settings::clear_config_cache,
             line::wardrobe::get_skin,
             line::skin_library::list_skin_library,

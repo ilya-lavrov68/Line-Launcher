@@ -5,6 +5,7 @@ export const LINE_SUPPORTED_FEATURES = [
   "zip-sha256-v1",
   "launch-manifest-v1",
   "private-ipc-v1",
+  "offline-launch-v1",
   "skin-upload-v1",
 ] as const;
 export type LineFeature = (typeof LINE_SUPPORTED_FEATURES)[number];
@@ -100,6 +101,8 @@ export interface SkinState {
   textureUrl: string;
 }
 
+export type LaunchMode = "ticket" | "offline";
+
 export interface LineServer {
   /** Stable, lowercase ASCII slug; never accept a filesystem path from JSON. */
   id: string;
@@ -114,6 +117,8 @@ export interface LineServer {
   /** Provider's release identifier. Change it when the distribution changes. */
   version: string;
   minecraft_version?: string;
+  /** Missing/default ticket endpoints keep launch disabled. Offline is explicit. */
+  launch_mode?: LaunchMode;
   auth?: LineLaunchAuth;
   distribution: LineDistribution;
 }

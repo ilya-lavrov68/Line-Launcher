@@ -19,12 +19,15 @@ pub async fn get(
             .await
             .map_err(|e| LineError::network(&e))?;
         if response.status().is_redirection() {
+            let status = response.status().as_u16();
             let location = response
                 .headers()
                 .get(header::LOCATION)
                 .and_then(|v| v.to_str().ok())
                 .ok_or_else(|| {
-                    LineError::input("Провайдер вернул некорректное перенаправление.")
+                    LineError::input(format!(
+                        "Провайдер ответил HTTP {status} без корректного Location. Адрес config.json должен отдавать JSON напрямую; проверьте настройки сервера и proxy/VPN."
+                    ))
                 })?;
             url = validate_https(
                 url.join(location)

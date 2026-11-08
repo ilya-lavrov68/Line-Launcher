@@ -652,7 +652,7 @@ export default function LineLauncher() {
                               className="flex cursor-pointer items-center gap-1.5 self-start text-xs"
                             >
                               <ArrowLeft
-                                className="h-3.5 w-3.5"
+                                className="h-4 w-4"
                                 aria-hidden="true"
                               />
                               <span>Все серверы</span>
@@ -755,7 +755,7 @@ export default function LineLauncher() {
                 {brand.attribution.placement === "footer" && <Attribution />}
               </span>
               <span className="flex items-center gap-1.5">
-                <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
                 Только авторизация провайдера
               </span>
             </footer>

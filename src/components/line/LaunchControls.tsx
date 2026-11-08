@@ -40,9 +40,12 @@ export default function LaunchControls({
   onLaunch,
   onStop,
 }: LaunchControlsProps) {
-  const configured = Boolean(
-    server.auth?.launch_ticket_url && server.auth?.session_exchange_url,
-  );
+  const offline = server.launch_mode === "offline";
+  const configured =
+    offline ||
+    Boolean(
+      server.auth?.launch_ticket_url && server.auth?.session_exchange_url,
+    );
   const starting = status?.phase === "starting";
   const running = status?.phase === "running";
   const active = starting || running;
@@ -57,12 +60,12 @@ export default function LaunchControls({
         >
           {active ? (
             starting ? (
-              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" />
             ) : (
-              <Square className="h-4 w-4" aria-hidden="true" />
+              <Square className="h-5 w-5" aria-hidden="true" />
             )
           ) : (
-            <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+            <Play className="h-5 w-5 fill-current" aria-hidden="true" />
           )}
           <span>
             {active
@@ -90,7 +93,7 @@ export default function LaunchControls({
               title="История сборок"
               className="h-10 w-10 cursor-pointer rounded-xl"
             >
-              <History className="h-4 w-4" aria-hidden="true" />
+              <History className="h-5 w-5" aria-hidden="true" />
               <span className="sr-only">История сборок</span>
             </Button>
           }
@@ -101,7 +104,7 @@ export default function LaunchControls({
           role="status"
           className="text-muted-foreground flex items-center gap-1.5 text-xs"
         >
-          <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
           {status?.message}
         </p>
       )}
@@ -131,6 +134,12 @@ export default function LaunchControls({
       {error && (
         <p role="alert" className="text-destructive text-xs">
           {error}
+        </p>
+      )}
+      {offline && (
+        <p className="text-muted-foreground text-[11px] leading-relaxed">
+          Офлайн-сборка провайдера: используется ник аккаунта проекта, отдельный
+          билет сервера и Microsoft-вход не требуются.
         </p>
       )}
       {!configured && (

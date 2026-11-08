@@ -15,7 +15,7 @@ export interface ConfigUrlInputProps {
 /**
  * Provider URL entry. Reuses Obsy's Onboarding card shell
  * (`border-border/50 bg-card rounded-2xl border p-10 shadow-2xl`), its
- * `bg-primary/10 text-primary` icon badge, Input/Label/Button primitives and
+ * unframed icon, Input/Label/Button primitives and
  * Obsy's UrlInstallModal form layout. No new colours or radii.
  */
 export default function ConfigUrlInput({
@@ -58,9 +58,11 @@ export default function ConfigUrlInput({
       className="border-border/50 bg-card flex w-full max-w-md flex-col items-center justify-center gap-6 rounded-2xl border p-10 text-center shadow-2xl"
       aria-labelledby={`${id}-title`}
     >
-      <div className="bg-primary/10 text-primary flex h-16 w-16 items-center justify-center rounded-full shadow-inner">
-        <Link2 className="h-8 w-8" />
-      </div>
+      <Link2
+        data-line-icon
+        className="text-primary h-10 w-10"
+        aria-hidden="true"
+      />
       <div>
         <h2 id={`${id}-title`} className="mb-2 text-2xl font-bold">
           Ваш сервер. Одна ссылка.

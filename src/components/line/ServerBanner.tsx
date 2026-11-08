@@ -11,8 +11,8 @@ export interface ServerBannerProps {
 
 /**
  * Wide provider-supplied header image with an optional square icon. Both are
- * optional; a missing or broken image falls back to the same primary-tinted tile
- * and muted surface the rest of the launcher uses, so the layout never shifts.
+ * optional; a missing or broken image falls back to the same unframed primary-tinted mark
+ * and transparent surface the rest of the launcher uses, so the layout never shifts.
  */
 export default function ServerBanner({
   name,
@@ -45,16 +45,16 @@ export default function ServerBanner({
       )}
       {showIcon && (
         <div
+          data-line-icon
           className={cn(
-            "bg-card border-border/50 flex h-14 w-14 items-center justify-center",
-            "overflow-hidden rounded-xl border shadow-lg backdrop-blur-md",
+            "flex h-16 w-16 items-center justify-center overflow-hidden",
             showBanner ? "-mt-7 ml-4" : "",
           )}
         >
           <img
             src={iconUrl}
             alt={name}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             referrerPolicy="no-referrer"
             onError={() => setIconFailed(true)}
           />

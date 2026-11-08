@@ -99,7 +99,7 @@ const shim = `
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -144,6 +144,11 @@ const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
   attributed("install.rs", "pub fn safe_entry_path("),
+  attributed("java.rs", "fn java_name("),
+  plain("java.rs", "pub struct JavaRuntime {"),
+  attributed("java.rs", "pub fn process_path("),
+  attributed("java.rs", "pub fn validate_path("),
+  attributed("java.rs", "fn push_java_candidates("),
   attributed("java.rs", "pub fn parse_java_version("),
   attributed("launch.rs", "pub struct LaunchSpec {"),
   attributed("launch.rs", "pub const MIN_HEAP_MB:"),
@@ -217,6 +222,15 @@ const tests = [
   installTestPrelude,
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed(
+    "java.rs",
+    "fn path_bin_directory_finds_java_without_doubling_bin(",
+  ),
+  attributed(
+    "java.rs",
+    "fn verbatim_drive_prefix_is_removed_but_unc_is_preserved(",
+  ),
+  attributed("java.rs", "fn version_banners_do_not_hide_a_valid_version("),
   attributed("launch.rs", "fn abs("),
   attributed("launch.rs", "fn spec()"),
   attributed(
@@ -234,6 +248,10 @@ const tests = [
   attributed(
     "launch.rs",
     "fn pack_arguments_cannot_override_the_launcher_owned_ones(",
+  ),
+  attributed(
+    "launch.rs",
+    "fn offline_command_has_no_session_channel_or_ticket_requirement(",
   ),
   attributed("launch.rs", "fn uuid_formatting_sets_version_and_variant_bits("),
   attributed(

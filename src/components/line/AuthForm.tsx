@@ -170,9 +170,9 @@ export default function AuthForm({
                   disabled={loading}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-3.5 w-3.5" />
+                    <EyeOff className="h-4 w-4" />
                   ) : (
-                    <Eye className="h-3.5 w-3.5" />
+                    <Eye className="h-4 w-4" />
                   )}
                 </Button>
               </div>
@@ -203,11 +203,11 @@ export default function AuthForm({
           className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
         >
           {loading ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
+            <RefreshCw className="h-5 w-5 animate-spin" />
           ) : mode === "login" ? (
-            <LogIn className="h-4 w-4" />
+            <LogIn className="h-5 w-5" />
           ) : (
-            <UserPlus className="h-4 w-4" />
+            <UserPlus className="h-5 w-5" />
           )}
           <span>
             {loading

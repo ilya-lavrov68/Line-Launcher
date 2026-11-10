@@ -45,6 +45,47 @@ export async function closeWindow(): Promise<void> {
   await win.close();
 }
 
+/**
+ * Hide the window instead of minimising it.
+ *
+ * `hide()` is what "скрыть в трей" means to Windows: the window leaves the
+ * taskbar and the alt-tab list while the process stays alive, so a full-screen
+ * game has the machine to itself. `minimize()` is the other option and keeps a
+ * taskbar button. Neither is a close — the tray icon (and the game's own exit,
+ * see `restoreWindow`) brings it back.
+ */
+export async function hideWindow(): Promise<void> {
+  const win = currentWindow();
+  if (!win) return;
+  await win.hide();
+}
+
+/**
+ * Bring the launcher back after the game exits. Called by the shell whenever a
+ * game reaches a terminal phase, so all three behaviours converge here: a
+ * player who chose "скрыть в трей" gets the window back without hunting for
+ * the tray icon, which is what Prism does and what people expect.
+ */
+export async function restoreWindow(): Promise<void> {
+  const win = currentWindow();
+  if (!win) return;
+  try {
+    await win.unminimize();
+  } catch {
+    // Not minimised — nothing to undo.
+  }
+  try {
+    await win.show();
+  } catch {
+    // Already visible.
+  }
+  try {
+    await win.setFocus();
+  } catch {
+    // Windows may refuse focus to a background process; showing is enough.
+  }
+}
+
 export async function isWindowMaximized(): Promise<boolean> {
   const win = currentWindow();
   if (!win) return false;

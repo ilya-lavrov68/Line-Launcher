@@ -20,6 +20,7 @@ pub mod settings;
 pub mod skin_library;
 pub mod state;
 pub mod storage;
+pub mod tray;
 pub mod wardrobe;
 
 pub const LAUNCHER_VERSION: &str = env!("CARGO_PKG_VERSION");

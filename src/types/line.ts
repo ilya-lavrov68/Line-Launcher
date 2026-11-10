@@ -139,8 +139,14 @@ export interface LineConfig {
   servers: LineServer[];
 }
 
-/** What the launcher window does once the game starts. */
-export type AfterLaunch = "keep" | "minimize" | "close";
+/**
+ * What the launcher window does once the game starts.
+ *
+ * `tray` hides the window and keeps the process alive in the notification
+ * area: minimizing leaves it in the taskbar, which on a full-screen game is
+ * the difference between "out of the way" and "still there".
+ */
+export type AfterLaunch = "keep" | "minimize" | "close" | "tray";
 
 /**
  * Player settings. Deliberately narrow: there is no free-form JVM argument
@@ -154,6 +160,8 @@ export interface LauncherSettings {
   javaPath: string | null;
   sidebarCollapsed: boolean;
   afterLaunch: AfterLaunch;
+  /** Backdrop theme id; unknown or absent means the default gradient. */
+  backdrop?: string | null;
   windowWidth: number;
   windowHeight: number;
   windowMaximized: boolean;

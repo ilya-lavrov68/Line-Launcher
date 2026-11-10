@@ -28,6 +28,7 @@ const SHOT_HEIGHT = 800;
 const SCREENS = [
   "connecting",
   "account",
+  "profile",
   "servers",
   "server",
   "wardrobe",
@@ -35,7 +36,7 @@ const SCREENS = [
 ] as const;
 
 /**
- * The README gallery shows all six screens side by side, so they must share one
+ * The README gallery shows every screen side by side, so they must share one
  * aspect ratio. They used to be captured at 480/860/1000/1060 heights, which is
  * exactly what the complaint "one is tall, another is short" was about.
  */

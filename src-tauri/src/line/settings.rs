@@ -24,6 +24,10 @@ pub enum AfterLaunch {
     Keep,
     Minimize,
     Close,
+    /// Hide the window and keep the process alive in the notification area.
+    /// Unlike `Minimize` the window leaves the taskbar, so the game gets the
+    /// whole screen; the tray icon is the way back.
+    Tray,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -39,6 +43,13 @@ pub struct LauncherSettings {
     /// run that opens a 208px labelled sidebar immediately contradicts it.
     pub sidebar_collapsed: bool,
     pub after_launch: AfterLaunch,
+    /// Backdrop theme id (`src/lib/line/backdrops.ts`). Stored as a plain
+    /// string on purpose: the launcher validates it against the list it ships
+    /// with, and an id it does not know falls back to the default instead of
+    /// breaking the window. Keeping the list in one place (TypeScript) avoids
+    /// two copies that drift.
+    #[serde(default)]
+    pub backdrop: Option<String>,
     pub window_width: u32,
     pub window_height: u32,
     pub window_maximized: bool,
@@ -51,6 +62,7 @@ impl Default for LauncherSettings {
             java_path: None,
             sidebar_collapsed: true,
             after_launch: AfterLaunch::Keep,
+            backdrop: None,
             window_width: 1100,
             window_height: 720,
             window_maximized: false,

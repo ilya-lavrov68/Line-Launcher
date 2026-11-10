@@ -622,8 +622,9 @@ try {
         };
       }),
     );
+  // Five sections now: memory, Java, backdrop, window behaviour and cache.
   check(
-    sectionIcons.length === 4 &&
+    sectionIcons.length === 5 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&
@@ -672,7 +673,7 @@ try {
     );
   }
   check(
-    settingsText.includes("Оставить окно открытым"),
+    settingsText.includes("Оставить как есть"),
     "after-launch select lost its label",
   );
   check(

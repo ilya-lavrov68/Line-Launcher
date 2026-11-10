@@ -456,13 +456,33 @@ test("the animated backdrop is decoration that cannot take the window down", () 
   assert.match(backdrop, /<BackdropBoundary>/);
   //  3. a CSS colour field under the canvas, so the window has colour even
   //     when hazeglow declines the renderer (it refuses software rasterisers).
-  assert.match(backdrop, /function hazeField\(/);
-  assert.match(backdrop, /backgroundImage: hazeField\(ramp\)/);
-  assert.match(backdrop, /radial-gradient/);
+  //     The field is built from the theme's own palette in `backdrops.ts`, so the
+  //     gradient generator and the shader config cannot drift apart.
+  assert.match(backdrop, /backgroundImage: field/);
+  const backdrops = read("src/lib/line/backdrops.ts");
+  assert.match(backdrops, /export function backdropField\(/);
+  assert.match(backdrops, /radial-gradient/);
+  assert.match(backdrop, /backdropField\(active\)/);
 
   // Reduced motion freezes the shader instead of leaving the page grey.
   assert.match(backdrop, /prefers-reduced-motion: reduce/);
   assert.match(backdrop, /motion: "none"/);
+
+  // Switching backdrops has to dissolve, not cut: hazeglow re-renders a new
+  // config in one frame, so the only way to fade between two themes is to keep
+  // both mounted for the length of a crossfade and animate opacity.
+  assert.match(backdrop, /CROSSFADE_MS/);
+  assert.match(backdrop, /transition-opacity/);
+  assert.match(backdrops, /BACKDROP_THEMES/);
+
+  // At least ten selectable themes, each with its own legibility veil — one
+  // global `shade` cannot serve both a navy and a white ramp.
+  const themes = backdrops.match(/^ {2}theme\(/gm)?.length ?? 0;
+  assert.ok(
+    themes >= 10,
+    `expected at least 10 backdrop themes, found ${themes}`,
+  );
+  assert.match(backdrops, /shade:/);
 
   // The shader is the only WebGL in the app: one dependency, one place.
   const pkg = JSON.parse(read("package.json")) as {

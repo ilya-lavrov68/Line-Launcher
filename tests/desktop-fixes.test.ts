@@ -17,7 +17,9 @@ test("the upload heading has no fake plus button; section icons are unframed", (
   assert.match(wardrobe, /<SectionIcon icon=\{History\} \/>/);
   assert.match(wardrobe, /<SectionIcon icon=\{Shirt\} \/>/);
   const icon = read("src/components/line/SectionIcon.tsx");
-  assert.match(icon, /h-5 w-5/);
+  // 24px, not 20: the marker is the only colour on a settings row, so it has to
+  // carry the row. Still no tile around it — the assertion below is the point.
+  assert.match(icon, /h-6 w-6/);
   const className = icon.match(/className="([^"]+)"/)?.[1] ?? "";
   assert.doesNotMatch(className, /border|bg-|rounded|shadow/);
   assert.match(

@@ -145,9 +145,10 @@ test("panels in the new design are shadow, not outline", () => {
   // around every piece of content and made the page read as a grid of boxes.
   assert.match(lineGlass, /box-shadow:/);
   assert.doesNotMatch(lineGlass, /border:/);
-  // No backdrop blur either: the backdrop is a flat colour, so there is
-  // nothing behind a panel to blur and it only cost frames.
-  assert.doesNotMatch(lineGlass, /backdrop-filter/);
+  // Blur is deliberate again, and only because the animated backdrop is back:
+  // a translucent pane over a moving mesh needs the mesh softened behind it.
+  // Asserted so it is not "cleaned up" by someone reading an older comment.
+  assert.match(lineGlass, /backdrop-filter: blur/);
 
   // The old design must get a real panel back, not an unstyled transparent box.
   const legacyAt = themes.lastIndexOf('[data-theme="old"] [data-line-glass]');
@@ -155,6 +156,8 @@ test("panels in the new design are shadow, not outline", () => {
   assert.match(legacyGlass, /background: var\(--card\)/);
   assert.match(legacyGlass, /border: 1px solid/);
   assert.match(legacyGlass, /box-shadow: none/);
+  // The old panel keeps the blur it always had (8px) and none of the new one.
+  assert.match(legacyGlass, /backdrop-filter: blur\(8px\)/);
   assert.match(themes, /\[data-theme="line"\] \[data-line-canvas\]/);
   // The new backdrop is one flat colour. Two accent glows over a diagonal ramp
   // read as haze on a tool window and tinted text that had nothing to do with
@@ -177,8 +180,18 @@ test("panels in the new design are shadow, not outline", () => {
     indexCss.slice(0, oldBodyAt),
     /linear-gradient|animation: gradientBg/,
   );
-  // Reduced motion turns glass into a solid surface rather than wobbling.
+  // Reduced motion stops movement; it must not flatten the window into grey.
+  // The shader freezes at its first frame and the glass keeps its blur.
   assert.match(themes, /prefers-reduced-motion: reduce/);
+  const stillAt = themes.indexOf("@media (prefers-reduced-motion: reduce)");
+  const stillBlock = themes.slice(stillAt, themes.indexOf("}", stillAt) + 1);
+  assert.doesNotMatch(
+    stillBlock,
+    /backdrop-filter/,
+    "reduced motion must not change how the glass looks, only how it moves",
+  );
+  // The one preference that may flatten the glass is reduced transparency.
+  assert.match(themes, /prefers-reduced-transparency: reduce/);
 });
 
 test("no gradient survives anywhere outside the old design", () => {
@@ -399,4 +412,68 @@ test("the design switch exists before the sidebar does", () => {
   // And no decorative wash over the card: a gradient tint on top of a panel is
   // what made the first screen look dirty at the corners.
   assert.doesNotMatch(account, /bg-gradient-to-br/);
+});
+
+test("the animated backdrop is decoration that cannot take the window down", () => {
+  const backdrop = read("src/components/line/AnimatedBackdrop.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+
+  // Mounted once, behind the whole window — not per screen.
+  assert.match(launcher, /<AnimatedBackdrop/);
+  assert.match(backdrop, /data-line-backdrop/);
+  assert.match(backdrop, /aria-hidden="true"/);
+  assert.match(backdrop, /pointer-events-none/);
+
+  // Three independent ways it refuses to matter:
+  //  1. a capability probe, so a machine without WebGL2 never pays for it;
+  assert.match(backdrop, /function hasWebgl2\(/);
+  assert.match(backdrop, /getContext\("webgl2"\)/);
+  //  2. an error boundary, because a driver can hand out a context and then
+  //     fail inside the shader — that used to unmount the entire window;
+  assert.match(backdrop, /class BackdropBoundary extends Component/);
+  assert.match(backdrop, /getDerivedStateFromError/);
+  assert.match(backdrop, /<BackdropBoundary>/);
+  //  3. a CSS colour field under the canvas, so the window has colour even
+  //     when hazeglow declines the renderer (it refuses software rasterisers).
+  assert.match(backdrop, /HAZE_FIELD/);
+  assert.match(backdrop, /backgroundImage: HAZE_FIELD/);
+
+  // Reduced motion freezes the shader instead of leaving the page grey.
+  assert.match(backdrop, /prefers-reduced-motion: reduce/);
+  assert.match(backdrop, /motion: "none"/);
+
+  // The shader is the only WebGL in the app: one dependency, one place.
+  const pkg = JSON.parse(read("package.json")) as {
+    dependencies: Record<string, string>;
+  };
+  assert.ok(pkg.dependencies.hazeglow, "hazeglow must be a real dependency");
+  assert.deepEqual(
+    Object.keys(pkg.dependencies).filter((name) =>
+      /shader|gradient/.test(name),
+    ),
+    [],
+    "the backdrop lab's extra engines must not ship",
+  );
+  assert.match(
+    pkg.dependencies.hazeglow,
+    /^\^?\d+\.\d+\.\d+$/,
+    "a range, so a patch fix can land without a code change",
+  );
+});
+
+test("the brand mark in the gallery is the real logo file, not a drawing", () => {
+  const renderer = read("scripts/render-screens.mjs");
+  // The invented "I" glyph was hand-drawn here while the app rendered the SVG.
+  // The renderer now reads the same asset the app ships.
+  assert.match(renderer, /branding\/assets\/logo\.svg/);
+  assert.match(renderer, /function brandMark\(/);
+  for (const site of ["brandMark(ctx, 16, 11, 22)", "brandMark(ctx,"]) {
+    assert.ok(renderer.includes(site), `missing mark call: ${site}`);
+  }
+  // No path data of its own: a second copy is how the two drifted apart. The
+  // renderer may only mention the thing it replaced to explain why.
+  assert.match(renderer, /BRAND_LOGO/);
+  assert.doesNotMatch(renderer, /ctx\.moveTo\(3, 3\)/);
+  const logo = read("branding/assets/logo.svg");
+  assert.match(logo, /fill="#FFFF01"/i);
 });

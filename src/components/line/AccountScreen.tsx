@@ -27,15 +27,15 @@ export default function AccountScreen({
   onSubmit,
 }: AccountScreenProps) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <BrandMark className="h-9" />
-        <h2 className="text-foreground text-2xl font-semibold tracking-tight">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+      <div className="flex flex-col items-center gap-2.5 text-center">
+        <BrandMark className="h-11" />
+        <h2 className="text-foreground text-[28px] leading-tight font-semibold tracking-tight">
           {providerName}
         </h2>
         {/* One sentence. The provider name is the heading right above it, so
             naming it again read as a third title on the same card. */}
-        <p className="text-muted-foreground text-xs leading-relaxed">
+        <p className="text-muted-foreground text-[13px] leading-relaxed">
           Один вход — все серверы проекта.
           {serverCount > 0 && ` Серверов в проекте: ${serverCount}.`}
         </p>
@@ -43,8 +43,14 @@ export default function AccountScreen({
 
       {/* The login card is the first screen after the provider connects, so it
           uses the same panel surface as the server dock. Under the old design
-          `data-line-glass` degrades to the previous plain card. */}
-      <div data-line-glass className="flex flex-col gap-4 p-6">
+          `data-line-glass` degrades to the previous plain card.
+          One panel, one form: the fields inside are labels and inputs, not
+          tiles — four nested surfaces on one screen read as a settings dialog,
+          which is the opposite of the first thing a player sees. */}
+      <div
+        data-line-glass
+        className="flex flex-col gap-4 rounded-[var(--radius-panel)] p-6"
+      >
         <AuthForm
           registrationAvailable={registrationAvailable}
           loading={loading}

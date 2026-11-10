@@ -97,10 +97,10 @@ export default function AuthForm({
             transition={{ duration: 0.15 }}
             className="flex flex-col gap-3"
           >
-            <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
+            <div className="flex flex-col gap-1.5">
               <Label
                 htmlFor={`${id}-username`}
-                className="text-foreground text-xs font-semibold"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Логин
               </Label>
@@ -123,10 +123,10 @@ export default function AuthForm({
                 aria-describedby={message ? `${id}-error` : undefined}
               />
             </div>
-            <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
+            <div className="flex flex-col gap-1.5">
               <Label
                 htmlFor={`${id}-password`}
-                className="text-foreground text-xs font-semibold"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Пароль
               </Label>
@@ -177,7 +177,7 @@ export default function AuthForm({
           error moved the submit button on every attempt. The height is fixed so
           clearing the message while the request runs cannot shift the layout.
         */}
-        <div className="min-h-10" aria-live="polite">
+        <div className="min-h-4" aria-live="polite">
           {message && (
             <p
               id={`${id}-error`}
@@ -192,7 +192,7 @@ export default function AuthForm({
         <Button
           type="submit"
           disabled={loading}
-          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
+          className="h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-item)] text-sm font-semibold"
         >
           {loading ? (
             <RefreshCw className="h-5 w-5 animate-spin" />
@@ -211,7 +211,7 @@ export default function AuthForm({
         </Button>
       </form>
 
-      <p className="text-muted-foreground text-[10px] leading-relaxed">
+      <p className="text-muted-foreground/80 text-[12px] leading-relaxed">
         Пароль передаётся только API проекта по HTTPS. Токен сессии остаётся в
         Rust и не сохраняется в браузере.
       </p>

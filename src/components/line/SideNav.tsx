@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { brand } from "@/brand/generated";
+import BrandMark from "@/components/line/BrandMark";
 import Attribution from "@/components/line/Attribution";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,15 +92,36 @@ export default function SideNav({
       transition={
         reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
       }
+      data-line-glass
       className={cn(
-        "border-border/50 bg-fill-subtle relative z-20 flex min-h-0 shrink-0",
-        "flex-col border-r",
+        "relative z-20 flex min-h-0 shrink-0 flex-col",
+        "rounded-[var(--radius-item)]",
       )}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+      {/* The mark sits at the top of the rail, where a sidebar logo belongs.
+          Clicking it returns to the catalogue: it is the launcher's home. */}
+      <button
+        type="button"
+        aria-label={brand.name}
+        title={brand.name}
+        onClick={() => onNavigate("servers")}
+        className={cn(
+          "flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg outline-none",
+          "focus-visible:ring-ring/60 focus-visible:ring-2",
+          collapsed ? "justify-center px-0 py-3" : "px-2.5 py-3",
+        )}
+      >
+        <BrandMark className="h-6 w-6 shrink-0" />
+        {!collapsed && (
+          <span className="text-foreground truncate text-sm font-semibold tracking-tight">
+            {brand.shortName}
+          </span>
+        )}
+      </button>
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 pt-0">
         {!collapsed && providerName && (
           <p
-            className="text-muted-foreground truncate px-2.5 pt-1.5 pb-2 font-mono text-[10px]"
+            className="text-muted-foreground truncate px-2.5 pb-2 text-xs"
             title={providerName}
           >
             {providerName}
@@ -150,7 +172,7 @@ export default function SideNav({
         })}
       </div>
 
-      <div className="border-border/50 flex shrink-0 flex-col gap-1 border-t p-2">
+      <div className="flex shrink-0 flex-col gap-1 p-2">
         {username && (
           <div
             className={cn(
@@ -233,7 +255,7 @@ export default function SideNav({
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
         {!collapsed && brand.attribution.placement === "header" && (
-          <div className="px-2.5 pt-1 pb-0.5 text-[10px]">
+          <div className="text-muted-foreground/70 px-2.5 pt-1 pb-0.5 text-[12px]">
             <Attribution />
           </div>
         )}

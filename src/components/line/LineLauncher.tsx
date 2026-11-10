@@ -28,6 +28,7 @@ import ConfigUrlInput from "./ConfigUrlInput";
 import ConnectingScreen from "./ConnectingScreen";
 import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
+import AnimatedBackdrop from "./AnimatedBackdrop";
 import ServerDetail from "./ServerDetail";
 import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
@@ -541,201 +542,223 @@ export default function LineLauncher() {
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
-          <div className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
-            <TitleBar
-              context={titleContext}
-              // Before the sidebar exists (address, sign-in, connecting) the
-              // design switch still has to be reachable.
-              trailing={
-                screen === "config" || screen === "account" ? (
-                  <ThemeSwitchPill />
-                ) : undefined
-              }
-            />
-            <div className="flex min-h-0 w-full flex-1 overflow-hidden">
-              <SideNav
-                section={section}
-                collapsed={settings?.settings.sidebarCollapsed ?? false}
-                providerName={snapshot?.config.provider.name}
-                username={session?.username}
-                onLogout={() => void logout()}
-                actionsDisabled={actionsBusy || loading}
-                onNavigate={navigate}
-                onToggleCollapsed={() => void toggleSidebar()}
-                onChangeProvider={reconnect}
-                onAbout={() => setAboutOpen(true)}
-                onToggleTheme={toggleTheme}
+          <div className="bg-background text-foreground relative flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
+            {/* The haze is the only colour field in the design; every surface
+                above it is glass. It is decoration and nothing depends on it:
+                without WebGL2 or with reduced motion the window falls back to
+                the flat canvas and stays exactly as legible. */}
+            <AnimatedBackdrop imageUrl={selected?.banner_url} />
+            {/* Floating frame: one 6px inset around the whole window, and the
+                header shares it instead of being banded off by a hairline. */}
+            <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5">
+              <TitleBar
+                context={titleContext}
+                // Before the sidebar exists (address, sign-in, connecting) the
+                // design switch still has to be reachable.
+                trailing={
+                  screen === "config" || screen === "account" ? (
+                    <ThemeSwitchPill />
+                  ) : undefined
+                }
               />
-              <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
-                <div className="mx-auto max-w-5xl">
-                  {error && !(section === "servers" && screen === "config") && (
-                    <p
-                      role="alert"
-                      className="text-destructive bg-destructive/10 mb-5 rounded-[var(--radius-control)] p-3 text-xs"
-                    >
-                      {error}
-                    </p>
-                  )}
-                  <AnimatePresence mode="wait" initial={false}>
-                    <m.div
-                      key={
-                        section === "servers"
-                          ? screen === "detail"
-                            ? `detail-${selected?.id}`
-                            : screen
-                          : section
-                      }
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.18 }}
-                    >
-                      {section === "settings" && settings && (
-                        <SettingsScreen
-                          snapshot={settings}
-                          onChange={setSettings}
-                          disabled={actionsBusy}
-                        />
+              <div className="flex min-h-0 w-full flex-1 gap-1.5 overflow-hidden">
+                <SideNav
+                  section={section}
+                  collapsed={settings?.settings.sidebarCollapsed ?? true}
+                  providerName={snapshot?.config.provider.name}
+                  username={session?.username}
+                  onLogout={() => void logout()}
+                  actionsDisabled={actionsBusy || loading}
+                  onNavigate={navigate}
+                  onToggleCollapsed={() => void toggleSidebar()}
+                  onChangeProvider={reconnect}
+                  onAbout={() => setAboutOpen(true)}
+                  onToggleTheme={toggleTheme}
+                />
+                <main
+                  data-line-glass
+                  className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] p-6"
+                >
+                  {/* A stretched column all the way down. Pages that pin a
+                      control to the bottom edge (the server dock) need the
+                      scroll box's real height; a plain block wrapper collapses
+                      to its content and the dock floats upwards. */}
+                  <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+                    {error &&
+                      !(section === "servers" && screen === "config") && (
+                        <p
+                          role="alert"
+                          className="text-destructive bg-destructive/10 mb-5 rounded-[var(--radius-control)] p-3 text-xs"
+                        >
+                          {error}
+                        </p>
                       )}
-                      {section === "wardrobe" && (
-                        <WardrobeScreen
-                          username={session?.username}
-                          canSync={canSyncSkin}
-                          accountKey={session?.username ?? "signed-out"}
-                          onAuthRequired={() => {
-                            setSession(null);
-                            setSelected(null);
-                            setScreen("account");
-                            setSection("servers");
-                            setAuthError("Сессия истекла. Войдите повторно.");
-                          }}
-                          disabled={actionsBusy}
-                        />
-                      )}
-                      {section === "servers" && screen === "config" && (
-                        <div className="flex min-h-full items-center justify-center py-4">
-                          {mode === "dev-url" ? (
-                            <ConfigUrlInput
-                              initialUrl={snapshot?.sourceUrl}
-                              loading={loading}
-                              error={error}
-                              onSubmit={(url) => void loadConfig(url)}
-                            />
-                          ) : (
-                            <ConnectingScreen
-                              loading={loading}
-                              error={error}
-                              unconfigured={mode === "unconfigured"}
-                              onRetry={() =>
-                                void loadConfig(bakedProvider.configUrl, true)
-                              }
-                            />
-                          )}
-                        </div>
-                      )}
-                      {section === "servers" &&
-                        screen === "account" &&
-                        snapshot && (
+                    <AnimatePresence mode="wait" initial={false}>
+                      <m.div
+                        key={
+                          section === "servers"
+                            ? screen === "detail"
+                              ? `detail-${selected?.id}`
+                              : screen
+                            : section
+                        }
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.18 }}
+                        className="flex min-h-full flex-1 flex-col"
+                      >
+                        {section === "settings" && settings && (
+                          <SettingsScreen
+                            snapshot={settings}
+                            onChange={setSettings}
+                            disabled={actionsBusy}
+                          />
+                        )}
+                        {section === "wardrobe" && (
+                          <WardrobeScreen
+                            username={session?.username}
+                            canSync={canSyncSkin}
+                            accountKey={session?.username ?? "signed-out"}
+                            onAuthRequired={() => {
+                              setSession(null);
+                              setSelected(null);
+                              setScreen("account");
+                              setSection("servers");
+                              setAuthError("Сессия истекла. Войдите повторно.");
+                            }}
+                            disabled={actionsBusy}
+                          />
+                        )}
+                        {section === "servers" && screen === "config" && (
                           <div className="flex min-h-full items-center justify-center py-4">
-                            <AccountScreen
-                              providerName={snapshot.config.provider.name}
-                              serverCount={snapshot.config.servers.length}
-                              registrationAvailable={Boolean(
-                                snapshot.config.provider.auth.register_url,
-                              )}
-                              loading={authLoading}
-                              error={authError}
-                              onSubmit={(mode, username, password) =>
-                                void authenticate(mode, username, password)
-                              }
-                            />
+                            {mode === "dev-url" ? (
+                              <ConfigUrlInput
+                                initialUrl={snapshot?.sourceUrl}
+                                loading={loading}
+                                error={error}
+                                onSubmit={(url) => void loadConfig(url)}
+                              />
+                            ) : (
+                              <ConnectingScreen
+                                loading={loading}
+                                error={error}
+                                unconfigured={mode === "unconfigured"}
+                                onRetry={() =>
+                                  void loadConfig(bakedProvider.configUrl, true)
+                                }
+                              />
+                            )}
                           </div>
                         )}
-                      {section === "servers" &&
-                        screen === "servers" &&
-                        snapshot && (
-                          <ServerList
-                            rail={
-                              // New design only: the old catalogue keeps its
-                              // exact previous appearance, with no extra strip.
-                              theme === "line" && (
-                                <ServerCatalogRail
-                                  server={selected}
-                                  status={railStatus}
-                                  progress={railProgress}
-                                  busy={actionsBusy}
-                                  onOpen={(server) => void selectServer(server)}
-                                />
-                              )
-                            }
-                            statusFor={(server) =>
-                              installedIds.has(server.id) ? "Готов" : undefined
-                            }
-                            providerName={snapshot.config.provider.name}
-                            servers={snapshot.config.servers}
-                            installedIds={installedIds}
-                            stale={snapshot.stale}
-                            refreshing={refreshing}
-                            actionsDisabled={actionsBusy}
-                            onSelect={(server) => void selectServer(server)}
-                            onRefresh={() => void refresh()}
-                          />
-                        )}
-                      {section === "servers" &&
-                        screen === "detail" &&
-                        selected && (
-                          <ServerDetail
-                            server={selected}
-                            providerName={snapshot?.config.provider.name}
-                            hasSession={Boolean(session)}
-                            receipt={receipt}
-                            progress={progress}
-                            status={gameStatus}
-                            installing={installing}
-                            launching={launching}
-                            actionsBusy={actionsBusy}
-                            installError={installError}
-                            launchError={launchError}
-                            availability={
-                              selected.launch_mode === "offline" ||
-                              Boolean(
-                                selected.auth?.launch_ticket_url &&
-                                selected.auth?.session_exchange_url,
-                              )
-                                ? "ready"
-                                : "unconfigured"
-                            }
-                            onBack={() => {
-                              detailGeneration.current += 1;
-                              setScreen("servers");
-                              setSelected(null);
-                            }}
-                            onInstall={() => void install()}
-                            onCancel={() => void cancel()}
-                            onLaunch={() => void launch()}
-                            onStop={() => void stopGame()}
-                            onHistory={(open) => void openHistory(open)}
-                            onRollback={(target) => void rollback(target)}
-                            historyOpen={historyOpen}
-                            history={history}
-                            historyLoading={historyLoading}
-                            historyError={historyError}
-                          />
-                        )}
-                    </m.div>
-                  </AnimatePresence>
-                </div>
-              </main>
+                        {section === "servers" &&
+                          screen === "account" &&
+                          snapshot && (
+                            <div className="flex min-h-full items-center justify-center py-4">
+                              <AccountScreen
+                                providerName={snapshot.config.provider.name}
+                                serverCount={snapshot.config.servers.length}
+                                registrationAvailable={Boolean(
+                                  snapshot.config.provider.auth.register_url,
+                                )}
+                                loading={authLoading}
+                                error={authError}
+                                onSubmit={(mode, username, password) =>
+                                  void authenticate(mode, username, password)
+                                }
+                              />
+                            </div>
+                          )}
+                        {section === "servers" &&
+                          screen === "servers" &&
+                          snapshot && (
+                            <ServerList
+                              rail={
+                                // New design only: the old catalogue keeps its
+                                // exact previous appearance, with no extra strip.
+                                theme === "line" && (
+                                  <ServerCatalogRail
+                                    server={selected}
+                                    status={railStatus}
+                                    progress={railProgress}
+                                    busy={actionsBusy}
+                                    onOpen={(server) =>
+                                      void selectServer(server)
+                                    }
+                                  />
+                                )
+                              }
+                              statusFor={(server) =>
+                                installedIds.has(server.id)
+                                  ? "Готов"
+                                  : undefined
+                              }
+                              providerName={snapshot.config.provider.name}
+                              servers={snapshot.config.servers}
+                              installedIds={installedIds}
+                              stale={snapshot.stale}
+                              refreshing={refreshing}
+                              actionsDisabled={actionsBusy}
+                              onSelect={(server) => void selectServer(server)}
+                              onRefresh={() => void refresh()}
+                            />
+                          )}
+                        {section === "servers" &&
+                          screen === "detail" &&
+                          selected && (
+                            <ServerDetail
+                              server={selected}
+                              providerName={snapshot?.config.provider.name}
+                              hasSession={Boolean(session)}
+                              receipt={receipt}
+                              progress={progress}
+                              status={gameStatus}
+                              installing={installing}
+                              launching={launching}
+                              actionsBusy={actionsBusy}
+                              installError={installError}
+                              launchError={launchError}
+                              availability={
+                                selected.launch_mode === "offline" ||
+                                Boolean(
+                                  selected.auth?.launch_ticket_url &&
+                                  selected.auth?.session_exchange_url,
+                                )
+                                  ? "ready"
+                                  : "unconfigured"
+                              }
+                              onBack={() => {
+                                detailGeneration.current += 1;
+                                setScreen("servers");
+                                setSelected(null);
+                              }}
+                              onInstall={() => void install()}
+                              onCancel={() => void cancel()}
+                              onLaunch={() => void launch()}
+                              onStop={() => void stopGame()}
+                              onHistory={(open) => void openHistory(open)}
+                              onRollback={(target) => void rollback(target)}
+                              historyOpen={historyOpen}
+                              history={history}
+                              historyLoading={historyLoading}
+                              historyError={historyError}
+                            />
+                          )}
+                      </m.div>
+                    </AnimatePresence>
+                  </div>
+                </main>
+              </div>
+              <AboutDialog
+                version={LAUNCHER_VERSION}
+                open={aboutOpen}
+                onOpenChange={setAboutOpen}
+              />
             </div>
-            <AboutDialog
-              version={LAUNCHER_VERSION}
-              open={aboutOpen}
-              onOpenChange={setAboutOpen}
-            />
             {/* Persistent rail: the last opened server stays one click away from
                 the catalogue, the wardrobe and settings. Under the old design it
                 renders nothing and the footer below is unchanged. */}
-            <footer className="border-border/50 text-muted-foreground flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[10px]">
+            <footer className="text-muted-foreground/70 relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 px-2 pb-1.5 text-[12px]">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>
                   {brand.shortName} | {LAUNCHER_VERSION}

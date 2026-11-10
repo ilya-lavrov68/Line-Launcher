@@ -85,7 +85,7 @@ export function ServerCatalogRail({
                 </span>
                 <span
                   role="status"
-                  className="text-muted-foreground truncate text-[11px]"
+                  className="text-muted-foreground truncate text-[12px]"
                 >
                   {status}
                   {percent === null ? "" : ` · ${percent}%`}
@@ -118,7 +118,7 @@ export function ServerCatalogRail({
               variant="outline"
               disabled={busy}
               onClick={() => onOpen(server)}
-              className="h-7 shrink-0 gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[11px] font-medium"
+              className="h-7 shrink-0 gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[12px] font-medium"
             >
               <Play className="size-3 fill-current" aria-hidden="true" />
               <span>Открыть</span>

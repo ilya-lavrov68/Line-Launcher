@@ -91,7 +91,7 @@ export default function InstallProgress({
       <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs tabular-nums">
         <span>{bytes}</span>
         <span className="flex items-center gap-2">
-          <span className="font-mono text-[10px]">{Math.round(percent)}%</span>
+          <span className="font-mono text-[12px]">{Math.round(percent)}%</span>
           {active && onCancel && (
             <Button
               variant="outline"
@@ -121,7 +121,7 @@ export default function InstallProgress({
         </p>
       )}
       {finished && (
-        <p className="text-muted-foreground text-[11px] leading-relaxed">
+        <p className="text-muted-foreground text-[12px] leading-relaxed">
           Файлы проверены. Если провайдер настроил запуск, кнопка «Играть»
           доступна ниже.
         </p>

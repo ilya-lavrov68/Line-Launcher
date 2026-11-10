@@ -31,7 +31,7 @@ export default function Attribution({
         "text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5",
         where === "about"
           ? "flex-col items-start gap-1 text-xs"
-          : "text-[10px]",
+          : "text-[12px]",
         className,
       )}
     >

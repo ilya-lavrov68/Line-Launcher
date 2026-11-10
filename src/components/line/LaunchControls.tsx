@@ -137,13 +137,13 @@ export default function LaunchControls({
         </p>
       )}
       {offline && (
-        <p className="text-muted-foreground text-[11px] leading-relaxed">
+        <p className="text-muted-foreground text-[12px] leading-relaxed">
           Офлайн-сборка провайдера: используется ник аккаунта проекта, отдельный
           билет сервера и Microsoft-вход не требуются.
         </p>
       )}
       {!configured && (
-        <p className="text-muted-foreground text-[11px] leading-relaxed">
+        <p className="text-muted-foreground text-[12px] leading-relaxed">
           Сборка установлена, но провайдер не включил запуск через приватный
           IPC.
         </p>

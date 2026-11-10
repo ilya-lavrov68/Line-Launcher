@@ -41,8 +41,6 @@ export default defineConfig({
       input: {
         main: path.resolve(import.meta.dirname, "index.html"),
         preview: path.resolve(import.meta.dirname, "preview.html"),
-        // Review-only page for the animated backdrop candidates; not shipped.
-        "bg-lab": path.resolve(import.meta.dirname, "bg-lab.html"),
       },
     },
     target:

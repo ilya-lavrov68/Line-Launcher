@@ -141,7 +141,7 @@ export default function ServerActionPanel({
         duration: reducedMotion ? 0 : 0.22,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="flex flex-col gap-4 p-4"
+      className="flex flex-col gap-3 p-4"
     >
       <div className="flex items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -169,7 +169,7 @@ export default function ServerActionPanel({
               </span>
             </span>
             {server.minecraft_version && (
-              <span className="font-mono text-[10px] opacity-80">
+              <span className="font-mono text-[12px] opacity-80">
                 MC {server.minecraft_version}
               </span>
             )}
@@ -239,7 +239,7 @@ export default function ServerActionPanel({
                   />
                 )}
               </div>
-              <div className="text-muted-foreground flex items-center justify-between font-mono text-[10px]">
+              <div className="text-muted-foreground flex items-center justify-between font-mono text-[12px]">
                 <span>{INSTALL_PHASE_LABEL[progress!.phase]}</span>
                 <span>{percent === null ? "…" : `${percent}%`}</span>
               </div>
@@ -285,8 +285,8 @@ export default function ServerActionPanel({
         </m.div>
       </div>
 
-      <div className="text-muted-foreground flex items-center gap-1.5 text-[10px]">
-        <ShieldCheck className="size-3 shrink-0" aria-hidden="true" />
+      <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">
+        <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
         <span>
           {server.launch_mode === "offline"
             ? "Офлайн-сборка: ник аккаунта проекта."
@@ -302,7 +302,7 @@ export default function ServerActionPanel({
             initial={reducedMotion ? false : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reducedMotion ? undefined : { opacity: 0 }}
-            className="text-destructive bg-destructive/10 rounded-[var(--radius-control)] p-2 text-[11px] leading-relaxed"
+            className="text-destructive bg-destructive/10 rounded-[var(--radius-control)] p-2 text-[12px] leading-relaxed"
           >
             {error}
           </m.p>

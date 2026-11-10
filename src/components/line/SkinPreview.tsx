@@ -106,7 +106,7 @@ export default function SkinPreview({
       )}
     >
       {failed || !src ? (
-        <span className="text-muted-foreground p-4 text-center text-[10px] leading-relaxed">
+        <span className="text-muted-foreground p-4 text-center text-[12px] leading-relaxed">
           {failed ? "Не удалось показать текстуру" : "Скин не выбран"}
         </span>
       ) : (

@@ -99,7 +99,7 @@ export default function ServerCard({
             {/* The state chip floats on the artwork: it is the one place on the
                 card where a readable label beats another row of text. */}
             {state && (
-              <span className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+              <span className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[12px] font-medium text-white backdrop-blur-sm">
                 {state.tone === "busy" ? (
                   <CloudDownload className="size-3" aria-hidden="true" />
                 ) : (
@@ -141,7 +141,7 @@ export default function ServerCard({
                 {name}
               </span>
               {version && (
-                <span className="text-muted-foreground font-mono text-[10px]">
+                <span className="text-muted-foreground font-mono text-[12px]">
                   v{version}
                 </span>
               )}
@@ -150,7 +150,7 @@ export default function ServerCard({
             {!showBanner && state && (
               <span
                 className={cn(
-                  "ml-auto flex shrink-0 items-center gap-1 text-[10px] font-medium",
+                  "ml-auto flex shrink-0 items-center gap-1 text-[12px] font-medium",
                   state.tone === "busy"
                     ? "text-line-update"
                     : "text-line-online",
@@ -171,7 +171,7 @@ export default function ServerCard({
           </p>
 
           {(minecraftVersion || hasPack) && (
-            <p className="text-muted-foreground/80 flex items-center gap-1.5 font-mono text-[10px]">
+            <p className="text-muted-foreground/80 flex items-center gap-1.5 font-mono text-[12px]">
               {minecraftVersion && <span>Minecraft {minecraftVersion}</span>}
               {minecraftVersion && hasPack && <span aria-hidden="true">·</span>}
               {hasPack && (

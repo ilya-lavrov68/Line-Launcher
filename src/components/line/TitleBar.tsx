@@ -24,9 +24,10 @@ export interface TitleBarProps {
 }
 
 /**
- * Custom window frame. One hairline under it is the only border: it separates
- * the frame from the content below, which is what a border is for. No blur —
- * the page behind is a flat colour, so there is nothing to blur.
+ * Custom window frame. Transparent by design: it floats in the window's 6px
+ * inset over the page's colour field, and the only thing separating it from the
+ * content is space. A bar with a background and a hairline under it read as the
+ * third strip in a row and cut the window into bands.
  *
  * `data-tauri-drag-region` marks the draggable area; interactive children opt out
  * automatically because Tauri ignores the drag region on interactive elements.
@@ -56,9 +57,12 @@ export default function TitleBar({ context, trailing }: TitleBarProps) {
   return (
     <header
       data-tauri-drag-region
+      // No background and no hairline under it: the header floats in the same
+      // 6px inset as the panels, over the page's colour. A full-width bar with a
+      // border was the third strip in a row and cut the window in two.
       className={cn(
-        "border-border/50 bg-background flex h-11 w-full shrink-0 items-center",
-        "justify-between gap-3 border-b pr-1 pl-3 select-none",
+        "flex h-11 w-full shrink-0 items-center",
+        "justify-between gap-3 pr-1 pl-3 select-none",
       )}
     >
       <div

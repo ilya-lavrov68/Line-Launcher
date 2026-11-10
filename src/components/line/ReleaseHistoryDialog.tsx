@@ -56,7 +56,7 @@ export default function ReleaseHistoryDialog({
                     <span className="text-foreground truncate text-xs font-semibold">
                       {receipt.version}
                     </span>
-                    <span className="text-muted-foreground font-mono text-[10px]">
+                    <span className="text-muted-foreground font-mono text-[12px]">
                       {receipt.sha256.slice(0, 12)}
                     </span>
                   </div>

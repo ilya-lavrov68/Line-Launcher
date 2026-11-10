@@ -117,3 +117,31 @@ DOM под `hidden` дали бы скринридеру и smoke-тесту п�
 - `npm run check`, `npm run build` — типы и сборка.
 - `/preview.html` (`npm run dev` → `http://localhost:5173/preview.html`) —
   песочница: шесть состояний дока и `?theme=old`.
+
+## Чек-лист миграции `tryliner/desktop`
+
+Пути проверены по дереву репозитория (`src/`, 914 файлов). Удалять и переносить —
+в этом порядке: сначала то, что в лаунчере не имеет источника данных, потом то,
+что дублирует уже принятые примитивы.
+
+| #   | Путь в `tryliner/src`                                                                                                     | Действие           | Почему                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `features/lyrics/**` (40 файлов, включая `canvas/*`)                                                                      | удалить            | синхронизированный текст и canvas-рендерер без трека — мёртвый вес; 26 файлов только геометрии текста                    |
+| 2   | `features/player/ui/EqualizerPicker.tsx`, `SpeedPitchPicker.tsx`, `VolumePicker.tsx`, `TimelineSlider.tsx`, `ui/speed/**` | удалить            | эквалайзер, скорость/тон, громкость и перемотка не управляют ничем в лаунчере                                            |
+| 3   | `features/player/ui/Fullscreen*.tsx`, `CanvasLyricsView.tsx`, `Kawaii*/Kawarp*`, `ui/AmbientLayer.tsx`                    | удалить            | полноэкранный плеер и реактивные визуализации; лаунчер не рисует фон под музыку                                          |
+| 4   | `features/touchbar/**`, `features/overlay/**`                                                                             | удалить            | macOS Touch Bar и второе Electron-окно; в Tauri одно окно, оверлея нет                                                   |
+| 5   | `src/electron.d.ts`, `app/mainWindowServices.ts`, `app/OverlayApp.tsx`                                                    | переписать/удалить | мост к Electron IPC и управление вторым окном заменяются командами Tauri и `getCurrentWindow`                            |
+| 6   | `widgets/player-bar/index.ts`, `widgets/mini-player/index.ts`, `widgets/fullscreen-player/index.ts`                       | переписать         | «сейчас играет» → `ServerCatalogRail`; нижняя панель → `ServerActionPanel`; полноэкранный плеер не нужен                 |
+| 7   | `shared/ui/Panel.tsx`, `islandSurface.ts`, `CircleDitherCanvas.tsx`, `AppleEmojiProvider.tsx`                             | переписать/удалить | стекло и заливки переехали в CSS-атрибуты (`[data-line-glass]`, `bg-fill`); canvas-диттеринг и эмодзи-провайдер не нужны |
+
+Что **не** переносится, но и не удаляется из tryliner — это их код, а не наш:
+`shared/api`, `shared/telemetry`, `features/updater`, `features/youtube-auth`,
+`features/discord`. В Line Launcher на их месте уже стоят Rust-команды,
+провайдер-конфиг и отсутствие внешней телеметрии.
+
+## Почему не `tailwind.config.ts`
+
+Tailwind v4 конфигурируется в CSS. Отдельного `tailwind.config.ts` в проекте нет
+и добавлять его не нужно: слоты объявлены в `@theme inline` внутри
+`src/styles/themes.css`, а переключение темы — атрибут, а не вариант сборки.
+Файл конфигурации понадобился бы только для JS-плагинов, которых здесь нет.

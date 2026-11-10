@@ -75,9 +75,10 @@ export function ServerCatalogRail({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-muted-foreground font-mono text-[9px] tracking-wide uppercase">
-                Текущий сервер
-              </span>
+              {/* One line. The uppercase kicker repeated the section heading
+                  directly above the strip — «Текущий сервер» over the server
+                  name, on a screen whose title already says whose servers these
+                  are. The name and its state are the whole message. */}
               <div className="flex min-w-0 items-baseline gap-2">
                 <span className="text-foreground truncate text-[13px] font-medium">
                   {server.name}
@@ -97,7 +98,7 @@ export function ServerCatalogRail({
                   aria-valuemax={100}
                   aria-valuenow={percent}
                   aria-label="Загрузка сборки"
-                  className="bg-fill mt-1 h-1 w-full overflow-hidden rounded-full"
+                  className="bg-fill mt-1.5 h-1 w-full overflow-hidden rounded-full"
                 >
                   <m.div
                     className="bg-primary h-full rounded-full"
@@ -117,7 +118,7 @@ export function ServerCatalogRail({
               variant="outline"
               disabled={busy}
               onClick={() => onOpen(server)}
-              className="h-7 shrink-0 gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[11px] font-semibold"
+              className="h-7 shrink-0 gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[11px] font-medium"
             >
               <Play className="size-3 fill-current" aria-hidden="true" />
               <span>Открыть</span>

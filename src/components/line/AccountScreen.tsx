@@ -33,29 +33,24 @@ export default function AccountScreen({
         <h2 className="text-foreground text-2xl font-semibold tracking-tight">
           {providerName}
         </h2>
+        {/* One sentence. The provider name is the heading right above it, so
+            naming it again read as a third title on the same card. */}
         <p className="text-muted-foreground text-xs leading-relaxed">
-          Войдите один раз — и все серверы проекта будут доступны.
-          {serverCount > 0 && ` Сейчас в проекте ${serverCount} серверов.`}
+          Один вход — все серверы проекта.
+          {serverCount > 0 && ` Серверов в проекте: ${serverCount}.`}
         </p>
       </div>
 
       {/* The login card is the first screen after the provider connects, so it
-          uses the same glass surface as the server dock. Under the old design
+          uses the same panel surface as the server dock. Under the old design
           `data-line-glass` degrades to the previous plain card. */}
-      <div
-        data-line-glass
-        className="relative flex flex-col gap-4 overflow-hidden p-6"
-      >
-        <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
-        <div className="relative z-10">
-          <AuthForm
-            providerName={providerName}
-            registrationAvailable={registrationAvailable}
-            loading={loading}
-            error={error}
-            onSubmit={onSubmit}
-          />
-        </div>
+      <div data-line-glass className="flex flex-col gap-4 p-6">
+        <AuthForm
+          registrationAvailable={registrationAvailable}
+          loading={loading}
+          error={error}
+          onSubmit={onSubmit}
+        />
       </div>
     </div>
   );

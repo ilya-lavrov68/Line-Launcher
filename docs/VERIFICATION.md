@@ -52,9 +52,13 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **202 tests, 201 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **203 tests, 202 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
-  regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
+  regressions plus the design regressions from the round-25 cleanup: a flat
+  canvas with no gradient anywhere outside `[data-theme="old"]`, panels drawn
+  with a shadow instead of a border and no `backdrop-filter`, the old design
+  still getting its bordered glass panel back, and a catalogue card that carries
+  no chip row. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
   offline mode, accepted dev release flags, the Windows `task` scope error, and
   ticket endpoints leaking into offline/install-only demo servers).

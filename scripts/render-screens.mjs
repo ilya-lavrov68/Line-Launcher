@@ -147,6 +147,8 @@ export function loadTokens() {
   const color = (name) => parseColor(resolve(name)) ?? [255, 255, 255, 1];
   return {
     background: color("--background"),
+    // `--line-canvas` is `#08090c` in the new theme: one flat value.
+    canvas: color("--line-canvas"),
     foreground: color("--foreground"),
     mutedForeground: color("--muted-foreground"),
     primary: color("--primary"),
@@ -254,6 +256,7 @@ function text(ctx, value, x, y, options = {}) {
     lineHeight = size * 1.45,
     mono = false,
     letterSpacing = 0,
+    maxLines = 0,
   } = options;
   ctx.font = mono
     ? `${size}px "DejaVu Sans Mono", monospace`
@@ -273,7 +276,10 @@ function text(ctx, value, x, y, options = {}) {
     }
   }
   if (current) lines.push(current);
-  lines.forEach((line, index) => {
+  // A description that would overflow the card is clipped by CSS; the render
+  // has to clip it too, or the shot shows text the app never draws.
+  const shown = maxLines ? lines.slice(0, maxLines) : lines;
+  shown.forEach((line, index) => {
     const drawX =
       align === "center"
         ? x - ctx.measureText(line).width / 2
@@ -286,7 +292,7 @@ function text(ctx, value, x, y, options = {}) {
       y + index * lineHeight,
     );
   });
-  return lines.length;
+  return shown.length;
 }
 
 function measure(ctx, value, size, weight = 400, mono = false) {
@@ -451,17 +457,9 @@ function icon(ctx, name, x, y, size, color, width = 1.75) {
 // ───────────────────────────── shell ─────────────────────────────
 
 function background(ctx) {
-  ctx.fillStyle = rgba(T.background);
-  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
-  const glow = ctx.createRadialGradient(1000, -80, 40, 1000, -80, 900);
-  glow.addColorStop(0, rgba(T.primary, 0.14));
-  glow.addColorStop(1, rgba(T.primary, 0));
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
-  const glow2 = ctx.createRadialGradient(60, 780, 20, 60, 780, 700);
-  glow2.addColorStop(0, rgba(T.primary, 0.09));
-  glow2.addColorStop(1, rgba(T.primary, 0));
-  ctx.fillStyle = glow2;
+  // One flat colour, exactly like `--line-canvas`. The two accent glows that
+  // used to be painted here are what made the window look hazy.
+  ctx.fillStyle = rgba(T.canvas);
   ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
 }
 
@@ -503,10 +501,9 @@ function titleBar(ctx, context, trailing) {
     });
   }
   if (trailing) {
+    // `ThemeSwitchPill` renders as a ghost button: text and icon, no frame.
     const w = measure(ctx, trailing, 11, 500) + 34;
     const x = SHOT_WIDTH - w - 100;
-    fillRound(ctx, x, 12, w, 22, 8, rgba(T.fill, 1));
-    strokeRound(ctx, x, 12, w, 22, 8, rgba(T.border), 1);
     icon(ctx, "sparkles", x + 9, 17, 12, rgba(T.mutedForeground));
     text(ctx, trailing, x + 25, 27, {
       size: 11,
@@ -649,20 +646,31 @@ function appFooter(ctx, top, height) {
   });
 }
 
+/**
+ * A panel. No outline and no sheen: the CSS draws elevation with a shadow, so
+ * the render has to as well or the screenshots show a design the app does not
+ * have. The shadow is drawn first, offset down and blurred, then the surface
+ * sits on top of it.
+ */
 function glass(ctx, x, y, w, h, radius = 18) {
-  fillRound(ctx, x, y, w, h, radius, rgba(T.surfaceGlass));
-  strokeRound(ctx, x, y, w, h, radius, rgba(T.border), 1);
-  // Top inner highlight: the same 1px inset the CSS adds.
   ctx.save();
-  roundRect(ctx, x + 1, y + 1, w - 2, h - 2, radius - 1);
-  ctx.clip();
-  const sheen = ctx.createLinearGradient(x, y, x, y + h);
-  sheen.addColorStop(0, "rgba(255,255,255,0.06)");
-  sheen.addColorStop(0.5, "rgba(255,255,255,0.01)");
-  sheen.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = sheen;
-  ctx.fillRect(x, y, w, h);
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 34;
+  ctx.shadowOffsetY = 14;
+  fillRound(ctx, x, y, w, h, radius, rgba(T.surfaceGlass));
   ctx.restore();
+  // The 1px inner highlight the CSS keeps: it separates a dark panel from a
+  // dark page at the top edge, which a shadow alone cannot do.
+  strokeRound(
+    ctx,
+    x + 0.5,
+    y + 0.5,
+    w - 1,
+    h - 1,
+    radius,
+    "rgba(255,255,255,0.04)",
+    1,
+  );
 }
 
 function button(
@@ -724,11 +732,8 @@ function chip(ctx, x, y, label, tone = "neutral") {
 function progressBar(ctx, x, y, w, percent) {
   fillRound(ctx, x, y, w, 8, 4, rgba(T.fill, 1));
   const width = Math.max(8, (w * percent) / 100);
-  const gradient = ctx.createLinearGradient(x, y, x + width, y);
-  gradient.addColorStop(0, rgba(T.primary));
-  gradient.addColorStop(1, rgba(T.primary, 0.7));
-  fillRound(ctx, x, y, width, 8, 4, gradient);
-  strokeRound(ctx, x, y, w, 8, 4, "rgba(255,255,255,0.10)", 1);
+  fillRound(ctx, x, y, width, 8, 4, rgba(T.primary));
+  fillRound(ctx, x, y, w, 8, 4, rgba(T.fill, 0.9));
 }
 
 // ───────────────────────────── screens ─────────────────────────────
@@ -844,7 +849,7 @@ function screenAccount(ctx) {
   text(
     ctx,
     // AccountScreen builds this from `servers.length`; the demo config has two.
-    "Войдите один раз — и все серверы проекта будут доступны. Сейчас в проекте 2 сервера.",
+    "Один вход — все серверы проекта. Серверов в проекте: 2.",
     centerX,
     y,
     {
@@ -857,30 +862,15 @@ function screenAccount(ctx) {
   );
   y += 40;
 
-  // Card height is derived from its own contents (24px padding, two 88px
-  // fields, the tab row and a 40px button), not guessed: an oversized card
-  // leaves a dead strip under «Войти».
-  const cardH = 24 + 66 + 44 + 2 * 88 + 2 + 4 + 40 + 24;
+  // Card height is derived from its own contents (20px padding, the tab row,
+  // two 64px fields and a 40px button), not guessed: an oversized card leaves a
+  // dead strip under «Войти». The card opens with the switch — the heading and
+  // the explainer under it were the two labels that made this look busy.
+  const cardH = 20 + 28 + 16 + 2 * 64 + 6 + 4 + 40 + 20;
   glass(ctx, x, y, cardW, cardH, 16);
-  const ix = x + 24;
-  const innerW = cardW - 48;
-  let iy = y + 24;
-
-  text(ctx, "Аккаунт проекта", ix, iy + 12, { size: 14, weight: 600 });
-  iy += 20;
-  text(
-    ctx,
-    "Один аккаунт Plus In Plus Demo на все серверы проекта. Аккаунт Microsoft не нужен.",
-    ix,
-    iy + 12,
-    {
-      size: 11,
-      color: rgba(T.mutedForeground),
-      maxWidth: innerW,
-      lineHeight: 15,
-    },
-  );
-  iy += 46;
+  const ix = x + 20;
+  const innerW = cardW - 40;
+  let iy = y + 20;
 
   // Tabs: a quiet trough with the active segment raised.
   fillRound(ctx, ix, iy, innerW, 28, 8, rgba(T.fill, 0.5));
@@ -898,36 +888,23 @@ function screenAccount(ctx) {
   });
   iy += 44;
 
+  // A label over a bordered input. The wrapper that used to be drawn around
+  // both was a third frame for one field.
   const field = (label, value, placeholder, withLock) => {
-    fillRound(ctx, ix, iy, innerW, 74, 10, rgba(T.fill, 0.35));
-    strokeRound(ctx, ix, iy, innerW, 74, 10, rgba(T.border, 0.7), 1);
-    text(ctx, label, ix + 12, iy + 21, { size: 12, weight: 600 });
-    fillRound(
-      ctx,
-      ix + 12,
-      iy + 30,
-      innerW - 24,
-      34,
-      8,
-      rgba(T.background, 0.55),
-    );
-    strokeRound(
-      ctx,
-      ix + 12,
-      iy + 30,
-      innerW - 24,
-      34,
-      8,
-      rgba(T.input, 0.7),
-      1,
-    );
+    text(ctx, label, ix, iy + 10, {
+      size: 11,
+      weight: 500,
+      color: rgba(T.mutedForeground),
+    });
+    fillRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.background, 0.55));
+    strokeRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.input, 0.7), 1);
     if (withLock)
-      icon(ctx, "lock", ix + 22, iy + 40, 14, rgba(T.mutedForeground));
-    text(ctx, value || placeholder, ix + (withLock ? 46 : 24), iy + 52, {
+      icon(ctx, "lock", ix + 12, iy + 28, 14, rgba(T.mutedForeground));
+    text(ctx, value || placeholder, ix + (withLock ? 36 : 14), iy + 40, {
       size: 12,
       color: value ? rgba(T.foreground) : rgba(T.mutedForeground, 0.7),
     });
-    iy += 88;
+    iy += 64;
   };
   // «Player_1» typed but not submitted: the password field stays empty so the
   // shot does not imply a stored secret.
@@ -939,86 +916,86 @@ function screenAccount(ctx) {
   button(ctx, ix, iy + 4, innerW, 40, "Войти", { size: 12 });
 }
 
+/**
+ * One server tile.
+ *
+ * Flat artwork, name, version, one description line, one quiet meta line. The
+ * previous version drew a gradient banner with abstract bars, a boxed
+ * «Установлен» chip and two more chips on a footer row — the "dashboard of
+ * labels" the cards were replaced for. A missing state now draws nothing.
+ */
 function serverCard(ctx, x, y, w, h, server) {
-  fillRound(ctx, x, y, w, h, 12, rgba(T.fill, 0.24));
-  strokeRound(ctx, x, y, w, h, 12, rgba(T.border, 0.9), 1);
+  fillRound(ctx, x, y, w, h, 12, rgba(T.fillSubtle));
 
-  // Banner: gradient with the provider glyph, drawn the way the art helper does.
+  // Banner: the provider's colour, blended down into the card. At full strength
+  // a saturated block fought the mint accent for the eye; held back it reads as
+  // artwork behind the name, which is what a banner is.
   const bh = 96;
   ctx.save();
-  roundRect(ctx, x + 14, y + 14, w - 28, bh, 8);
+  roundRect(ctx, x, y, w, bh, 12);
   ctx.clip();
-  const g = ctx.createLinearGradient(x, y, x + w, y + bh);
-  g.addColorStop(0, server.from);
-  g.addColorStop(1, server.to);
-  ctx.fillStyle = g;
-  ctx.fillRect(x + 14, y + 14, w - 28, bh);
-  ctx.fillStyle = "rgba(255,255,255,0.07)";
-  ctx.beginPath();
-  ctx.arc(x + w - 60, y + 20, 66, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.13)";
-  [0, 1, 2].forEach((i) => {
-    const barH = [26, 52, 38][i];
-    ctx.fillRect(x + 54 + i * 34, y + 14 + 96 - 18 - barH, 26, barH);
-  });
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = server.from;
+  ctx.fillRect(x, y, w, bh);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
   ctx.font = font(15, 700);
   ctx.textAlign = "center";
-  ctx.fillText(server.glyph, x + (w - 28) / 2 + 14, y + 14 + 56);
+  ctx.fillText(server.glyph, x + w / 2, y + 56);
   ctx.textAlign = "left";
-  ctx.restore();
 
-  // Icon + status chip.
-  const iconTop = y + 124;
-  fillRound(ctx, x + 20, iconTop, 44, 44, 10, server.from);
+  if (server.installed) {
+    // Floats on the artwork: the one place a readable label beats another row.
+    const label = "Установлен";
+    const cw = measure(ctx, label, 10, 500) + 30;
+    fillRound(ctx, x + w - cw - 8, y + 8, cw, 20, 10, "rgba(0,0,0,0.55)");
+    icon(ctx, "check", x + w - cw, y + 13, 11, "rgba(255,255,255,0.95)", 2.2);
+    text(ctx, label, x + w - cw + 15, y + 22, {
+      size: 10,
+      weight: 500,
+      color: "rgba(255,255,255,0.95)",
+    });
+  }
+
+  let cy = y + bh + 14;
+  // Icon and name on one row; the icon is 32px and unframed.
+  fillRound(ctx, x + 14, cy, 32, 32, 8, server.from);
   ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.font = font(19, 700);
+  ctx.font = font(14, 700);
   ctx.textAlign = "center";
-  ctx.fillText(server.letter, x + 42, iconTop + 29);
+  ctx.fillText(server.letter, x + 30, cy + 22);
   ctx.textAlign = "left";
-  if (server.installed) chip(ctx, x + w - 118, iconTop + 2, "Установлен", "ok");
-
-  text(ctx, server.name, x + 20, iconTop + 74, { size: 14, weight: 600 });
-  const nameWidth = measure(ctx, server.name, 14, 600);
-  fillRound(
-    ctx,
-    x + 28 + nameWidth,
-    iconTop + 60,
-    58,
-    18,
-    5,
-    rgba(T.fill, 0.7),
-  );
-  text(ctx, server.version, x + 36 + nameWidth, iconTop + 73, {
+  text(ctx, server.name, x + 56, cy + 14, { size: 14, weight: 600 });
+  // The fixture already carries the `v` prefix.
+  text(ctx, server.version, x + 56, cy + 29, {
     size: 10,
     color: rgba(T.mutedForeground),
     mono: true,
   });
-  text(ctx, server.description, x + 20, iconTop + 96, {
+  cy += 44;
+
+  text(ctx, server.description, x + 14, cy + 6, {
     size: 11,
     color: rgba(T.mutedForeground),
-    maxWidth: w - 40,
+    maxWidth: w - 28,
     lineHeight: 16,
+    maxLines: 2,
   });
-  fillRound(ctx, x + 20, y + h - 34, 92, 20, 5, rgba(T.fill, 0.7));
-  text(ctx, `Minecraft ${server.minecraftVersion}`, x + 28, y + h - 20, {
-    size: 9,
-    color: rgba(T.mutedForeground),
+  cy += 52;
+
+  // One meta line, no chips.
+  const meta = [`Minecraft ${server.minecraftVersion}`];
+  if (server.pack) meta.push("pack.json");
+  text(ctx, meta.join(" · "), x + 14, cy - 4, {
+    size: 10,
+    color: rgba(T.mutedForeground, 0.8),
     mono: true,
   });
-  if (server.pack) {
-    fillRound(ctx, x + 118, y + h - 34, 96, 20, 5, rgba(T.fill, 0.55));
-    text(ctx, "ZIP + pack.json", x + 126, y + h - 20, {
-      size: 9,
-      color: rgba(T.mutedForeground),
-      mono: true,
-    });
-  }
 }
 
 function catalogRail(ctx, x, y, w) {
-  const h = 62;
+  const h = 56;
   glass(ctx, x, y, w, h, 14);
   fillRound(ctx, x + 14, y + 13, 36, 36, 8, "#0f766e");
   ctx.fillStyle = "rgba(255,255,255,0.92)";
@@ -1026,20 +1003,17 @@ function catalogRail(ctx, x, y, w) {
   ctx.textAlign = "center";
   ctx.fillText("S", x + 32, y + 37);
   ctx.textAlign = "left";
-  text(ctx, "ТЕКУЩИЙ СЕРВЕР", x + 62, y + 24, {
-    size: 8,
-    weight: 500,
-    color: rgba(T.mutedForeground),
-  });
-  text(ctx, "Survival", x + 62, y + 42, { size: 13, weight: 500 });
-  text(ctx, STATUS_OK, x + 134, y + 42, {
+  // One line: name, then its state. The uppercase kicker that used to sit
+  // above the name repeated the section heading directly above the strip.
+  const railName = measure(ctx, "Survival", 13, 500);
+  text(ctx, "Survival", x + 62, y + 34, { size: 13, weight: 500 });
+  text(ctx, STATUS_OK, x + 62 + railName + 10, y + 34, {
     size: 11,
     color: rgba(T.mutedForeground),
   });
-  fillRound(ctx, x + w - 102, y + 19, 88, 24, 8, rgba(T.fill, 0.8));
-  strokeRound(ctx, x + w - 102, y + 19, 88, 24, 8, rgba(T.border), 1);
-  icon(ctx, "play", x + w - 92, y + 25, 11, rgba(T.foreground, 0.9), 1.6);
-  text(ctx, "Открыть", x + w - 76, y + 35, { size: 11, weight: 500 });
+  fillRound(ctx, x + w - 102, y + 16, 88, 24, 8, rgba(T.fillHover, 0.7));
+  icon(ctx, "play", x + w - 92, y + 22, 11, rgba(T.foreground, 0.9), 1.6);
+  text(ctx, "Открыть", x + w - 76, y + 32, { size: 11, weight: 500 });
 }
 
 function screenServers(ctx) {
@@ -1056,26 +1030,22 @@ function screenServers(ctx) {
   const contentX = nav + 32;
   const contentW = SHOT_WIDTH - contentX - 32;
 
+  // Provider name is the section title; no kicker above it.
   let y = top + 34;
-  text(ctx, "Провайдер", contentX, y, {
-    size: 10,
-    weight: 500,
-    color: rgba(T.mutedForeground),
-  });
-  y += 24;
-  text(ctx, "Plus In Plus Demo", contentX, y, { size: 20, weight: 700 });
-  button(ctx, SHOT_WIDTH - 32 - 118, top + 30, 118, 30, "Обновить", {
+  text(ctx, "Plus In Plus Demo", contentX, y + 20, { size: 20, weight: 700 });
+  y += 42;
+  button(ctx, SHOT_WIDTH - 32 - 118, top + 34, 118, 30, "Обновить", {
     variant: "outline",
     iconName: "refresh",
     size: 11,
   });
 
-  y += 22;
+  y += 8;
   catalogRail(ctx, contentX, y, contentW);
-  y += 62 + 22;
+  y += 56 + 22;
 
   const cardW = (contentW - 2 * 16) / 3;
-  const cardH = 300;
+  const cardH = 96 + 14 + 44 + 52 + 18;
   // Exactly the servers `examples/config.json` publishes — no invented third
   // card. The grid stays three columns wide, so two servers leave one empty
   // slot, which is what the real screen does.
@@ -1085,7 +1055,6 @@ function screenServers(ctx) {
       glyph: "SURVIVAL",
       letter: "S",
       from: "#0f766e",
-      to: "#052e2b",
       version: "v2026.11.1",
       description:
         "Классическое выживание с бережным отношением к игровому процессу.",
@@ -1098,7 +1067,6 @@ function screenServers(ctx) {
       glyph: "SKYBLOCK",
       letter: "K",
       from: "#1d4ed8",
-      to: "#0b1a3a",
       version: "v2026.11.1",
       description:
         "Острова в пустоте: кооператив, экономика и сезонные задания.",
@@ -1156,75 +1124,71 @@ function screenServer(ctx) {
   );
   y += 84;
 
-  // The action dock.
-  const dockH = 214;
+  // The action dock. Same order as `ServerActionPanel`: one status row, the
+  // progress block while an install is running, the single filled action, then
+  // the sign-in footnote. No icon and no repeated name — the header directly
+  // above already carries both.
+  const dockH = 168;
   glass(ctx, x, y, contentW, dockH, 18);
-  fillRound(ctx, x + 16, y + 16, 44, 44, 12, rgba(T.fill, 1));
-  icon(ctx, "wifi", x + 28, y + 28, 20, rgba(T.primary));
-  text(ctx, "Survival", x + 74, y + 34, { size: 15, weight: 600 });
-  icon(ctx, "check", x + 74, y + 46, 11, rgba(T.online), 2.2);
-  const statusW = measure(ctx, STATUS_OK, 11, 400);
-  text(ctx, STATUS_OK, x + 90, y + 55, {
-    size: 11,
+  const pad = 16;
+  let rowY = y + pad;
+  icon(ctx, "check", x + pad, rowY - 1, 12, rgba(T.online), 2.2);
+  const statusW = measure(ctx, STATUS_OK, 12, 400);
+  text(ctx, STATUS_OK, x + pad + 18, rowY + 9, {
+    size: 12,
     color: rgba(T.mutedForeground),
   });
-  // Version and loader sit after the status text, not under it: the status line
-  // is localised and changes width, so a fixed offset overlapped on long ones.
-  let metaX = x + 106 + statusW;
-  for (const meta of ["2026.11.1", "MC 1.21.1"]) {
-    text(ctx, meta, metaX, y + 55, {
+  let metaX = x + pad + 18 + statusW + 12;
+  for (const meta of ["v2026.11.1", "MC 1.21.1"]) {
+    text(ctx, meta, metaX, rowY + 9, {
       size: 10,
       color: rgba(T.mutedForeground, 0.8),
       mono: true,
     });
-    metaX += measure(ctx, meta, 10, 400, true) + 16;
+    metaX += measure(ctx, meta, 10, 400, true) + 14;
   }
-  icon(ctx, "history", x + contentW - 44, y + 22, 16, rgba(T.mutedForeground));
+  icon(
+    ctx,
+    "history",
+    x + contentW - pad - 16,
+    rowY - 3,
+    16,
+    rgba(T.mutedForeground),
+  );
+  rowY += 26;
 
-  button(ctx, x + 16, y + 76, contentW - 32, 44, "Играть", {
-    iconName: "play",
-    size: 13,
-  });
-
-  // A second state in the same shot would be dishonest; instead show what the
-  // dock looks like mid-download as a separate, clearly labelled block.
-  const progressTop = y + 136;
-  text(ctx, "Загрузка сборки · 45%", x + 16, progressTop, {
-    size: 10,
-    color: rgba(T.mutedForeground),
-  });
-  progressBar(ctx, x + 16, progressTop + 8, contentW - 32, 45);
-  text(ctx, "Скачивание", x + 16, progressTop + 34, {
+  // Mid-download: the bar, then the phase on the left and the percentage on
+  // the right. No title over it — the phase label is the title.
+  progressBar(ctx, x + pad, rowY + 2, contentW - pad * 2, 45);
+  text(ctx, "Скачивание", x + pad, rowY + 26, {
     size: 9,
     color: rgba(T.mutedForeground, 0.9),
   });
+  const pct = "45%";
   text(
     ctx,
-    "45%",
-    x + contentW - 16 - measure(ctx, "45%", 9),
-    progressTop + 34,
+    pct,
+    x + contentW - pad - measure(ctx, pct, 9, 400, true),
+    rowY + 26,
     {
       size: 9,
       color: rgba(T.mutedForeground, 0.9),
+      mono: true,
     },
   );
+  rowY += 38;
 
-  icon(
-    ctx,
-    "shield",
-    x + 16,
-    y + dockH - 30,
-    11,
-    rgba(T.mutedForeground, 0.9),
-    1.8,
-  );
-  text(
-    ctx,
-    "Офлайн-сборка провайдера: ник аккаунта проекта, Microsoft-вход не нужен.",
-    x + 32,
-    y + dockH - 21,
-    { size: 9, color: rgba(T.mutedForeground, 0.9) },
-  );
+  button(ctx, x + pad, rowY, contentW - pad * 2, 44, "Играть", {
+    iconName: "play",
+    size: 13,
+  });
+  rowY += 54;
+
+  icon(ctx, "shield", x + pad, rowY + 1, 11, rgba(T.mutedForeground, 0.9), 1.8);
+  text(ctx, "Офлайн-сборка: ник аккаунта проекта.", x + pad + 16, rowY + 9, {
+    size: 9,
+    color: rgba(T.mutedForeground, 0.9),
+  });
 
   y += dockH + 18;
   text(
@@ -1261,35 +1225,27 @@ function screenWardrobe(ctx) {
 
   text(ctx, "Гардероб", x, y + 12, { size: 20, weight: 700 });
   y += 32;
-  text(
-    ctx,
-    "История скинов хранится на этом компьютере. Активный скин один на весь проект и отправляется на сервер сам — ничего нажимать не нужно.",
-    x,
-    y + 12,
-    { size: 11, color: rgba(T.mutedForeground), maxWidth: w, lineHeight: 16 },
-  );
+  text(ctx, "Активный скин отправляется на сервер сам.", x, y + 12, {
+    size: 11,
+    color: rgba(T.mutedForeground),
+  });
   y += 40;
 
   // ── Card 1: add a texture. Idle form: picker, name, model select.
   // 18 padding + title/description + two stacked field rows + 18 padding.
-  const addH = 18 + 44 + 58 + 8 + 50 + 18;
+  const addH = 18 + 40 + 58 + 8 + 50 + 16;
   glass(ctx, x, y, w, addH, 16);
   let iy = y + 18;
-  text(ctx, "Добавить скин в историю", x + 20, iy + 10, {
-    size: 12,
-    weight: 600,
+  // Title on the left, the accepted format on the right — one row instead of
+  // a heading plus a sentence under it.
+  text(ctx, "Добавить скин", x + 20, iy + 12, { size: 12, weight: 600 });
+  const hint = "PNG 64×64 · до 256 КБ";
+  text(ctx, hint, x + w - 20 - measure(ctx, hint, 10, 400, true), iy + 12, {
+    size: 10,
+    color: rgba(T.mutedForeground),
+    mono: true,
   });
-  text(
-    ctx,
-    "PNG 64×64 или 64×32, до 256 КБ. Работает без входа и без интернета.",
-    x + 20,
-    iy + 30,
-    {
-      size: 10,
-      color: rgba(T.mutedForeground),
-    },
-  );
-  iy += 44;
+  iy += 40;
 
   const fieldW = (w - 40 - 24) / 2;
   const field = (fx, label, placeholder) => {
@@ -1325,18 +1281,18 @@ function screenWardrobe(ctx) {
 
   // ── Card 2: the local library. Header, the standard-skin row, three skins.
   const rowH = 44;
-  const tileH = 116;
+  const tileH = 92;
   const historyH = 18 + 34 + 12 + rowH + 12 + tileH + 16;
   glass(ctx, x, y, w, historyH, 16);
   iy = y + 18;
-  fillRound(ctx, x + 20, iy, 32, 32, 9, rgba(T.primary, 0.12));
-  icon(ctx, "history", x + 28, iy + 8, 16, rgba(T.primary));
-  text(ctx, "Локальная история", x + 60, iy + 13, { size: 12, weight: 600 });
+  icon(ctx, "history", x + 20, iy + 6, 20, rgba(T.primary), 1.7);
+  text(ctx, "Локальная история", x + 50, iy + 13, { size: 12, weight: 600 });
+  const count = "3 из 64";
   text(
     ctx,
-    "3 из 64. Прежние скины остаются здесь и никуда не отправляются.",
-    x + 60,
-    iy + 29,
+    count,
+    x + 50 + measure(ctx, "Локальная история", 12, 600) + 10,
+    iy + 13,
     {
       size: 10,
       color: rgba(T.mutedForeground),
@@ -1345,13 +1301,16 @@ function screenWardrobe(ctx) {
   iy += 46;
 
   fillRound(ctx, x + 20, iy, w - 40, rowH, 10, rgba(T.fill, 0.3));
-  strokeRound(ctx, x + 20, iy, w - 40, rowH, 10, rgba(T.border, 0.7), 1);
   icon(ctx, "user", x + 32, iy + 14, 16, rgba(T.mutedForeground));
-  text(ctx, "Стандартный скин", x + 60, iy + 20, { size: 11, weight: 500 });
-  text(ctx, "вернуть обычный вид", x + 60, iy + 35, {
-    size: 9,
-    color: rgba(T.mutedForeground),
-  });
+  const stdName = "Стандартный скин";
+  text(ctx, stdName, x + 60, iy + 26, { size: 11, weight: 500 });
+  text(
+    ctx,
+    "вернуть обычный вид",
+    x + 60 + measure(ctx, stdName, 11, 500) + 10,
+    iy + 26,
+    { size: 9, color: rgba(T.mutedForeground) },
+  );
   iy += rowH + 12;
 
   const skins = [
@@ -1369,68 +1328,27 @@ function screenWardrobe(ctx) {
       tileW,
       tileH,
       10,
-      active ? rgba(T.primary, 0.06) : rgba(T.fill, 0.3),
-    );
-    strokeRound(
-      ctx,
-      tx,
-      iy,
-      tileW,
-      tileH,
-      10,
-      active ? rgba(T.primary, 0.4) : rgba(T.border, 0.7),
-      1,
+      active ? rgba(T.primary, 0.1) : rgba(T.fill, 0.3),
     );
     // SkinThumb renders the silhouette at 8x16 CSS px per skin pixel (h-16 w-8),
-    // so 14 here keeps the same 2:4 proportions inside a 116px tile.
-    drawSkin(ctx, tx + 14, iy + 10, 14, model);
+    // so 14 here keeps the same 2:4 proportions inside the tile.
+    drawSkin(ctx, tx + 14, iy + 10, 13, model);
     text(ctx, name, tx + 56, iy + 26, { size: 11, weight: 500 });
     text(ctx, `64×64 · ${model}`, tx + 56, iy + 42, {
       size: 9,
       color: rgba(T.mutedForeground),
       mono: true,
     });
-    if (active) {
-      text(ctx, "✓ активный", tx + 56, iy + 58, {
-        size: 9,
-        color: rgba(T.primary),
-      });
-    }
-    fillRound(
-      ctx,
-      tx + 10,
-      iy + tileH - 32,
-      tileW - 44,
-      22,
-      6,
-      rgba(T.fill, 0.5),
-    );
-    strokeRound(
-      ctx,
-      tx + 10,
-      iy + tileH - 32,
-      tileW - 44,
-      22,
-      6,
-      rgba(T.border, 0.8),
-      1,
-    );
-    text(
-      ctx,
-      active ? "Выбран" : "Выбрать",
-      tx + 10 + (tileW - 44) / 2,
-      iy + tileH - 17,
-      {
-        size: 9,
-        align: "center",
-        color: rgba(T.foreground, 0.9),
-      },
-    );
+    // The state is the tint plus one word; the tile itself is the choice.
+    text(ctx, active ? "Активен" : "Выбрать", tx + 12, iy + tileH - 12, {
+      size: 9,
+      color: active ? rgba(T.primary) : rgba(T.mutedForeground),
+    });
     icon(
       ctx,
       "trash",
       tx + tileW - 26,
-      iy + tileH - 28,
+      iy + tileH - 21,
       12,
       rgba(T.mutedForeground),
       1.6,
@@ -1441,8 +1359,7 @@ function screenWardrobe(ctx) {
   // ── Card 3: what the servers see. The upload already happened on its own.
   const syncH = 74;
   glass(ctx, x, y, w, syncH, 16);
-  fillRound(ctx, x + 20, y + 18, 32, 32, 9, rgba(T.primary, 0.12));
-  icon(ctx, "shirt", x + 28, y + 26, 16, rgba(T.primary));
+  icon(ctx, "shirt", x + 20, y + 18, 20, rgba(T.primary), 1.7);
   text(ctx, "Скин на серверах проекта", x + 60, y + 30, {
     size: 12,
     weight: 600,
@@ -1457,7 +1374,7 @@ function screenWardrobe(ctx) {
       color: rgba(T.online),
     },
   );
-  text(ctx, "Player_1 · на сервере: classic", x + 60, y + 64, {
+  text(ctx, "Player_1 · Модель: classic", x + 60, y + 64, {
     size: 9,
     color: rgba(T.mutedForeground),
     mono: true,
@@ -1523,22 +1440,26 @@ function screenSettings(ctx) {
       );
     }
     glass(ctx, x, y, w, height, 14);
-    fillRound(ctx, x + 16, y + 16, 32, 32, 9, rgba(T.primary, 0.12));
-    icon(ctx, iconName, x + 24, y + 24, 16, rgba(T.primary));
-    text(ctx, title, x + 60, y + 32, { size: 12, weight: 600 });
-    text(ctx, description, x + 60, y + 50, {
-      size: 10,
-      color: rgba(T.mutedForeground),
-      maxWidth: w - 90,
-      lineHeight: 15,
-    });
-    body(x + 16, y + 76, w - 32);
+    // Unframed icon at 20px, exactly what `SectionIcon` renders: no tile, no
+    // border, no background.
+    icon(ctx, iconName, x + 18, y + 16, 20, rgba(T.primary), 1.7);
+    text(ctx, title, x + 50, y + 31, { size: 12, weight: 600 });
+    if (description)
+      text(ctx, description, x + 50, y + 48, {
+        size: 10,
+        color: rgba(T.mutedForeground),
+        maxWidth: w - 70,
+        lineHeight: 15,
+      });
+    // A section without a sentence closes the gap instead of leaving a hole
+    // where the description would have been.
+    body(x + 16, y + (description ? 72 : 54), w - 32);
     y += height + 12;
   };
 
   section(
     "Память игры",
-    "Автоматически подбирается 4096 МБ. Всего на компьютере 32768 МБ, доступно до 24576 МБ.",
+    "Компьютер: 32768 МБ, доступно до 24576 МБ.",
     "memory",
     172,
     (bx, by, bw) => {
@@ -1582,7 +1503,7 @@ function screenSettings(ctx) {
 
   section(
     "Java",
-    "Найдена встроенная среда: Eclipse Adoptium 25.0.3. Используется для всех сборок.",
+    "Только проверенные рантаймы, версия под требование сборки.",
     "cpu",
     116,
     (bx, by) => {
@@ -1601,76 +1522,64 @@ function screenSettings(ctx) {
 
   // The real screen also has «Поведение и окно» and «Кэш конфигурации»; the shot
   // shows the first four sections, which is what fits without a scrollbar.
-  section(
-    "Поведение и окно",
-    "Что делает окно лаунчера после старта игры и какой размер использовать.",
-    "monitor",
-    190,
-    (bx, by, bw) => {
-      text(ctx, "После запуска игры", bx, by + 8, {
-        size: 10,
-        color: rgba(T.mutedForeground),
-      });
-      fillRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.fill, 0.55));
-      strokeRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.border), 1);
-      text(ctx, "Оставить окно открытым", bx + 10, by + 34, { size: 11 });
-      icon(
-        ctx,
-        "chevronDown",
-        bx + bw - 22,
-        by + 24,
-        12,
-        rgba(T.mutedForeground),
-        1.8,
-      );
+  section("Поведение и окно", null, "monitor", 176, (bx, by, bw) => {
+    text(ctx, "После запуска игры", bx, by + 8, {
+      size: 10,
+      color: rgba(T.mutedForeground),
+    });
+    fillRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.fill, 0.55));
+    strokeRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.border), 1);
+    text(ctx, "Оставить окно открытым", bx + 10, by + 34, { size: 11 });
+    icon(
+      ctx,
+      "chevronDown",
+      bx + bw - 22,
+      by + 24,
+      12,
+      rgba(T.mutedForeground),
+      1.8,
+    );
 
-      const rowY = by + 62;
-      text(ctx, "Ширина", bx, rowY + 8, {
-        size: 10,
-        color: rgba(T.mutedForeground),
-      });
-      fillRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
-      strokeRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.border), 1);
-      text(ctx, "1280", bx + 10, rowY + 33, { size: 11, mono: true });
-      text(ctx, "Высота", bx + 112, rowY + 8, {
-        size: 10,
-        color: rgba(T.mutedForeground),
-      });
-      fillRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
-      strokeRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.border), 1);
-      text(ctx, "800", bx + 122, rowY + 33, { size: 11, mono: true });
-      button(ctx, bx + 224, rowY + 12, 130, 30, "Применить размер", {
-        variant: "outline",
-        size: 10,
-      });
-    },
-  );
+    const rowY = by + 62;
+    text(ctx, "Ширина", bx, rowY + 8, {
+      size: 10,
+      color: rgba(T.mutedForeground),
+    });
+    fillRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
+    strokeRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.border), 1);
+    text(ctx, "1280", bx + 10, rowY + 33, { size: 11, mono: true });
+    text(ctx, "Высота", bx + 112, rowY + 8, {
+      size: 10,
+      color: rgba(T.mutedForeground),
+    });
+    fillRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
+    strokeRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.border), 1);
+    text(ctx, "800", bx + 122, rowY + 33, { size: 11, mono: true });
+    button(ctx, bx + 224, rowY + 12, 130, 30, "Применить размер", {
+      variant: "outline",
+      size: 10,
+    });
+  });
 
-  section(
-    "Оформление",
-    "Новый дизайн — стеклянные поверхности и один акцент на действие. Старый дизайн сохранён целиком и переключается мгновенно.",
-    "palette",
-    96,
-    (bx, by, bw) => {
-      button(ctx, bx, by, 196, 30, "Оформление: новый дизайн", {
-        variant: "outline",
-        size: 10,
-        iconName: "moon",
-      });
-      text(
-        ctx,
-        "Выбор запоминается на этом компьютере и не влияет на сборки, аккаунт или настройки запуска.",
-        bx + 212,
-        by + 19,
-        {
-          size: 9,
-          color: rgba(T.mutedForeground, 0.85),
-          maxWidth: bw - 220,
-          lineHeight: 13,
-        },
-      );
-    },
-  );
+  section("Оформление", null, "palette", 82, (bx, by, bw) => {
+    button(ctx, bx, by, 196, 30, "Оформление: новый дизайн", {
+      variant: "outline",
+      size: 10,
+      iconName: "moon",
+    });
+    text(
+      ctx,
+      "Выбор запоминается на этом компьютере и не влияет на сборки, аккаунт или настройки запуска.",
+      bx + 212,
+      by + 19,
+      {
+        size: 9,
+        color: rgba(T.mutedForeground, 0.85),
+        maxWidth: bw - 220,
+        lineHeight: 13,
+      },
+    );
+  });
 }
 
 // ───────────────────────────── main ─────────────────────────────

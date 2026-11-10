@@ -112,12 +112,14 @@ code {
   }
   body {
     @apply text-foreground;
-    /* The animated gradient belongs to the "old" design; scoping it keeps the
-     * new theme from repainting a full-screen gradient every frame. */
-    background: linear-gradient(-45deg, #0a0a0a, #130b1c, #0a1128, #050514);
-    background-size: 400% 400%;
+    /* Flat by default. The animated ramp is the old design's signature, so it
+     * lives only under `[data-theme="old"]`: a base rule that paints a gradient
+     * the new theme then overrides is a gradient waiting to flash on load. */
+    background: var(--line-canvas, #08090c);
   }
   [data-theme="old"] body {
+    background: linear-gradient(-45deg, #0a0a0a, #130b1c, #0a1128, #050514);
+    background-size: 400% 400%;
     animation: gradientBg 20s ease infinite;
   }
   [data-theme="line"] body {

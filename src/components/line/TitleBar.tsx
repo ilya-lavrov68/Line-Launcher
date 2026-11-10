@@ -24,10 +24,9 @@ export interface TitleBarProps {
 }
 
 /**
- * Custom window frame. Uses the same surface tokens as Obsy's header
- * (`bg-card/50`, `border-border/50`, backdrop blur) so it follows every branding
- * preset, and the caption buttons use the shared Button primitive so keyboard
- * focus and disabled states behave like the rest of the launcher.
+ * Custom window frame. One hairline under it is the only border: it separates
+ * the frame from the content below, which is what a border is for. No blur —
+ * the page behind is a flat colour, so there is nothing to blur.
  *
  * `data-tauri-drag-region` marks the draggable area; interactive children opt out
  * automatically because Tauri ignores the drag region on interactive elements.
@@ -58,8 +57,8 @@ export default function TitleBar({ context, trailing }: TitleBarProps) {
     <header
       data-tauri-drag-region
       className={cn(
-        "border-border/50 bg-card/50 flex h-11 w-full shrink-0 items-center",
-        "justify-between gap-3 border-b pr-1 pl-3 backdrop-blur-md select-none",
+        "border-border/50 bg-background flex h-11 w-full shrink-0 items-center",
+        "justify-between gap-3 border-b pr-1 pl-3 select-none",
       )}
     >
       <div

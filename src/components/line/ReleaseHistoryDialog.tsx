@@ -50,7 +50,7 @@ export default function ReleaseHistoryDialog({
               return (
                 <div
                   key={receipt.sha256}
-                  className="border-border/40 bg-card/60 flex items-center justify-between gap-3 rounded-xl border p-3.5 backdrop-blur-sm"
+                  className="bg-fill-subtle flex items-center justify-between gap-3 rounded-[var(--radius-item)] p-3.5"
                 >
                   <div className="flex min-w-0 flex-col gap-1">
                     <span className="text-foreground truncate text-xs font-semibold">

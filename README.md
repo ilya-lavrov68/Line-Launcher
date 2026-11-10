@@ -115,7 +115,7 @@ endpoint и интеграция мода с сессией Minecraft остаю
 | [DEMO.md](docs/DEMO.md)                 | Демо-режим: всё приложение одной командой    |
 | [GAME.md](docs/GAME.md)                 | Запуск сборки, каталоги, защита файлов       |
 | [BRANDING.md](docs/BRANDING.md)         | Палитра, логотипы, адрес провайдера, иконки  |
-| [DESIGN.md](docs/DESIGN.md)             | Дизайн-система, темы `line`/`old`, стекло    |
+| [DESIGN.md](docs/DESIGN.md)             | Дизайн-система, темы `line`/`old`, тени      |
 | [PROVIDER.md](docs/PROVIDER.md)         | Контракт API и формат `config.json`          |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Устройство, решения безопасности, roadmap    |
 | [RUNBOOK.md](docs/RUNBOOK.md)           | Подробные инструкции и ручные проверки       |

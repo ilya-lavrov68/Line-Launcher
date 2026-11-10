@@ -19,7 +19,7 @@ import {
  *     Always present: on a software rasteriser, on a driver Chrome refuses as a
  *     "major performance caveat", or on a machine whose GPU process dies, the
  *     page still has the colour the player picked. It drifts slowly on its own
- *     (see `[data-line-haze]` in themes.css).
+ *     (see `[data-line-haze]` in index.css).
  *  2. The WebGL haze on top, only when the machine can actually draw it.
  *     hazeglow refuses software renderers outright, so anything that depends on
  *     the canvas would leave those users with an empty window.

@@ -725,15 +725,14 @@ try {
   );
   await shot("servers");
 
-  // The design is a BUILD-time choice (`VITE_LINE_THEME=old npm run build`),
-  // not a setting: the shipped window must expose no control that swaps it
-  // under the player, and a leftover preference in storage must not override
-  // what was compiled. Both halves are asserted, because either one alone
-  // would let a runtime switch creep back in.
+  // There is one design and nothing that swaps it: no attribute the window
+  // writes, no control in the shell, no leftover preference in storage. The
+  // alternatives were all removed on purpose, so each one coming back is a
+  // regression this smoke test has to catch.
   check(
     (await page.evaluate(() => document.documentElement.dataset.theme)) ===
-      "line",
-    "the new design must be the default",
+      undefined,
+    "the window still scopes a design attribute",
   );
   check(
     !(await page.getByRole("button", { name: /Сменить оформление/ }).count()),
@@ -741,7 +740,7 @@ try {
   );
   check(
     (await page.evaluate(() => localStorage.getItem("line.theme"))) === null,
-    "the build wrote a design preference it must not read",
+    "a design preference is being written",
   );
 
   // Back from the server screen lands on a catalogue with exactly one card per

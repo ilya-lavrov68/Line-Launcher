@@ -498,7 +498,7 @@ export default function SettingsScreen({
                   </Label>
                   {/* Still `type="number"`: arrow keys step, the browser keeps
                       the range, and the value may be typed. Only the platform
-                      spinner is hidden (themes.css) and replaced with a pair of
+                      spinner is hidden (index.css) and replaced with a pair of
                       buttons that sit on the same fill ladder as every other
                       control — the OS arrows were black-on-black and unthemed. */}
                   <div className="relative">

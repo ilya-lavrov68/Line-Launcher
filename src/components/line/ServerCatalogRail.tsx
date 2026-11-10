@@ -20,8 +20,7 @@ export interface ServerCatalogRailProps {
  * screen (an install may be needed first), so the strip offers exactly one
  * action, «Открыть», and the build progress as a hairline.
  *
- * Rendered only in the new design; the old design has no equivalent strip and
- * must not gain one silently.
+ * The one strip above the catalogue; nothing else renders it.
  */
 export function ServerCatalogRail({
   server,

@@ -74,10 +74,11 @@ test("the panel replaces the ZIP dock instead of competing with it", () => {
   assert.match(detail, /isMinecraft \? \(/);
   assert.match(detail, /<MinecraftPanel/);
   assert.match(detail, /\) : \(\s*\n\s*<ServerActionPanel/);
-  // The rollback design gets the panel too — otherwise its ZIP buttons, which
-  // cannot install a Mojang profile, would be offered for this server.
-  assert.match(detail, /theme === "old" && !isMinecraft/);
-  assert.match(detail, /theme === "old" && isMinecraft/);
+  // One design, so there is no second page to keep in step: the panel is the
+  // only place a minecraft-mode server can end up, and the ZIP dock cannot be
+  // reached for it at all.
+  assert.doesNotMatch(detail, /theme === /);
+  assert.doesNotMatch(detail, /LegacyDetail/);
 });
 
 test("every mc_* command has exactly one caller, and mc_launch has none", () => {

@@ -28,7 +28,6 @@
     "pack:manifest": "node scripts/pack-manifest.mjs",
     "provider:pack": "node examples/provider/build-pack.mjs",
     "provider:serve": "node examples/provider/server.mjs",
-    "design": "node scripts/serve-design.mjs",
     "demo": "node scripts/demo.mjs",
     "demo:app": "node scripts/demo.mjs --app-only",
     "demo:doctor": "node scripts/demo-doctor.mjs",

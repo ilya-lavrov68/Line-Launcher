@@ -8,16 +8,12 @@ import type {
   LineServer,
   ReleaseHistory,
 } from "@/types/line";
-import InstallProgressView from "./InstallProgress";
-import LaunchControls from "./LaunchControls";
 import ReleaseHistoryDialog from "./ReleaseHistoryDialog";
 import ServerActionPanel, {
   type ServerActionPhase,
   type ServerAvailability,
 } from "./ServerActionPanel";
 import MinecraftPanel from "./MinecraftPanel";
-import ServerBanner from "./ServerBanner";
-import { useTheme } from "./ThemeProvider";
 
 export interface ServerDetailProps {
   server: LineServer;
@@ -80,14 +76,11 @@ export function phaseOf(
 /**
  * One server, one decision.
  *
- * The two designs are rendered as two branches rather than as one markup with
- * swapped classes: duplicating the dock into the DOM under `hidden` would give
- * assistive tech (and `getByRole`) two «Играть» buttons. Tokens still come from
- * CSS — the branch only decides structure, exactly like tryliner's own
- * `isEdgeToEdge` fullscreen/maximised split.
+ * One page, one dock, one «Играть». The dock is not duplicated anywhere (not
+ * under `hidden`, not in a second variant): a duplicate would give assistive
+ * tech — and the smoke test — two buttons for the same action.
  */
 export default function ServerDetail(props: ServerDetailProps) {
-  const { theme } = useTheme();
   const {
     server,
     providerName,
@@ -129,123 +122,120 @@ export default function ServerDetail(props: ServerDetailProps) {
         <span>Все серверы</span>
       </Button>
 
-      {theme === "line" && (
-        <>
-          {/* The page opens on the server's own artwork, full width, the way
+      {/* The page opens on the server's own artwork, full width, the way
               Liner opens on the cover of what you are about to play. Without it
               the top of the screen was a heading over an empty field. */}
-          {server.banner_url && (
-            <div className="bg-fill-subtle relative aspect-[16/5] w-full overflow-hidden rounded-[var(--radius-panel)]">
-              <img
-                src={server.banner_url}
-                alt=""
-                className="size-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+      {server.banner_url && (
+        <div className="bg-fill-subtle relative aspect-[16/5] w-full overflow-hidden rounded-[var(--radius-panel)]">
+          <img
+            src={server.banner_url}
+            alt=""
+            className="size-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      )}
+
+      <header className="flex items-start gap-4 px-1">
+        <div
+          data-line-icon
+          className="bg-fill flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-item)]"
+        >
+          {server.icon_url || server.logo_url ? (
+            <img
+              src={server.icon_url ?? server.logo_url}
+              alt=""
+              className="size-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="text-muted-foreground text-lg font-semibold">
+              {server.name.slice(0, 1).toUpperCase()}
+            </span>
           )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-muted-foreground font-mono text-[12px]">
+            {providerName ? `${providerName} · ` : ""}v{server.version}
+          </span>
+          <h1 className="text-foreground text-[28px] leading-tight font-semibold tracking-tight">
+            {server.name}
+          </h1>
+          <p className="text-muted-foreground max-w-prose text-[13px] leading-relaxed">
+            {server.description}
+          </p>
+        </div>
+      </header>
 
-          <header className="flex items-start gap-4 px-1">
-            <div
-              data-line-icon
-              className="bg-fill flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-item)]"
-            >
-              {server.icon_url || server.logo_url ? (
-                <img
-                  src={server.icon_url ?? server.logo_url}
-                  alt=""
-                  className="size-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <span className="text-muted-foreground text-lg font-semibold">
-                  {server.name.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-muted-foreground font-mono text-[12px]">
-                {providerName ? `${providerName} · ` : ""}v{server.version}
-              </span>
-              <h1 className="text-foreground text-[28px] leading-tight font-semibold tracking-tight">
-                {server.name}
-              </h1>
-              <p className="text-muted-foreground max-w-prose text-[13px] leading-relaxed">
-                {server.description}
-              </p>
-            </div>
-          </header>
-
-          <m.div
-            key={server.id}
-            // `mt-auto` is what makes the dock sit on the bottom edge instead of
-            // floating in the middle of the page when the content is short.
-            className="mt-auto"
-            initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {isMinecraft ? (
-              /* A minecraft-mode server has no provider archive, so the ZIP dock
+      <m.div
+        key={server.id}
+        // `mt-auto` is what makes the dock sit on the bottom edge instead of
+        // floating in the middle of the page when the content is short.
+        className="mt-auto"
+        initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {isMinecraft ? (
+          /* A minecraft-mode server has no provider archive, so the ZIP dock
                  would only ever say «Провайдер не настроил запуск». It is
                  replaced — not supplemented — by the mc_* panel, which is why
                  the two never appear together. */
-              <MinecraftPanel
-                server={server}
-                username={props.username}
-                disabled={actionsBusy}
-                onAuthRequired={props.onAuthRequired}
-              />
-            ) : (
-              <ServerActionPanel
-                server={server}
-                phase={phase}
-                availability={availability}
-                progress={progress}
-                status={status}
-                error={installError ?? launchError}
-                // Every phase owns a different action, and routing them all to
-                // `onLaunch` made «Остановить игру» start a second launch: the
-                // dock said the game was running and the button did nothing the
-                // player could see. Install/update fetch the build, a running or
-                // starting game stops it, everything else launches.
-                onPrimary={
-                  phase === "needs-install" || phase === "needs-update"
-                    ? props.onInstall
-                    : phase === "running" || phase === "starting"
-                      ? props.onStop
-                      : props.onLaunch
-                }
-                onCancel={phase === "installing" ? props.onCancel : undefined}
-                onHistory={receipt ? () => props.onHistory(true) : undefined}
-              />
-            )}
-          </m.div>
-
-          <ReleaseHistoryDialog
-            open={props.historyOpen}
-            onOpenChange={props.onHistory}
-            history={props.history}
-            currentSha={receipt?.sha256}
-            loading={props.historyLoading}
-            error={props.historyError}
-            onRollback={props.onRollback}
+          <MinecraftPanel
+            server={server}
+            username={props.username}
+            disabled={actionsBusy}
+            onAuthRequired={props.onAuthRequired}
           />
+        ) : (
+          <ServerActionPanel
+            server={server}
+            phase={phase}
+            availability={availability}
+            progress={progress}
+            status={status}
+            error={installError ?? launchError}
+            // Every phase owns a different action, and routing them all to
+            // `onLaunch` made «Остановить игру» start a second launch: the
+            // dock said the game was running and the button did nothing the
+            // player could see. Install/update fetch the build, a running or
+            // starting game stops it, everything else launches.
+            onPrimary={
+              phase === "needs-install" || phase === "needs-update"
+                ? props.onInstall
+                : phase === "running" || phase === "starting"
+                  ? props.onStop
+                  : props.onLaunch
+            }
+            onCancel={phase === "installing" ? props.onCancel : undefined}
+            onHistory={receipt ? () => props.onHistory(true) : undefined}
+          />
+        )}
+      </m.div>
 
-          {!isMinecraft && hasSession && phase === "needs-install" && (
-            <p className="text-muted-foreground px-2 text-[12px] leading-relaxed">
-              Сборка скачается целиком: архив провайдера, проверка sha256 и
-              распаковка. Прогресс виден здесь же, меню не блокируется.
-            </p>
-          )}
-        </>
+      <ReleaseHistoryDialog
+        open={props.historyOpen}
+        onOpenChange={props.onHistory}
+        history={props.history}
+        currentSha={receipt?.sha256}
+        loading={props.historyLoading}
+        error={props.historyError}
+        onRollback={props.onRollback}
+      />
+
+      {!isMinecraft && hasSession && phase === "needs-install" && (
+        <p className="text-muted-foreground px-2 text-[12px] leading-relaxed">
+          Сборка скачается целиком: архив провайдера, проверка sha256 и
+          распаковка. Прогресс виден здесь же, меню не блокируется.
+        </p>
       )}
 
-      {/* The Minecraft panel is not duplicated into the rollback design: the
-          old look predates the mode, and rendering the ZIP dock there would
-          offer install/launch buttons that cannot work for this server. */}
-      {theme === "old" && !isMinecraft && <LegacyDetail {...props} />}
-      {theme === "old" && isMinecraft && (
+      {/* Minecraft mode replaces the ZIP dock, not the whole page: the banner,
+          the status line and the history dialog above are the same controls for
+          both, and the buttons that cannot work for this server (install from a
+          distribution archive, rollback to a previous release) are the ones left
+          out. */}
+      {isMinecraft && (
         <MinecraftPanel
           server={server}
           username={props.username}
@@ -254,100 +244,5 @@ export default function ServerDetail(props: ServerDetailProps) {
         />
       )}
     </section>
-  );
-}
-
-/** The previous design, kept byte-for-byte inside its own component. */
-function LegacyDetail({
-  server,
-  providerName,
-  hasSession,
-  receipt,
-  progress,
-  status,
-  installing,
-  actionsBusy,
-  installError,
-  launchError,
-  historyOpen,
-  history,
-  historyLoading,
-  historyError,
-  onInstall,
-  onCancel,
-  onLaunch,
-  onStop,
-  onHistory,
-  onRollback,
-}: ServerDetailProps) {
-  return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
-      <ServerBanner
-        name={server.name}
-        bannerUrl={server.banner_url}
-        iconUrl={server.icon_url ?? server.logo_url}
-      />
-      <div className="bg-card border-border/50 relative flex flex-col gap-6 overflow-hidden rounded-xl border p-6 shadow-2xl backdrop-blur-md">
-        <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
-        <div className="relative z-10 flex flex-col gap-1">
-          <span className="text-muted-foreground font-mono text-[12px]">
-            {providerName} / v{server.version}
-          </span>
-          <h2 className="text-foreground text-2xl font-bold tracking-tight">
-            {server.name}
-          </h2>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            {server.description}
-          </p>
-        </div>
-        {hasSession &&
-          !progress &&
-          (!receipt || receipt.sha256 !== server.distribution.sha256) && (
-            <Button
-              disabled={actionsBusy}
-              onClick={onInstall}
-              className="relative z-10 h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
-            >
-              {installing
-                ? "Подготовка установки…"
-                : receipt
-                  ? "Обновить сборку"
-                  : "Установить сборку"}
-            </Button>
-          )}
-        {progress && (
-          <div className="relative z-10">
-            <InstallProgressView
-              progress={progress}
-              error={installError}
-              onCancel={onCancel}
-              onRetry={onInstall}
-            />
-          </div>
-        )}
-        {receipt && (!progress || progress.phase === "completed") && (
-          <LaunchControls
-            server={server}
-            receipt={receipt}
-            status={status}
-            busy={actionsBusy}
-            error={launchError}
-            historyOpen={historyOpen}
-            history={history}
-            historyLoading={historyLoading}
-            historyError={historyError}
-            onHistoryOpenChange={onHistory}
-            onRollback={onRollback}
-            onLaunch={onLaunch}
-            onStop={onStop}
-          />
-        )}
-        {installError && !progress && (
-          <p role="alert" className="text-destructive relative z-10 text-xs">
-            {installError}
-          </p>
-        )}
-      </div>
-    </div>
   );
 }

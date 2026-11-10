@@ -3,6 +3,421 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+/* Line Design System.
+ *
+ * One palette, one set of surfaces, no variants. The tokens below keep the
+ * names the components already use (`--background`, `--card`, `--border`,
+ * `--primary`, …) and add the ones this design introduced (`--surface-glass`,
+ * the `--fill-*` ladder, the radius scale). Nothing here is conditional: there
+ * is no second look to switch to, so a rule is just a rule.
+ *
+ * Tokens ported from tryliner (`src/app/globals.css`): the `--fill-*` ladder,
+ * `--surface-glass`, `--radius-control|item|panel`, `--text-caption|body|…`,
+ * easing `[0.22, 1, 0.36, 1]`. Adapted, not copied: tryliner redraws the page
+ * from cover art (an album's colour is the screen); a launcher has no artwork to
+ * sample and must stay legible over a long session, so the accent is the brand
+ * colour and the backdrop is whatever gradient the player chose.
+ */
+/* ─────────────────────────── theme palette ─────────────────────────── */
+
+:root {
+  --radius: 12px;
+  --background: #08090c;
+  --foreground: oklch(0.97 0.002 250);
+  --card: transparent;
+  --card-foreground: oklch(0.97 0.002 250);
+  --popover: #14161b;
+  --popover-foreground: oklch(0.97 0.002 250);
+  /* White, not mint. The accent is neutral on purpose: green belongs to state
+   * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
+   * primary button look like a success message. */
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.16 0.004 286.32);
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: oklch(0.9 0.002 250);
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: oklch(0.72 0.006 250);
+  --accent: rgba(255, 255, 255, 0.08);
+  --accent-foreground: oklch(0.98 0.002 250);
+  --destructive: oklch(0.66 0.21 22);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: oklch(0.92 0.004 286.32 / 45%);
+  --sidebar: #0d0f13;
+  --sidebar-foreground: oklch(0.97 0.002 250);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: oklch(0.98 0.002 250);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--ring);
+  --destructive-foreground: oklch(0.72 0.19 22);
+
+  /* ── the quiet-fill ladder and the glass surface ──
+   *
+   * The glass is translucent on purpose: the colour of the window lives in the
+   * backdrop, and a panel is a pane in front of it, not a hole cut through it.
+   * 0.45 is dark enough for body copy to hold its contrast over any part of the
+   * haze and light enough that the haze still reads through — an earlier 0.82
+   * turned every panel into opaque grey and left the colour visible only in the
+   * 6px gaps, which looked like a broken window instead of a designed one.
+   * The blur in the `[data-line-glass]` rule below does the rest. */
+  --fill-subtle: rgba(255, 255, 255, 0.045);
+  --fill: rgba(255, 255, 255, 0.07);
+  --fill-hover: rgba(255, 255, 255, 0.1);
+  --fill-strong: rgba(255, 255, 255, 0.14);
+  --surface-glass: rgba(10, 12, 16, 0.45);
+  --line-hairline: rgba(255, 255, 255, 0.1);
+  --line-accent: var(--primary);
+  --line-online: oklch(0.8 0.17 155);
+  --line-offline: oklch(0.66 0.02 250);
+  --line-update: oklch(0.82 0.15 85);
+  --line-error: var(--destructive);
+
+  /* Shape scale: control → item → panel (tryliner's three steps). */
+  --radius-control: 8px;
+  --radius-item: 12px;
+  --radius-panel: 18px;
+
+  /* Motion: one curve for enter/exit, springs for things that land. */
+  --ease-line: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-page: 220ms;
+
+  /* The window backdrop is one flat colour.
+   *
+   * It used to be two radial accent glows over a diagonal ramp. On a 1280x800
+   * window that reads as haze: it lifts the corners, lowers the centre, and
+   * puts a green cast behind text that has nothing to do with the accent. A
+   * launcher is a tool someone keeps open — so the page itself is a single
+   * value, and the only colour behind the chrome is the animated haze that
+   * `AnimatedBackdrop` paints on WebGL, not a painted CSS gradient. This token
+   * stays the flat colour underneath it, and the whole backdrop under reduced
+   * motion or without WebGL2. */
+  --line-canvas: #08090c;
+}
+
+/* Tailwind v4: expose the slots as utilities (`bg-fill`, `bg-fill-hover`,
+ * `bg-surface-glass`, `text-line-online`, `rounded-item`, `rounded-panel`).
+ * `inline` keeps them pointing at the live variables, so a branding preset that
+ * rewrites a palette value restyles utilities already baked into the build. */
+@theme inline {
+  /* Radius scale: `rounded-lg` follows the design's 12px, the `2xl`–`4xl` steps
+   * are multiples of it so nested surfaces grow consistently. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Semantic colours. `inline` keeps them pointing at the live variables, so a
+   * branding preset that rewrites a slot restyles utilities already compiled
+   * into the bundle. */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", sans-serif;
+
+  --color-fill: var(--fill);
+  --color-fill-subtle: var(--fill-subtle);
+  --color-fill-hover: var(--fill-hover);
+  --color-fill-strong: var(--fill-strong);
+  --color-surface-glass: var(--surface-glass);
+  --color-line-online: var(--line-online);
+  --color-line-offline: var(--line-offline);
+  --color-line-update: var(--line-update);
+  --radius-control: var(--radius-control);
+  --radius-item: var(--radius-item);
+  --radius-panel: var(--radius-panel);
+}
+
+/* ─────────────────────── component opt-in rules ─────────────────────── */
+
+@layer components {
+  /* Panel surface, only while the new theme is active.
+   *
+   * No outline: a 1px border around every panel is the loudest thing on a dark
+   * screen — twelve panels draw twelve boxes and the eye reads a grid of frames
+   * instead of content. Separation comes from the glass itself.
+   *
+   * Blur is back, and only because the backdrop came back: with an animated
+   * colour field behind the window, a translucent panel without it shows the
+   * mesh's edges through the text. A 20px blur turns that into depth. */
+  [data-line-glass] {
+    background: var(--surface-glass);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+      0 24px 60px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  /* The action dock: one continuous surface, no separate header block. */
+  [data-line-glass="dock"] {
+    border-radius: var(--radius-panel);
+  }
+
+  /* Card hover: a faint lift of the fill ladder rather than a colour change, so
+   * the catalogue reads as one surface and every preset keeps working. */
+  [data-line-card] {
+    transition: background-color var(--dur-fast) var(--ease-line);
+  }
+
+  /* ── the living backdrop ──────────────────────────────────────────────
+   *
+   * The colour field behind the window drifts. Two things move it:
+   *
+   *   1. this rule, which slides the CSS gradient layer's background-position
+   *      around a large virtual canvas for 90 seconds, and
+   *   2. the WebGL haze in AnimatedBackdrop, when the machine can draw it.
+   *
+   * Either alone is enough to keep the page alive, which is the point: the
+   * design must not collapse into a flat rectangle on a laptop with a
+   * blacklisted driver (hazeglow refuses software rasterisers by design).
+   *
+   * The layer is oversized (`-inset-[20%]`) so the drift never exposes an
+   * edge, and the keyframes move `background-position` — a compositor-cheap,
+   * paint-only property on a layer that has nothing else to do. */
+
+  [data-line-haze] {
+    animation: line-haze-drift 90s var(--ease-line) infinite;
+    will-change: background-position;
+  }
+
+  /* The second, out-of-phase copy: same field, flipped, drifting the other
+   * way. Without it the motion is a straight line and the eye can predict it
+   * within a few seconds, which reads as a scrolling texture rather than as
+   * light. Blended additively so overlapping pools get brighter, not muddier. */
+  [data-line-haze="echo"] {
+    animation-direction: reverse;
+    animation-duration: 130s;
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    transform: scaleX(-1);
+  }
+
+  /* The window canvas under everything: one flat value from the palette. */
+  [data-line-canvas] {
+    background: var(--line-canvas);
+  }
+
+  /* ── native controls ──────────────────────────────────────────────────
+   *
+   * Three controls could not avoid the platform: a file picker is the only way
+   * to open a file dialog from the web view, a number input is the only way to
+   * keep arrow-key stepping, and a `<select>` is still the cheapest way to pick
+   * from a short list. Left alone they paint Windows' own chrome — a grey
+   * "Choose File" chip, black stepper arrows, a bevelled drop-down — inside an
+   * otherwise flat dark surface. These rules bring them onto the same ladder as
+   * every other control, WITHOUT removing the native behaviour underneath:
+   * the picker still opens the OS dialog, the spinner still steps, the select
+   * still opens the platform menu. */
+
+  /* File picker: the button is `::file-selector-button`, restyle it into a
+   * normal small Button (same fill, radius and text size as `size="sm"`), and
+   * make the surrounding track look like an input rather than a grey box. */
+  input[type="file"] {
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    background: transparent;
+    padding: 5px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    line-height: 1;
+    transition:
+      border-color var(--dur-fast) var(--ease-line),
+      background-color var(--dur-fast) var(--ease-line);
+  }
+
+  input[type="file"]:hover {
+    border-color: color-mix(in oklch, var(--foreground) 26%, transparent);
+    background: var(--fill-subtle);
+  }
+
+  input[type="file"]:focus-visible {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 40%, transparent);
+  }
+
+  input[type="file"]:disabled {
+    opacity: 0.5;
+  }
+
+  input[type="file"]::file-selector-button {
+    appearance: none;
+    margin-inline-end: 10px;
+    padding: 0 12px;
+    height: 26px;
+    border: 0;
+    border-radius: calc(var(--radius-control) - 2px);
+    background: var(--fill);
+    color: var(--foreground);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-line);
+  }
+
+  input[type="file"]::file-selector-button:hover {
+    background: var(--fill-hover);
+  }
+
+  /* The name of the chosen file arrives after a space, in muted text, and can
+   * be long: clip it instead of stretching the row. */
+  input[type="file"] {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* Number input: kill the platform spinner. It is drawn black-on-black on
+   * Windows, cannot be themed, and the field is edited by typing or by the
+   * mouse wheel/drag; the two arrow keys still step the value because this is
+   * still `type="number"`. A horizontal padding of 12px puts the digits where
+   * the rest of the form's text starts. */
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Drop-downs that are genuinely native (`<select>`), as opposed to the Radix
+   * listbox the app usually uses: same height and border as an input, with the
+   * chevron drawn by us so Windows' bevelled arrow does not come along. */
+  select:not([data-line-select]) {
+    appearance: none;
+    height: 36px;
+    padding: 0 32px 0 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    background-color: transparent;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239a9da6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    color: var(--foreground);
+    font-size: 12px;
+  }
+
+  select:not([data-line-select]):hover {
+    border-color: color-mix(in oklch, var(--foreground) 26%, transparent);
+  }
+
+  select:not([data-line-select]):focus-visible {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 40%, transparent);
+  }
+
+  /* The option list itself is painted by the OS and ignores most CSS, but a
+   * dark background keeps Windows from opening a white menu over the app. */
+  select:not([data-line-select]) option {
+    background: #14161b;
+    color: var(--foreground);
+  }
+}
+
+/* Reduced motion stops movement, not colour. The shader freezes at its first
+ * frame (see AnimatedBackdrop) and the glass keeps its blur, so the window the
+ * player chose looks the same — it just stops moving. An earlier rule painted
+ * every panel solid grey here, which silently turned the whole design
+ * monochrome for anyone with the OS setting on. */
+@media (prefers-reduced-motion: reduce) {
+  [data-line-glass] {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-line-glass] {
+    background: #14161b;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Slow enough to be felt rather than watched. A full cycle is deliberately
+ * shorter than the animation's 90s so the path never repeats exactly on
+ * screen at the same time as the other layer. */
+@keyframes line-haze-drift {
+  0% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      80% 0%,
+      40% 60%;
+  }
+  33% {
+    background-position:
+      12% 8%,
+      86% 92%,
+      68% 12%,
+      52% 54%;
+  }
+  66% {
+    background-position:
+      4% 14%,
+      96% 82%,
+      88% 6%,
+      34% 66%;
+  }
+  100% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      80% 0%,
+      40% 60%;
+  }
+}
+
+/* Movement is a preference, colour is not: with reduced motion the field keeps
+ * every one of its stops and simply stops travelling. */
+@media (prefers-reduced-motion: reduce) {
+  [data-line-haze] {
+    animation: none;
+  }
+}
+
 html,
 body {
   margin: 0;
@@ -25,104 +440,17 @@ code {
     source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
-:root {
-  --radius: 14px;
-  --header: 90px;
-  --background: #0a0a0a;
-  --foreground: oklch(0.985 0 0);
-  --card: transparent;
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(255 0 0 / 0.6);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.645 0.246 16.439);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #111111;
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
-  --destructive-foreground: var(--color-red-700);
-}
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --font-heading: var(--font-sans);
-  --font-sans: "Geist Variable", sans-serif;
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50 scroll-smooth;
   }
   body {
     @apply text-foreground;
-    /* Flat by default. The animated ramp is the old design's signature, so it
-     * lives only under `[data-theme="old"]`: a base rule that paints a gradient
-     * the new theme then overrides is a gradient waiting to flash on load. */
-    background: var(--line-canvas, #08090c);
-  }
-  [data-theme="old"] body {
-    background: linear-gradient(-45deg, #0a0a0a, #130b1c, #0a1128, #050514);
-    background-size: 400% 400%;
-    animation: gradientBg 20s ease infinite;
-  }
-  [data-theme="line"] body {
+    /* One flat value, always. It is the floor under the animated backdrop: the
+     * colour the player picked is painted by `AnimatedBackdrop`, and this is
+     * what shows while WebGL is unavailable or the window is still mounting.
+     * A gradient here would be a second backdrop nobody asked for, and the one
+     * that used to be here flashed on every cold start. */
     background: var(--line-canvas);
     background-attachment: fixed;
   }
@@ -223,30 +551,6 @@ input[id*="hidden-input"],
   pointer-events: none !important;
 }
 
-@keyframes gradientBg {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.dark {
-  --destructive-foreground: var(--color-red-400);
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
-}
-
 /* Global modal and dialog viewport bounds and padding enforcement.
  *
  * Height only. A `max-width: calc(100vw - 2.5rem) !important` used to live
@@ -268,9 +572,13 @@ input[id*="hidden-input"],
   box-sizing: border-box !important;
 }
 
-/* New design tokens. Imported last on purpose: everything above is the frozen
- * "old" theme, and a later sheet wins for equal specificity. */
-@import "./styles/themes.css";
+/* The design system: one palette, one set of surfaces.
+ *
+ * This was two files for a while — a legacy sheet with the previous look and an
+ * override sheet that re-declared every slot — and the price was a second look
+ * nobody used, 30 selectors scoped to an attribute that could only ever hold
+ * one value, and a build flag whose output had to be maintained. There is one
+ * design now, so it is one sheet, and the selectors are plain. */
 
 /* Line respects the OS setting in addition to Framer Motion's MotionConfig. */
 @media (prefers-reduced-motion: reduce) {

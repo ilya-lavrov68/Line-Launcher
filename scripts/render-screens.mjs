@@ -7,7 +7,7 @@
 // Why this exists: `npm run screenshots` renders the real app through
 // playwright-core and is the source of truth. It needs Chrome/Edge, which some
 // build machines (and CI containers without libnss) do not have. This script is
-// the deterministic fallback: every colour is read from `src/styles/themes.css`,
+// the deterministic fallback: every colour is read from `src/index.css`,
 // the same tokens the app renders with, and every screen is laid out at one fixed
 // size (1280x800) so the gallery never mixes tall and short images again.
 //
@@ -113,13 +113,13 @@ export function parseColor(value) {
 
 const css = (file) => readFileSync(path.join(root, file), "utf8");
 
-/** The `"line"` palette block from themes.css, resolved through `var()`. */
+/** The palette block from index.css, resolved through `var()`. */
 export function loadTokens() {
-  const sheet = css("src/styles/themes.css");
+  const sheet = css("src/index.css");
   /** Declarations inside the block that opens at `selector`. */
   const readBlock = (selector, from = 0) => {
     const start = sheet.indexOf(selector, from);
-    if (start < 0) throw new Error(`themes.css: не найден блок ${selector}`);
+    if (start < 0) throw new Error(`index.css: не найден блок ${selector}`);
     const open = sheet.indexOf("{", start);
     const close = sheet.indexOf("\n}", open);
     const found = new Map();
@@ -129,14 +129,11 @@ export function loadTokens() {
     }
     return found;
   };
-  // `:root` holds the additive ladder (--fill*, --surface-glass, --radius-*)
-  // that both themes share; `[data-theme="line"]` re-declares the legacy slots.
-  // Reading only the second block silently resolved every additive token to the
-  // white fallback — white cards on a dark page.
-  const raw = new Map([
-    ...readBlock(":root {"),
-    ...readBlock('[data-theme="line"] {'),
-  ]);
+  // One `:root` holds the whole palette and the additive ladder (--fill*,
+  // --surface-glass, --radius-*). It used to be two blocks in two files, and
+  // reading only one of them silently resolved every token to the white
+  // fallback — white cards on a dark page.
+  const raw = new Map([...readBlock(":root {")]);
   const resolve = (name, depth = 0) => {
     const value = raw.get(name);
     if (!value || depth > 6) return value ?? "";
@@ -147,7 +144,7 @@ export function loadTokens() {
   const color = (name) => parseColor(resolve(name)) ?? [255, 255, 255, 1];
   return {
     background: color("--background"),
-    // `--line-canvas` is `#08090c` in the new theme: one flat value.
+    // `--line-canvas` is `#08090c`: one flat value under the backdrop.
     canvas: color("--line-canvas"),
     foreground: color("--foreground"),
     mutedForeground: color("--muted-foreground"),
@@ -537,7 +534,7 @@ function titleBar(ctx, context, trailing) {
     });
   }
   if (trailing) {
-    // `ThemeSwitchPill` renders as a ghost button: text and icon, no frame.
+    // A ghost button: text and icon, no frame.
     const w = measure(ctx, trailing, 11, 500) + 34;
     const x = SHOT_WIDTH - w - 100;
     icon(ctx, "sparkles", x + 9, 17, 12, rgba(T.mutedForeground));
@@ -606,8 +603,7 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   const collapseTop = base - pad - 32;
   const creditTop = collapseTop - 8 - 26;
   const aboutTop = creditTop - 8 - 36;
-  const themeTop = aboutTop - 36;
-  const reconnectTop = themeTop - 36;
+  const reconnectTop = aboutTop - 36;
   const footLine = reconnectTop - 8;
   const accountTop = footLine - 8 - 32;
 
@@ -632,7 +628,6 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   }
   [
     ["refresh", "Переподключиться", reconnectTop],
-    ["moon", "Старый дизайн", themeTop],
     ["info", "О программе", aboutTop],
   ].forEach(([name, label, rowTop]) => {
     icon(ctx, name, 17, rowTop + 10, 15, rgba(T.mutedForeground));
@@ -785,13 +780,9 @@ const FOOTER_H = 28;
  * The app shell every screen shares: background, title bar, rail, footer.
  * Returns the content area so each screen only lays out its own body.
  */
-function shell(
-  ctx,
-  context,
-  { active = "servers", signedIn = false, pill = false } = {},
-) {
+function shell(ctx, context, { active = "servers", signedIn = false } = {}) {
   background(ctx);
-  const top = titleBar(ctx, context, pill ? "Старый дизайн" : undefined);
+  const top = titleBar(ctx, context);
   const nav = sideNav(ctx, top, SHOT_HEIGHT - top - FOOTER_H, active, {
     providerName: signedIn ? "Plus In Plus Demo" : undefined,
     username: signedIn ? "Player_1" : undefined,
@@ -815,7 +806,7 @@ function shell(
  * because the rail has no account block yet.
  */
 function screenConnecting(ctx) {
-  const { centerX, centerY } = shell(ctx, "Подключение", { pill: true });
+  const { centerX, centerY } = shell(ctx, "Подключение");
 
   // Loading spinner: a quarter-arc on a faint track, like Loader2 mid-rotate.
   const ringY = centerY - 78;
@@ -856,7 +847,7 @@ function screenConnecting(ctx) {
  * glass card that holds AuthForm — the card the browser screenshot shows.
  */
 function screenAccount(ctx) {
-  const { centerX, top } = shell(ctx, "Plus In Plus Demo", { pill: true });
+  const { centerX, top } = shell(ctx, "Plus In Plus Demo");
   const cardW = 448;
   const x = centerX - cardW / 2;
   let y = top + 40;

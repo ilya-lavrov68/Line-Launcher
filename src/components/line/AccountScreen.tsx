@@ -42,8 +42,7 @@ export default function AccountScreen({
       </div>
 
       {/* The login card is the first screen after the provider connects, so it
-          uses the same panel surface as the server dock. Under the old design
-          `data-line-glass` degrades to the previous plain card.
+          uses the same panel surface as the server dock.
           One panel, one form: the fields inside are labels and inputs, not
           tiles — four nested surfaces on one screen read as a settings dialog,
           which is the opposite of the first thing a player sees. */}

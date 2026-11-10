@@ -1,77 +1,65 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import {
-  applyTheme,
-  bootstrapTheme,
-  isLineTheme,
-  readTheme,
-  THEME_LABELS,
-  THEME_STORAGE_KEY,
-  THEMES,
-  writeTheme,
-} from "../src/lib/line/theme.ts";
 
 const read = (file: string) =>
   readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 
-const themes = read("src/styles/themes.css");
 const indexCss = read("src/index.css");
 
-test("the theme preference falls back instead of throwing", () => {
-  assert.deepEqual([...THEMES], ["line", "old"]);
-  assert.equal(THEME_STORAGE_KEY, "line.theme");
-  assert.equal(isLineTheme("old"), true);
-  assert.equal(isLineTheme("sepia"), false);
-  assert.equal(isLineTheme(undefined), false);
-
-  const store = (value: string | null) => ({ getItem: () => value });
-  // The design is chosen at build time. A `line.theme` key left behind by an
-  // older build is read but not honoured, so a file cannot repaint the window.
-  assert.equal(readTheme(store("old")), "line");
-  assert.equal(readTheme(store(null)), "line");
-  assert.equal(readTheme(store("garbage")), "line");
-  // A hardened WebView can throw on storage access; a white screen would be
-  // worse than a default theme.
+test("there is one design and no way to ask for another", () => {
+  // A previous version shipped two looks: a legacy sheet plus an override sheet,
+  // and a `VITE_LINE_THEME=old` build that produced the old one. That second
+  // look was maintained, screenshot, documented and tested for a rollback nobody
+  // performed — pure weight. This test is the guard against it coming back in
+  // pieces: no attribute, no module, no build flag, no sandbox.
+  const sources = [
+    "src/index.css",
+    "index.html",
+    "src/App.tsx",
+    "src/index.tsx",
+    "src/components/line/ServerDetail.tsx",
+    "src/components/line/LineLauncher.tsx",
+  ];
+  for (const file of sources) {
+    assert.doesNotMatch(
+      read(file),
+      /data-theme/,
+      `${file} still scopes a theme`,
+    );
+  }
   assert.equal(
-    readTheme({
-      getItem: () => {
-        throw new Error("denied");
-      },
-    }),
-    "line",
+    (indexCss.match(/^:root \{/gm) ?? []).length,
+    1,
+    "one palette block; a second one is a second design",
   );
-  assert.doesNotThrow(() =>
-    writeTheme("old", {
-      setItem: () => {
-        throw new Error("denied");
-      },
-    }),
+  for (const gone of [
+    "src/styles/themes.css",
+    "src/lib/line/theme.ts",
+    "src/components/line/ThemeProvider.tsx",
+    "src/preview.tsx",
+    "preview.html",
+    "scripts/serve-design.mjs",
+  ]) {
+    assert.equal(
+      existsSync(new URL(`../${gone}`, import.meta.url)),
+      false,
+      gone,
+    );
+  }
+  // The design sandbox existed to compare the two looks side by side.
+  assert.equal(
+    (JSON.parse(read("package.json")) as { scripts: Record<string, string> })
+      .scripts.design,
+    undefined,
+    "npm run design has nothing left to show",
   );
+  assert.doesNotMatch(read("vite.config.ts"), /preview\.html|appType: "mpa"/);
 });
 
-test("exactly one DOM attribute drives the design", () => {
-  const root = { dataset: {} as Record<string, string | undefined> };
-  applyTheme("old", root as unknown as HTMLElement);
-  assert.equal(root.dataset.theme, "old");
-  // Bootstrap applies the build's design and persists nothing: there is no
-  // preference to remember any more, only a compiled-in value.
-  const written: string[] = [];
-  assert.equal(
-    bootstrapTheme({
-      read: () => "old",
-      write: (value) => written.push(value),
-      root: root as unknown as HTMLElement,
-    }),
-    "old",
-  );
-  assert.equal(root.dataset.theme, "old");
-  assert.deepEqual(written, [], "bootstrap must not persist a design");
-  assert.deepEqual(Object.keys(THEME_LABELS).sort(), ["line", "old"]);
-});
-
-test("the new theme keeps the legacy slots, so old components still work", () => {
-  // Same names, new values — that is what makes the migration additive.
+test("the palette keeps the slots the components already use", () => {
+  // Same names as the shadcn primitives expect, plus the ones this design
+  // introduced. One block, so a preset only has to override values.
   for (const slot of [
     "--background",
     "--foreground",
@@ -91,12 +79,11 @@ test("the new theme keeps the legacy slots, so old components still work", () =>
     "--sidebar-border",
   ]) {
     assert.match(
-      themes,
+      indexCss,
       new RegExp(`\\n\\s{2}${slot}:`),
-      `${slot} must be re-declared for the new theme`,
+      `${slot} must be declared`,
     );
   }
-  // And the new ideas live in their own slots.
   for (const token of [
     "--fill",
     "--fill-subtle",
@@ -114,163 +101,8 @@ test("the new theme keeps the legacy slots, so old components still work", () =>
     "--ease-line",
     "--line-canvas",
   ]) {
-    assert.match(themes, new RegExp(`\\n\\s{2}${token}:`), token);
+    assert.match(indexCss, new RegExp(`\\n\\s{2}${token}:`), token);
   }
-});
-
-test("the old theme is preserved, not copied", () => {
-  const block = themes.slice(
-    themes.indexOf('[data-theme="old"] {'),
-    themes.indexOf("}", themes.indexOf('[data-theme="old"] {')),
-  );
-  // A copy would drift the first time the old component changed. Only the
-  // plumbing the new sheet needs is re-pointed.
-  assert.doesNotMatch(block, /--background:/);
-  assert.doesNotMatch(block, /--primary:/);
-  assert.match(block, /--line-canvas/);
-  // The old theme keeps the legacy geometry too, including the window radius.
-  assert.match(block, /--radius: 14px/);
-  // The legacy sheet still owns the real values.
-  assert.match(indexCss, /--background: #0a0a0a;/);
-  assert.match(indexCss, /--primary: oklch\(0\.92 0\.004 286\.32\)/);
-  // Sheet order decides the winner: themes last, legacy first.
-  const legacy = indexCss.indexOf(":root {");
-  const sheet = indexCss.indexOf('@import "./styles/themes.css"');
-  assert.ok(sheet > legacy, "themes.css must load after the legacy tokens");
-});
-
-test("panels in the new design are shadow, not outline", () => {
-  assert.match(themes, /\[data-theme="line"\] \[data-line-glass\]/);
-  const lineAt = themes.indexOf('[data-theme="line"] [data-line-glass] {');
-  const lineGlass = themes.slice(lineAt, themes.indexOf("}", lineAt));
-  // Elevation carries depth; a 1px border around every panel drew a frame
-  // around every piece of content and made the page read as a grid of boxes.
-  assert.match(lineGlass, /box-shadow:/);
-  assert.doesNotMatch(lineGlass, /border:/);
-  // Blur is deliberate again, and only because the animated backdrop is back:
-  // a translucent pane over a moving mesh needs the mesh softened behind it.
-  // Asserted so it is not "cleaned up" by someone reading an older comment.
-  assert.match(lineGlass, /backdrop-filter: blur/);
-
-  // The old design must get a real panel back, not an unstyled transparent box.
-  const legacyAt = themes.lastIndexOf('[data-theme="old"] [data-line-glass]');
-  const legacyGlass = themes.slice(legacyAt, themes.indexOf("}", legacyAt));
-  assert.match(legacyGlass, /background: var\(--card\)/);
-  assert.match(legacyGlass, /border: 1px solid/);
-  assert.match(legacyGlass, /box-shadow: none/);
-  // The old panel keeps the blur it always had (8px) and none of the new one.
-  assert.match(legacyGlass, /backdrop-filter: blur\(8px\)/);
-  assert.match(themes, /\[data-theme="line"\] \[data-line-canvas\]/);
-  // The new backdrop is one flat colour. Two accent glows over a diagonal ramp
-  // read as haze on a tool window and tinted text that had nothing to do with
-  // the accent.
-  const canvasAt = themes.indexOf("--line-canvas:", themes.indexOf(":root {"));
-  const canvasLine = themes.slice(canvasAt, themes.indexOf(";", canvasAt));
-  assert.doesNotMatch(canvasLine, /gradient/);
-  // `"old"` keeps its animated gradient, so the two themes still differ.
-  const oldAt = themes.indexOf('[data-theme="old"] {');
-  const oldCanvas = themes.slice(oldAt, themes.indexOf("}", oldAt));
-  assert.match(oldCanvas, /--line-canvas: linear-gradient/);
-  // The gradient ramp and its animation belong to the old design only, so the
-  // new one neither paints a full-screen gradient nor repaints it every frame.
-  const oldBodyAt = indexCss.indexOf('[data-theme="old"] body');
-  const oldBody = indexCss.slice(oldBodyAt, indexCss.indexOf("}", oldBodyAt));
-  assert.match(oldBody, /animation: gradientBg/);
-  assert.match(oldBody, /linear-gradient/);
-  // Nothing before that rule may paint a gradient of its own.
-  assert.doesNotMatch(
-    indexCss.slice(0, oldBodyAt),
-    /linear-gradient|animation: gradientBg/,
-  );
-  // Reduced motion stops movement; it must not flatten the window into grey.
-  // The shader freezes at its first frame and the glass keeps its blur.
-  assert.match(themes, /prefers-reduced-motion: reduce/);
-  const stillAt = themes.indexOf("@media (prefers-reduced-motion: reduce)");
-  const stillBlock = themes.slice(stillAt, themes.indexOf("}", stillAt) + 1);
-  assert.doesNotMatch(
-    stillBlock,
-    /backdrop-filter/,
-    "reduced motion must not change how the glass looks, only how it moves",
-  );
-  // The one preference that may flatten the glass is reduced transparency.
-  assert.match(themes, /prefers-reduced-transparency: reduce/);
-});
-
-test("no gradient survives anywhere outside the old design", () => {
-  // The user's rule: gradients are the tell of generated UI. The old theme is a
-  // frozen historical look and keeps its animated ramp; nothing that ships in
-  // the default design may paint one.
-  const files = [
-    "src/components/line/AccountScreen.tsx",
-    "src/components/line/AuthForm.tsx",
-    "src/components/line/ServerCard.tsx",
-    "src/components/line/ServerList.tsx",
-    "src/components/line/ServerDetail.tsx",
-    "src/components/line/ServerActionPanel.tsx",
-    "src/components/line/ServerCatalogRail.tsx",
-    "src/components/line/WardrobeScreen.tsx",
-    "src/components/line/SettingsScreen.tsx",
-    "src/components/line/SideNav.tsx",
-    "src/components/line/TitleBar.tsx",
-    "src/components/line/ConfigUrlInput.tsx",
-    "src/components/line/InstallProgress.tsx",
-    "src/components/line/ReleaseHistoryDialog.tsx",
-  ];
-  for (const file of files) {
-    const src = read(file);
-    // The legacy branch of ServerDetail is the frozen design, byte for byte.
-    const shipped =
-      file === "src/components/line/ServerDetail.tsx"
-        ? src.slice(0, src.indexOf("function LegacyDetail"))
-        : src;
-    assert.doesNotMatch(
-      shipped,
-      /bg-gradient|from-[a-z]+\/\d+ .*to-/,
-      `${file} paints a gradient in the new design`,
-    );
-  }
-  // The new theme's canvas token is a flat colour, not a ramp.
-  const canvas = themes.slice(
-    themes.indexOf(":root {"),
-    themes.indexOf(":root {") + 4000,
-  );
-  const lineBlock = canvas.slice(
-    canvas.indexOf("--line-canvas:"),
-    canvas.indexOf(";", canvas.indexOf("--line-canvas:")),
-  );
-  assert.doesNotMatch(lineBlock, /gradient/);
-});
-
-test("the theme is reachable and remembered", () => {
-  const launcher = read("src/components/line/LineLauncher.tsx");
-  const provider = read("src/components/line/ThemeProvider.tsx");
-  const nav = read("src/components/line/SideNav.tsx");
-  const settings = read("src/components/line/SettingsScreen.tsx");
-  const entry = read("src/index.tsx");
-  assert.match(read("src/App.tsx"), /<ThemeProvider>/);
-  assert.match(provider, /applyTheme\(theme\)/);
-  // The provider resolves the design once, from the build, and exposes no
-  // setter: there is nothing in the shipped window that changes it.
-  assert.match(provider, /buildTheme\(\)/);
-  assert.doesNotMatch(provider, /setTheme|toggleTheme/);
-  assert.match(entry, /bootstrapTheme\(\)/);
-  assert.match(launcher, /useTheme\(\)/);
-  // No control anywhere: not in the shell, the rail or settings. Themed by a
-  // build, not by a button is the requirement.
-  for (const source of [launcher, nav, settings]) {
-    assert.doesNotMatch(source, /toggleTheme|ThemeToggle|ThemeSwitchPill/);
-  }
-  assert.doesNotMatch(launcher, /onToggleTheme/);
-  assert.doesNotMatch(settings, /title="Оформление"/);
-  // The rollback build is a documented, real path: an environment variable
-  // read at build time, not a runtime toggle.
-  assert.match(read("src/lib/line/theme.ts"), /VITE_LINE_THEME/);
-  assert.match(
-    read("README.md"),
-    /VITE_LINE_THEME=old/,
-    "the old design must stay buildable and documented",
-  );
-  assert.match(read("index.html"), /data-theme="line"/);
 });
 
 test("ServerActionPanel is the dock: one status, one progress, one button", () => {
@@ -310,18 +142,15 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   assert.match(panel, /import \{[^}]*\bm\b[^}]*\} from "framer-motion"/);
 });
 
-test("the two designs render one branch each, never both", () => {
+test("a minecraft-mode server swaps the dock, never renders two of them", () => {
   const detail = read("src/components/line/ServerDetail.tsx");
-  // Duplicating the dock under `hidden` would give two «Играть» buttons to
-  // assistive tech and to the smoke test.
-  assert.match(detail, /theme === "line" &&/);
-  // Exactly one branch per design. The Minecraft panel is not a second branch:
-  // it is a ternary *inside* the new-design block, so a minecraft-mode server
-  // swaps the dock for the mc_* panel and never renders both.
-  assert.match(detail, /theme === "old" && !isMinecraft && <LegacyDetail/);
-  assert.match(detail, /theme === "old" && isMinecraft &&/);
-  assert.match(detail, /isMinecraft \? \(/);
-  assert.doesNotMatch(detail, /\[html\[data-theme=old\]_&\]/);
+  // The two looks used to be two branches here. With one design there is one
+  // page and one dock; the Minecraft panel is a separate branch *below* it, not
+  // a second copy of the page, so «Играть» exists exactly once for assistive
+  // tech and for the smoke test.
+  assert.doesNotMatch(detail, /theme === /);
+  assert.doesNotMatch(detail, /LegacyDetail/);
+  assert.match(detail, /\{isMinecraft && \(/);
   assert.match(detail, /function phaseOf\(/);
   for (const phase of [
     '"needs-install"',
@@ -351,15 +180,10 @@ test("the catalogue rail is tryliner's now-playing strip, translated", () => {
   assert.match(rail, /aria-valuenow=\{percent\}/);
   assert.match(rail, /useReducedMotion\(\)/);
 
-  // The catalogue mounts it above the grid, and only in the new design.
+  // The catalogue mounts it above the grid, always — there is one design now,
+  // so there is no branch that could leave it out.
   assert.match(list, /\{rail\}/);
-  // Wrapped in `theme === "line" && (` ... `)` because the old catalogue must
-  // keep its exact previous markup and gain no extra strip.
-  const railBlock = launcher.slice(
-    launcher.indexOf('theme === "line" && ('),
-    launcher.indexOf("<ServerCatalogRail"),
-  );
-  assert.ok(railBlock.length > 0, "the rail is mounted for both designs");
+  assert.doesNotMatch(launcher, /theme === /);
   assert.match(launcher, /<ServerCatalogRail/);
   // Status is derived from the catalogue's own data, not from the detail screen.
   assert.match(
@@ -518,21 +342,4 @@ test("the brand mark in the gallery is the real logo file, not a drawing", () =>
   assert.doesNotMatch(renderer, /ctx\.moveTo\(3, 3\)/);
   const logo = read("branding/assets/logo.svg");
   assert.match(logo, /fill="#FFFF01"/i);
-});
-
-test("the design is a build input, and the flag actually reaches the bundle", () => {
-  const theme = read("src/lib/line/theme.ts");
-  // Vite only substitutes the dotted form of `import.meta.env.VAR`. Reading the
-  // object and indexing it keeps the substitution working — an earlier
-  // `import.meta.env?.VITE_LINE_THEME` compiled to nothing and the rollback
-  // build silently shipped the new design.
-  assert.match(theme, /import\.meta\.env \?\? \{\}/);
-  assert.match(theme, /VITE_LINE_THEME/);
-  assert.doesNotMatch(theme, /import\.meta\.env\?\.VITE_LINE_THEME/);
-  // Anything that is not a known design falls back to the shipped one.
-  assert.doesNotMatch(theme, /isLineTheme\(undefined\)/);
-  assert.match(
-    theme,
-    /isLineTheme\(env\.VITE_LINE_THEME\) \? env\.VITE_LINE_THEME : "line"/,
-  );
 });

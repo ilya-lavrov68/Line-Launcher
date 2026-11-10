@@ -7,9 +7,8 @@ const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   base: "./",
-  // `/preview.html` is the design sandbox (src/preview.tsx); the app itself is
-  // a single window with no routing.
-  appType: "mpa",
+  // A single window with no routing.
+  appType: "spa",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -36,13 +35,6 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
-    // Two pages: the app window and the design sandbox.
-    rollupOptions: {
-      input: {
-        main: path.resolve(import.meta.dirname, "index.html"),
-        preview: path.resolve(import.meta.dirname, "preview.html"),
-      },
-    },
     target:
       process.env.TAURI_ENV_PLATFORM == "windows" ? "chrome105" : "safari15",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,

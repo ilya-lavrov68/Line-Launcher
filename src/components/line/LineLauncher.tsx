@@ -44,7 +44,6 @@ import {
   restoreWindow,
 } from "@/lib/line/window";
 import { toLineError, type SettingsSnapshot } from "@/types/line";
-import { useTheme } from "./ThemeProvider";
 
 type Screen = "config" | "account" | "servers" | "detail";
 
@@ -85,7 +84,6 @@ export default function LineLauncher() {
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string>();
-  const { theme } = useTheme();
   // Catalogue rail: "what was I doing?" answered without opening a server.
   // It reads the catalogue's own knowledge (installed ids + the live job for
   // that id), never the detail screen's transient receipt.
@@ -705,19 +703,13 @@ export default function LineLauncher() {
                           snapshot && (
                             <ServerList
                               rail={
-                                // New design only: the old catalogue keeps its
-                                // exact previous appearance, with no extra strip.
-                                theme === "line" && (
-                                  <ServerCatalogRail
-                                    server={selected}
-                                    status={railStatus}
-                                    progress={railProgress}
-                                    busy={actionsBusy}
-                                    onOpen={(server) =>
-                                      void selectServer(server)
-                                    }
-                                  />
-                                )
+                                <ServerCatalogRail
+                                  server={selected}
+                                  status={railStatus}
+                                  progress={railProgress}
+                                  busy={actionsBusy}
+                                  onOpen={(server) => void selectServer(server)}
+                                />
                               }
                               statusFor={(server) =>
                                 installedIds.has(server.id)
@@ -790,8 +782,7 @@ export default function LineLauncher() {
               />
             </div>
             {/* Persistent rail: the last opened server stays one click away from
-                the catalogue, the wardrobe and settings. Under the old design it
-                renders nothing and the footer below is unchanged. */}
+                the catalogue, the wardrobe and settings. */}
             <footer className="text-muted-foreground/70 relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 px-2 pb-1.5 text-[12px]">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>

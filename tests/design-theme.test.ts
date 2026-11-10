@@ -315,7 +315,12 @@ test("the two designs render one branch each, never both", () => {
   // Duplicating the dock under `hidden` would give two «Играть» buttons to
   // assistive tech and to the smoke test.
   assert.match(detail, /theme === "line" &&/);
-  assert.match(detail, /theme === "old" && <LegacyDetail/);
+  // Exactly one branch per design. The Minecraft panel is not a second branch:
+  // it is a ternary *inside* the new-design block, so a minecraft-mode server
+  // swaps the dock for the mc_* panel and never renders both.
+  assert.match(detail, /theme === "old" && !isMinecraft && <LegacyDetail/);
+  assert.match(detail, /theme === "old" && isMinecraft &&/);
+  assert.match(detail, /isMinecraft \? \(/);
   assert.doesNotMatch(detail, /\[html\[data-theme=old\]_&\]/);
   assert.match(detail, /function phaseOf\(/);
   for (const phase of [

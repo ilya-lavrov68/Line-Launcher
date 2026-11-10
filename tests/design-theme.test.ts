@@ -315,7 +315,12 @@ test("the two designs render one branch each, never both", () => {
   // Duplicating the dock under `hidden` would give two «Играть» buttons to
   // assistive tech and to the smoke test.
   assert.match(detail, /theme === "line" &&/);
-  assert.match(detail, /theme === "old" && <LegacyDetail/);
+  // Exactly one branch per design. The Minecraft panel is not a second branch:
+  // it is a ternary *inside* the new-design block, so a minecraft-mode server
+  // swaps the dock for the mc_* panel and never renders both.
+  assert.match(detail, /theme === "old" && !isMinecraft && <LegacyDetail/);
+  assert.match(detail, /theme === "old" && isMinecraft &&/);
+  assert.match(detail, /isMinecraft \? \(/);
   assert.doesNotMatch(detail, /\[html\[data-theme=old\]_&\]/);
   assert.match(detail, /function phaseOf\(/);
   for (const phase of [
@@ -451,8 +456,9 @@ test("the animated backdrop is decoration that cannot take the window down", () 
   assert.match(backdrop, /<BackdropBoundary>/);
   //  3. a CSS colour field under the canvas, so the window has colour even
   //     when hazeglow declines the renderer (it refuses software rasterisers).
-  assert.match(backdrop, /HAZE_FIELD/);
-  assert.match(backdrop, /backgroundImage: HAZE_FIELD/);
+  assert.match(backdrop, /function hazeField\(/);
+  assert.match(backdrop, /backgroundImage: hazeField\(ramp\)/);
+  assert.match(backdrop, /radial-gradient/);
 
   // Reduced motion freezes the shader instead of leaving the page grey.
   assert.match(backdrop, /prefers-reduced-motion: reduce/);

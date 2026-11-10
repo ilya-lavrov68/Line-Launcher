@@ -131,6 +131,46 @@ stat -c %s release.zip
 добавьте `offline-launch-v1` в `required_features`. Отсутствие endpoints само по
 себе оставляет запуск выключенным. Подробнее — [GAME.md](GAME.md).
 
+### Режим `minecraft`
+
+`"launch_mode": "minecraft"` — сервер, на который лаунчер ставит **настоящий
+клиент Minecraft** (ваниль или Fabric/Forge/NeoForge через `mc-launcher-core`) и
+заходит без главного меню. Это единственный режим, который ходит к Mojang, и он
+включается **только явно**:
+
+```json
+{
+  "id": "survival",
+  "name": "Survival",
+  "description": "Классическое выживание.",
+  "version": "2026.11.1",
+  "minecraft_version": "1.21.1",
+  "launch_mode": "minecraft",
+  "server_address": "play.example.com:25565",
+  "distribution": {
+    "url": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "unpacked_size_bytes": 0
+  }
+}
+```
+
+- `server_address` и `minecraft_version` **обязательны**: лаунчер отклонит конфиг
+  при разборе, а не оставит кнопку, которая не работает. Адрес принимает `host`,
+  `host:port` и `[ipv6]:port`; порт по умолчанию 25565.
+- `distribution` не используется: режим ставит клиент из манифестов Mojang, а не
+  из архива провайдера, поэтому пустая заглушка допустима (во всех остальных
+  режимах поля обязательны и проверяются).
+- `launch_ticket_url`/`session_exchange_url` задавать нельзя: вход идёт под ником
+  аккаунта проекта (офлайн-идентичность), без билета и без обмена сессии.
+- Сервер должен работать с `online-mode=false`. Лаунчер не подделывает сессию
+  Mojang и не пытается обойти `online-mode=true` — такой сервер просто не пустит.
+
+Лаунчер показывает этот режим отдельной панелью на странице сервера; у серверов с
+другим `launch_mode` он не появляется вообще. Подробности и ограничения —
+[MINECRAFT.md](MINECRAFT.md).
+
 `logging_config`, `game_args` и `user_type` необязательны. `logging_config` —
 обычный файл внутри релиза, попадает в `-Dlog4j.configurationFile`. `game_args` —
 дополнительные **игровые** аргументы строго парами `--имя значение` (не больше 128,

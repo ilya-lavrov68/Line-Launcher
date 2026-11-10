@@ -399,10 +399,14 @@ await page.addInitScript(
           emit("extracting", 85);
           await new Promise((r) => setTimeout(r, 120));
           emit("completed", 100);
+          // The receipt must carry the sha of the server that was installed:
+          // stamping server 0's digest on every build made the second server
+          // open in «Доступно обновление» and never offer «Играть».
           window.__installed = {
             serverId: args.serverId,
             version: "2026.11.1",
-            sha256: config.servers[0].distribution.sha256,
+            sha256: config.servers.find((s) => s.id === args.serverId)
+              .distribution.sha256,
             installedAt: Date.now(),
             alreadyInstalled: false,
           };
@@ -469,7 +473,9 @@ try {
 
   // One account for the whole project: the sign-in gate comes before any server.
   await page.getByRole("heading", { name: "Plus In Plus Demo" }).waitFor();
-  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  await page
+    .getByText("Один вход — все серверы проекта.", { exact: false })
+    .waitFor();
   check(
     !(await page.getByRole("button", { name: /^Открыть сервер/ }).count()),
     "the server list appeared before the single sign-in",
@@ -512,7 +518,7 @@ try {
   await page.getByRole("heading", { name: "Гардероб" }).waitFor();
   check(
     await page
-      .getByRole("heading", { name: "Добавить скин в историю" })
+      .getByRole("heading", { name: "Добавить скин", exact: true })
       .evaluate((node) => node.parentElement.querySelector("svg") === null),
     "the non-interactive plus icon is still beside the upload heading",
   );
@@ -676,7 +682,9 @@ try {
   await page.getByRole("button", { name: "Серверы", exact: true }).click();
 
   // Signing in once, with no server selected at all.
-  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  await page
+    .getByText("Один вход — все серверы проекта.", { exact: false })
+    .waitFor();
   await page.getByRole("tab", { name: "Регистрация" }).click();
   await page.getByRole("tab", { name: "Вход" }).click();
   await page.getByLabel("Логин", { exact: true }).fill("Player_1");
@@ -716,50 +724,46 @@ try {
   );
   await shot("servers");
 
-  // The design switch is a real, instant change of the shell, and the choice
-  // has to survive a render and a reload of the settings screen.
-  const themeOf = () =>
-    page.evaluate(() => document.documentElement.dataset.theme);
-  check((await themeOf()) === "line", "the new design must be the default");
-  await page.getByRole("button", { name: "Сменить оформление" }).click();
-  check((await themeOf()) === "old", "the toggle did not reach the old design");
+  // The design is a BUILD-time choice (`VITE_LINE_THEME=old npm run build`),
+  // not a setting: the shipped window must expose no control that swaps it
+  // under the player, and a leftover preference in storage must not override
+  // what was compiled. Both halves are asserted, because either one alone
+  // would let a runtime switch creep back in.
   check(
-    (
-      await page.evaluate(() =>
-        JSON.parse(
-          JSON.stringify({ stored: localStorage.getItem("line.theme") }),
-        ),
-      )
-    ).stored === "old",
-    "the chosen design was not remembered",
+    (await page.evaluate(() => document.documentElement.dataset.theme)) ===
+      "line",
+    "the new design must be the default",
   );
-  await page.getByRole("button", { name: "Сменить оформление" }).click();
   check(
-    (await themeOf()) === "line",
-    "the toggle did not return to the new design",
+    !(await page.getByRole("button", { name: /Сменить оформление/ }).count()),
+    "the window still exposes a design switch",
+  );
+  check(
+    (await page.evaluate(() => localStorage.getItem("line.theme"))) === null,
+    "the build wrote a design preference it must not read",
   );
 
-  // The catalogue rail remembers the last opened server and offers exactly one
-  // way back into it. It must not add a second «Открыть сервер <name>» button.
-  await page
-    .getByRole("region", { name: "Текущий сервер" })
-    .getByText("Сборка не установлена")
-    .waitFor();
-  await page
-    .getByRole("region", { name: "Текущий сервер" })
-    .getByRole("button", { name: "Открыть", exact: true })
-    .click();
-  await page.getByRole("region", { name: "Survival" }).waitFor();
-  await page.getByRole("button", { name: "Все серверы", exact: true }).click();
-  await page
-    .getByRole("region", { name: "Текущий сервер" })
-    .getByText("Сборка установлена")
-    .waitFor();
+  // Back from the server screen lands on a catalogue with exactly one card per
+  // server and no second «Открыть сервер <name>» shortcut anywhere. The
+  // «Текущий сервер» rail that used to sit above the catalogue was removed: on
+  // a screen that already lists every server, it repeated one card and its
+  // action, so it is a regression if it comes back.
+  check(
+    (await page.getByRole("region", { name: "Текущий сервер" }).count()) === 0,
+    "the catalogue rail duplicated the server card again",
+  );
+  check(
+    (await page.getByRole("button", { name: /^Открыть сервер/ }).count()) ===
+      (await page.getByText(/^Minecraft 1\./).count()),
+    "the catalogue gained a shortcut that is not a server card",
+  );
 
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
   // No second login on the server screen.
   check(
-    !(await page.getByText("Аккаунт проекта", { exact: true }).count()),
+    !(await page
+      .getByText("Один вход — все серверы проекта.", { exact: false })
+      .count()),
     "the server screen asked for credentials again",
   );
   // Server artwork must render when it loads, not only fall back when it fails.
@@ -802,18 +806,10 @@ try {
 
   // Explicit offline mode enables play without ticket endpoints. Missing mode
   // remains disabled (covered by the contract tests and Demo Showcase).
-  // Switching design on the detail screen must not leave the new dock behind.
-  await page.getByRole("button", { name: "Сменить оформление" }).click();
-  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
-  check(
-    !(await page
-      .getByRole("region", { name: "Survival" })
-      .isVisible()
-      .catch(() => false)),
-    "the new dock stayed mounted under the old design",
-  );
-  await shot("server-detail-old");
-  await page.getByRole("button", { name: "Сменить оформление" }).click();
+  //
+  // The design switch this block used to click no longer exists: the look is a
+  // build-time choice, so exercising it here would only test a control the
+  // shipped window does not have. The dock is asserted instead.
   await page.getByRole("region", { name: "Survival" }).waitFor();
   await shot("server-detail-line");
 
@@ -822,9 +818,7 @@ try {
   await page.getByRole("button", { name: "Установить сборку" }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   check(
-    await page
-      .getByText("Офлайн-сборка провайдера", { exact: false })
-      .isVisible(),
+    await page.getByText("Офлайн-сборка", { exact: false }).first().isVisible(),
     "offline launch is not explained in the UI",
   );
   await page.getByRole("button", { name: "Играть", exact: true }).click();
@@ -850,7 +844,7 @@ try {
   // The texture chosen while signed out is pushed automatically on sign-in.
   await page
     .getByRole("status")
-    .filter({ hasText: "отправлен на сервер автоматически" })
+    .filter({ hasText: "отправлен автоматически" })
     .waitFor();
   const firstSync = await page.evaluate(() => {
     const calls = window.__calls.filter((c) => c[0] === "sync_active_skin");
@@ -896,7 +890,7 @@ try {
   await page.getByText("Второй", { exact: true }).waitFor();
   await page
     .getByRole("status")
-    .filter({ hasText: "«Второй» активен и отправлен" })
+    .filter({ hasText: "«Второй» отправлен автоматически" })
     .waitFor();
   await shot("wardrobe");
   check(
@@ -916,7 +910,7 @@ try {
   await page.getByRole("button", { name: "В историю" }).click();
   await page
     .getByRole("status")
-    .filter({ hasText: "отправлен на сервер автоматически" })
+    .filter({ hasText: "отправлен автоматически" })
     .waitFor();
   const unchanged = await page.evaluate(() => ({
     text: document.querySelector("main").innerText,
@@ -928,9 +922,12 @@ try {
     `an unchanged skin was uploaded again: ${unchanged.uploads} uploads`,
   );
   check(unchanged.history === 2, "the same texture was stored twice");
+  // The account keeps wearing what it wore: the model line must still name the
+  // uploaded texture's model, not fall back to «стандартная» because an
+  // «unchanged» result carries no skin payload.
   check(
-    unchanged.text.includes("на сервере: classic") &&
-      !unchanged.text.includes("на сервере: стандартный"),
+    unchanged.text.includes("Модель: classic") &&
+      !unchanged.text.includes("Модель: стандартная"),
     "an idempotent sync forgot what the account is wearing",
   );
 
@@ -1012,14 +1009,16 @@ try {
     .click();
   await page
     .getByRole("status")
-    .filter({ hasText: "отправлен на сервер автоматически" })
+    .filter({ hasText: "отправлен автоматически" })
     .waitFor();
   const beforeLogout = await page.evaluate(() => window.__uploads || 0);
   await page.getByRole("button", { name: "Серверы", exact: true }).click();
   await page
     .getByRole("button", { name: "Выйти из аккаунта Player_1" })
     .click();
-  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  await page
+    .getByText("Один вход — все серверы проекта.", { exact: false })
+    .waitFor();
   const signedOut = await page.evaluate(() => ({
     logoutKeys: Object.keys(
       window.__calls.find((c) => c[0] === "line_logout")?.[1] ?? {},
@@ -1045,7 +1044,7 @@ try {
   await page.getByRole("button", { name: "Гардероб" }).click();
   await page
     .getByRole("status")
-    .filter({ hasText: "отправлен на сервер автоматически" })
+    .filter({ hasText: "отправлен автоматически" })
     .waitFor();
   check(
     (await page.evaluate(() => window.__uploads || 0)) > beforeLogout,
@@ -1060,7 +1059,9 @@ try {
   });
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).click();
-  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  await page
+    .getByText("Один вход — все серверы проекта.", { exact: false })
+    .waitFor();
   check(
     await page
       .getByRole("alert")

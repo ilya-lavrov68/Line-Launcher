@@ -70,6 +70,13 @@ pub enum LaunchMode {
     Ticket,
     /// A provider-owned local pack: project account, no per-server ticket/IPC.
     Offline,
+    /// The server is a real Minecraft server joined through `mc-launcher-core`
+    /// rather than through the provider's ZIP + ticket pipeline. It is an
+    /// explicit opt-in, never inferred: a config that does not say `minecraft`
+    /// behaves exactly as it did before this variant existed, so a provider
+    /// upgrading the launcher cannot accidentally start downloading Mojang
+    /// assets or launch a vanilla client at its players.
+    Minecraft,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -294,13 +301,30 @@ impl LineConfig {
             if let Some(url) = &server.pack_manifest_url {
                 validate_https(url)?;
             }
-            if server.launch_mode == LaunchMode::Offline
+            if matches!(server.launch_mode, LaunchMode::Offline | LaunchMode::Minecraft)
                 && (server.auth.launch_ticket_url.is_some()
                     || server.auth.session_exchange_url.is_some())
             {
                 return Err(LineError::input(
-                    "launch_mode=offline несовместим с launch_ticket_url/session_exchange_url.",
+                    "launch_mode=offline/minecraft несовместим с launch_ticket_url/session_exchange_url.",
                 ));
+            }
+            // The Minecraft mode is the one branch that does not go through the
+            // provider ZIP, so what it needs is checked here and nowhere else:
+            // an address to join (validated above when present) and a version to
+            // install. Failing at parse time turns a provider mistake into one
+            // clear error instead of a button that cannot work.
+            if server.launch_mode == LaunchMode::Minecraft {
+                if server.server_address.is_none() {
+                    return Err(LineError::input(
+                        "launch_mode=minecraft требует server_address: лаунчер заходит на сервер сразу после запуска.",
+                    ));
+                }
+                if server.minecraft_version.is_none() {
+                    return Err(LineError::input(
+                        "launch_mode=minecraft требует minecraft_version в конфиге сервера.",
+                    ));
+                }
             }
             match (
                 &server.auth.launch_ticket_url,
@@ -316,6 +340,13 @@ impl LineConfig {
                         "launch_ticket_url и session_exchange_url должны быть заданы вместе.",
                     ))
                 }
+            }
+            // A Minecraft-mode server installs from Mojang's own manifests, not
+            // from a provider archive, so its distribution record is unused and
+            // an empty placeholder must not fail validation. Everything else
+            // still has to describe a real, bounded archive.
+            if server.launch_mode == LaunchMode::Minecraft {
+                continue;
             }
             let dist = &server.distribution;
             validate_https(&dist.url)?;

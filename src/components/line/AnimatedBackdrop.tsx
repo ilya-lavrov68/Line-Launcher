@@ -30,55 +30,151 @@ import { Hazeglow, type GradientConfig } from "hazeglow";
  *    the effect is fenced off in its own error boundary.
  */
 
-/** The haze, expressed in the theme's own tokens. */
+/** The haze, expressed as a named ramp. */
 const CANVAS = "#08090c";
-const ACCENT = "#2fbf71";
-const HAZE_DEEP = "#0f3d2a";
-const HAZE_COOL = "#0d2a3d";
-
-const BASE_CONFIG: GradientConfig = {
-  version: 1,
-  seed: 7,
-  shape: "mesh",
-  center: [0.5, 0.45],
-  size: [0.95, 0.9],
-  roundness: 0.7,
-  softness: 0.7,
-  rotation: 0,
-  rampDirection: 0.9,
-  angle: 90,
-  warp: 0.12,
-  warpScale: 1,
-  palette: [CANVAS, HAZE_DEEP, ACCENT, HAZE_COOL],
-  background: CANVAS,
-  mesh: [
-    [0.22, 0.3, ACCENT],
-    [0.72, 0.24, HAZE_COOL],
-    [0.5, 0.78, HAZE_DEEP],
-  ],
-  grain: 0.35,
-  motion: "drift",
-  speed: 0.6,
-  loop: 0,
-  hover: 0,
-  hoverMode: "pull",
-  effect: "none",
-  effectSize: 8,
-  effectAmount: 0.5,
-};
-
-const STILL: GradientConfig = { ...BASE_CONFIG, motion: "none" };
 
 /**
- * The always-on colour field. Same four palette stops as the mesh, arranged as
- * broad off-centre pools so the page has a light and a dark corner: that is
- * what gives the glass panels an edge to sit against. Static on purpose — the
- * motion is the shader's job, and this layer has to work on every machine.
+ * The colour ramp behind the window.
+ *
+ * A palette is a *ramp*, not two hues. The page has a warm corner, a cool
+ * corner and a green that means "the brand", and they meet in the middle
+ * rather than sitting in separate circles: that is what makes the backdrop
+ * read as light falling across a surface instead of three stains on black.
+ *
+ * `pool` is the always-on CSS layer — it has to survive without WebGL, so it is
+ * written as plain radial gradients in the same order (warm, cool, deep). The
+ * shader mesh gets the same three points, so adding colour to one adds it to
+ * both and the transition between them is not a visible seam.
+ *
+ * Chosen by rendering all four over the real UI rather than by picking hex
+ * values in isolation — see the notes in `docs/` if the palette is ever
+ * revisited: a ramp that looks rich on its own turns to mud under 45%-opaque
+ * glass, and one that looks tasteful there tends to be a single hue.
  */
-const HAZE_FIELD =
-  "radial-gradient(120% 95% at 10% 2%, rgba(47,191,113,0.46), transparent 58%)," +
-  "radial-gradient(105% 90% at 92% 96%, rgba(24,84,120,0.5), transparent 58%)," +
-  "radial-gradient(95% 80% at 82% 10%, rgba(15,61,42,0.75), transparent 62%)";
+export interface HazeRamp {
+  id: string;
+  /** Warm pool, upper left. */
+  warm: string;
+  /** Cool pool, lower right. */
+  cool: string;
+  /** Deep green pooling under the warm one — the brand's own dark step. */
+  deep: string;
+  /** Mid-tone that keeps the two pools from meeting as a hard line. */
+  mid: string;
+  /** Haze opacity budget for the CSS layer; 1 = as written. */
+  strength: number;
+}
+
+export const HAZE_RAMPS: HazeRamp[] = [
+  {
+    id: "aurora",
+    warm: "#1ad6a0",
+    cool: "#2a5df0",
+    deep: "#07303a",
+    mid: "#3ba8d8",
+    strength: 1,
+  },
+  {
+    id: "ember",
+    warm: "#f0883e",
+    cool: "#3b2fa8",
+    deep: "#3a1230",
+    mid: "#e0507a",
+    strength: 1,
+  },
+  {
+    id: "lagoon",
+    warm: "#2fe0c0",
+    cool: "#2a3fd4",
+    deep: "#082435",
+    mid: "#5f7cf5",
+    strength: 1,
+  },
+  {
+    id: "moss",
+    warm: "#8fd14f",
+    cool: "#1f6f8b",
+    deep: "#102b22",
+    mid: "#4f8f6a",
+    strength: 1,
+  },
+];
+
+/**
+ * The ramp the app ships, overridable for experiments without a code edit:
+ *
+ *     VITE_LINE_HAZE=ember npm run dev
+ *
+ * The build-time default is deliberately a constant rather than a preference:
+ * like the design theme, the palette is part of the look, not a setting, and
+ * the shipped window exposes no control that changes it under the player.
+ */
+const RAMP_ID: string =
+  (import.meta.env as { VITE_LINE_HAZE?: string } | undefined)
+    ?.VITE_LINE_HAZE ?? "aurora";
+
+/** A ramp → shader config. Same three points as the CSS layer, same order. */
+function backdropConfig(ramp: HazeRamp): GradientConfig {
+  return {
+    version: 1,
+    seed: 7,
+    shape: "mesh",
+    center: [0.5, 0.45],
+    size: [0.95, 0.9],
+    roundness: 0.7,
+    softness: 0.7,
+    rotation: 0,
+    rampDirection: 0.9,
+    angle: 90,
+    warp: 0.12,
+    warpScale: 1,
+    palette: [CANVAS, ramp.deep, ramp.warm, ramp.cool, ramp.mid],
+    background: CANVAS,
+    mesh: [
+      [0.22, 0.3, ramp.warm],
+      [0.72, 0.24, ramp.cool],
+      [0.5, 0.78, ramp.deep],
+      [0.86, 0.62, ramp.mid],
+    ],
+    grain: 0.35,
+    motion: "drift",
+    speed: 0.6,
+    loop: 0,
+    hover: 0,
+    hoverMode: "pull",
+    effect: "none",
+    effectSize: 8,
+    effectAmount: 0.5,
+  };
+}
+
+/**
+ * The always-on colour field. Same stops as the mesh, arranged as broad
+ * off-centre pools so the page has a light and a dark corner — that is what
+ * gives the glass panels an edge to sit against.
+ *
+ * This used to be a static image. It is now generated per ramp from three
+ * radial gradients, and the *movement* comes from a sibling layer in the
+ * stylesheet (`[data-line-haze]`): a 90s background-position drift, two of
+ * them, out of phase. Two layers of plain CSS animation cost nothing on the
+ * GPU, survive without WebGL, keep working under a software rasteriser, and
+ * honour `prefers-reduced-motion` — which the previous static field could not
+ * do at all. That is the difference between "a dark page with a hint of green"
+ * and a backdrop that is alive.
+ */
+function hazeField(ramp: HazeRamp): string {
+  const a = (alpha: number) =>
+    Math.round(Math.min(1, alpha * ramp.strength) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  const pool = (colour: string, alpha: number) => `${colour}${a(alpha)}`;
+  return (
+    `radial-gradient(120% 95% at 10% 2%, ${pool(ramp.warm, 0.5)}, transparent 58%),` +
+    `radial-gradient(105% 90% at 92% 96%, ${pool(ramp.cool, 0.55)}, transparent 58%),` +
+    `radial-gradient(95% 80% at 82% 10%, ${pool(ramp.deep, 0.8)}, transparent 62%),` +
+    `radial-gradient(70% 65% at 45% 60%, ${pool(ramp.mid, 0.32)}, transparent 70%)`
+  );
+}
 
 export interface AnimatedBackdropProps {
   /**
@@ -142,6 +238,8 @@ export default function AnimatedBackdrop({
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
   );
   const [supported, setSupported] = useState(hasWebgl2);
+  const ramp =
+    HAZE_RAMPS.find((entry) => entry.id === RAMP_ID) ?? HAZE_RAMPS[0];
 
   // Follow the preference live: someone who turns it on mid-session should not
   // have to restart the launcher for the page to settle.
@@ -153,7 +251,9 @@ export default function AnimatedBackdrop({
     return () => query.removeEventListener("change", onChange);
   }, []);
 
-  const config = reduced ? STILL : BASE_CONFIG;
+  const config = reduced
+    ? { ...backdropConfig(ramp), motion: "none" as const }
+    : backdropConfig(ramp);
 
   return (
     <div
@@ -170,10 +270,13 @@ export default function AnimatedBackdrop({
           referrerPolicy="no-referrer"
         />
       ) : null}
-      {/* Always-on colour: plain CSS, no GPU required. */}
+      {/* Always-on colour: plain CSS, no GPU required. `data-line-haze`
+          picks up the slow drift from themes.css; the second layer is the same
+          field rotated, so the two never line up and the page breathes. */}
       <div
-        className="absolute inset-0"
-        style={{ backgroundImage: HAZE_FIELD }}
+        data-line-haze
+        className="absolute -inset-[20%]"
+        style={{ backgroundImage: hazeField(ramp) }}
       />
       {/* The animated layer, only where it can actually be drawn. It is
           composited over the field above, so removing it never changes the
@@ -190,7 +293,7 @@ export default function AnimatedBackdrop({
       {/* A legibility floor: the artwork never touches text directly. Without
           it, muted body copy drops under 4.5:1 over the bright part of the
           haze. */}
-      <div className="bg-background/35 absolute inset-0" />
+      <div className="bg-background/30 absolute inset-0" />
     </div>
   );
 }

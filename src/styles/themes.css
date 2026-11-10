@@ -189,10 +189,166 @@
     box-shadow: none;
   }
 
+  /* ── the living backdrop ──────────────────────────────────────────────
+   *
+   * The colour field behind the window drifts. Two things move it:
+   *
+   *   1. this rule, which slides the CSS gradient layer's background-position
+   *      around a large virtual canvas for 90 seconds, and
+   *   2. the WebGL haze in AnimatedBackdrop, when the machine can draw it.
+   *
+   * Either alone is enough to keep the page alive, which is the point: the
+   * design must not collapse into a flat rectangle on a laptop with a
+   * blacklisted driver (hazeglow refuses software rasterisers by design).
+   *
+   * The layer is oversized (`-inset-[20%]`) so the drift never exposes an
+   * edge, and the keyframes move `background-position` — a compositor-cheap,
+   * paint-only property on a layer that has nothing else to do. */
+
+  [data-theme="line"] [data-line-haze] {
+    animation: line-haze-drift 90s var(--ease-line) infinite;
+    will-change: background-position;
+  }
+
+  /* The second, out-of-phase copy: same field, flipped, drifting the other
+   * way. Without it the motion is a straight line and the eye can predict it
+   * within a few seconds, which reads as a scrolling texture rather than as
+   * light. Blended additively so overlapping pools get brighter, not muddier. */
+  [data-theme="line"] [data-line-haze="echo"] {
+    animation-direction: reverse;
+    animation-duration: 130s;
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    transform: scaleX(-1);
+  }
+
   /* The live game backdrop runs only in the new theme; the old one animates
    * the body gradient instead (index.css). */
   [data-theme="line"] [data-line-canvas] {
     background: var(--line-canvas);
+  }
+
+  /* ── native controls ──────────────────────────────────────────────────
+   *
+   * Three controls could not avoid the platform: a file picker is the only way
+   * to open a file dialog from the web view, a number input is the only way to
+   * keep arrow-key stepping, and a `<select>` is still the cheapest way to pick
+   * from a short list. Left alone they paint Windows' own chrome — a grey
+   * "Choose File" chip, black stepper arrows, a bevelled drop-down — inside an
+   * otherwise flat dark surface. These rules bring them onto the same ladder as
+   * every other control, WITHOUT removing the native behaviour underneath.
+   *
+   * Scoped to the new theme: `data-theme="old"` keeps the browser defaults
+   * verbatim, which is the whole point of that build. */
+
+  /* File picker: the button is `::file-selector-button`, restyle it into a
+   * normal small Button (same fill, radius and text size as `size="sm"`), and
+   * make the surrounding track look like an input rather than a grey box. */
+  [data-theme="line"] input[type="file"] {
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    background: transparent;
+    padding: 5px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    line-height: 1;
+    transition:
+      border-color var(--dur-fast) var(--ease-line),
+      background-color var(--dur-fast) var(--ease-line);
+  }
+
+  [data-theme="line"] input[type="file"]:hover {
+    border-color: color-mix(in oklch, var(--foreground) 26%, transparent);
+    background: var(--fill-subtle);
+  }
+
+  [data-theme="line"] input[type="file"]:focus-visible {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 40%, transparent);
+  }
+
+  [data-theme="line"] input[type="file"]:disabled {
+    opacity: 0.5;
+  }
+
+  [data-theme="line"] input[type="file"]::file-selector-button {
+    appearance: none;
+    margin-inline-end: 10px;
+    padding: 0 12px;
+    height: 26px;
+    border: 0;
+    border-radius: calc(var(--radius-control) - 2px);
+    background: var(--fill);
+    color: var(--foreground);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-line);
+  }
+
+  [data-theme="line"] input[type="file"]::file-selector-button:hover {
+    background: var(--fill-hover);
+  }
+
+  /* The name of the chosen file arrives after a space, in muted text, and can
+   * be long: clip it instead of stretching the row. */
+  [data-theme="line"] input[type="file"] {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* Number input: kill the platform spinner. It is drawn black-on-black on
+   * Windows, cannot be themed, and the field is edited by typing or by the
+   * mouse wheel/drag; the two arrow keys still step the value because this is
+   * still `type="number"`. A horizontal padding of 12px puts the digits where
+   * the rest of the form's text starts. */
+  [data-theme="line"] input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  [data-theme="line"] input[type="number"]::-webkit-outer-spin-button,
+  [data-theme="line"] input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Drop-downs that are genuinely native (`<select>`), as opposed to the Radix
+   * listbox the app usually uses: same height and border as an input, with the
+   * chevron drawn by us so Windows' bevelled arrow does not come along. */
+  [data-theme="line"] select:not([data-line-select]) {
+    appearance: none;
+    height: 36px;
+    padding: 0 32px 0 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    background-color: transparent;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239a9da6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    color: var(--foreground);
+    font-size: 12px;
+  }
+
+  [data-theme="line"] select:not([data-line-select]):hover {
+    border-color: color-mix(in oklch, var(--foreground) 26%, transparent);
+  }
+
+  [data-theme="line"] select:not([data-line-select]):focus-visible {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 40%, transparent);
+  }
+
+  /* The option list itself is painted by the OS and ignores most CSS, but a
+   * dark background keeps Windows from opening a white menu over the app. */
+  [data-theme="line"] select:not([data-line-select]) option {
+    background: #14161b;
+    color: var(--foreground);
   }
 }
 
@@ -212,5 +368,47 @@
     background: #14161b;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+}
+
+/* Slow enough to be felt rather than watched. A full cycle is deliberately
+ * shorter than the animation's 90s so the path never repeats exactly on
+ * screen at the same time as the other layer. */
+@keyframes line-haze-drift {
+  0% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      80% 0%,
+      40% 60%;
+  }
+  33% {
+    background-position:
+      12% 8%,
+      86% 92%,
+      68% 12%,
+      52% 54%;
+  }
+  66% {
+    background-position:
+      4% 14%,
+      96% 82%,
+      88% 6%,
+      34% 66%;
+  }
+  100% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      80% 0%,
+      40% 60%;
+  }
+}
+
+/* Movement is a preference, colour is not: with reduced motion the field keeps
+ * every one of its stops and simply stops travelling. */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="line"] [data-line-haze] {
+    animation: none;
   }
 }

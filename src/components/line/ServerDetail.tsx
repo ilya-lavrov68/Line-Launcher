@@ -15,6 +15,7 @@ import ServerActionPanel, {
   type ServerActionPhase,
   type ServerAvailability,
 } from "./ServerActionPanel";
+import MinecraftPanel from "./MinecraftPanel";
 import ServerBanner from "./ServerBanner";
 import { useTheme } from "./ThemeProvider";
 
@@ -36,6 +37,10 @@ export interface ServerDetailProps {
   historyError?: string;
   /** Honest availability: the provider either enabled launching or it did not. */
   availability: ServerAvailability;
+  /** Project account nickname: the offline identity of the Minecraft mode. */
+  username?: string;
+  /** The shell sent the player back to the single sign-in screen. */
+  onAuthRequired?: () => void;
   onBack: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -100,6 +105,9 @@ export default function ServerDetail(props: ServerDetailProps) {
   } = props;
   const phase = phaseOf(server, receipt, progress, status);
   const legacy = actionsBusy || installing || launching;
+  // Explicit opt-in from the provider, never inferred from the presence of an
+  // address: a config that has not been changed must keep the old dock.
+  const isMinecraft = server.launch_mode === "minecraft";
 
   return (
     // The page is a column with the dock pinned to its bottom edge: the one
@@ -177,21 +185,41 @@ export default function ServerDetail(props: ServerDetailProps) {
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
-            <ServerActionPanel
-              server={server}
-              phase={phase}
-              availability={availability}
-              progress={progress}
-              status={status}
-              error={installError ?? launchError}
-              onPrimary={
-                phase === "needs-install" || phase === "needs-update"
-                  ? props.onInstall
-                  : props.onLaunch
-              }
-              onCancel={phase === "installing" ? props.onCancel : undefined}
-              onHistory={receipt ? () => props.onHistory(true) : undefined}
-            />
+            {isMinecraft ? (
+              /* A minecraft-mode server has no provider archive, so the ZIP dock
+                 would only ever say «Провайдер не настроил запуск». It is
+                 replaced — not supplemented — by the mc_* panel, which is why
+                 the two never appear together. */
+              <MinecraftPanel
+                server={server}
+                username={props.username}
+                disabled={actionsBusy}
+                onAuthRequired={props.onAuthRequired}
+              />
+            ) : (
+              <ServerActionPanel
+                server={server}
+                phase={phase}
+                availability={availability}
+                progress={progress}
+                status={status}
+                error={installError ?? launchError}
+                // Every phase owns a different action, and routing them all to
+                // `onLaunch` made «Остановить игру» start a second launch: the
+                // dock said the game was running and the button did nothing the
+                // player could see. Install/update fetch the build, a running or
+                // starting game stops it, everything else launches.
+                onPrimary={
+                  phase === "needs-install" || phase === "needs-update"
+                    ? props.onInstall
+                    : phase === "running" || phase === "starting"
+                      ? props.onStop
+                      : props.onLaunch
+                }
+                onCancel={phase === "installing" ? props.onCancel : undefined}
+                onHistory={receipt ? () => props.onHistory(true) : undefined}
+              />
+            )}
           </m.div>
 
           <ReleaseHistoryDialog
@@ -204,7 +232,7 @@ export default function ServerDetail(props: ServerDetailProps) {
             onRollback={props.onRollback}
           />
 
-          {hasSession && phase === "needs-install" && (
+          {!isMinecraft && hasSession && phase === "needs-install" && (
             <p className="text-muted-foreground px-2 text-[12px] leading-relaxed">
               Сборка скачается целиком: архив провайдера, проверка sha256 и
               распаковка. Прогресс виден здесь же, меню не блокируется.
@@ -213,7 +241,18 @@ export default function ServerDetail(props: ServerDetailProps) {
         </>
       )}
 
-      {theme === "old" && <LegacyDetail {...props} />}
+      {/* The Minecraft panel is not duplicated into the rollback design: the
+          old look predates the mode, and rendering the ZIP dock there would
+          offer install/launch buttons that cannot work for this server. */}
+      {theme === "old" && !isMinecraft && <LegacyDetail {...props} />}
+      {theme === "old" && isMinecraft && (
+        <MinecraftPanel
+          server={server}
+          username={props.username}
+          disabled={actionsBusy}
+          onAuthRequired={props.onAuthRequired}
+        />
+      )}
     </section>
   );
 }

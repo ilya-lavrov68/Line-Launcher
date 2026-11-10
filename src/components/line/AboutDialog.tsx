@@ -47,32 +47,45 @@ export default function AboutDialog({
           <span className="sr-only">О программе / About</span>
         </DialogTrigger>
       )}
-      <DialogContent className="p-5 sm:max-w-[420px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold">
-            <BrandMark className="h-6 w-6" />
-            {brand.name}
-          </DialogTitle>
+      {/* A small, centred card — not a sheet. The dialog primitive caps its
+          width (see `dialog.tsx`), and everything inside is centred on one
+          vertical axis, so the whole thing reads as a card you could hold.
+          There is no `DialogHeader` here: a left-aligned title bar over a
+          centred stack pulls the eye twice. */}
+      <DialogContent className="max-w-[360px] p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{brand.name}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            {brand.description}
-          </p>
-          <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
+        <div className="flex flex-col items-center gap-3 px-6 pt-6 pb-5 text-center">
+          <BrandMark className="h-9 w-9" />
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-foreground text-[15px] font-semibold tracking-tight">
+              {brand.name}
+            </h2>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {brand.description}
+            </p>
+          </div>
+          <div className="bg-fill-subtle flex flex-col gap-1.5 self-stretch rounded-[var(--radius-control)] px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground text-xs">Версия</span>
-              <span className="text-foreground font-mono text-xs">
+              <span className="text-muted-foreground text-[11px]">Версия</span>
+              <span className="text-foreground font-mono text-[11px]">
                 v{version}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground text-xs">Издатель</span>
-              <span className="text-foreground text-xs">{brand.publisher}</span>
+              <span className="text-muted-foreground text-[11px]">
+                Издатель
+              </span>
+              <span className="text-foreground text-[11px]">
+                {brand.publisher}
+              </span>
             </div>
           </div>
-          <div className="border-border/40 border-t pt-3">
-            <Attribution placement="about" />
-          </div>
+          <Attribution
+            placement="about"
+            className="border-border/40 w-full items-center! border-t pt-3"
+          />
         </div>
       </DialogContent>
     </Dialog>

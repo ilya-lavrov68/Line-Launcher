@@ -101,7 +101,7 @@ export interface SkinState {
   textureUrl: string;
 }
 
-export type LaunchMode = "ticket" | "offline";
+export type LaunchMode = "ticket" | "offline" | "minecraft";
 
 export interface LineServer {
   /** Stable, lowercase ASCII slug; never accept a filesystem path from JSON. */

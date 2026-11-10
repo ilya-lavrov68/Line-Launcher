@@ -447,6 +447,15 @@ export default function LineLauncher() {
     }
   }
 
+  /** An expired project session sends the player back to the single sign-in. */
+  function requireAuth() {
+    setSession(null);
+    setSelected(null);
+    setScreen("account");
+    setSection("servers");
+    setAuthError("Сессия истекла. Войдите повторно.");
+  }
+
   async function openHistory(open: boolean) {
     setHistoryOpen(open);
     if (!open || !selected || actionsBusy) return;
@@ -609,13 +618,7 @@ export default function LineLauncher() {
                             username={session?.username}
                             canSync={canSyncSkin}
                             accountKey={session?.username ?? "signed-out"}
-                            onAuthRequired={() => {
-                              setSession(null);
-                              setSelected(null);
-                              setScreen("account");
-                              setSection("servers");
-                              setAuthError("Сессия истекла. Войдите повторно.");
-                            }}
+                            onAuthRequired={requireAuth}
                             disabled={actionsBusy}
                           />
                         )}
@@ -709,6 +712,7 @@ export default function LineLauncher() {
                               launchError={launchError}
                               availability={
                                 selected.launch_mode === "offline" ||
+                                selected.launch_mode === "minecraft" ||
                                 Boolean(
                                   selected.auth?.launch_ticket_url &&
                                   selected.auth?.session_exchange_url,
@@ -727,6 +731,8 @@ export default function LineLauncher() {
                               onStop={() => void stopGame()}
                               onHistory={(open) => void openHistory(open)}
                               onRollback={(target) => void rollback(target)}
+                              username={session?.username}
+                              onAuthRequired={requireAuth}
                               historyOpen={historyOpen}
                               history={history}
                               historyLoading={historyLoading}

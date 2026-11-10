@@ -109,8 +109,14 @@ test("the client accepts exactly the sizes and formats Rust accepts", () => {
       `accepted ${w}x${h}`,
     );
   }
+  // Palette PNGs are ordinary skins (they were wrongly refused and a plain
+  // 64x64 texture from an older editor could not be uploaded at all).
+  assert.equal(validateSkinFile(png(64, 64, 8, 3)), null, "palette PNG");
+  assert.equal(validateSkinFile(png(64, 32, 8, 3)), null, "legacy palette PNG");
   assert.match(validateSkinFile(png(64, 64, 16)) ?? "", /8 бит/);
-  assert.match(validateSkinFile(png(64, 64, 8, 3)) ?? "", /8 бит/);
+  // Greyscale cannot become an RGBA texture, and Minecraft refuses it too.
+  assert.match(validateSkinFile(png(64, 64, 8, 0)) ?? "", /8 бит/);
+  assert.match(validateSkinFile(png(64, 64, 8, 4)) ?? "", /8 бит/);
   assert.match(validateSkinFile(png(64, 64, 8, 6, 1)) ?? "", /Чересстрочный/);
 });
 

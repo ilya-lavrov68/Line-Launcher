@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { errorMessage, lineApi } from "@/lib/line/api";
+import { cn } from "@/lib/utils";
 import { MAX_SKIN_BYTES, validateSkinFile } from "@/lib/line/skin";
 import {
   toLineError,
@@ -175,6 +176,12 @@ export default function WardrobeScreen({
       setError("Скин больше 256 КБ. Используйте текстуру 64×64 или 64×32.");
       return;
     }
+    // Seed the name field *synchronously*, before the decode starts. Both
+    // halves of this used to run inside the async callback, so a rename typed
+    // while the bytes were being read was silently replaced by the file name a
+    // moment later — «Второй» became «second» under the player's cursor. The
+    // file name is already known here; there is nothing to wait for.
+    if (!name.trim()) setName(file.name.replace(/\.png$/i, "").slice(0, 64));
     void file.arrayBuffer().then((buffer) => {
       const bytes = new Uint8Array(buffer);
       const problem = validateSkinFile(bytes);
@@ -190,7 +197,6 @@ export default function WardrobeScreen({
           name: file.name,
         };
       });
-      if (!name.trim()) setName(file.name.replace(/\.png$/i, "").slice(0, 64));
     });
   }
 
@@ -343,6 +349,10 @@ export default function WardrobeScreen({
               >
                 Файл текстуры
               </Label>
+              {/* A real <input type="file">, kept for the keyboard path and
+                  for `setInputFiles` in the smoke test. It is `sr-only` rather
+                  than `hidden`: `display:none` cannot receive focus or a click,
+                  which is exactly what the label below forwards. */}
               <input
                 id="skin-file"
                 ref={inputRef}
@@ -350,8 +360,24 @@ export default function WardrobeScreen({
                 accept="image/png"
                 disabled={controlsDisabled}
                 onChange={(event) => chooseFile(event.target.files?.[0])}
-                className="border-input text-muted-foreground file:bg-muted file:text-foreground w-full cursor-pointer rounded-md border p-2 text-xs file:mr-2 file:cursor-pointer file:rounded file:border-0 file:px-2 file:py-1 file:text-xs"
+                className="peer sr-only"
               />
+              <label
+                htmlFor="skin-file"
+                className={cn(
+                  "border-input flex h-9 w-full cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border bg-transparent px-1.5 text-xs",
+                  "hover:bg-fill-subtle hover:border-foreground/25 transition-colors",
+                  "peer-focus-visible:border-ring peer-focus-visible:ring-ring/40 peer-focus-visible:ring-3",
+                  controlsDisabled && "pointer-events-none opacity-50",
+                )}
+              >
+                <span className="bg-fill text-foreground flex h-[26px] shrink-0 items-center rounded-[6px] px-3 font-medium">
+                  Выбрать файл
+                </span>
+                <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                  {pending?.name ?? "PNG не выбран"}
+                </span>
+              </label>
             </div>
             <div className="flex flex-col gap-2">
               <Label

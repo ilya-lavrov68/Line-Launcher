@@ -5,10 +5,9 @@ import {
   domAnimation,
   m,
 } from "framer-motion";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { brand } from "@/brand/generated";
-import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import { isNewerGameStatus } from "@/types/line";
@@ -29,16 +28,16 @@ import ConfigUrlInput from "./ConfigUrlInput";
 import ConnectingScreen from "./ConnectingScreen";
 import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
-import InstallProgress from "./InstallProgress";
-import LaunchControls from "./LaunchControls";
-import ServerBanner from "./ServerBanner";
+import ServerDetail from "./ServerDetail";
 import ServerList from "./ServerList";
+import { ServerCatalogRail } from "./ServerCatalogRail";
 import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
 import WardrobeScreen from "./WardrobeScreen";
 import { closeWindow, minimizeWindow } from "@/lib/line/window";
 import { toLineError, type SettingsSnapshot } from "@/types/line";
+import { useTheme } from "./ThemeProvider";
 
 type Screen = "config" | "account" | "servers" | "detail";
 
@@ -79,6 +78,20 @@ export default function LineLauncher() {
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string>();
+  const { theme, toggleTheme } = useTheme();
+  // Catalogue rail: "what was I doing?" answered without opening a server.
+  // It reads the catalogue's own knowledge (installed ids + the live job for
+  // that id), never the detail screen's transient receipt.
+  const railServer = selected;
+  const railProgress =
+    selected && progress?.serverId === selected.id ? progress : null;
+  const railStatus = !railServer
+    ? ""
+    : railProgress
+      ? "Загрузка сборки"
+      : installedIds.has(railServer.id)
+        ? "Сборка установлена"
+        : "Сборка не установлена";
   const gameActive =
     gameStatus?.phase === "starting" || gameStatus?.phase === "running";
   const actionsBusy = installing || authLoading || launching || gameActive;
@@ -366,8 +379,13 @@ export default function LineLauncher() {
     }
   }
 
+  /**
+   * Subscribed for the whole session, not only on the detail screen: the
+   * catalogue rail has to notice that a running game exited while the player
+   * was browsing another section. The handler is id-filtered by `onGame`.
+   */
   useEffect(() => {
-    if (!selected || screen !== "detail") return;
+    if (!selected) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     lineApi
@@ -386,7 +404,7 @@ export default function LineLauncher() {
       cancelled = true;
       unlisten?.();
     };
-  }, [selected, screen]);
+  }, [selected]);
 
   async function launch() {
     if (!selected || !session || actionsBusy) return;
@@ -536,6 +554,7 @@ export default function LineLauncher() {
                 onToggleCollapsed={() => void toggleSidebar()}
                 onChangeProvider={reconnect}
                 onAbout={() => setAboutOpen(true)}
+                onToggleTheme={toggleTheme}
               />
               <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6">
                 <div className="mx-auto max-w-5xl">
@@ -626,6 +645,22 @@ export default function LineLauncher() {
                         screen === "servers" &&
                         snapshot && (
                           <ServerList
+                            rail={
+                              // New design only: the old catalogue keeps its
+                              // exact previous appearance, with no extra strip.
+                              theme === "line" && (
+                                <ServerCatalogRail
+                                  server={selected}
+                                  status={railStatus}
+                                  progress={railProgress}
+                                  busy={actionsBusy}
+                                  onOpen={(server) => void selectServer(server)}
+                                />
+                              )
+                            }
+                            statusFor={(server) =>
+                              installedIds.has(server.id) ? "Готов" : undefined
+                            }
                             providerName={snapshot.config.provider.name}
                             servers={snapshot.config.servers}
                             installedIds={installedIds}
@@ -639,103 +674,43 @@ export default function LineLauncher() {
                       {section === "servers" &&
                         screen === "detail" &&
                         selected && (
-                          <section className="mx-auto flex max-w-xl flex-col gap-4">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={actionsBusy}
-                              onClick={() => {
-                                detailGeneration.current += 1;
-                                setScreen("servers");
-                                setSelected(null);
-                              }}
-                              className="flex cursor-pointer items-center gap-1.5 self-start text-xs"
-                            >
-                              <ArrowLeft
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                              <span>Все серверы</span>
-                            </Button>
-                            <ServerBanner
-                              name={selected.name}
-                              bannerUrl={selected.banner_url}
-                              iconUrl={selected.icon_url ?? selected.logo_url}
-                            />
-                            <div className="bg-card border-border/50 relative flex flex-col gap-6 overflow-hidden rounded-xl border p-6 shadow-2xl backdrop-blur-md">
-                              <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
-                              <div className="relative z-10 flex flex-col gap-1">
-                                <span className="text-muted-foreground font-mono text-[10px]">
-                                  {snapshot?.config.provider.name} / v
-                                  {selected.version}
-                                </span>
-                                <h2 className="text-foreground text-2xl font-bold tracking-tight">
-                                  {selected.name}
-                                </h2>
-                                <p className="text-muted-foreground text-xs leading-relaxed">
-                                  {selected.description}
-                                </p>
-                              </div>
-                              {session &&
-                                !progress &&
-                                (!receipt ||
-                                  receipt.sha256 !==
-                                    selected.distribution.sha256) && (
-                                  <Button
-                                    disabled={actionsBusy}
-                                    onClick={() => void install()}
-                                    className="relative z-10 h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
-                                  >
-                                    {installing
-                                      ? "Подготовка установки…"
-                                      : receipt
-                                        ? "Обновить сборку"
-                                        : "Установить сборку"}
-                                  </Button>
-                                )}
-                              {progress && (
-                                <div className="relative z-10">
-                                  <InstallProgress
-                                    progress={progress}
-                                    error={installError}
-                                    onCancel={() => void cancel()}
-                                    onRetry={() => void install()}
-                                  />
-                                </div>
-                              )}
-                              {receipt &&
-                                (!progress ||
-                                  progress.phase === "completed") && (
-                                  <LaunchControls
-                                    server={selected}
-                                    receipt={receipt}
-                                    status={gameStatus}
-                                    busy={actionsBusy}
-                                    error={launchError}
-                                    historyOpen={historyOpen}
-                                    history={history}
-                                    historyLoading={historyLoading}
-                                    historyError={historyError}
-                                    onHistoryOpenChange={(open) =>
-                                      void openHistory(open)
-                                    }
-                                    onRollback={(target) =>
-                                      void rollback(target)
-                                    }
-                                    onLaunch={() => void launch()}
-                                    onStop={() => void stopGame()}
-                                  />
-                                )}
-                              {installError && !progress && (
-                                <p
-                                  role="alert"
-                                  className="text-destructive relative z-10 text-xs"
-                                >
-                                  {installError}
-                                </p>
-                              )}
-                            </div>
-                          </section>
+                          <ServerDetail
+                            server={selected}
+                            providerName={snapshot?.config.provider.name}
+                            hasSession={Boolean(session)}
+                            receipt={receipt}
+                            progress={progress}
+                            status={gameStatus}
+                            installing={installing}
+                            launching={launching}
+                            actionsBusy={actionsBusy}
+                            installError={installError}
+                            launchError={launchError}
+                            availability={
+                              selected.launch_mode === "offline" ||
+                              Boolean(
+                                selected.auth?.launch_ticket_url &&
+                                selected.auth?.session_exchange_url,
+                              )
+                                ? "ready"
+                                : "unconfigured"
+                            }
+                            onBack={() => {
+                              detailGeneration.current += 1;
+                              setScreen("servers");
+                              setSelected(null);
+                            }}
+                            onInstall={() => void install()}
+                            onCancel={() => void cancel()}
+                            onLaunch={() => void launch()}
+                            onStop={() => void stopGame()}
+                            onHistory={(open) => void openHistory(open)}
+                            onRollback={(target) => void rollback(target)}
+                            historyOpen={historyOpen}
+                            history={history}
+                            historyLoading={historyLoading}
+                            historyError={historyError}
+                          />
                         )}
                     </m.div>
                   </AnimatePresence>
@@ -747,6 +722,9 @@ export default function LineLauncher() {
               open={aboutOpen}
               onOpenChange={setAboutOpen}
             />
+            {/* Persistent rail: the last opened server stays one click away from
+                the catalogue, the wardrobe and settings. Under the old design it
+                renders nothing and the footer below is unchanged. */}
             <footer className="border-border/50 text-muted-foreground flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[10px]">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>

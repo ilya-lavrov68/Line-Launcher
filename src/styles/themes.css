@@ -1,0 +1,193 @@
+/* Line Design System — «line» (default) and «old» (frozen legacy theme).
+ *
+ * Imported once from index.css, AFTER the legacy token block, so the default
+ * appearance is the new one while every legacy rule keeps working underneath.
+ *
+ * How this stays additive
+ * -----------------------
+ *  1. `data-theme="line"` re-declares the SAME legacy slots (`--background`,
+ *     `--card`, `--border`, `--primary`, …). Nothing that already uses
+ *     `bg-background` or `text-muted-foreground` has to change, and `"old"`
+ *     simply stops re-declaring them: index.css wins again, pixel for pixel.
+ *  2. Only genuinely new ideas get new slots (`--surface-glass`, `--fill`,
+ *     `--line-accent`). They are ignored by legacy components.
+ *  3. Component opt-in is one attribute, so `[data-theme="old"]` can neutralise
+ *     a new treatment without touching the component:
+ *        [data-theme="old"] [data-line-glass] { …plain surface… }
+ *
+ * Tokens ported from tryliner (`src/app/globals.css`): the `--fill-*` ladder,
+ * `--surface-glass`, `--radius-control|item|panel`, `--text-caption|body|…`,
+ * easing `[0.22, 1, 0.36, 1]`. Adapted, not copied: tryliner redraws the page
+ * from cover art (an album's colour is the screen); a launcher has no artwork to
+ * sample and must stay legible over a long session, so the accent is the brand
+ * colour and the backdrop is a single fixed gradient — no per-server tinting.
+ */
+
+/* ─────────────────────────── theme palette ─────────────────────────── */
+
+/* The new palette re-declares the SAME legacy slots. Scoped to "not old", so
+ * `data-theme="old"` keeps index.css values verbatim — including --radius. */
+:root:not([data-theme="old"]),
+[data-theme="line"] {
+  /* Re-pointed legacy slots — same names, new values. */
+  --radius: 12px;
+  --background: #08090c;
+  --foreground: oklch(0.97 0.002 250);
+  --card: transparent;
+  --card-foreground: oklch(0.97 0.002 250);
+  --popover: #14161b;
+  --popover-foreground: oklch(0.97 0.002 250);
+  --primary: oklch(0.82 0.16 152);
+  --primary-foreground: #06210f;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: oklch(0.9 0.002 250);
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: oklch(0.72 0.006 250);
+  --accent: rgba(255, 255, 255, 0.08);
+  --accent-foreground: oklch(0.98 0.002 250);
+  --destructive: oklch(0.66 0.21 22);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: oklch(0.82 0.16 152 / 60%);
+  --sidebar: #0d0f13;
+  --sidebar-foreground: oklch(0.97 0.002 250);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: oklch(0.98 0.002 250);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--ring);
+  --destructive-foreground: oklch(0.72 0.19 22);
+}
+
+/* Additive tokens. Legacy components never read these, so they are safe to
+ * define once for both themes. */
+:root {
+  /* New: tryliner's quiet-fill ladder plus the glass surface. */
+  --fill-subtle: rgba(255, 255, 255, 0.035);
+  --fill: rgba(255, 255, 255, 0.06);
+  --fill-hover: rgba(255, 255, 255, 0.09);
+  --fill-strong: rgba(255, 255, 255, 0.13);
+  --surface-glass: rgba(18, 20, 25, 0.72);
+  --line-hairline: rgba(255, 255, 255, 0.1);
+  --line-accent: var(--primary);
+  --line-online: oklch(0.8 0.17 155);
+  --line-offline: oklch(0.66 0.02 250);
+  --line-update: oklch(0.82 0.15 85);
+  --line-error: var(--destructive);
+
+  /* Shape scale: control → item → panel (tryliner's three steps). */
+  --radius-control: 8px;
+  --radius-item: 12px;
+  --radius-panel: 18px;
+
+  /* Motion: one curve for enter/exit, springs for things that land. */
+  --ease-line: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-page: 220ms;
+
+  /* The window backdrop. tryliner derives it from cover art; a launcher uses
+   * one fixed scene so the chrome never fights a random screenshot. */
+  --line-canvas:
+    radial-gradient(
+      120% 90% at 78% -10%,
+      color-mix(in oklch, var(--line-accent) 14%, transparent) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      90% 70% at 6% 102%,
+      color-mix(in oklch, var(--line-accent) 9%, transparent) 0%,
+      transparent 62%
+    ),
+    linear-gradient(160deg, #0b0d11 0%, #08090c 46%, #050609 100%);
+}
+
+/* ─────────────────────────── legacy theme ────────────────────────────
+ * `data-theme="old"` is scoped with an attribute selector, not a class swap.
+ * "old" declares no palette of its own on purpose. Its values live in
+ * index.css exactly where they were accepted, so the previous design is
+ * preserved by remaining the base sheet rather than by being copied here —
+ * a copy would drift the first time someone edited the old component.
+ */
+[data-theme="old"] {
+  /* The window border radius is part of the old look (14px, from index.css). */
+  --radius: 14px;
+  --line-canvas: linear-gradient(-45deg, #0a0a0a, #130b1c, #0a1128, #050514);
+  --radius-control: 8px;
+  --radius-item: 12px;
+  --radius-panel: 12px;
+  --ease-line: ease;
+}
+
+/* Tailwind v4: expose the new slots as utilities (`bg-fill`, `bg-fill-hover`,
+ * `bg-surface-glass`, `text-line-online`, `rounded-item`, `rounded-panel`).
+ * `inline` keeps them pointing at the live variables, so the theme switch
+ * restyles utilities that are already baked into a build. */
+@theme inline {
+  --color-fill: var(--fill);
+  --color-fill-subtle: var(--fill-subtle);
+  --color-fill-hover: var(--fill-hover);
+  --color-fill-strong: var(--fill-strong);
+  --color-surface-glass: var(--surface-glass);
+  --color-line-online: var(--line-online);
+  --color-line-offline: var(--line-offline);
+  --color-line-update: var(--line-update);
+  --radius-control: var(--radius-control);
+  --radius-item: var(--radius-item);
+  --radius-panel: var(--radius-panel);
+}
+
+/* ─────────────────────── component opt-in rules ─────────────────────── */
+
+@layer components {
+  /* Glass surface, only while the new theme is active. */
+  [data-theme="line"] [data-line-glass] {
+    background: var(--surface-glass);
+    border: 1px solid var(--line-hairline);
+    backdrop-filter: blur(20px) saturate(140%);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+      0 18px 40px -24px rgba(0, 0, 0, 0.9);
+  }
+
+  /* Floating variant for the action dock: one continuous edge, no card stack. */
+  [data-theme="line"] [data-line-glass="dock"] {
+    border-radius: var(--radius-panel);
+    backdrop-filter: blur(28px) saturate(150%);
+  }
+
+  /* In "old", the same markup degrades to the previous plain panel instead of
+   * turning into an unstyled transparent box. */
+  [data-theme="old"] [data-line-glass] {
+    background: var(--card);
+    border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: none;
+  }
+
+  /* The live game backdrop runs only in the new theme; the old one animates
+   * the body gradient instead (index.css). */
+  [data-theme="line"] [data-line-canvas] {
+    background: var(--line-canvas);
+  }
+}
+
+@keyframes line-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="line"] [data-line-glass] {
+    backdrop-filter: none;
+    background: #14161b;
+  }
+}

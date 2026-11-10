@@ -1,5 +1,10 @@
 import LineLauncher from "@/components/line/LineLauncher";
+import ThemeProvider from "@/components/line/ThemeProvider";
 
 export default function App() {
-  return <LineLauncher />;
+  return (
+    <ThemeProvider>
+      <LineLauncher />
+    </ThemeProvider>
+  );
 }

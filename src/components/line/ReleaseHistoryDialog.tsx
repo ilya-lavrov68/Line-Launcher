@@ -18,7 +18,8 @@ export interface ReleaseHistoryDialogProps {
   loading: boolean;
   error?: string;
   onRollback: (receipt: InstallReceipt) => void;
-  trigger: ReactNode;
+  /** Optional: the new design opens the dialog from its own dock button. */
+  trigger?: ReactNode;
 }
 
 /** Reuses Obsy Dialog/UrlInstallModal header and InstalledAddonCard row styling. */
@@ -34,7 +35,7 @@ export default function ReleaseHistoryDialog({
 }: ReleaseHistoryDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={trigger as ReactElement} />
+      {trigger && <DialogTrigger render={trigger as ReactElement} />}
       <DialogContent className="p-5 sm:max-w-[460px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">

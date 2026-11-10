@@ -13,6 +13,13 @@ export interface ServerListProps {
   actionsDisabled?: boolean;
   onSelect: (server: LineServer) => void;
   onRefresh: () => void;
+  /** The rail above the catalogue: last opened server and its one action. */
+  rail?: React.ReactNode;
+  /**
+   * Per-server status text. The catalogue must not infer "installed" from an
+   * id alone: a newer published revision means the server needs an update.
+   */
+  statusFor?: (server: LineServer) => string | undefined;
 }
 
 /**
@@ -29,12 +36,15 @@ export default function ServerList({
   actionsDisabled = false,
   onSelect,
   onRefresh,
+  rail,
+  statusFor,
 }: ServerListProps) {
   return (
     <section
       aria-labelledby="server-list-title"
       className="flex flex-col gap-6"
     >
+      {rail}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-muted-foreground text-[10px] font-medium">
@@ -91,6 +101,8 @@ export default function ServerList({
               version={server.version}
               minecraftVersion={server.minecraft_version}
               installed={installedIds.has(server.id)}
+              statusLabel={statusFor?.(server)}
+              hasPack={Boolean(server.pack_manifest_url)}
               disabled={refreshing || actionsDisabled}
               onClick={() => onSelect(server)}
             />

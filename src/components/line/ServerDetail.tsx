@@ -184,10 +184,17 @@ export default function ServerDetail(props: ServerDetailProps) {
               progress={progress}
               status={status}
               error={installError ?? launchError}
+              // Every phase owns a different action, and routing them all to
+              // `onLaunch` made «Остановить игру» start a second launch: the
+              // dock said the game was running and the button did nothing the
+              // player could see. Install/update fetch the build, a running or
+              // starting game stops it, everything else launches.
               onPrimary={
                 phase === "needs-install" || phase === "needs-update"
                   ? props.onInstall
-                  : props.onLaunch
+                  : phase === "running" || phase === "starting"
+                    ? props.onStop
+                    : props.onLaunch
               }
               onCancel={phase === "installing" ? props.onCancel : undefined}
               onHistory={receipt ? () => props.onHistory(true) : undefined}

@@ -247,10 +247,18 @@ input[id*="hidden-input"],
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
-/* Global modal and dialog viewport bounds and padding enforcement */
+/* Global modal and dialog viewport bounds and padding enforcement.
+ *
+ * Height only. A `max-width: calc(100vw - 2.5rem) !important` used to live
+ * here as a safety net against a dialog overflowing a narrow window, but
+ * `!important` on a *maximum* is not a safety net — it is a width. Every
+ * dialog in the app therefore opened edge to edge, and the per-dialog
+ * `sm:max-w-[420px]` could never win: "О программе" was a 1240px sheet with
+ * a single line of text in it. The component's own base class
+ * (`max-w-[calc(100vw-2rem)]`) already provides that safety net, without
+ * `!important`, so a caller can shrink it. */
 [data-slot="dialog-content"],
 [data-base-ui-dialog-popup] {
-  max-width: calc(100vw - 2.5rem) !important;
   max-height: calc(100vh - 2.5rem) !important;
   padding: 1.25rem !important;
   gap: 1rem !important;

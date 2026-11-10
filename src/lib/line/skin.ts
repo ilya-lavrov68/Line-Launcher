@@ -102,8 +102,11 @@ export function validateSkinFile(bytes: Uint8Array): string | null {
   if (!SKIN_SIZES.some(([w, h]) => w === header.width && h === header.height)) {
     return `Размер скина должен быть 64×64 или 64×32, получен ${header.width}×${header.height}.`;
   }
-  if (header.bitDepth !== 8 || ![2, 6].includes(header.colourType)) {
-    return "Скин должен быть PNG 8 бит на канал, RGB или RGBA.";
+  // Palette PNGs are valid skins (see the Rust validator): only greyscale,
+  // greyscale+alpha and 16-bit channels are refused. Depth 8 is still checked
+  // first because a 16-bit PNG of any colour type is a different texture.
+  if (header.bitDepth !== 8 || ![2, 3, 6].includes(header.colourType)) {
+    return "Скин должен быть PNG с глубиной 8 бит: RGB, RGBA или палитровый.";
   }
   if (header.interlace !== 0) return "Чересстрочный PNG не поддерживается.";
   return null;

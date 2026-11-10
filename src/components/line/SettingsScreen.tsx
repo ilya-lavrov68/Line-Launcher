@@ -1,4 +1,12 @@
-import { Check, Coffee, MemoryStick, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Coffee,
+  MemoryStick,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -447,25 +455,64 @@ export default function SettingsScreen({
                   >
                     {label}
                   </Label>
-                  <input
-                    id={`setting-${key}`}
-                    type="number"
-                    min={key === "windowWidth" ? 800 : 560}
-                    max={15360}
-                    step={20}
-                    defaultValue={value}
-                    disabled={busy}
-                    onBlur={(event) => {
-                      const parsed = Number(event.target.value);
-                      if (!Number.isInteger(parsed) || parsed === value) return;
-                      void persist({ ...settings, [key]: parsed });
-                    }}
-                    className={cn(
-                      "border-input focus-visible:border-ring bg-transparent",
-                      "focus-visible:ring-ring/50 h-9 w-28 rounded-md border px-3",
-                      "font-mono text-xs outline-none focus-visible:ring-3",
-                    )}
-                  />
+                  {/* Still `type="number"`: arrow keys step, the browser keeps
+                      the range, and the value may be typed. Only the platform
+                      spinner is hidden (themes.css) and replaced with a pair of
+                      buttons that sit on the same fill ladder as every other
+                      control — the OS arrows were black-on-black and unthemed. */}
+                  <div className="relative">
+                    <input
+                      id={`setting-${key}`}
+                      type="number"
+                      min={key === "windowWidth" ? 800 : 560}
+                      max={15360}
+                      step={20}
+                      defaultValue={value}
+                      disabled={busy}
+                      onBlur={(event) => {
+                        const parsed = Number(event.target.value);
+                        if (!Number.isInteger(parsed) || parsed === value)
+                          return;
+                        void persist({ ...settings, [key]: parsed });
+                      }}
+                      className={cn(
+                        "border-input focus-visible:border-ring bg-transparent",
+                        "focus-visible:ring-ring/50 h-9 w-28 rounded-[var(--radius-control)] border py-0 pr-8 pl-3",
+                        "font-mono text-xs outline-none focus-visible:ring-3",
+                      )}
+                    />
+                    <div className="absolute inset-y-1 right-1 flex flex-col">
+                      {(
+                        [
+                          ["Увеличить", ChevronUp],
+                          ["Уменьшить", ChevronDown],
+                        ] as const
+                      ).map(([hint, Icon]) => (
+                        <button
+                          key={hint}
+                          type="button"
+                          aria-label={`${hint} ${label.toLowerCase()}`}
+                          disabled={busy}
+                          onClick={() => {
+                            const input = document.getElementById(
+                              `setting-${key}`,
+                            ) as HTMLInputElement | null;
+                            if (!input) return;
+                            // Native stepping, so `min`/`max`/`step` stay the
+                            // single source of truth for the allowed value.
+                            if (hint === "Увеличить") input.stepUp();
+                            else input.stepDown();
+                            const parsed = Number(input.value);
+                            if (Number.isInteger(parsed) && parsed !== value)
+                              void persist({ ...settings, [key]: parsed });
+                          }}
+                          className="text-muted-foreground hover:bg-fill-hover hover:text-foreground flex flex-1 items-center justify-center rounded-[4px] px-1 transition-colors disabled:opacity-40"
+                        >
+                          <Icon className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ))}
               <Button

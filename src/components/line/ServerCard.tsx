@@ -64,11 +64,17 @@ export default function ServerCard({
       : null;
 
   return (
+    // Lift, never scale. `whileHover={{ scale }}` put a transform on the button,
+    // and Chromium's `transition-all` on the shared Button animates *every*
+    // property the value changes under — including the layout ones — so the
+    // label column re-wrapped by a few pixels and the text jittered up and down
+    // under the cursor. A 1px raise does the same job and cannot reflow text.
+    // `transform-gpu` keeps it on the compositor for the same reason.
     <m.div
-      whileHover={disabled || reducedMotion ? undefined : { scale: 1.008 }}
-      whileTap={disabled || reducedMotion ? undefined : { scale: 0.996 }}
-      transition={{ type: "spring", stiffness: 320, damping: 22 }}
-      className="h-full"
+      whileHover={disabled || reducedMotion ? undefined : { y: -1 }}
+      whileTap={disabled || reducedMotion ? undefined : { y: 0 }}
+      transition={{ type: "spring", stiffness: 360, damping: 30 }}
+      className="h-full transform-gpu"
     >
       <Button
         type="button"
@@ -81,7 +87,11 @@ export default function ServerCard({
           // A tinted surface instead of a border. `fill-subtle` is one step above
           // the page, which is enough separation on a flat backdrop and gives the
           // grid an even rhythm without drawing eight rectangles.
-          "hover:bg-fill-strong/70 bg-fill-subtle h-full w-full",
+          //
+          // `transition-colors` is set explicitly and replaces the Button's
+          // `transition-all`: nothing inside a card may animate geometry on
+          // hover, or the text rewraps while the pointer is over it.
+          "hover:bg-fill-strong/70 bg-fill-subtle h-full w-full transition-colors duration-150",
           "flex-col items-stretch justify-start gap-3 overflow-hidden rounded-[var(--radius-item)] p-0",
           "text-left whitespace-normal hover:border-transparent",
         )}

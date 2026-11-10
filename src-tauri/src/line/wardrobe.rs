@@ -74,13 +74,19 @@ pub fn validate_skin_png(bytes: &[u8]) -> LineResult<(u32, u32)> {
             "Размер скина должен быть 64×64 или 64×32 пикселя.",
         ));
     }
-    // Bit depth 8 with truecolour (2) or truecolour+alpha (6). Palette and
-    // 16-bit textures are not valid Minecraft skins.
+    // The game's PNG reader is libpng and accepts every 8-bit colour type, so
+    // the launcher refuses only what it genuinely cannot decode:
+    //  - palette (3) is an ordinary PNG and common in skins exported by older
+    //    editors; transparency arrives through the optional tRNS chunk.
+    //    Refusing it was a false negative that rejected good textures;
+    //  - greyscale (0) and greyscale+alpha (4) cannot become an RGBA texture,
+    //    and Minecraft does not accept them either;
+    //  - 16-bit channels (depth 16) lose precision and are not accepted.
     let depth = bytes[24];
     let colour = bytes[25];
-    if depth != 8 || !(colour == 2 || colour == 6) {
+    if depth != 8 || !matches!(colour, 2 | 3 | 6) {
         return Err(LineError::input(
-            "Скин должен быть PNG 8 бит на канал, RGB или RGBA.",
+            "Скин должен быть PNG с глубиной 8 бит: RGB, RGBA или палитровый.",
         ));
     }
     if bytes[28] != 0 {
@@ -224,6 +230,10 @@ mod tests {
             (64, 32)
         );
         assert!(validate_skin_png(&header(64, 64, 8, 2, 0)).is_ok());
+        // Palette PNGs (with or without tRNS) are valid skins — this was the
+        // false negative that rejected a plain 64x64 texture.
+        assert!(validate_skin_png(&header(64, 64, 8, 3, 0)).is_ok());
+        assert!(validate_skin_png(&header(64, 32, 8, 3, 0)).is_ok());
     }
 
     #[test]
@@ -235,7 +245,9 @@ mod tests {
             );
         }
         assert!(validate_skin_png(&header(64, 64, 16, 6, 0)).is_err());
-        assert!(validate_skin_png(&header(64, 64, 8, 3, 0)).is_err());
+        // Greyscale and greyscale+alpha cannot be turned into an RGBA skin.
+        assert!(validate_skin_png(&header(64, 64, 8, 0, 0)).is_err());
+        assert!(validate_skin_png(&header(64, 64, 8, 4, 0)).is_err());
         assert!(validate_skin_png(&header(64, 64, 8, 6, 1)).is_err());
     }
 

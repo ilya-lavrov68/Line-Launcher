@@ -451,8 +451,9 @@ test("the animated backdrop is decoration that cannot take the window down", () 
   assert.match(backdrop, /<BackdropBoundary>/);
   //  3. a CSS colour field under the canvas, so the window has colour even
   //     when hazeglow declines the renderer (it refuses software rasterisers).
-  assert.match(backdrop, /HAZE_FIELD/);
-  assert.match(backdrop, /backgroundImage: HAZE_FIELD/);
+  assert.match(backdrop, /function hazeField\(/);
+  assert.match(backdrop, /backgroundImage: hazeField\(ramp\)/);
+  assert.match(backdrop, /radial-gradient/);
 
   // Reduced motion freezes the shader instead of leaving the page grey.
   assert.match(backdrop, /prefers-reduced-motion: reduce/);

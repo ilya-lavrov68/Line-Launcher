@@ -6,7 +6,7 @@ Design system: two themes on one attribute (`data-theme="line"|"old"`). The new
 palette re-declares the legacy slots so existing components restyle themselves,
 while `"old"` inherits `index.css` unchanged instead of a copy that would drift.
 The server dock, its phases and its degradation rules are covered by
-`tests/design-theme.test.ts` (11 tests, including the catalogue rail's single
+`tests/design-theme.test.ts` (12 tests, including the catalogue rail's single
 action and the game subscription that must outlive the detail screen);
 `/preview.html` renders the rail, a card and six dock states in both designs.
 
@@ -43,7 +43,7 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **196 tests, 195 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **197 tests, 196 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
   regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred

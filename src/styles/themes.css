@@ -156,6 +156,14 @@
     backdrop-filter: blur(28px) saturate(150%);
   }
 
+  /* Card hover: a faint lift of the fill ladder rather than a colour change, so
+   * the catalogue reads as one surface and every preset keeps working. */
+  [data-theme="line"] [data-line-card] {
+    transition:
+      background-color var(--dur-fast) var(--ease-line),
+      border-color var(--dur-fast) var(--ease-line);
+  }
+
   /* In "old", the same markup degrades to the previous plain panel instead of
    * turning into an unstyled transparent box. */
   [data-theme="old"] [data-line-glass] {

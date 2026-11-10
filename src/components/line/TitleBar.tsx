@@ -16,6 +16,11 @@ import { cn } from "@/lib/utils";
 export interface TitleBarProps {
   /** Breadcrumb shown next to the product name. */
   context?: string;
+  /**
+   * Extra control pinned to the right of the title. Used for the design switch
+   * on screens that appear before the sidebar (provider address, sign-in).
+   */
+  trailing?: React.ReactNode;
 }
 
 /**
@@ -27,7 +32,7 @@ export interface TitleBarProps {
  * `data-tauri-drag-region` marks the draggable area; interactive children opt out
  * automatically because Tauri ignores the drag region on interactive elements.
  */
-export default function TitleBar({ context }: TitleBarProps) {
+export default function TitleBar({ context, trailing }: TitleBarProps) {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -85,6 +90,11 @@ export default function TitleBar({ context }: TitleBarProps) {
           </>
         )}
       </div>
+      {trailing && (
+        <div className="pointer-events-auto ml-auto flex shrink-0 items-center">
+          {trailing}
+        </div>
+      )}
       {hasCustomFrame && (
         <div className="flex shrink-0 items-center">
           <Button

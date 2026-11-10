@@ -51,7 +51,7 @@ export default function ServerCard({
     <m.div
       whileHover={disabled || reducedMotion ? undefined : { scale: 1.01 }}
       whileTap={disabled || reducedMotion ? undefined : { scale: 0.99 }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      transition={{ type: "spring", stiffness: 320, damping: 22 }}
       className="h-full"
     >
       <Button
@@ -61,7 +61,7 @@ export default function ServerCard({
         onClick={onClick}
         aria-label={`Открыть сервер ${name}`}
         className={cn(
-          "border-border/40 bg-card/60 hover:border-border/70 h-full w-full",
+          "border-border/40 bg-fill/[0.02] hover:border-border/70 hover:bg-fill/60 h-full w-full",
           "flex-col items-stretch justify-start gap-3 overflow-hidden rounded-xl border p-3.5",
           "text-left whitespace-normal backdrop-blur-sm transition-colors",
         )}

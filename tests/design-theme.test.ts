@@ -299,3 +299,28 @@ test("the game subscription outlives the detail screen", () => {
   );
   assert.doesNotMatch(effect, /screen !== "detail"/);
 });
+
+test("the design switch exists before the sidebar does", () => {
+  const pill = read("src/components/line/ThemeSwitchPill.tsx");
+  const bar = read("src/components/line/TitleBar.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  const account = read("src/components/line/AccountScreen.tsx");
+
+  // The first screens are the address form and sign-in; the sidebar is not
+  // mounted there, so a switch that only lives in the sidebar is unreachable
+  // and the app looks unchanged to anyone who never signs in.
+  assert.match(bar, /trailing\?: React\.ReactNode/);
+  assert.match(bar, /\{trailing && \(/);
+  assert.match(launcher, /screen === "config" \|\| screen === "account"/);
+  assert.match(pill, /useTheme\(\)/);
+  assert.match(
+    pill,
+    /aria-label=\{`Включить \$\{toOld \? "старый" : "новый"\} дизайн`\}/,
+  );
+
+  // The login card must use the same surface as the dock, not the old bg-card
+  // (which is transparent in the new theme and looked like nothing changed).
+  // The attribute itself, not the comment that names it.
+  assert.match(account, /^\s+data-line-glass$/m);
+  assert.doesNotMatch(account, /bg-card(?!\/)/);
+});

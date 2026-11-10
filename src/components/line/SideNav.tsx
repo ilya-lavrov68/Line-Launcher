@@ -3,17 +3,14 @@ import {
   ChevronLeft,
   Info,
   LogOut,
-  Moon,
   RefreshCw,
   Server,
   Settings,
   Shirt,
-  Sparkles,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { brand } from "@/brand/generated";
-import BrandMark from "@/components/line/BrandMark";
 import Attribution from "@/components/line/Attribution";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +19,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useOptionalTheme } from "./ThemeProvider";
 
 export type LineSection = "servers" | "wardrobe" | "settings";
 
@@ -37,7 +33,6 @@ export interface SideNavProps {
   onToggleCollapsed: () => void;
   onChangeProvider: () => void;
   onAbout: () => void;
-  onToggleTheme: () => void;
   actionsDisabled?: boolean;
 }
 
@@ -70,13 +65,9 @@ export default function SideNav({
   onToggleCollapsed,
   onChangeProvider,
   onAbout,
-  onToggleTheme,
   actionsDisabled = false,
 }: SideNavProps) {
   const reducedMotion = useReducedMotion();
-  // Read directly: the nav must draw the right icon whether or not the shell
-  // happens to be wrapped in a ThemeProvider during a test render.
-  const theme = useOptionalTheme()?.theme ?? "line";
   const items: NavItem[] = [
     { id: "servers", label: "Серверы", icon: Server },
     // Never gated: the local history works signed out and offline.
@@ -98,30 +89,13 @@ export default function SideNav({
         "rounded-[var(--radius-item)]",
       )}
     >
-      {/* The mark sits at the top of the rail, where a sidebar logo belongs.
-          Clicking it returns to the catalogue: it is the launcher's home. */}
-      <button
-        type="button"
-        aria-label={brand.name}
-        title={brand.name}
-        onClick={() => onNavigate("servers")}
-        className={cn(
-          "flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg outline-none",
-          "focus-visible:ring-ring/60 focus-visible:ring-2",
-          collapsed ? "justify-center px-0 py-3" : "px-2.5 py-3",
-        )}
-      >
-        <BrandMark className="h-6 w-6 shrink-0" />
-        {!collapsed && (
-          <span className="text-foreground truncate text-sm font-semibold tracking-tight">
-            {brand.shortName}
-          </span>
-        )}
-      </button>
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 pt-0">
+      {/* No mark here: the logo and the product name are one lockup in the
+          title bar, and a second copy three pixels below it read as a mistake.
+          The rail starts with the provider name and the sections. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
         {!collapsed && providerName && (
           <p
-            className="text-muted-foreground truncate px-2.5 pb-2 text-xs"
+            className="text-muted-foreground truncate px-2.5 pt-1.5 pb-2 text-xs"
             title={providerName}
           >
             {providerName}
@@ -218,27 +192,6 @@ export default function SideNav({
         >
           <RefreshCw className="h-5 w-5 shrink-0" aria-hidden="true" />
           {!collapsed && <span className="truncate">Переподключиться</span>}
-        </Button>
-        <Button
-          variant="ghost"
-          aria-label="Сменить оформление"
-          title={collapsed ? "Сменить оформление" : undefined}
-          onClick={onToggleTheme}
-          className={cn(
-            "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
-            collapsed ? "justify-center px-0" : "justify-start px-2.5",
-          )}
-        >
-          {theme === "line" ? (
-            <Moon className="h-5 w-5 shrink-0" aria-hidden="true" />
-          ) : (
-            <Sparkles className="h-5 w-5 shrink-0" aria-hidden="true" />
-          )}
-          {!collapsed && (
-            <span className="truncate">
-              {theme === "line" ? "Старый дизайн" : "Новый дизайн"}
-            </span>
-          )}
         </Button>
         <Button
           variant="ghost"

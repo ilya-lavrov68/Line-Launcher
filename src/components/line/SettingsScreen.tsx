@@ -1,11 +1,4 @@
-import {
-  Check,
-  Coffee,
-  MemoryStick,
-  Palette,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
+import { Check, Coffee, MemoryStick, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -28,7 +21,6 @@ import type {
 } from "@/types/line";
 import { cn } from "@/lib/utils";
 import SectionIcon from "@/components/line/SectionIcon";
-import ThemeToggle from "@/components/line/ThemeToggle";
 
 export interface SettingsScreenProps {
   snapshot: SettingsSnapshot;
@@ -491,16 +483,6 @@ export default function SettingsScreen({
                 Применить размер
               </Button>
             </div>
-          </div>
-        </Section>
-
-        <Section icon={Palette} title="Оформление">
-          <div className="flex flex-col gap-2">
-            <ThemeToggle />
-            <p className="text-muted-foreground text-[12px] leading-relaxed">
-              Выбор запоминается на этом компьютере и не влияет на сборки,
-              аккаунт или настройки запуска.
-            </p>
           </div>
         </Section>
 

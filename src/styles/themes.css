@@ -37,8 +37,13 @@
   --card-foreground: oklch(0.97 0.002 250);
   --popover: #14161b;
   --popover-foreground: oklch(0.97 0.002 250);
-  --primary: oklch(0.82 0.16 152);
-  --primary-foreground: #06210f;
+  /* White, not mint. `index.css` shipped a near-white accent and the redesign
+   * silently repainted it green: every primary button, focus ring and slider
+   * turned into a mint pill. Green stays where it means something — a server
+   * that is ready, a build that is online — and the accent returns to the
+   * neutral it was. */
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.16 0.004 286.32);
   --secondary: rgba(255, 255, 255, 0.06);
   --secondary-foreground: oklch(0.9 0.002 250);
   --muted: rgba(255, 255, 255, 0.05);
@@ -48,7 +53,7 @@
   --destructive: oklch(0.66 0.21 22);
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
-  --ring: oklch(0.82 0.16 152 / 60%);
+  --ring: oklch(0.92 0.004 286.32 / 45%);
   --sidebar: #0d0f13;
   --sidebar-foreground: oklch(0.97 0.002 250);
   --sidebar-primary: var(--primary);

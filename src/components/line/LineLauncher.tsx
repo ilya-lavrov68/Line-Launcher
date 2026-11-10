@@ -34,7 +34,6 @@ import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
 import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
-import ThemeSwitchPill from "./ThemeSwitchPill";
 import TitleBar from "./TitleBar";
 import WardrobeScreen from "./WardrobeScreen";
 import { closeWindow, minimizeWindow } from "@/lib/line/window";
@@ -80,7 +79,7 @@ export default function LineLauncher() {
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string>();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   // Catalogue rail: "what was I doing?" answered without opening a server.
   // It reads the catalogue's own knowledge (installed ids + the live job for
   // that id), never the detail screen's transient receipt.
@@ -551,16 +550,7 @@ export default function LineLauncher() {
             {/* Floating frame: one 6px inset around the whole window, and the
                 header shares it instead of being banded off by a hairline. */}
             <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5">
-              <TitleBar
-                context={titleContext}
-                // Before the sidebar exists (address, sign-in, connecting) the
-                // design switch still has to be reachable.
-                trailing={
-                  screen === "config" || screen === "account" ? (
-                    <ThemeSwitchPill />
-                  ) : undefined
-                }
-              />
+              <TitleBar context={titleContext} />
               <div className="flex min-h-0 w-full flex-1 gap-1.5 overflow-hidden">
                 <SideNav
                   section={section}
@@ -573,7 +563,6 @@ export default function LineLauncher() {
                   onToggleCollapsed={() => void toggleSidebar()}
                   onChangeProvider={reconnect}
                   onAbout={() => setAboutOpen(true)}
-                  onToggleTheme={toggleTheme}
                 />
                 <main
                   data-line-glass

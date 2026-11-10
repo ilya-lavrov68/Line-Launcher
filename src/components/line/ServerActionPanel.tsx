@@ -268,7 +268,10 @@ export default function ServerActionPanel({
               "h-11 w-full gap-2 rounded-[var(--radius-item)] text-sm font-semibold",
               active
                 ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
-                : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_10px_28px_-14px_var(--line-accent)]",
+                : // No glow: a coloured halo around the button was the only
+                  // ornament on the screen, and it read as a light source that
+                  // does not exist. The fill itself is enough.
+                  "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             {installing ? (

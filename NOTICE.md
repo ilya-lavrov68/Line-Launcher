@@ -35,6 +35,13 @@ source is `branding/assets/app-icon.svg`; desktop PNG/ICO/ICNS assets are
 generated from it with `npm run brand` (which invokes `tauri icon`).
 Provider-supplied replacement assets are the provider's responsibility.
 
+## Fonts
+
+The interface and the documentation renders use **Geist** (`@fontsource-variable/geist`
+at runtime). The two TTFs in `scripts/fonts/` are the same font in a rasteriser-readable
+format and are used only by `scripts/render-screens.mjs`. Geist is licensed under the SIL
+Open Font License 1.1, preserved in `LICENSES/Geist-OFL.txt`.
+
 ## Other dependencies
 
 Third-party dependencies retain their respective licenses. This notice is

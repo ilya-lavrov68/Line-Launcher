@@ -18,6 +18,10 @@ import { browserHelp, findBrowser } from "./lib/find-browser.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs/images");
+// Kept in sync with scripts/render-screens.mjs: both writers must agree, or a
+// regeneration with the other tool silently reintroduces mixed sizes.
+const SHOT_WIDTH = 1280;
+const SHOT_HEIGHT = 800;
 const baseUrl = process.env.BASE_URL || "http://127.0.0.1:5173";
 
 let chromium;
@@ -182,7 +186,9 @@ try {
 }
 
 const page = await browser.newPage({
-  viewport: { width: 1280, height: 860 },
+  // One size for every image, matching scripts/render-screens.mjs. The README
+  // gallery looked broken when it mixed 480, 860, 1000 and 1060 tall pictures.
+  viewport: { width: SHOT_WIDTH, height: SHOT_HEIGHT },
   reducedMotion: "reduce",
   deviceScaleFactor: 1,
 });
@@ -341,14 +347,25 @@ await page.addInitScript(
   { config, skins, installed, configured },
 );
 
-async function shot(name, height = 860) {
-  // Long screens are captured at their full height instead of being cropped.
-  await page.setViewportSize({ width: 1280, height });
+async function shot(name) {
+  // Every screenshot is the same viewport, so the gallery has one aspect ratio.
+  // Content taller than 800px is what the app itself scrolls; capturing the
+  // full scroll height is what produced the uneven images this replaced.
+  await page.setViewportSize({ width: SHOT_WIDTH, height: SHOT_HEIGHT });
   // Obsy's animated background never settles; freeze it for a stable image.
-  await page.mouse.move(1270, height - 10);
+  await page.mouse.move(SHOT_WIDTH - 10, SHOT_HEIGHT - 10);
   await page.waitForTimeout(350);
   const file = path.join(outDir, `line-${name}.png`);
   await page.screenshot({ path: file, animations: "disabled" });
+  const size = await page.evaluate(() => [
+    window.innerWidth,
+    window.innerHeight,
+  ]);
+  if (size[0] !== SHOT_WIDTH || size[1] !== SHOT_HEIGHT) {
+    throw new Error(
+      `viewport drifted to ${size.join("x")} while capturing ${name}`,
+    );
+  }
   console.log(`docs/images/line-${name}.png`);
 }
 
@@ -359,7 +376,7 @@ try {
     await page
       .getByRole("heading", { name: "Подключение к проекту" })
       .waitFor();
-    await shot("connecting", 480);
+    await shot("connecting");
   } else {
     console.log(
       "skip line-connecting.png: branding/provider.json is empty (dev template)",
@@ -383,11 +400,11 @@ try {
 
   await page.getByRole("button", { name: "Гардероб", exact: true }).click();
   await page.getByRole("heading", { name: "Локальная история" }).waitFor();
-  await shot("wardrobe", 1000);
+  await shot("wardrobe");
 
   await page.getByRole("button", { name: "Настройки", exact: true }).click();
   await page.getByRole("heading", { name: "Память игры" }).waitFor();
-  await shot("settings", 1060);
+  await shot("settings");
 
   if (errors.length > 0) {
     console.error("page errors:", errors);

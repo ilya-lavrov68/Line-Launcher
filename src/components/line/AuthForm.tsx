@@ -77,9 +77,17 @@ export default function AuthForm({
 
       {registrationAvailable && (
         <Tabs value={mode} onValueChange={changeMode}>
-          <TabsList>
+          <TabsList className="w-full">
             {(["login", "register"] as const).map((value) => (
-              <TabsTrigger key={value} value={value} disabled={loading}>
+              <TabsTrigger
+                key={value}
+                value={value}
+                disabled={loading}
+                // The indicator slides with the theme's own easing instead of
+                // snapping: a segmented control that jumps between two states
+                // is the "sharp switch" the switch itself was accused of.
+                className="transition-colors duration-200"
+              >
                 {value === "login" ? "Вход" : "Регистрация"}
               </TabsTrigger>
             ))}
@@ -88,96 +96,104 @@ export default function AuthForm({
       )}
 
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <AnimatePresence mode="wait" initial={false}>
-          <m.div
-            key={mode}
-            initial={reducedMotion ? false : { opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: reducedMotion ? 0 : -5 }}
-            transition={{ duration: 0.15 }}
-            className="flex flex-col gap-3"
-          >
-            <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
-              <Label
-                htmlFor={`${id}-username`}
-                className="text-foreground text-xs font-semibold"
-              >
-                Логин
-              </Label>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor={`${id}-username`}
+              className="text-muted-foreground text-xs font-medium"
+            >
+              Логин
+            </Label>
+            <Input
+              id={`${id}-username`}
+              value={username}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                setValidation(undefined);
+              }}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={32}
+              required
+              disabled={loading}
+              placeholder="Player_name"
+              className="text-xs"
+              aria-invalid={Boolean(message)}
+              aria-describedby={message ? `${id}-error` : undefined}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label
+              htmlFor={`${id}-password`}
+              className="text-muted-foreground text-xs font-medium"
+            >
+              Пароль
+            </Label>
+            <div className="relative">
               <Input
-                id={`${id}-username`}
-                value={username}
+                id={`${id}-password`}
+                type={showPassword ? "text" : "password"}
+                value={password}
                 onChange={(event) => {
-                  setUsername(event.target.value);
+                  setPassword(event.target.value);
                   setValidation(undefined);
                 }}
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                maxLength={32}
+                autoComplete={
+                  mode === "register" ? "new-password" : "current-password"
+                }
                 required
+                maxLength={1024}
                 disabled={loading}
-                placeholder="Player_name"
-                className="text-xs"
+                className="pr-9 text-xs"
                 aria-invalid={Boolean(message)}
                 aria-describedby={message ? `${id}-error` : undefined}
               />
-            </div>
-            <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
-              <Label
-                htmlFor={`${id}-password`}
-                className="text-foreground text-xs font-semibold"
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground absolute top-0.5 right-0.5 cursor-pointer"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                aria-pressed={showPassword}
+                disabled={loading}
               >
-                Пароль
-              </Label>
-              <div className="relative">
-                <Input
-                  id={`${id}-password`}
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setValidation(undefined);
-                  }}
-                  autoComplete={
-                    mode === "register" ? "new-password" : "current-password"
-                  }
-                  required
-                  maxLength={1024}
-                  disabled={loading}
-                  className="pr-9 text-xs"
-                  aria-invalid={Boolean(message)}
-                  aria-describedby={message ? `${id}-error` : undefined}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground absolute top-0.5 right-0.5 cursor-pointer"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={
-                    showPassword ? "Скрыть пароль" : "Показать пароль"
-                  }
-                  aria-pressed={showPassword}
-                  disabled={loading}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-          </m.div>
-        </AnimatePresence>
+            {/* The only sentence that differs between the two modes. It
+                fades where it stands, in a fixed-height slot, so the button
+                below never moves when the text changes length. */}
+            <div className="min-h-4">
+              <AnimatePresence initial={false} mode="wait">
+                <m.p
+                  key={mode}
+                  initial={reducedMotion ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={reducedMotion ? undefined : { opacity: 0 }}
+                  transition={{ duration: 0.14, ease: "easeOut" }}
+                  className="text-muted-foreground/80 text-[12px] leading-relaxed"
+                >
+                  {mode === "register"
+                    ? "Пароль не короче 8 символов."
+                    : "Тот же вход открывает все серверы проекта."}
+                </m.p>
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
 
         {/*
           Reserved slot, same reason as ConfigUrlInput: mounting/unmounting the
           error moved the submit button on every attempt. The height is fixed so
           clearing the message while the request runs cannot shift the layout.
         */}
-        <div className="min-h-10" aria-live="polite">
+        <div className="min-h-4" aria-live="polite">
           {message && (
             <p
               id={`${id}-error`}
@@ -192,7 +208,7 @@ export default function AuthForm({
         <Button
           type="submit"
           disabled={loading}
-          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
+          className="h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-item)] text-sm font-semibold"
         >
           {loading ? (
             <RefreshCw className="h-5 w-5 animate-spin" />
@@ -201,17 +217,37 @@ export default function AuthForm({
           ) : (
             <UserPlus className="h-5 w-5" />
           )}
-          <span>
-            {loading
-              ? "Проверяем данные…"
-              : mode === "login"
-                ? "Войти"
-                : "Создать аккаунт"}
+          {/* One swapped word, faded rather than replaced: `mode` is the only
+              thing that changes here, so a 140ms cross-fade is all the motion
+              this needs. Position is fixed by the flex row, so nothing moves. */}
+          <span className="relative grid place-items-center">
+            <span
+              aria-hidden="true"
+              className="invisible col-start-1 row-start-1 whitespace-nowrap"
+            >
+              Создать аккаунт
+            </span>
+            <AnimatePresence initial={false} mode="popLayout">
+              <m.span
+                key={loading ? "loading" : mode}
+                initial={reducedMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={reducedMotion ? undefined : { opacity: 0 }}
+                transition={{ duration: 0.14, ease: "easeOut" }}
+                className="col-start-1 row-start-1 whitespace-nowrap"
+              >
+                {loading
+                  ? "Проверяем данные…"
+                  : mode === "login"
+                    ? "Войти"
+                    : "Создать аккаунт"}
+              </m.span>
+            </AnimatePresence>
           </span>
         </Button>
       </form>
 
-      <p className="text-muted-foreground text-[10px] leading-relaxed">
+      <p className="text-muted-foreground/80 text-[12px] leading-relaxed">
         Пароль передаётся только API проекта по HTTPS. Токен сессии остаётся в
         Rust и не сохраняется в браузере.
       </p>

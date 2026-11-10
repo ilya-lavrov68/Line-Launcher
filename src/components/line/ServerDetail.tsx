@@ -102,7 +102,14 @@ export default function ServerDetail(props: ServerDetailProps) {
   const legacy = actionsBusy || installing || launching;
 
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col gap-4">
+    // The page is a column with the dock pinned to its bottom edge: the one
+    // action a player came for is always reachable without scrolling, and the
+    // empty space above it reads as room, not as a missing layout.
+    // `flex-1` rather than `min-h-full`: a percentage height resolves against
+    // the parent's *definite* height, and the shell above is a flex child, so
+    // `min-h-full` silently collapsed to the content height and the dock never
+    // reached the bottom edge.
+    <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
       <Button
         variant="ghost"
         size="sm"
@@ -116,10 +123,24 @@ export default function ServerDetail(props: ServerDetailProps) {
 
       {theme === "line" && (
         <>
-          <header className="flex items-start gap-3 px-1">
+          {/* The page opens on the server's own artwork, full width, the way
+              Liner opens on the cover of what you are about to play. Without it
+              the top of the screen was a heading over an empty field. */}
+          {server.banner_url && (
+            <div className="bg-fill-subtle relative aspect-[16/5] w-full overflow-hidden rounded-[var(--radius-panel)]">
+              <img
+                src={server.banner_url}
+                alt=""
+                className="size-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          )}
+
+          <header className="flex items-start gap-4 px-1">
             <div
               data-line-icon
-              className="bg-fill flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-item)]"
+              className="bg-fill flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-item)]"
             >
               {server.icon_url || server.logo_url ? (
                 <img
@@ -135,13 +156,13 @@ export default function ServerDetail(props: ServerDetailProps) {
               )}
             </div>
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-muted-foreground font-mono text-[10px]">
+              <span className="text-muted-foreground font-mono text-[12px]">
                 {providerName ? `${providerName} · ` : ""}v{server.version}
               </span>
-              <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+              <h1 className="text-foreground text-[28px] leading-tight font-semibold tracking-tight">
                 {server.name}
               </h1>
-              <p className="text-muted-foreground text-xs leading-relaxed">
+              <p className="text-muted-foreground max-w-prose text-[13px] leading-relaxed">
                 {server.description}
               </p>
             </div>
@@ -149,6 +170,9 @@ export default function ServerDetail(props: ServerDetailProps) {
 
           <m.div
             key={server.id}
+            // `mt-auto` is what makes the dock sit on the bottom edge instead of
+            // floating in the middle of the page when the content is short.
+            className="mt-auto"
             initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
@@ -181,7 +205,7 @@ export default function ServerDetail(props: ServerDetailProps) {
           />
 
           {hasSession && phase === "needs-install" && (
-            <p className="text-muted-foreground px-2 text-[10px] leading-relaxed">
+            <p className="text-muted-foreground px-2 text-[12px] leading-relaxed">
               Сборка скачается целиком: архив провайдера, проверка sha256 и
               распаковка. Прогресс виден здесь же, меню не блокируется.
             </p>
@@ -227,7 +251,7 @@ function LegacyDetail({
       <div className="bg-card border-border/50 relative flex flex-col gap-6 overflow-hidden rounded-xl border p-6 shadow-2xl backdrop-blur-md">
         <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent" />
         <div className="relative z-10 flex flex-col gap-1">
-          <span className="text-muted-foreground font-mono text-[10px]">
+          <span className="text-muted-foreground font-mono text-[12px]">
             {providerName} / v{server.version}
           </span>
           <h2 className="text-foreground text-2xl font-bold tracking-tight">

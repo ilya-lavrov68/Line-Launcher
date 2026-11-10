@@ -103,7 +103,7 @@ export default function ConfigUrlInput({
             longest provider message at the narrowest supported window.
           */}
           <div
-            className="flex min-h-12 items-start gap-1.5 text-[11px] leading-relaxed"
+            className="flex min-h-12 items-start gap-1.5 text-[12px] leading-relaxed"
             aria-live="polite"
           >
             {message ? (

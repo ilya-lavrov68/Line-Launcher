@@ -26,7 +26,9 @@ test("the theme preference falls back instead of throwing", () => {
   assert.equal(isLineTheme(undefined), false);
 
   const store = (value: string | null) => ({ getItem: () => value });
-  assert.equal(readTheme(store("old")), "old");
+  // The design is chosen at build time. A `line.theme` key left behind by an
+  // older build is read but not honoured, so a file cannot repaint the window.
+  assert.equal(readTheme(store("old")), "line");
   assert.equal(readTheme(store(null)), "line");
   assert.equal(readTheme(store("garbage")), "line");
   // A hardened WebView can throw on storage access; a white screen would be
@@ -52,19 +54,19 @@ test("exactly one DOM attribute drives the design", () => {
   const root = { dataset: {} as Record<string, string | undefined> };
   applyTheme("old", root as unknown as HTMLElement);
   assert.equal(root.dataset.theme, "old");
-  // Bootstrap never persists: it only applies what is already stored, so a
-  // first-run default is not silently written over someone's choice.
+  // Bootstrap applies the build's design and persists nothing: there is no
+  // preference to remember any more, only a compiled-in value.
   const written: string[] = [];
   assert.equal(
     bootstrapTheme({
-      read: () => "line",
+      read: () => "old",
       write: (value) => written.push(value),
       root: root as unknown as HTMLElement,
     }),
-    "line",
+    "old",
   );
-  assert.equal(root.dataset.theme, "line");
-  assert.deepEqual(written, ["line"]);
+  assert.equal(root.dataset.theme, "old");
+  assert.deepEqual(written, [], "bootstrap must not persist a design");
   assert.deepEqual(Object.keys(THEME_LABELS).sort(), ["line", "old"]);
 });
 
@@ -145,9 +147,10 @@ test("panels in the new design are shadow, not outline", () => {
   // around every piece of content and made the page read as a grid of boxes.
   assert.match(lineGlass, /box-shadow:/);
   assert.doesNotMatch(lineGlass, /border:/);
-  // No backdrop blur either: the backdrop is a flat colour, so there is
-  // nothing behind a panel to blur and it only cost frames.
-  assert.doesNotMatch(lineGlass, /backdrop-filter/);
+  // Blur is deliberate again, and only because the animated backdrop is back:
+  // a translucent pane over a moving mesh needs the mesh softened behind it.
+  // Asserted so it is not "cleaned up" by someone reading an older comment.
+  assert.match(lineGlass, /backdrop-filter: blur/);
 
   // The old design must get a real panel back, not an unstyled transparent box.
   const legacyAt = themes.lastIndexOf('[data-theme="old"] [data-line-glass]');
@@ -155,6 +158,8 @@ test("panels in the new design are shadow, not outline", () => {
   assert.match(legacyGlass, /background: var\(--card\)/);
   assert.match(legacyGlass, /border: 1px solid/);
   assert.match(legacyGlass, /box-shadow: none/);
+  // The old panel keeps the blur it always had (8px) and none of the new one.
+  assert.match(legacyGlass, /backdrop-filter: blur\(8px\)/);
   assert.match(themes, /\[data-theme="line"\] \[data-line-canvas\]/);
   // The new backdrop is one flat colour. Two accent glows over a diagonal ramp
   // read as haze on a tool window and tinted text that had nothing to do with
@@ -177,8 +182,18 @@ test("panels in the new design are shadow, not outline", () => {
     indexCss.slice(0, oldBodyAt),
     /linear-gradient|animation: gradientBg/,
   );
-  // Reduced motion turns glass into a solid surface rather than wobbling.
+  // Reduced motion stops movement; it must not flatten the window into grey.
+  // The shader freezes at its first frame and the glass keeps its blur.
   assert.match(themes, /prefers-reduced-motion: reduce/);
+  const stillAt = themes.indexOf("@media (prefers-reduced-motion: reduce)");
+  const stillBlock = themes.slice(stillAt, themes.indexOf("}", stillAt) + 1);
+  assert.doesNotMatch(
+    stillBlock,
+    /backdrop-filter/,
+    "reduced motion must not change how the glass looks, only how it moves",
+  );
+  // The one preference that may flatten the glass is reduced transparency.
+  assert.match(themes, /prefers-reduced-transparency: reduce/);
 });
 
 test("no gradient survives anywhere outside the old design", () => {
@@ -233,14 +248,28 @@ test("the theme is reachable and remembered", () => {
   const settings = read("src/components/line/SettingsScreen.tsx");
   const entry = read("src/index.tsx");
   assert.match(read("src/App.tsx"), /<ThemeProvider>/);
-  assert.match(provider, /applyTheme\(next\)/);
-  assert.match(provider, /writeTheme\(theme\)/);
+  assert.match(provider, /applyTheme\(theme\)/);
+  // The provider resolves the design once, from the build, and exposes no
+  // setter: there is nothing in the shipped window that changes it.
+  assert.match(provider, /buildTheme\(\)/);
+  assert.doesNotMatch(provider, /setTheme|toggleTheme/);
   assert.match(entry, /bootstrapTheme\(\)/);
   assert.match(launcher, /useTheme\(\)/);
-  assert.match(launcher, /onToggleTheme=\{toggleTheme\}/);
-  assert.match(nav, /aria-label="Сменить оформление"/);
-  assert.match(settings, /title="Оформление"/);
-  assert.match(settings, /<ThemeToggle \/>/);
+  // No control anywhere: not in the shell, the rail or settings. Themed by a
+  // build, not by a button is the requirement.
+  for (const source of [launcher, nav, settings]) {
+    assert.doesNotMatch(source, /toggleTheme|ThemeToggle|ThemeSwitchPill/);
+  }
+  assert.doesNotMatch(launcher, /onToggleTheme/);
+  assert.doesNotMatch(settings, /title="Оформление"/);
+  // The rollback build is a documented, real path: an environment variable
+  // read at build time, not a runtime toggle.
+  assert.match(read("src/lib/line/theme.ts"), /VITE_LINE_THEME/);
+  assert.match(
+    read("README.md"),
+    /VITE_LINE_THEME=old/,
+    "the old design must stay buildable and documented",
+  );
   assert.match(read("index.html"), /data-theme="line"/);
 });
 
@@ -373,23 +402,23 @@ test("the game subscription outlives the detail screen", () => {
   assert.doesNotMatch(effect, /screen !== "detail"/);
 });
 
-test("the design switch exists before the sidebar does", () => {
-  const pill = read("src/components/line/ThemeSwitchPill.tsx");
+test("the login screen is one panel, not nested cards", () => {
   const bar = read("src/components/line/TitleBar.tsx");
-  const launcher = read("src/components/line/LineLauncher.tsx");
   const account = read("src/components/line/AccountScreen.tsx");
+  const form = read("src/components/line/AuthForm.tsx");
 
-  // The first screens are the address form and sign-in; the sidebar is not
-  // mounted there, so a switch that only lives in the sidebar is unreachable
-  // and the app looks unchanged to anyone who never signs in.
-  assert.match(bar, /trailing\?: React\.ReactNode/);
-  assert.match(bar, /\{trailing && \(/);
-  assert.match(launcher, /screen === "config" \|\| screen === "account"/);
-  assert.match(pill, /useTheme\(\)/);
-  assert.match(
-    pill,
-    /aria-label=\{`Включить \$\{toOld \? "старый" : "новый"\} дизайн`\}/,
-  );
+  // The title bar carries the mark and the product name and nothing to the
+  // right of them: the design switch used to live there and no longer exists.
+  assert.doesNotMatch(bar, /trailing/);
+
+  // The fields are the same in both modes, so switching between them must not
+  // remount the stack: it used to fade the whole form out and back in.
+  // The form wrapper has no `key={mode}` on it, so the inputs keep their DOM
+  // node (and the caret) across the switch.
+  assert.doesNotMatch(form, /<m\.div\s+key=\{mode\}/);
+  assert.doesNotMatch(form, /mode="wait">\s*<m\.div\s+key=\{mode\}/);
+  // Only the strings that actually differ animate, and only their opacity.
+  assert.match(form, /mode === "register"/);
 
   // The login card must use the same surface as the dock, not the old bg-card
   // (which is transparent in the new theme and looked like nothing changed).
@@ -399,4 +428,85 @@ test("the design switch exists before the sidebar does", () => {
   // And no decorative wash over the card: a gradient tint on top of a panel is
   // what made the first screen look dirty at the corners.
   assert.doesNotMatch(account, /bg-gradient-to-br/);
+});
+
+test("the animated backdrop is decoration that cannot take the window down", () => {
+  const backdrop = read("src/components/line/AnimatedBackdrop.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+
+  // Mounted once, behind the whole window — not per screen.
+  assert.match(launcher, /<AnimatedBackdrop/);
+  assert.match(backdrop, /data-line-backdrop/);
+  assert.match(backdrop, /aria-hidden="true"/);
+  assert.match(backdrop, /pointer-events-none/);
+
+  // Three independent ways it refuses to matter:
+  //  1. a capability probe, so a machine without WebGL2 never pays for it;
+  assert.match(backdrop, /function hasWebgl2\(/);
+  assert.match(backdrop, /getContext\("webgl2"\)/);
+  //  2. an error boundary, because a driver can hand out a context and then
+  //     fail inside the shader — that used to unmount the entire window;
+  assert.match(backdrop, /class BackdropBoundary extends Component/);
+  assert.match(backdrop, /getDerivedStateFromError/);
+  assert.match(backdrop, /<BackdropBoundary>/);
+  //  3. a CSS colour field under the canvas, so the window has colour even
+  //     when hazeglow declines the renderer (it refuses software rasterisers).
+  assert.match(backdrop, /HAZE_FIELD/);
+  assert.match(backdrop, /backgroundImage: HAZE_FIELD/);
+
+  // Reduced motion freezes the shader instead of leaving the page grey.
+  assert.match(backdrop, /prefers-reduced-motion: reduce/);
+  assert.match(backdrop, /motion: "none"/);
+
+  // The shader is the only WebGL in the app: one dependency, one place.
+  const pkg = JSON.parse(read("package.json")) as {
+    dependencies: Record<string, string>;
+  };
+  assert.ok(pkg.dependencies.hazeglow, "hazeglow must be a real dependency");
+  assert.deepEqual(
+    Object.keys(pkg.dependencies).filter((name) =>
+      /shader|gradient/.test(name),
+    ),
+    [],
+    "the backdrop lab's extra engines must not ship",
+  );
+  assert.match(
+    pkg.dependencies.hazeglow,
+    /^\^?\d+\.\d+\.\d+$/,
+    "a range, so a patch fix can land without a code change",
+  );
+});
+
+test("the brand mark in the gallery is the real logo file, not a drawing", () => {
+  const renderer = read("scripts/render-screens.mjs");
+  // The invented "I" glyph was hand-drawn here while the app rendered the SVG.
+  // The renderer now reads the same asset the app ships.
+  assert.match(renderer, /branding\/assets\/logo\.svg/);
+  assert.match(renderer, /function brandMark\(/);
+  for (const site of ["brandMark(ctx, 16, 11, 22)", "brandMark(ctx,"]) {
+    assert.ok(renderer.includes(site), `missing mark call: ${site}`);
+  }
+  // No path data of its own: a second copy is how the two drifted apart. The
+  // renderer may only mention the thing it replaced to explain why.
+  assert.match(renderer, /BRAND_LOGO/);
+  assert.doesNotMatch(renderer, /ctx\.moveTo\(3, 3\)/);
+  const logo = read("branding/assets/logo.svg");
+  assert.match(logo, /fill="#FFFF01"/i);
+});
+
+test("the design is a build input, and the flag actually reaches the bundle", () => {
+  const theme = read("src/lib/line/theme.ts");
+  // Vite only substitutes the dotted form of `import.meta.env.VAR`. Reading the
+  // object and indexing it keeps the substitution working — an earlier
+  // `import.meta.env?.VITE_LINE_THEME` compiled to nothing and the rollback
+  // build silently shipped the new design.
+  assert.match(theme, /import\.meta\.env \?\? \{\}/);
+  assert.match(theme, /VITE_LINE_THEME/);
+  assert.doesNotMatch(theme, /import\.meta\.env\?\.VITE_LINE_THEME/);
+  // Anything that is not a known design falls back to the shipped one.
+  assert.doesNotMatch(theme, /isLineTheme\(undefined\)/);
+  assert.match(
+    theme,
+    /isLineTheme\(env\.VITE_LINE_THEME\) \? env\.VITE_LINE_THEME : "line"/,
+  );
 });

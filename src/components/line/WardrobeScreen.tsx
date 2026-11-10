@@ -329,7 +329,7 @@ export default function WardrobeScreen({
           <h3 className="text-foreground text-sm font-semibold">
             Добавить скин
           </h3>
-          <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
+          <span className="text-muted-foreground shrink-0 font-mono text-[12px]">
             PNG 64×64 · до 256 КБ
           </span>
         </div>
@@ -453,7 +453,7 @@ export default function WardrobeScreen({
             <span className="text-foreground text-xs font-medium">
               Стандартный скин
             </span>
-            <span className="text-muted-foreground text-[10px]">
+            <span className="text-muted-foreground text-[12px]">
               {!activeId ? "активен" : "вернуть обычный вид"}
             </span>
           </span>
@@ -495,7 +495,7 @@ export default function WardrobeScreen({
                       <span className="text-foreground truncate text-xs font-medium">
                         {skin.name}
                       </span>
-                      <span className="text-muted-foreground font-mono text-[10px]">
+                      <span className="text-muted-foreground font-mono text-[12px]">
                         {skin.width}×{skin.height} · {skin.model}
                       </span>
                     </div>
@@ -507,7 +507,7 @@ export default function WardrobeScreen({
                       onClick={() => void activate(skin.id)}
                       aria-label={`Сделать активным: ${skin.name}`}
                       aria-pressed={isActive}
-                      className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 px-1 py-0.5 text-[10px] font-medium enabled:hover:bg-transparent disabled:cursor-default disabled:opacity-60"
+                      className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 px-1 py-0.5 text-[12px] font-medium enabled:hover:bg-transparent disabled:cursor-default disabled:opacity-60"
                     >
                       {isActive ? "Активен" : "Выбрать"}
                     </button>
@@ -547,7 +547,7 @@ export default function WardrobeScreen({
             <span>{syncStatus.text}</span>
           </p>
           {canSync && (
-            <span className="text-muted-foreground font-mono text-[10px]">
+            <span className="text-muted-foreground font-mono text-[12px]">
               {remote ? `Модель: ${remote.model}` : "Модель: стандартная"}
             </span>
           )}

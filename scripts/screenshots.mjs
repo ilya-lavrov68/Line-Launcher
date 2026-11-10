@@ -185,6 +185,16 @@ try {
   process.exit(2);
 }
 
+/**
+ * Screenshot-only shim. Chromium renders WebGL on Swiftshader in CI, and
+ * hazeglow refuses software renderers by design, so without this the gallery
+ * would document a state no real player sees. Reversing the check here is the
+ * same trick a GPU-backed machine performs — it changes the renderer's name,
+ * not the app.
+ */
+const SOFTWARE_RENDERER =
+  /swiftshader|llvmpipe|softpipe|lavapipe|basic render|software/i;
+
 const page = await browser.newPage({
   // One size for every image, matching scripts/render-screens.mjs. The README
   // gallery looked broken when it mixed 480, 860, 1000 and 1060 tall pictures.
@@ -204,7 +214,20 @@ const installed = {
 };
 
 await page.addInitScript(
-  ({ config, skins, installed, configured }) => {
+  ({ config, skins, installed, configured, software }) => {
+    // Present the software rasteriser as a normal GPU. Scope: screenshots only.
+    const describe = WebGL2RenderingContext.prototype.getParameter;
+    WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+      const value = describe.call(this, parameter);
+      if (
+        parameter === this.RENDERER &&
+        typeof value === "string" &&
+        new RegExp(software, "i").test(value)
+      ) {
+        return "Line Screenshot Renderer";
+      }
+      return value;
+    };
     window.isTauri = true;
     window.__callbacks = new Map();
     window.__cid = 1;
@@ -267,7 +290,9 @@ await page.addInitScript(
             settings: {
               heapMb: 4096,
               javaPath: null,
-              sidebarCollapsed: false,
+              // The new design is a 60px icon rail; the gallery documents the
+              // default the first run actually opens with.
+              sidebarCollapsed: true,
               afterLaunch: "minimize",
               windowWidth: 1280,
               windowHeight: 860,
@@ -344,7 +369,7 @@ await page.addInitScript(
       },
     };
   },
-  { config, skins, installed, configured },
+  { config, skins, installed, configured, software: SOFTWARE_RENDERER.source },
 );
 
 async function shot(name) {
@@ -384,7 +409,10 @@ try {
   }
 
   // The single sign-in gate: one account for the whole project.
-  await page.getByText("Аккаунт проекта", { exact: true }).waitFor();
+  // The screen was redesigned: the provider's name is the heading now, and the
+  // card itself is what proves the sign-in gate is up.
+  await page.getByRole("heading", { level: 2 }).waitFor();
+  await page.getByRole("button", { name: "Войти", exact: true }).waitFor();
   await shot("account");
 
   await page.getByLabel("Логин", { exact: true }).fill("Player_1");

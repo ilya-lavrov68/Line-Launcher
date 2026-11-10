@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
 import "./index.css";
@@ -121,16 +121,8 @@ const scenarios: {
 ];
 
 function Preview() {
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
   const [scenario, setScenario] = useState(scenarios[0].id);
-
-  // `?theme=old` lets both designs be compared by URL, which also makes the
-  // old theme openable from a link instead of only from the in-app toggle.
-  const requested = new URLSearchParams(window.location.search).get("theme");
-  useEffect(() => {
-    if (requested === "old" || requested === "line") setTheme(requested);
-    // Runs once: afterwards the toggle owns the value.
-  }, [requested, setTheme]);
   const active = scenarios.find((item) => item.id === scenario) ?? scenarios[0];
 
   return (
@@ -140,14 +132,6 @@ function Preview() {
           <p className="text-muted-foreground font-mono text-[10px]">
             Line Launcher · предпросмотр дизайна · тема «{theme}»
           </p>
-          <a
-            href={theme === "line" ? "?theme=old" : "?theme=line"}
-            className="text-primary text-[11px] underline-offset-2 hover:underline"
-          >
-            {theme === "line"
-              ? "Показать старый дизайн"
-              : "Показать новый дизайн"}
-          </a>
           <h1 className="text-foreground text-lg font-semibold">
             Панель действия сервера
           </h1>

@@ -1,59 +1,35 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState,
+  type ReactNode,
 } from "react";
-import {
-  applyTheme,
-  bootstrapTheme,
-  readTheme,
-  writeTheme,
-  type LineTheme,
-} from "@/lib/line/theme";
+import { applyTheme, buildTheme, type LineTheme } from "@/lib/line/theme";
 
 interface ThemeContextValue {
+  /** The design this build ships. Fixed for the lifetime of the window. */
   theme: LineTheme;
-  setTheme: (theme: LineTheme) => void;
-  toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 /**
- * Owns the `data-theme` attribute. Mount it once, above the app shell: the
- * value is read from storage here too, so a test or a hot reload never depends
- * on the inline bootstrap script having run.
+ * Owns the `data-theme` attribute. Mount it once, above the app shell.
+ *
+ * There is no setter: the design is chosen when the app is built (see
+ * `buildTheme`), and the shipped window offers no control that changes it. The
+ * provider exists so components can read which build they are in without
+ * probing the DOM, and so the attribute survives a test render.
  */
-export default function ThemeProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [theme, setThemeState] = useState<LineTheme>(() => readTheme());
+export default function ThemeProvider({ children }: { children: ReactNode }) {
+  const theme = useMemo(() => buildTheme(), []);
 
   useEffect(() => {
     applyTheme(theme);
-    writeTheme(theme);
   }, [theme]);
 
-  const setTheme = useCallback((next: LineTheme) => {
-    setThemeState(next);
-    // Apply synchronously as well: the preference must take effect on the
-    // click, not on the next animation frame of an effect.
-    applyTheme(next);
-  }, []);
-
-  const value = useMemo<ThemeContextValue>(
-    () => ({
-      theme,
-      setTheme,
-      toggleTheme: () => setTheme(theme === "line" ? "old" : "line"),
-    }),
-    [theme, setTheme],
-  );
+  const value = useMemo<ThemeContextValue>(() => ({ theme }), [theme]);
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
@@ -72,4 +48,4 @@ export function useOptionalTheme(): ThemeContextValue | null {
   return useContext(ThemeContext);
 }
 
-export { bootstrapTheme };
+export { bootstrapTheme } from "@/lib/line/theme";

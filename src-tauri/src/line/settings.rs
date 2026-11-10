@@ -34,6 +34,9 @@ pub struct LauncherSettings {
     /// Must match a runtime the launcher discovers; revalidated before launch.
     pub java_path: Option<String>,
     /// Persisted so the navigation stays the way the player left it.
+    ///
+    /// Defaults to collapsed: the new design is a 60px icon rail, and a first
+    /// run that opens a 208px labelled sidebar immediately contradicts it.
     pub sidebar_collapsed: bool,
     pub after_launch: AfterLaunch,
     pub window_width: u32,
@@ -46,7 +49,7 @@ impl Default for LauncherSettings {
         Self {
             heap_mb: None,
             java_path: None,
-            sidebar_collapsed: false,
+            sidebar_collapsed: true,
             after_launch: AfterLaunch::Keep,
             window_width: 1100,
             window_height: 720,

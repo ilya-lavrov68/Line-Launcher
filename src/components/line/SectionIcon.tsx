@@ -5,7 +5,7 @@ export default function SectionIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
     <Icon
       data-line-icon="section"
-      className="text-primary mt-0.5 h-5 w-5 shrink-0"
+      className="text-primary mt-0.5 h-6 w-6 shrink-0"
       aria-hidden="true"
     />
   );

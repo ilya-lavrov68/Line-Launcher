@@ -3,12 +3,10 @@ import {
   ChevronLeft,
   Info,
   LogOut,
-  Moon,
   RefreshCw,
   Server,
   Settings,
   Shirt,
-  Sparkles,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -21,7 +19,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useOptionalTheme } from "./ThemeProvider";
 
 export type LineSection = "servers" | "wardrobe" | "settings";
 
@@ -36,7 +33,6 @@ export interface SideNavProps {
   onToggleCollapsed: () => void;
   onChangeProvider: () => void;
   onAbout: () => void;
-  onToggleTheme: () => void;
   actionsDisabled?: boolean;
 }
 
@@ -69,13 +65,9 @@ export default function SideNav({
   onToggleCollapsed,
   onChangeProvider,
   onAbout,
-  onToggleTheme,
   actionsDisabled = false,
 }: SideNavProps) {
   const reducedMotion = useReducedMotion();
-  // Read directly: the nav must draw the right icon whether or not the shell
-  // happens to be wrapped in a ThemeProvider during a test render.
-  const theme = useOptionalTheme()?.theme ?? "line";
   const items: NavItem[] = [
     { id: "servers", label: "Серверы", icon: Server },
     // Never gated: the local history works signed out and offline.
@@ -91,15 +83,19 @@ export default function SideNav({
       transition={
         reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
       }
+      data-line-glass
       className={cn(
-        "border-border/50 bg-fill-subtle relative z-20 flex min-h-0 shrink-0",
-        "flex-col border-r",
+        "relative z-20 flex min-h-0 shrink-0 flex-col",
+        "rounded-[var(--radius-item)]",
       )}
     >
+      {/* No mark here: the logo and the product name are one lockup in the
+          title bar, and a second copy three pixels below it read as a mistake.
+          The rail starts with the provider name and the sections. */}
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
         {!collapsed && providerName && (
           <p
-            className="text-muted-foreground truncate px-2.5 pt-1.5 pb-2 font-mono text-[10px]"
+            className="text-muted-foreground truncate px-2.5 pt-1.5 pb-2 text-xs"
             title={providerName}
           >
             {providerName}
@@ -150,7 +146,7 @@ export default function SideNav({
         })}
       </div>
 
-      <div className="border-border/50 flex shrink-0 flex-col gap-1 border-t p-2">
+      <div className="flex shrink-0 flex-col gap-1 p-2">
         {username && (
           <div
             className={cn(
@@ -199,27 +195,6 @@ export default function SideNav({
         </Button>
         <Button
           variant="ghost"
-          aria-label="Сменить оформление"
-          title={collapsed ? "Сменить оформление" : undefined}
-          onClick={onToggleTheme}
-          className={cn(
-            "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
-            collapsed ? "justify-center px-0" : "justify-start px-2.5",
-          )}
-        >
-          {theme === "line" ? (
-            <Moon className="h-5 w-5 shrink-0" aria-hidden="true" />
-          ) : (
-            <Sparkles className="h-5 w-5 shrink-0" aria-hidden="true" />
-          )}
-          {!collapsed && (
-            <span className="truncate">
-              {theme === "line" ? "Старый дизайн" : "Новый дизайн"}
-            </span>
-          )}
-        </Button>
-        <Button
-          variant="ghost"
           aria-label="О программе"
           title={collapsed ? "О программе" : undefined}
           onClick={onAbout}
@@ -233,7 +208,7 @@ export default function SideNav({
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
         {!collapsed && brand.attribution.placement === "header" && (
-          <div className="px-2.5 pt-1 pb-0.5 text-[10px]">
+          <div className="text-muted-foreground/70 px-2.5 pt-1 pb-0.5 text-[12px]">
             <Attribution />
           </div>
         )}

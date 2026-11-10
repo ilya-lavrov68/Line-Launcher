@@ -343,6 +343,53 @@ const ICONS = {
 };
 
 /**
+ * The brand mark, read from `branding/assets/logo.svg`.
+ *
+ * The screenshots used to carry a hand-drawn "L" bracket instead, which is not
+ * the artwork the window renders — the guide showed a logo the launcher does not
+ * have. The path and its viewBox are read from the same file the app imports, so
+ * replacing the logo replaces it in the guide too.
+ */
+const BRAND_LOGO = (() => {
+  const file = readFileSync(
+    path.resolve(root, "branding/assets/logo.svg"),
+    "utf8",
+  );
+  const viewBox = /viewBox="([^"]+)"/.exec(file)?.[1]?.split(/\s+/).map(Number);
+  const d = /<path\b[^>]*\bd="([^"]+)"/.exec(file)?.[1];
+  const fill = /<path\b[^>]*\bfill="([^"]+)"/.exec(file)?.[1];
+  if (!viewBox || !d || !fill) {
+    throw new Error(
+      "branding/assets/logo.svg must be a single path with a viewBox and a fill",
+    );
+  }
+  return {
+    x: viewBox[0],
+    y: viewBox[1],
+    w: viewBox[2],
+    h: viewBox[3],
+    d,
+    fill,
+  };
+})();
+
+/** Draws the brand mark into a box, preserving its aspect ratio. */
+function brandMark(ctx, x, y, size) {
+  const { x: vx, y: vy, w, h, d, fill } = BRAND_LOGO;
+  const scale = size / Math.max(w, h);
+  ctx.save();
+  // Centre the mark in the requested box; the logo is taller than it is wide.
+  ctx.translate(x + (size - w * scale) / 2, y + (size - h * scale) / 2);
+  ctx.scale(scale, scale);
+  ctx.translate(-vx, -vy);
+  ctx.beginPath();
+  tracePath(ctx, d);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
  * Minimal SVG path interpreter (M/L/H/V/C/Q/A/Z in absolute and relative
  * form). @napi-rs/canvas has no Path2D, and pulling a library in for eleven
  * 24x24 icons would be more code than this.
@@ -473,21 +520,10 @@ function titleBar(ctx, context, trailing) {
   ctx.lineTo(SHOT_WIDTH, h - 0.5);
   ctx.stroke();
 
-  // Brand mark: a tilted "L" bracket, the same silhouette as branding/logo.svg.
-  ctx.save();
-  ctx.translate(18, 13);
-  ctx.strokeStyle = rgba(T.primary);
-  ctx.lineWidth = 2.6;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(1, 3);
-  ctx.lineTo(10, 3);
-  ctx.moveTo(6, 3);
-  ctx.lineTo(12, 15);
-  ctx.moveTo(6, 15);
-  ctx.lineTo(17, 15);
-  ctx.stroke();
-  ctx.restore();
+  // The real mark from branding/assets/logo.svg — the same file the window
+  // renders. It used to be a hand-drawn "L" bracket, which put a glyph in the
+  // screenshots that the application never drew.
+  brandMark(ctx, 16, 11, 22);
 
   text(ctx, "Line Launcher", 38, 27, { size: 12, weight: 600 });
   if (context) {
@@ -825,20 +861,7 @@ function screenAccount(ctx) {
   let y = top + 40;
 
   // BrandMark, 36px tall, centred above the provider name.
-  ctx.save();
-  ctx.translate(centerX - 13, y);
-  ctx.strokeStyle = rgba(T.primary);
-  ctx.lineWidth = 3;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(0, 2);
-  ctx.lineTo(11, 2);
-  ctx.moveTo(7, 2);
-  ctx.lineTo(13, 17);
-  ctx.moveTo(7, 17);
-  ctx.lineTo(20, 17);
-  ctx.stroke();
-  ctx.restore();
+  brandMark(ctx, centerX - 17, y, 34);
   y += 52;
   text(ctx, "Plus In Plus Demo", centerX, y, {
     size: 24,

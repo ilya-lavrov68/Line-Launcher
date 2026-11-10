@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export type LineSection = "servers" | "wardrobe" | "settings";
+export type LineSection = "servers" | "wardrobe" | "account" | "settings";
 
 export interface SideNavProps {
   section: LineSection;
@@ -72,6 +72,10 @@ export default function SideNav({
     { id: "servers", label: "Серверы", icon: Server },
     // Never gated: the local history works signed out and offline.
     { id: "wardrobe", label: "Гардероб", icon: Shirt },
+    // The account is a page now, not only a name in the footer: it is where the
+    // player sees what they look like in game, and the only place the session
+    // state is explained.
+    { id: "account", label: "Аккаунт", icon: UserRound },
     { id: "settings", label: "Настройки", icon: Settings },
   ];
 

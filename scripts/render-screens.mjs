@@ -7,7 +7,7 @@
 // Why this exists: `npm run screenshots` renders the real app through
 // playwright-core and is the source of truth. It needs Chrome/Edge, which some
 // build machines (and CI containers without libnss) do not have. This script is
-// the deterministic fallback: every colour is read from `src/styles/themes.css`,
+// the deterministic fallback: every colour is read from `src/index.css`,
 // the same tokens the app renders with, and every screen is laid out at one fixed
 // size (1280x800) so the gallery never mixes tall and short images again.
 //
@@ -113,13 +113,13 @@ export function parseColor(value) {
 
 const css = (file) => readFileSync(path.join(root, file), "utf8");
 
-/** The `"line"` palette block from themes.css, resolved through `var()`. */
+/** The palette block from index.css, resolved through `var()`. */
 export function loadTokens() {
-  const sheet = css("src/styles/themes.css");
+  const sheet = css("src/index.css");
   /** Declarations inside the block that opens at `selector`. */
   const readBlock = (selector, from = 0) => {
     const start = sheet.indexOf(selector, from);
-    if (start < 0) throw new Error(`themes.css: не найден блок ${selector}`);
+    if (start < 0) throw new Error(`index.css: не найден блок ${selector}`);
     const open = sheet.indexOf("{", start);
     const close = sheet.indexOf("\n}", open);
     const found = new Map();
@@ -129,14 +129,11 @@ export function loadTokens() {
     }
     return found;
   };
-  // `:root` holds the additive ladder (--fill*, --surface-glass, --radius-*)
-  // that both themes share; `[data-theme="line"]` re-declares the legacy slots.
-  // Reading only the second block silently resolved every additive token to the
-  // white fallback — white cards on a dark page.
-  const raw = new Map([
-    ...readBlock(":root {"),
-    ...readBlock('[data-theme="line"] {'),
-  ]);
+  // One `:root` holds the whole palette and the additive ladder (--fill*,
+  // --surface-glass, --radius-*). It used to be two blocks in two files, and
+  // reading only one of them silently resolved every token to the white
+  // fallback — white cards on a dark page.
+  const raw = new Map([...readBlock(":root {")]);
   const resolve = (name, depth = 0) => {
     const value = raw.get(name);
     if (!value || depth > 6) return value ?? "";
@@ -147,7 +144,7 @@ export function loadTokens() {
   const color = (name) => parseColor(resolve(name)) ?? [255, 255, 255, 1];
   return {
     background: color("--background"),
-    // `--line-canvas` is `#08090c` in the new theme: one flat value.
+    // `--line-canvas` is `#08090c`: one flat value under the backdrop.
     canvas: color("--line-canvas"),
     foreground: color("--foreground"),
     mutedForeground: color("--muted-foreground"),
@@ -537,7 +534,7 @@ function titleBar(ctx, context, trailing) {
     });
   }
   if (trailing) {
-    // `ThemeSwitchPill` renders as a ghost button: text and icon, no frame.
+    // A ghost button: text and icon, no frame.
     const w = measure(ctx, trailing, 11, 500) + 34;
     const x = SHOT_WIDTH - w - 100;
     icon(ctx, "sparkles", x + 9, 17, 12, rgba(T.mutedForeground));
@@ -558,6 +555,7 @@ function titleBar(ctx, context, trailing) {
 const NAV = [
   { icon: "server", label: "Серверы", id: "servers" },
   { icon: "shirt", label: "Гардероб", id: "wardrobe" },
+  { icon: "user", label: "Аккаунт", id: "account" },
   { icon: "settings", label: "Настройки", id: "settings" },
 ];
 
@@ -605,8 +603,7 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   const collapseTop = base - pad - 32;
   const creditTop = collapseTop - 8 - 26;
   const aboutTop = creditTop - 8 - 36;
-  const themeTop = aboutTop - 36;
-  const reconnectTop = themeTop - 36;
+  const reconnectTop = aboutTop - 36;
   const footLine = reconnectTop - 8;
   const accountTop = footLine - 8 - 32;
 
@@ -631,7 +628,6 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   }
   [
     ["refresh", "Переподключиться", reconnectTop],
-    ["moon", "Старый дизайн", themeTop],
     ["info", "О программе", aboutTop],
   ].forEach(([name, label, rowTop]) => {
     icon(ctx, name, 17, rowTop + 10, 15, rgba(T.mutedForeground));
@@ -784,13 +780,9 @@ const FOOTER_H = 28;
  * The app shell every screen shares: background, title bar, rail, footer.
  * Returns the content area so each screen only lays out its own body.
  */
-function shell(
-  ctx,
-  context,
-  { active = "servers", signedIn = false, pill = false } = {},
-) {
+function shell(ctx, context, { active = "servers", signedIn = false } = {}) {
   background(ctx);
-  const top = titleBar(ctx, context, pill ? "Старый дизайн" : undefined);
+  const top = titleBar(ctx, context);
   const nav = sideNav(ctx, top, SHOT_HEIGHT - top - FOOTER_H, active, {
     providerName: signedIn ? "Plus In Plus Demo" : undefined,
     username: signedIn ? "Player_1" : undefined,
@@ -814,7 +806,7 @@ function shell(
  * because the rail has no account block yet.
  */
 function screenConnecting(ctx) {
-  const { centerX, centerY } = shell(ctx, "Подключение", { pill: true });
+  const { centerX, centerY } = shell(ctx, "Подключение");
 
   // Loading spinner: a quarter-arc on a faint track, like Loader2 mid-rotate.
   const ringY = centerY - 78;
@@ -855,7 +847,7 @@ function screenConnecting(ctx) {
  * glass card that holds AuthForm — the card the browser screenshot shows.
  */
 function screenAccount(ctx) {
-  const { centerX, top } = shell(ctx, "Plus In Plus Demo", { pill: true });
+  const { centerX, top } = shell(ctx, "Plus In Plus Demo");
   const cardW = 448;
   const x = centerX - cardW / 2;
   let y = top + 40;
@@ -1280,7 +1272,36 @@ function screenWardrobe(ctx) {
       color: rgba(T.mutedForeground, 0.7),
     });
   };
-  field(x + 20, "Файл текстуры", "Choose File · No file chosen");
+  // The file row is NOT a native input: the real screen hides the <input> and
+  // forwards its click from a label that reads «Выбрать файл» + «PNG не выбран».
+  // A rendered "Choose File · No file chosen" showed a control the player never
+  // sees, which is exactly the kind of drift this renderer exists to avoid.
+  text(ctx, "Файл текстуры", x + 20, iy + 10, {
+    size: 10,
+    color: rgba(T.mutedForeground),
+  });
+  fillRound(ctx, x + 20, iy + 18, fieldW, 32, 8, "rgba(0,0,0,0)");
+  strokeRound(ctx, x + 20, iy + 18, fieldW, 32, 8, rgba(T.input), 1);
+  fillRound(
+    ctx,
+    x + 23,
+    iy + 21,
+    measure(ctx, "Выбрать файл", 11, 500) + 20,
+    26,
+    6,
+    rgba(T.fill, 1),
+  );
+  text(ctx, "Выбрать файл", x + 33, iy + 38, { size: 11, weight: 500 });
+  text(
+    ctx,
+    "PNG не выбран",
+    x + 33 + measure(ctx, "Выбрать файл", 11, 500) + 20,
+    iy + 38,
+    {
+      size: 11,
+      color: rgba(T.mutedForeground, 0.7),
+    },
+  );
   field(x + 20 + fieldW + 24, "Название", "Например, зимний");
   iy += 58;
 
@@ -1605,6 +1626,126 @@ function screenSettings(ctx) {
   });
 }
 
+/**
+ * Аккаунт. The same two-column grid as `ProfileScreen`: identity + session on
+ * the left, the skin viewer on the right.
+ *
+ * The 3D model is drawn as a flat silhouette on purpose. This renderer is the
+ * fallback for machines without a browser (see README), and pretending to draw
+ * a perspective body here would be a lie about what the offline gallery shows.
+ * The silhouette is the *fallback* the app really uses when WebGL is missing, so
+ * the picture is still truthful.
+ */
+function screenProfile(ctx) {
+  const { top, centerX } = shell(ctx, "Plus In Plus Demo / Аккаунт", {
+    active: "account",
+    signedIn: true,
+  });
+  const w = 768; // ProfileScreen's max-w-3xl
+  const x = centerX - w / 2;
+  let y = top + 16;
+
+  text(ctx, "Аккаунт", x, y + 14, { size: 20, weight: 700 });
+  y += 32;
+  text(ctx, "Один аккаунт на весь проект Plus In Plus Demo.", x, y + 10, {
+    size: 11,
+    color: rgba(T.mutedForeground),
+  });
+  y += 28;
+
+  const gap = 16;
+  const right = 288; // the viewer column
+  const leftW = w - right - gap;
+
+  // ── Left card: who you are.
+  const cardH = 196;
+  glass(ctx, x, y, leftW, cardH, 16);
+  let iy = y + 16;
+  icon(ctx, "user", x + 20, iy + 2, 26, rgba(T.mutedForeground));
+  text(ctx, "Player_1", x + 56, iy + 14, { size: 13, weight: 600 });
+  text(ctx, "Plus In Plus Demo", x + 56, iy + 31, {
+    size: 11,
+    color: rgba(T.mutedForeground),
+  });
+  iy += 52;
+
+  // Session rows, two columns of label/value like the real <dl>.
+  const rows = [
+    ["Сессия истекает", "11 ноября в 22:40"],
+    ["Скин", "Зимний"],
+  ];
+  for (const [label, value] of rows) {
+    text(ctx, label, x + 20, iy + 10, {
+      size: 11,
+      color: rgba(T.mutedForeground),
+    });
+    text(ctx, value, x + 140, iy + 10, { size: 11 });
+    iy += 22;
+  }
+  iy += 8;
+
+  let bx = x + 20;
+  for (const [label, glyph] of [
+    ["Обновить", "arrow"],
+    ["Гардероб", "shirt"],
+    ["Выйти", "logout"],
+  ]) {
+    const bw = measure(ctx, label, 11, 500) + 44;
+    fillRound(ctx, bx, iy, bw, 28, 8, rgba(T.fill, 0.9));
+    strokeRound(ctx, bx + 0.5, iy + 0.5, bw - 1, 27, 8, rgba(T.border, 0.8));
+    // 14px, not 12: the outlined glyphs lose their stroke below that and turn
+    // into smudges in a 1280px-wide render.
+    icon(ctx, glyph, bx + 9, iy + 7, 14, rgba(T.foreground, 0.85));
+    text(ctx, label, bx + 29, iy + 18, { size: 11, weight: 500 });
+    bx += bw + 8;
+  }
+
+  // ── Right column: the skin viewer (fallback silhouette) + one sentence.
+  const vx = x + leftW + gap;
+  glass(ctx, vx, y, right, 288, 16);
+  const cx = vx + right / 2;
+  // The flat `SkinPreview` proportions: 16x32 skin pixels, head 8x8, torso 8x12,
+  // arms 4 wide hanging at the sides, legs 4 each. Drawn at 7px per pixel so the
+  // body fills the viewer instead of floating in it as a cross.
+  const u = 7;
+  const bodyW = 8 * u;
+  const headH = 8 * u;
+  const torsoH = 12 * u;
+  const legH = 12 * u;
+  const armW = 4 * u;
+  const px = cx - bodyW / 2;
+  const headY = y + 26;
+  const torsoY = headY + headH;
+  // Legs first, so the torso overlaps their top edge the way the model does.
+  fillRound(ctx, px, torsoY + torsoH, 4 * u, legH, 1, "#5a7aa8");
+  fillRound(ctx, px + 4 * u, torsoY + torsoH, 4 * u, legH, 1, "#63839f");
+  // Arms.
+  fillRound(ctx, px - armW, torsoY, armW, torsoH, 1, "#6d92c4");
+  fillRound(ctx, px + bodyW, torsoY, armW, torsoH, 1, "#7498c8");
+  // Torso and head.
+  fillRound(ctx, px, torsoY, bodyW, torsoH, 1, "#7fa8dd");
+  fillRound(ctx, px, headY, bodyW, headH, 1, "#8cb4e4");
+  // A face: two eyes and a mouth, so it reads as a character rather than a slab.
+  ctx.fillStyle = "rgba(20,26,38,0.75)";
+  for (const ex of [px + 2 * u, px + 5 * u]) {
+    ctx.fillRect(ex, headY + 3 * u, u, u);
+  }
+  ctx.fillRect(px + 3 * u, headY + 5.5 * u, 2 * u, Math.max(2, u / 2));
+
+  text(
+    ctx,
+    "Этот скин отправлен на сервер — вы выглядите так в игре.",
+    vx,
+    y + 288 + 22,
+    {
+      size: 10,
+      color: rgba(T.mutedForeground),
+      maxWidth: right,
+      lineHeight: 14,
+    },
+  );
+}
+
 // ───────────────────────────── main ─────────────────────────────
 
 export const SCREENS = [
@@ -1613,6 +1754,7 @@ export const SCREENS = [
   ["servers", screenServers],
   ["server", screenServer],
   ["wardrobe", screenWardrobe],
+  ["profile", screenProfile],
   ["settings", screenSettings],
 ];
 

@@ -216,11 +216,22 @@ const installed = {
 await page.addInitScript(
   ({ config, skins, installed, configured, software }) => {
     // Present the software rasteriser as a normal GPU. Scope: screenshots only.
+    //
+    // Both spellings of the question have to be answered: `RENDERER` returns a
+    // generic "WebKit WebGL", while `UNMASKED_RENDERER_WEBGL` returns the
+    // actual "SwiftShader" — and hazeglow decides on the unmasked one. Patching
+    // only RENDERER left every gallery image with the CSS colour field and no
+    // shader, which is not what a player with a GPU sees.
     const describe = WebGL2RenderingContext.prototype.getParameter;
+    const UNMASKED_RENDERER_WEBGL = 0x9246;
     WebGL2RenderingContext.prototype.getParameter = function (parameter) {
       const value = describe.call(this, parameter);
+      const asked =
+        parameter === this.RENDERER ||
+        parameter === UNMASKED_RENDERER_WEBGL ||
+        parameter === this.UNMASKED_RENDERER_WEBGL;
       if (
-        parameter === this.RENDERER &&
+        asked &&
         typeof value === "string" &&
         new RegExp(software, "i").test(value)
       ) {
@@ -241,6 +252,11 @@ await page.addInitScript(
       synced: skins[0].entry.id,
     };
     const bytes = Object.fromEntries(skins.map((s) => [s.entry.id, s.bytes]));
+    // Same convention the wardrobe thumbnails use: a texture becomes a blob URL.
+    // The 3D viewer cannot fetch a texture it cannot decode, and the fake backend
+    // below hands out raw bytes, not URLs.
+    window.__textureUrl = (id) =>
+      `data:image/png;base64,${btoa(String.fromCharCode(...bytes[id]))}`;
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
       unregisterListener: (_event, id) => window.__events.delete(id),
     };
@@ -290,7 +306,7 @@ await page.addInitScript(
             settings: {
               heapMb: 4096,
               javaPath: null,
-              // The new design is a 60px icon rail; the gallery documents the
+              // The sidebar is a 60px icon rail; the gallery documents the
               // default the first run actually opens with.
               sidebarCollapsed: true,
               afterLaunch: "minimize",
@@ -324,7 +340,14 @@ await page.addInitScript(
           ];
         if (cmd === "list_skin_library")
           return { library: window.__library, limit: 64 };
-        if (cmd === "read_skin_texture") return bytes[args.id] || [];
+        if (cmd === "read_skin_texture") {
+          // `bytes` is serialised into this script as plain arrays on purpose:
+          // the real command returns `number[]` (see `read_skin_texture` in
+          // Rust), and the profile screen turns it into a Blob. Turning it into
+          // anything richer here would stop testing the path the app uses.
+          const raw = bytes[args.id];
+          return Array.isArray(raw) ? raw : [];
+        }
         // Mirrors Rust: the account wears the texture it last accepted.
         const remoteSkin = () => {
           const id = window.__library.synced;
@@ -429,6 +452,16 @@ try {
   await page.getByRole("button", { name: "Гардероб", exact: true }).click();
   await page.getByRole("heading", { name: "Локальная история" }).waitFor();
   await shot("wardrobe");
+
+  // The account page and its 3D viewer. skinview3d loads lazily and draws a
+  // frame or two after its dynamic import resolves, so the wait is on the
+  // viewer's own state attribute, not a fixed timeout.
+  await page.getByLabel("Аккаунт", { exact: true }).click();
+  await page.getByRole("heading", { name: "Аккаунт", level: 2 }).waitFor();
+  await page
+    .locator('[data-line-skin-viewer]:not([data-line-skin-viewer="loading"])')
+    .waitFor({ timeout: 20_000 });
+  await shot("profile");
 
   await page.getByRole("button", { name: "Настройки", exact: true }).click();
   await page.getByRole("heading", { name: "Память игры" }).waitFor();

@@ -18,7 +18,7 @@ export interface ReleaseHistoryDialogProps {
   loading: boolean;
   error?: string;
   onRollback: (receipt: InstallReceipt) => void;
-  /** Optional: the new design opens the dialog from its own dock button. */
+  /** Optional: the dock opens the dialog from its own history button. */
   trigger?: ReactNode;
 }
 

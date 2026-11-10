@@ -21,9 +21,13 @@ documentation, branding configuration and other original contributions made
 by or for Plus In Plus in this repository, excluding third-party materials.
 "Product" means Line Launcher and branded builds incorporating Line Materials.
 
-The upstream Obsy Launcher materials remain licensed under MIT. Their original
-copyright and permission notice is preserved verbatim in
-LICENSES/Obsy-MIT.txt. Other dependencies retain their respective licenses;
+This launcher was built on top of Obsy Launcher (obsy-official) and has since
+been fully adapted for Plus In Plus: the Rust backend, the engine work, the
+provider contract and the interface were all rewritten or written for this
+product. The Obsy interface components that are still in the tree are the ones
+generated from the shadcn/ui registry with the Base UI bindings, and those
+remain under MIT — their copyright and permission notice is preserved verbatim
+in LICENSES/Obsy-MIT.txt. Other dependencies retain their respective licenses;
 see NOTICE.md and LICENSES/. Nothing in this license withdraws rights already
 granted under MIT or any other third-party license. Those rights apply only to
 the materials they cover, not to Line Materials. Independent use of upstream
@@ -85,8 +89,9 @@ CREDIT, NO PERMISSION TO USE OR DISTRIBUTE LINE MATERIALS IS GRANTED.
 
 Every distributed compiled build or installer must include readable copies
 of LICENSE, NOTICE.md and the applicable files in LICENSES/, including the
-upstream MIT notice. Source copies permitted by section 2 must retain the
-same files. You must also comply with all applicable third-party licenses.
+shadcn/ui-derived component notice. Source copies permitted by section 2 must
+retain the same files. You must also comply with all applicable third-party
+licenses.
 You may add your own copyright notice for your original contributions, but
 may not remove or misrepresent existing notices or imply endorsement by
 Plus In Plus or upstream authors.
@@ -136,10 +141,14 @@ is required before exercising the permissions above.
 сторонних материалов. «Продукт» — Line Launcher и брендированные сборки,
 включающие Материалы Line.
 
-Исходные материалы Obsy Launcher остаются под лицензией MIT. Оригинальное
-уведомление об авторских правах и текст разрешения дословно сохранены в
-LICENSES/Obsy-MIT.txt. Прочие зависимости сохраняют свои лицензии; см.
-NOTICE.md и LICENSES/. Эта лицензия не отзывает права, уже предоставленные
+Этот лаунчер сделан на основе Obsy Launcher (obsy-official) и с тех пор
+полностью адаптирован под Plus In Plus: бэкенд на Rust, работа с движком,
+контракт провайдера и интерфейс переписаны или написаны для этого продукта.
+Из интерфейса Obsy в дереве остались только компоненты, сгенерированные из
+реестра shadcn/ui вместе с обвязкой Base UI, — они остаются под MIT, и
+оригинальное уведомление об авторских правах и текст разрешения дословно
+сохранены в LICENSES/Obsy-MIT.txt. Прочие зависимости сохраняют свои лицензии;
+см. NOTICE.md и LICENSES/. Эта лицензия не отзывает права, уже предоставленные
 MIT или иной сторонней лицензией. Такие права относятся только к охваченным
 ими материалам, а не к Материалам Line. Самостоятельное использование
 исходных материалов по их собственной лицензии не ограничивается этим текстом.
@@ -202,8 +211,9 @@ MIT или иной сторонней лицензией. Такие права
 
 Каждая распространяемая исполняемая сборка или установщик должны содержать
 читаемые копии LICENSE, NOTICE.md и применимых файлов LICENSES/, включая
-исходное уведомление MIT. Разрешённые разделом 2 копии исходников сохраняют
-те же файлы. Необходимо соблюдать применимые сторонние лицензии. Можно
+уведомление компонентов на основе shadcn/ui. Разрешённые разделом 2 копии
+исходников сохраняют те же файлы. Необходимо соблюдать применимые сторонние
+лицензии. Можно
 добавить уведомление о собственном авторстве, но нельзя удалять или искажать
 существующие уведомления либо намекать на поддержку со стороны Plus In Plus
 или исходных авторов.

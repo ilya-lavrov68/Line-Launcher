@@ -18,13 +18,24 @@ also repeated in About. Configuration may select placement and language, but
 may not remove, rewrite or hide either required name. See `LICENSE` for the
 binding conditions and `docs/BRANDING.md` for configuration.
 
-## Upstream Obsy Launcher
+## Built on Obsy Launcher
 
-Line Launcher incorporates materials from **Obsy Launcher** by obsy-official.
-Those upstream materials remain under MIT. The original copyright and
-permission notice is preserved verbatim in `LICENSES/Obsy-MIT.txt`. The Line
-license does not relicense upstream code or withdraw permissions already
-granted by MIT. It does not imply endorsement by the upstream project.
+Line Launcher was built on top of **Obsy Launcher** by obsy-official and has
+since been fully adapted for Plus In Plus. The launcher you get is not Obsy with
+a logo: the Rust backend, the game-engine integration, the provider contract,
+the wardrobe, the installer flow and every screen were written or rewritten for
+this product, and none of the upstream Rust modules survive in this tree.
+
+What does survive is the set of **shadcn/ui primitives** that Obsy generated
+into `src/components/ui/` and that this project inherited unchanged
+(`button`, `input`, `select`, `slider`, `switch`, `tabs`, `progress`, `label`,
+`popover`, `textarea`, `input-group`, and a locally modified `dialog`). Those
+files are small, they are vendored from the shadcn/ui registry rather than
+authored by Obsy, and they stay under MIT: the original copyright and
+permission notice is preserved verbatim in `LICENSES/Obsy-MIT.txt`, and the
+same text is shipped inside the installer. The Line license does not relicense
+that code or withdraw permissions already granted by MIT. Nothing here implies
+endorsement by the upstream project.
 
 ## Icons
 

@@ -44,7 +44,7 @@
       "icons/icon.ico"
     ],
     "licenseFile": "../LICENSE",
-    "copyright": "Copyright (c) 2026 Plus In Plus. Source-available; see LICENSE. Upstream Obsy materials remain MIT.",
+    "copyright": "Copyright (c) 2026 Plus In Plus. Source-available; see LICENSE. Built on Obsy Launcher and fully adapted for Plus In Plus; shadcn/ui components derived from it remain MIT.",
     "resources": {
       "../LICENSE": "LICENSE",
       "../NOTICE.md": "NOTICE.md",

@@ -28,6 +28,7 @@ const SHOT_HEIGHT = 800;
 const SCREENS = [
   "connecting",
   "account",
+  "profile",
   "servers",
   "server",
   "wardrobe",
@@ -35,7 +36,7 @@ const SCREENS = [
 ] as const;
 
 /**
- * The README gallery shows all six screens side by side, so they must share one
+ * The README gallery shows every screen side by side, so they must share one
  * aspect ratio. They used to be captured at 480/860/1000/1060 heights, which is
  * exactly what the complaint "one is tall, another is short" was about.
  */
@@ -94,13 +95,12 @@ test("both screenshot writers agree on the size", () => {
   assert.match(renderer, new RegExp(`SHOT_HEIGHT = ${SHOT_HEIGHT};`));
 });
 
-test("the offline renderer reads tokens from both CSS blocks", () => {
-  // `--fill*`, `--surface-glass` and `--radius-*` live in `:root`; reading only
-  // `[data-theme="line"]` resolved every one of them to the white fallback, so
-  // the cards came out white on a dark page.
+test("the offline renderer reads tokens from the live palette block", () => {
+  // The renderer parses `src/index.css` itself, so it breaks silently whenever
+  // that file is reorganised: an earlier version read only one of two blocks and
+  // resolved every token to the white fallback — white cards on a dark page.
   const renderer = read("scripts/render-screens.mjs").toString("utf8");
-  assert.match(
-    renderer,
-    /readBlock\(":root \{"\)[\s\S]{0,120}readBlock\('\[data-theme="line"\] \{'\)/,
-  );
+  assert.match(renderer, /css\("src\/index\.css"\)/);
+  assert.match(renderer, /readBlock\(":root \{"\)/);
+  assert.doesNotMatch(renderer, /themes\.css/);
 });

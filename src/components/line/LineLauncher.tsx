@@ -29,6 +29,7 @@ import ConnectingScreen from "./ConnectingScreen";
 import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import AnimatedBackdrop from "./AnimatedBackdrop";
+import ProfileScreen from "./ProfileScreen";
 import ServerDetail from "./ServerDetail";
 import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
@@ -36,9 +37,13 @@ import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
 import WardrobeScreen from "./WardrobeScreen";
-import { closeWindow, minimizeWindow } from "@/lib/line/window";
+import {
+  closeWindow,
+  hideWindow,
+  minimizeWindow,
+  restoreWindow,
+} from "@/lib/line/window";
 import { toLineError, type SettingsSnapshot } from "@/types/line";
-import { useTheme } from "./ThemeProvider";
 
 type Screen = "config" | "account" | "servers" | "detail";
 
@@ -79,7 +84,6 @@ export default function LineLauncher() {
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string>();
-  const { theme } = useTheme();
   // Catalogue rail: "what was I doing?" answered without opening a server.
   // It reads the catalogue's own knowledge (installed ids + the live job for
   // that id), never the detail screen's transient receipt.
@@ -391,10 +395,18 @@ export default function LineLauncher() {
     let cancelled = false;
     lineApi
       .onGame(selected.id, (status) => {
-        if (mounted.current && !cancelled)
-          setGameStatus((previous) =>
-            isNewerGameStatus(previous, status) ? status : previous,
-          );
+        if (!mounted.current || cancelled) return;
+        setGameStatus((previous) =>
+          isNewerGameStatus(previous, status) ? status : previous,
+        );
+        // The other half of "Лаунчер при запуске": whatever the window did
+        // when the game started (hidden to the tray, minimised, left alone),
+        // a player who just quit the game should be looking at the launcher
+        // again. Doing it here rather than in the launch promise means it also
+        // fires when the game exits minutes later, or when the player closed
+        // it from the game's own menu.
+        if (status.phase === "exited" || status.phase === "failed")
+          void restoreWindow();
       })
       .then((fn) => {
         if (cancelled) fn();
@@ -424,7 +436,8 @@ export default function LineLauncher() {
         (status.phase === "starting" || status.phase === "running")
       ) {
         const behaviour = settings?.settings.afterLaunch ?? "keep";
-        if (behaviour === "minimize") void minimizeWindow();
+        if (behaviour === "tray") void hideWindow();
+        else if (behaviour === "minimize") void minimizeWindow();
         else if (behaviour === "close") void closeWindow();
       }
     } catch (cause) {
@@ -506,9 +519,11 @@ export default function LineLauncher() {
       ? "Настройки"
       : section === "wardrobe"
         ? "Гардероб"
-        : screen === "detail" && selected
-          ? selected.name
-          : (snapshot?.config.provider.name ?? "Подключение");
+        : section === "account"
+          ? "Аккаунт"
+          : screen === "detail" && selected
+            ? selected.name
+            : (snapshot?.config.provider.name ?? "Подключение");
 
   function navigate(next: LineSection) {
     setSection(next);
@@ -555,7 +570,10 @@ export default function LineLauncher() {
                 above it is glass. It is decoration and nothing depends on it:
                 without WebGL2 or with reduced motion the window falls back to
                 the flat canvas and stays exactly as legible. */}
-            <AnimatedBackdrop imageUrl={selected?.banner_url} />
+            <AnimatedBackdrop
+              imageUrl={selected?.banner_url}
+              themeId={settings?.settings.backdrop ?? undefined}
+            />
             {/* Floating frame: one 6px inset around the whole window, and the
                 header shares it instead of being banded off by a hairline. */}
             <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5">
@@ -613,6 +631,25 @@ export default function LineLauncher() {
                             disabled={actionsBusy}
                           />
                         )}
+                        {section === "account" && session && (
+                          <ProfileScreen
+                            session={session}
+                            providerName={
+                              snapshot?.config.provider.name ?? "проект"
+                            }
+                            canSync={canSyncSkin}
+                            onLogout={() => void logout()}
+                            onOpenWardrobe={() => navigate("wardrobe")}
+                            disabled={actionsBusy}
+                          />
+                        )}
+                        {section === "account" && !session && (
+                          // Signing out while this page is open must not leave a
+                          // blank panel; the sign-in screen is the honest state.
+                          <div className="text-muted-foreground mx-auto flex w-full max-w-3xl flex-col items-start gap-2 py-10 text-xs">
+                            <p>Вы не вошли в аккаунт.</p>
+                          </div>
+                        )}
                         {section === "wardrobe" && (
                           <WardrobeScreen
                             username={session?.username}
@@ -666,19 +703,13 @@ export default function LineLauncher() {
                           snapshot && (
                             <ServerList
                               rail={
-                                // New design only: the old catalogue keeps its
-                                // exact previous appearance, with no extra strip.
-                                theme === "line" && (
-                                  <ServerCatalogRail
-                                    server={selected}
-                                    status={railStatus}
-                                    progress={railProgress}
-                                    busy={actionsBusy}
-                                    onOpen={(server) =>
-                                      void selectServer(server)
-                                    }
-                                  />
-                                )
+                                <ServerCatalogRail
+                                  server={selected}
+                                  status={railStatus}
+                                  progress={railProgress}
+                                  busy={actionsBusy}
+                                  onOpen={(server) => void selectServer(server)}
+                                />
                               }
                               statusFor={(server) =>
                                 installedIds.has(server.id)
@@ -751,8 +782,7 @@ export default function LineLauncher() {
               />
             </div>
             {/* Persistent rail: the last opened server stays one click away from
-                the catalogue, the wardrobe and settings. Under the old design it
-                renders nothing and the footer below is unchanged. */}
+                the catalogue, the wardrobe and settings. */}
             <footer className="text-muted-foreground/70 relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 px-2 pb-1.5 text-[12px]">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>

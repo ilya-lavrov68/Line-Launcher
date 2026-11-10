@@ -556,3 +556,137 @@ test("the extractor keeps the entry path alive for the integrity index", () => {
   assert.match(install, /let target = staging\.join\(&relative\);/);
   assert.match(install, /path: relative\.to_string_lossy\(\)/);
 });
+
+// ─────────────────────────────────────────── after-launch behaviour & tray ──
+
+test("the after-launch setting offers exactly the behaviours a player needs", () => {
+  const types = read("src/types/line.ts");
+  const settings = read("src-tauri/src/line/settings.rs");
+  const screen = read("src/components/line/SettingsScreen.tsx");
+
+  // The three the request asked for, plus "keep", which is what the launcher
+  // did before this setting existed and has to stay reachable.
+  for (const value of ["tray", "minimize", "close", "keep"]) {
+    assert.match(types, new RegExp(`"${value}"`), `missing ${value} in TS`);
+    assert.match(
+      settings,
+      new RegExp(`^\\s*${value[0].toUpperCase()}${value.slice(1)},`, "m"),
+      `missing ${value[0].toUpperCase()}${value.slice(1)} in Rust`,
+    );
+  }
+  // The order in the select is the order of intent: hide, minimise, close,
+  // stay. Rust's default cannot move: an existing settings.json must keep
+  // working without a migration.
+  assert.match(settings, /#\[default\]\s*\n\s*Keep/);
+  assert.ok(
+    screen.indexOf('value: "tray"') < screen.indexOf('value: "minimize"') &&
+      screen.indexOf('value: "minimize"') < screen.indexOf('value: "close"') &&
+      screen.indexOf('value: "close"') < screen.indexOf('value: "keep"'),
+    "the select must be ordered tray → minimize → close → keep",
+  );
+});
+
+test("launching into the tray hides the window, and the tray can bring it back", () => {
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  const windowLib = read("src/lib/line/window.ts");
+  const tray = read("src-tauri/src/line/tray.rs");
+
+  // `hide()` is the difference between the tray and a minimised window: the
+  // taskbar entry has to disappear, not just the pixels.
+  assert.match(windowLib, /export async function hideWindow/);
+  assert.match(windowLib, /win\.hide\(\)/);
+  assert.match(launcher, /behaviour === "tray"/);
+  assert.match(launcher, /hideWindow\(\)/);
+
+  // The tray itself: one icon, open + quit, left click restores.
+  assert.match(tray, /TrayIconBuilder/);
+  assert.match(tray, /"line-tray"/);
+  assert.match(tray, /"open"/);
+  assert.match(tray, /"quit"/);
+  assert.match(tray, /unminimize/);
+  assert.match(tray, /set_focus/);
+  // A tray that cannot be created must not abort startup — the window then
+  // simply stays visible, which is a worse experience but a working launcher.
+  assert.match(read("src-tauri/src/lib.rs"), /eprintln!\("\[tray\]/);
+});
+
+test("the launcher comes back by itself when the game exits or fails", () => {
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  // Both terminal phases restore, so the promise does not depend on which
+  // after-launch behaviour was chosen. A crash is when it matters most.
+  assert.match(launcher, /phase === "exited"/);
+  assert.match(launcher, /phase === "failed"/);
+  assert.match(launcher, /void restoreWindow\(\)/);
+  const windowLib = read("src/lib/line/window.ts");
+  for (const call of ["unminimize", "show", "setFocus"]) {
+    assert.match(
+      windowLib,
+      new RegExp(`${call}\\(\\)`),
+      `restore must call ${call}`,
+    );
+  }
+});
+
+// ───────────────────────────────────────────────────────────── backdrops ──
+
+test("backdrop themes ship a persisted, validated choice", () => {
+  const settings = read("src-tauri/src/line/settings.rs");
+  const types = read("src/types/line.ts");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  const picker = read("src/components/line/BackdropPicker.tsx");
+
+  // Unknown ids must degrade to the default rather than blank the window: the
+  // id is stored as a plain string and resolved by `backdropTheme`.
+  assert.match(settings, /pub backdrop: Option<String>/);
+  assert.match(settings, /backdrop: None/);
+  assert.match(types, /backdrop\?: string \| null/);
+  assert.match(launcher, /themeId=\{settings\?\.settings\.backdrop/);
+
+  // The chooser is in settings, and it is a radio group, not a row of buttons:
+  // exactly one of a known set is selected.
+  assert.match(picker, /role="radiogroup"/);
+  assert.match(picker, /role="radio"/);
+  assert.match(picker, /aria-checked/);
+  assert.ok(
+    read("src/components/line/SettingsScreen.tsx").includes("<BackdropPicker"),
+    "the picker has to be reachable from settings",
+  );
+
+  // Every theme carries its own swatch and its own veil.
+  const backdrops = read("src/lib/line/backdrops.ts");
+  // Every theme's swatch is derived from its own palette in one place, so the
+  // count that matters is the number of themes, not of `swatch:` literals.
+  assert.match(backdrops, /swatch: \[warm, cool, mid\]/);
+  const shades = backdrops.match(/shade: 0\./g)?.length ?? 0;
+  assert.ok(shades >= 10, `expected a shade per theme, found ${shades}`);
+});
+
+test("the account page shows the active skin in 3D and falls back flat", () => {
+  const profile = read("src/components/line/ProfileScreen.tsx");
+  const viewer = read("src/components/line/SkinViewer3D.tsx");
+  const nav = read("src/components/line/SideNav.tsx");
+  const pkg = readJson("package.json") as {
+    dependencies: Record<string, string>;
+  };
+
+  // A real viewer, not a picture of one.
+  assert.ok(pkg.dependencies.skinview3d, "skinview3d must be a dependency");
+  assert.match(viewer, /await import\("skinview3d"\)/);
+  assert.match(viewer, /new SkinViewer\(/);
+  assert.match(viewer, /dispose\(\)/);
+  // three.js is heavy; the servers screen must not download it.
+  assert.doesNotMatch(profile, /from "skinview3d"/);
+
+  // No WebGL, no CORS, no texture → the flat preview, never an empty box.
+  assert.match(viewer, /SkinPreview/);
+  assert.match(viewer, /data-line-skin-viewer/);
+
+  // The skin shown is the one the wardrobe made active.
+  assert.match(profile, /lineApi\.skinLibrary\(\)/);
+  assert.match(profile, /lineApi\.skinTexture\(/);
+  // …and its object URL is released, or every refresh leaks a texture.
+  assert.match(profile, /URL\.revokeObjectURL/);
+
+  // Reachable from the rail, not hidden behind a menu.
+  assert.match(nav, /id: "account"/);
+});

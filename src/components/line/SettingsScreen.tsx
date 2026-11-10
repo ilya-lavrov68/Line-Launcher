@@ -4,6 +4,7 @@ import {
   ChevronUp,
   Coffee,
   MemoryStick,
+  Palette,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import type {
   SettingsSnapshot,
 } from "@/types/line";
 import { cn } from "@/lib/utils";
+import BackdropPicker from "@/components/line/BackdropPicker";
 import SectionIcon from "@/components/line/SectionIcon";
 
 export interface SettingsScreenProps {
@@ -37,10 +39,27 @@ export interface SettingsScreenProps {
   disabled?: boolean;
 }
 
-const AFTER_LAUNCH: { value: AfterLaunch; label: string }[] = [
-  { value: "keep", label: "Оставить окно открытым" },
-  { value: "minimize", label: "Свернуть окно" },
-  { value: "close", label: "Закрыть лаунчер" },
+const AFTER_LAUNCH: { value: AfterLaunch; label: string; hint: string }[] = [
+  {
+    value: "tray",
+    label: "Скрывать в трей",
+    hint: "Окно исчезает из панели задач, лаунчер ждёт в трее",
+  },
+  {
+    value: "minimize",
+    label: "Свернуть",
+    hint: "Окно остаётся на панели задач",
+  },
+  {
+    value: "close",
+    label: "Закрыть лаунчер",
+    hint: "Процесс завершается вместе с игрой",
+  },
+  {
+    value: "keep",
+    label: "Оставить как есть",
+    hint: "Окно не трогаем",
+  },
 ];
 
 /** Base UI renders the raw value unless SelectValue formats it. */
@@ -216,7 +235,7 @@ export default function SettingsScreen({
   const automatic = settings.heapMb === null;
 
   return (
-    <section className="mx-auto flex max-w-2xl flex-col gap-4">
+    <section className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
           Настройки
@@ -291,6 +310,18 @@ export default function SettingsScreen({
               Вернуть автоматический подбор
             </Button>
           </div>
+        </Section>
+
+        <Section
+          icon={Palette}
+          title="Фон лаунчера"
+          description="Двенадцать градиентов, каждый медленно движется. Переключение плавное, выбор сохраняется."
+        >
+          <BackdropPicker
+            value={settings.backdrop}
+            disabled={busy}
+            onChange={(id) => void persist({ ...settings, backdrop: id })}
+          />
         </Section>
 
         <Section
@@ -411,8 +442,11 @@ export default function SettingsScreen({
         <Section icon={RefreshCw} title="Поведение и окно">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label className="text-muted-foreground text-xs">
-                После запуска игры
+              <Label
+                htmlFor="setting-after-launch"
+                className="text-muted-foreground text-xs"
+              >
+                Лаунчер при запуске игры
               </Label>
               <Select
                 value={settings.afterLaunch}
@@ -428,7 +462,7 @@ export default function SettingsScreen({
                   <SelectValue>
                     {(value: AfterLaunch | null) =>
                       AFTER_LAUNCH.find((option) => option.value === value)
-                        ?.label ?? "Оставить окно открытым"
+                        ?.label ?? "Скрывать в трей"
                     }
                   </SelectValue>
                 </SelectTrigger>
@@ -440,6 +474,13 @@ export default function SettingsScreen({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                {AFTER_LAUNCH.find(
+                  (option) => option.value === settings.afterLaunch,
+                )?.hint ?? ""}{" "}
+                Когда игра закроется, лаунчер вернётся сам — выбранное действие
+                применяется только к запуску.
+              </p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               {(
@@ -457,7 +498,7 @@ export default function SettingsScreen({
                   </Label>
                   {/* Still `type="number"`: arrow keys step, the browser keeps
                       the range, and the value may be typed. Only the platform
-                      spinner is hidden (themes.css) and replaced with a pair of
+                      spinner is hidden (index.css) and replaced with a pair of
                       buttons that sit on the same fill ladder as every other
                       control — the OS arrows were black-on-black and unthemed. */}
                   <div className="relative">

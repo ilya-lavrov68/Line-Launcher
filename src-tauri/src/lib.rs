@@ -9,6 +9,11 @@ pub fn run() {
         .setup(|app| {
             app.manage(LineState::new()?);
             app.manage(line::minecraft::MinecraftState::default());
+            // "Скрыть в трей" needs somewhere to go. A failed tray is not
+            // fatal (see tray.rs): the setting then behaves like "minimise".
+            if let Err(error) = line::tray::install(app.handle()) {
+                eprintln!("[tray] notification icon unavailable: {error}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -5,19 +5,21 @@
 **Screenshots in `docs/images/line-*.png` were produced by
 `npm run screenshots:offline`** on a machine with no browser (only
 `registry.npmjs.org` was reachable; Chromium needed libnspr4/libnss3 that no
-mirror could supply). The renderer parses the palette out of
-`src/styles/themes.css` and uses the bundled Geist TTFs, and the layout follows
+mirror could supply). The renderer parses the palette out of `src/index.css`
+and uses the bundled Geist TTFs, and the layout follows
 the components' own structure, but it is a token-driven vector drawing, not a
 capture of the live WebView. Re-running `npm run screenshots` on a desktop with
 Chrome replaces them with real captures at the same 1280x800 size.
 
-Design system: two themes on one attribute (`data-theme="line"|"old"`). The new
-palette re-declares the legacy slots so existing components restyle themselves,
-while `"old"` inherits `index.css` unchanged instead of a copy that would drift.
-The server dock, its phases and its degradation rules are covered by
-`tests/design-theme.test.ts` (12 tests, including the catalogue rail's single
-action and the game subscription that must outlive the detail screen);
-`/preview.html` renders the rail, a card and six dock states in both designs.
+Design system: one palette in one `:root` block in `src/index.css`, and no
+second look. The previous build shipped two themes on one attribute
+(`data-theme="line"|"old"`) plus a `VITE_LINE_THEME=old` build and a
+`/preview.html` sandbox to compare them; all of it was removed, because a
+rollback design that is never rolled back is weight — it was maintained, tested,
+documented and screenshotted for nothing. The server dock, its phases and its
+degradation rules are still covered by `tests/design-theme.test.ts`, which now
+also asserts that the second design cannot come back in pieces (no attribute, no
+theme module, no build flag, no sandbox).
 
 Minecraft mode (`mc-launcher-core` 0.1.2): server-only, offline identity, no
 Microsoft path. The pack is a provider ZIP of a whole `.minecraft`, described by
@@ -55,10 +57,9 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 - `npm test`: **203 tests, 202 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
   regressions plus the design regressions from the round-25 cleanup: a flat
-  canvas with no gradient anywhere outside `[data-theme="old"]`, panels drawn
-  with a shadow instead of a border and no `backdrop-filter`, the old design
-  still getting its bordered glass panel back, and a catalogue card that carries
-  no chip row. **10/10 targeted mutations were caught** (fake plus, framed icon,
+  canvas with no gradient painted by any component, panels drawn with a shadow
+  instead of a border, the animated backdrop's crossfade, and a catalogue card
+  that carries no chip row. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
   offline mode, accepted dev release flags, the Windows `task` scope error, and
   ticket endpoints leaking into offline/install-only demo servers).

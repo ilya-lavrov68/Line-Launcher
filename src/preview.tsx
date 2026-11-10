@@ -6,6 +6,8 @@ import "./brand/generated.css";
 import ThemeProvider from "@/components/line/ThemeProvider";
 import { useTheme } from "@/components/line/ThemeProvider";
 import ServerDetail from "@/components/line/ServerDetail";
+import { ServerCatalogRail } from "@/components/line/ServerCatalogRail";
+import ServerCard from "@/components/line/ServerCard";
 import type {
   GameStatus,
   InstallProgress,
@@ -169,7 +171,41 @@ function Preview() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-xl">
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+        <div>
+          <p className="text-muted-foreground mb-2 font-mono text-[10px]">
+            Каталог: полоса «текущий сервер»
+          </p>
+          <ServerCatalogRail
+            server={server}
+            status={active.progress ? "Загрузка сборки" : "Сборка установлена"}
+            progress={active.progress}
+            onOpen={() => undefined}
+          />
+        </div>
+
+        <div>
+          <p className="text-muted-foreground mb-2 font-mono text-[10px]">
+            Карточка сервера
+          </p>
+          <ServerCard
+            name={server.name}
+            description={server.description}
+            version={server.version}
+            minecraftVersion={server.minecraft_version}
+            installed={Boolean(active.receipt)}
+            hasPack
+            statusLabel={active.receipt ? "Готов" : undefined}
+            onClick={() => undefined}
+          />
+        </div>
+
+        <div>
+          <p className="text-muted-foreground mb-2 font-mono text-[10px]">
+            Экран сервера: док действия
+          </p>
+        </div>
+
         <ServerDetail
           server={server}
           providerName="Plus In Plus"

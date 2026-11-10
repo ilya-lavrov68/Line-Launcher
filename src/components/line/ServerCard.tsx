@@ -1,5 +1,5 @@
 import { m, useReducedMotion } from "framer-motion";
-import { ArrowUpRight, Check, Server } from "lucide-react";
+import { ArrowUpRight, Check, CloudDownload, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,10 @@ export interface ServerCardProps {
   version?: string;
   minecraftVersion?: string;
   installed?: boolean;
+  /** Short status badge: «Готов», «Обновление», «Загрузка 45%». */
+  statusLabel?: string;
+  /** Server has a provider pack (`pack_manifest_url`): badge wording differs. */
+  hasPack?: boolean;
   disabled?: boolean;
   onClick: () => void;
 }
@@ -31,6 +35,8 @@ export default function ServerCard({
   version,
   minecraftVersion,
   installed = false,
+  hasPack = false,
+  statusLabel,
   disabled = false,
   onClick,
 }: ServerCardProps) {
@@ -90,7 +96,12 @@ export default function ServerCard({
               <Server className="h-7 w-7" />
             )}
           </div>
-          {installed ? (
+          {statusLabel ? (
+            <span className="inline-flex items-center gap-0.5 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">
+              <CloudDownload className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{statusLabel}</span>
+            </span>
+          ) : installed ? (
             <span className="inline-flex items-center gap-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400">
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Установлен</span>
@@ -119,11 +130,21 @@ export default function ServerCard({
           </p>
         </div>
 
-        {minecraftVersion && (
+        {(minecraftVersion || hasPack) && (
           <div className="text-muted-foreground mt-auto flex flex-wrap items-center gap-1.5 pt-1 font-mono text-[10px] font-normal">
-            <span className="bg-muted/40 border-border/30 rounded border px-1.5 py-0.5">
-              Minecraft {minecraftVersion}
-            </span>
+            {minecraftVersion && (
+              <span className="bg-muted/40 border-border/30 rounded border px-1.5 py-0.5">
+                Minecraft {minecraftVersion}
+              </span>
+            )}
+            {hasPack && (
+              <span
+                className="border-border/30 rounded border px-1.5 py-0.5"
+                title="Провайдер публикует pack.json: сборка скачивается сама"
+              >
+                ZIP + pack.json
+              </span>
+            )}
           </div>
         )}
       </Button>

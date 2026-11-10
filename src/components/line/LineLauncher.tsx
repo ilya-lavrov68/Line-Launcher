@@ -30,6 +30,7 @@ import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import ServerDetail from "./ServerDetail";
 import ServerList from "./ServerList";
+import { ServerCatalogRail } from "./ServerCatalogRail";
 import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
@@ -77,7 +78,20 @@ export default function LineLauncher() {
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string>();
-  const { toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  // Catalogue rail: "what was I doing?" answered without opening a server.
+  // It reads the catalogue's own knowledge (installed ids + the live job for
+  // that id), never the detail screen's transient receipt.
+  const railServer = selected;
+  const railProgress =
+    selected && progress?.serverId === selected.id ? progress : null;
+  const railStatus = !railServer
+    ? ""
+    : railProgress
+      ? "Загрузка сборки"
+      : installedIds.has(railServer.id)
+        ? "Сборка установлена"
+        : "Сборка не установлена";
   const gameActive =
     gameStatus?.phase === "starting" || gameStatus?.phase === "running";
   const actionsBusy = installing || authLoading || launching || gameActive;
@@ -365,8 +379,13 @@ export default function LineLauncher() {
     }
   }
 
+  /**
+   * Subscribed for the whole session, not only on the detail screen: the
+   * catalogue rail has to notice that a running game exited while the player
+   * was browsing another section. The handler is id-filtered by `onGame`.
+   */
   useEffect(() => {
-    if (!selected || screen !== "detail") return;
+    if (!selected) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     lineApi
@@ -385,7 +404,7 @@ export default function LineLauncher() {
       cancelled = true;
       unlisten?.();
     };
-  }, [selected, screen]);
+  }, [selected]);
 
   async function launch() {
     if (!selected || !session || actionsBusy) return;
@@ -626,6 +645,22 @@ export default function LineLauncher() {
                         screen === "servers" &&
                         snapshot && (
                           <ServerList
+                            rail={
+                              // New design only: the old catalogue keeps its
+                              // exact previous appearance, with no extra strip.
+                              theme === "line" && (
+                                <ServerCatalogRail
+                                  server={selected}
+                                  status={railStatus}
+                                  progress={railProgress}
+                                  busy={actionsBusy}
+                                  onOpen={(server) => void selectServer(server)}
+                                />
+                              )
+                            }
+                            statusFor={(server) =>
+                              installedIds.has(server.id) ? "Готов" : undefined
+                            }
                             providerName={snapshot.config.provider.name}
                             servers={snapshot.config.servers}
                             installedIds={installedIds}
@@ -687,6 +722,9 @@ export default function LineLauncher() {
               open={aboutOpen}
               onOpenChange={setAboutOpen}
             />
+            {/* Persistent rail: the last opened server stays one click away from
+                the catalogue, the wardrobe and settings. Under the old design it
+                renders nothing and the footer below is unchanged. */}
             <footer className="border-border/50 text-muted-foreground flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5 text-[10px]">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>

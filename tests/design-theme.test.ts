@@ -234,3 +234,68 @@ test("the two designs render one branch each, never both", () => {
     assert.ok(detail.includes(phase), `missing phase ${phase}`);
   }
 });
+
+test("the catalogue rail is tryliner's now-playing strip, translated", () => {
+  const rail = read("src/components/line/ServerCatalogRail.tsx");
+  const list = read("src/components/line/ServerList.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+
+  // One region, one action. A play button here would promise a launch that may
+  // need an install first, so the strip only opens the server screen.
+  assert.match(rail, /role="region"/);
+  assert.match(rail, /aria-label="Текущий сервер"/);
+  assert.match(rail, /<span>Открыть<\/span>/);
+  assert.doesNotMatch(rail, /Играть|Остановить/);
+  // Progress is a hairline with a real progressbar role, not a decoration.
+  assert.match(rail, /role="progressbar"/);
+  assert.match(rail, /aria-valuenow=\{percent\}/);
+  assert.match(rail, /useReducedMotion\(\)/);
+
+  // The catalogue mounts it above the grid, and only in the new design.
+  assert.match(list, /\{rail\}/);
+  // Wrapped in `theme === "line" && (` ... `)` because the old catalogue must
+  // keep its exact previous markup and gain no extra strip.
+  const railBlock = launcher.slice(
+    launcher.indexOf('theme === "line" && ('),
+    launcher.indexOf("<ServerCatalogRail"),
+  );
+  assert.ok(railBlock.length > 0, "the rail is mounted for both designs");
+  assert.match(launcher, /<ServerCatalogRail/);
+  // Status is derived from the catalogue's own data, not from the detail screen.
+  assert.match(
+    launcher,
+    /progress\?\.serverId === selected\.id \? progress : null/,
+  );
+  assert.match(launcher, /railStatus/);
+});
+
+test("the catalogue says which server needs an update or a download", () => {
+  const card = read("src/components/line/ServerCard.tsx");
+  const list = read("src/components/line/ServerList.tsx");
+  // A status badge is generic text, so the card does not hardcode the states.
+  assert.match(card, /statusLabel\?: string/);
+  assert.match(card, /statusLabel \?/);
+  assert.match(card, /hasPack\?: boolean/);
+  assert.match(card, /ZIP \+ pack\.json/);
+  assert.match(list, /hasPack=\{Boolean\(server\.pack_manifest_url\)\}/);
+  assert.match(list, /statusFor\?\.\(server\)/);
+});
+
+test("the game subscription outlives the detail screen", () => {
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  // The rail must learn that a running game exited while another section is
+  // open, so the effect cannot depend on `screen`.
+  const effect = launcher.slice(
+    launcher.indexOf("if (!selected) return;"),
+    launcher.indexOf("}, [selected]);"),
+  );
+  assert.ok(effect.length > 0, "the game-status effect is gone");
+  assert.match(effect, /lineApi\s*\.onGame\(selected\.id/);
+  // The dependency list is part of the contract, not an implementation detail:
+  // re-subscribing on navigation would drop events the rail needs.
+  assert.match(
+    launcher.slice(0, launcher.indexOf("}, [selected]);") + 16),
+    /\}, \[selected\]\);/,
+  );
+  assert.doesNotMatch(effect, /screen !== "detail"/);
+});

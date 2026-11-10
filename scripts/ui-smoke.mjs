@@ -739,6 +739,23 @@ try {
     "the toggle did not return to the new design",
   );
 
+  // The catalogue rail remembers the last opened server and offers exactly one
+  // way back into it. It must not add a second «Открыть сервер <name>» button.
+  await page
+    .getByRole("region", { name: "Текущий сервер" })
+    .getByText("Сборка не установлена")
+    .waitFor();
+  await page
+    .getByRole("region", { name: "Текущий сервер" })
+    .getByRole("button", { name: "Открыть", exact: true })
+    .click();
+  await page.getByRole("region", { name: "Survival" }).waitFor();
+  await page.getByRole("button", { name: "Все серверы", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Текущий сервер" })
+    .getByText("Сборка установлена")
+    .waitFor();
+
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
   // No second login on the server screen.
   check(

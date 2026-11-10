@@ -72,7 +72,7 @@ export default function ConnectingScreen({
         {error && (
           <p
             role="alert"
-            className="text-destructive border-destructive/20 bg-destructive/5 rounded-lg border p-3 text-xs"
+            className="text-destructive bg-destructive/10 rounded-[var(--radius-control)] p-3 text-xs"
           >
             {error}
           </p>

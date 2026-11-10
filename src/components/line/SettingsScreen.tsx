@@ -60,18 +60,21 @@ function Section({
 }: {
   icon: typeof MemoryStick;
   title: string;
-  description: string;
+  /** Optional: a section whose label is enough does not get a sentence. */
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
+    <section className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
       <div className="flex items-start gap-3">
         <SectionIcon icon={Icon} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <h3 className="text-foreground text-sm font-semibold">{title}</h3>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            {description}
-          </p>
+          {description && (
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {description}
+            </p>
+          )}
         </div>
       </div>
       {children}
@@ -224,7 +227,7 @@ export default function SettingsScreen({
       {error && (
         <p
           role="alert"
-          className="text-destructive border-destructive/20 bg-destructive/5 rounded-lg border p-3 text-xs"
+          className="text-destructive bg-destructive/10 rounded-[var(--radius-control)] p-3 text-xs"
         >
           {error}
         </p>
@@ -232,7 +235,7 @@ export default function SettingsScreen({
       {notice && (
         <p
           role="status"
-          className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400"
+          className="text-line-online bg-line-online/10 flex items-start gap-2 rounded-[var(--radius-control)] p-3 text-xs"
         >
           <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{notice}</span>
@@ -242,7 +245,7 @@ export default function SettingsScreen({
       <Section
         icon={MemoryStick}
         title="Память игры"
-        description={`Автоматически подбирается ${suggestedHeapMb} МБ. Всего на компьютере ${totalMemoryMb} МБ, доступно до ${heapCeilingMb} МБ.`}
+        description={`Компьютер: ${totalMemoryMb} МБ, доступно до ${heapCeilingMb} МБ.`}
       >
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
@@ -289,7 +292,7 @@ export default function SettingsScreen({
       <Section
         icon={Coffee}
         title="Java"
-        description="Лаунчер использует только те рантаймы, которые нашёл и проверил сам. Версия должна совпадать с требованием сборки."
+        description="Только проверенные рантаймы, версия под требование сборки."
       >
         <div className="flex flex-col gap-2">
           <Label className="text-muted-foreground text-xs">Рантайм</Label>
@@ -401,11 +404,7 @@ export default function SettingsScreen({
         </div>
       </Section>
 
-      <Section
-        icon={RefreshCw}
-        title="Поведение и окно"
-        description="Что делает окно лаунчера после старта игры и какой размер использовать."
-      >
+      <Section icon={RefreshCw} title="Поведение и окно">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label className="text-muted-foreground text-xs">
@@ -491,11 +490,7 @@ export default function SettingsScreen({
         </div>
       </Section>
 
-      <Section
-        icon={Palette}
-        title="Оформление"
-        description="Новый дизайн — стеклянные поверхности и один акцент на действие. Старый дизайн сохранён целиком и переключается мгновенно."
-      >
+      <Section icon={Palette} title="Оформление">
         <div className="flex flex-col gap-2">
           <ThemeToggle />
           <p className="text-muted-foreground text-[11px] leading-relaxed">
@@ -508,7 +503,7 @@ export default function SettingsScreen({
       <Section
         icon={Trash2}
         title="Кэш конфигурации"
-        description="Удаляет только сохранённый config.json провайдера. Установленные сборки, история релизов и входы остаются на месте."
+        description="Удалит только сохранённый config.json. Сборки, история и входы останутся."
       >
         <Button
           variant="outline"

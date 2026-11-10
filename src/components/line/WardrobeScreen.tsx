@@ -279,13 +279,16 @@ export default function WardrobeScreen({
         ? {
             icon: CloudOff,
             tone: "text-destructive",
-            text: `Не удалось отправить: ${syncError ?? "попробуем снова при подключении"}`,
+            // Says what failed and what happens next, in one clause.
+            text: `Скин не отправлен. ${syncError ?? "Повторим при следующем подключении."}`,
           }
         : {
             icon: Check,
-            tone: "text-emerald-400",
+            tone: "text-line-online",
+            // The panel title already says "на серверах проекта"; repeating it
+            // in the status line was the third time on one screen.
             text: active
-              ? `«${active.name}» активен и отправлен на сервер автоматически.`
+              ? `«${active.name}» отправлен автоматически.`
               : "На сервере стандартный скин.",
           };
   const SyncIcon = syncStatus.icon;
@@ -297,8 +300,7 @@ export default function WardrobeScreen({
           Гардероб
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          История скинов хранится на этом компьютере. Активный скин один на весь
-          проект и отправляется на сервер сам — ничего нажимать не нужно.
+          Активный скин отправляется на сервер сам.
         </p>
       </div>
 
@@ -306,7 +308,7 @@ export default function WardrobeScreen({
         {error && (
           <p
             role="alert"
-            className="text-destructive border-destructive/20 bg-destructive/5 rounded-lg border p-3 text-xs"
+            className="text-destructive bg-destructive/10 rounded-[var(--radius-control)] p-3 text-xs"
           >
             {error}
           </p>
@@ -314,7 +316,7 @@ export default function WardrobeScreen({
         {!error && notice && (
           <p
             role="status"
-            className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400"
+            className="text-line-online bg-line-online/10 flex items-start gap-2 rounded-[var(--radius-control)] p-3 text-xs"
           >
             <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{notice}</span>
@@ -322,17 +324,14 @@ export default function WardrobeScreen({
         )}
       </div>
 
-      <div className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
-        <div className="flex items-start gap-3">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <h3 className="text-foreground text-sm font-semibold">
-              Добавить скин в историю
-            </h3>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              PNG 64×64 или 64×32, до 256 КБ. Работает без входа и без
-              интернета.
-            </p>
-          </div>
+      <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-foreground text-sm font-semibold">
+            Добавить скин
+          </h3>
+          <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
+            PNG 64×64 · до 256 КБ
+          </span>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -421,7 +420,7 @@ export default function WardrobeScreen({
         </div>
       </div>
 
-      <div className="border-border/40 bg-card/60 flex flex-col gap-4 rounded-xl border p-4 backdrop-blur-sm">
+      <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
         <div className="flex items-start gap-3">
           <SectionIcon icon={History} />
           <div className="flex min-w-0 flex-col gap-0.5">
@@ -429,9 +428,7 @@ export default function WardrobeScreen({
               Локальная история
             </h3>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              {loading
-                ? "Загрузка…"
-                : `${skins.length} из ${limit}. Прежние скины остаются здесь и никуда не отправляются.`}
+              {loading ? "Загрузка…" : `${skins.length} из ${limit}`}
             </p>
           </div>
         </div>
@@ -443,8 +440,8 @@ export default function WardrobeScreen({
           aria-label="Выбрать стандартный скин"
           className={
             !activeId
-              ? "border-primary/40 bg-primary/5 flex cursor-pointer items-center gap-3 rounded-lg border p-2 text-left disabled:cursor-default"
-              : "border-border/40 bg-card/40 hover:border-primary/40 flex cursor-pointer items-center gap-3 rounded-lg border p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+              ? "bg-primary/10 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-default"
+              : "hover:bg-fill/60 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
           }
         >
           <UserRound
@@ -452,12 +449,12 @@ export default function WardrobeScreen({
             className="text-muted-foreground h-6 w-6 shrink-0"
             aria-hidden="true"
           />
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 flex-1 items-center gap-2">
             <span className="text-foreground text-xs font-medium">
               Стандартный скин
             </span>
             <span className="text-muted-foreground text-[10px]">
-              {!activeId ? "выбран" : "вернуть обычный вид"}
+              {!activeId ? "активен" : "вернуть обычный вид"}
             </span>
           </span>
           {!activeId && (
@@ -469,7 +466,7 @@ export default function WardrobeScreen({
         </button>
 
         {!loading && skins.length === 0 && (
-          <p className="text-muted-foreground border-border/40 rounded-lg border border-dashed p-6 text-center text-xs">
+          <p className="text-muted-foreground py-6 text-center text-xs">
             История пуста. Добавьте PNG выше — он сохранится локально.
           </p>
         )}
@@ -483,8 +480,8 @@ export default function WardrobeScreen({
                   key={skin.id}
                   className={
                     isActive
-                      ? "border-primary/40 bg-primary/5 flex flex-col gap-2 rounded-lg border p-2"
-                      : "border-border/40 bg-card/40 flex flex-col gap-2 rounded-lg border p-2"
+                      ? "bg-primary/10 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
+                      : "bg-fill/60 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
                   }
                 >
                   <div className="flex items-center gap-2">
@@ -501,25 +498,19 @@ export default function WardrobeScreen({
                       <span className="text-muted-foreground font-mono text-[10px]">
                         {skin.width}×{skin.height} · {skin.model}
                       </span>
-                      {isActive && (
-                        <span className="text-primary flex items-center gap-1 text-[10px]">
-                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                          активный
-                        </span>
-                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="xs"
+                  <div className="flex items-center justify-between gap-1">
+                    <button
+                      type="button"
                       disabled={controlsDisabled || isActive}
                       onClick={() => void activate(skin.id)}
                       aria-label={`Сделать активным: ${skin.name}`}
-                      className="flex-1 cursor-pointer text-[10px]"
+                      aria-pressed={isActive}
+                      className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 px-1 py-0.5 text-[10px] font-medium enabled:hover:bg-transparent disabled:cursor-default disabled:opacity-60"
                     >
-                      {isActive ? "Выбран" : "Выбрать"}
-                    </Button>
+                      {isActive ? "Активен" : "Выбрать"}
+                    </button>
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -538,7 +529,7 @@ export default function WardrobeScreen({
         )}
       </div>
 
-      <div className="border-border/40 bg-card/60 flex items-start gap-3 rounded-xl border p-4 backdrop-blur-sm">
+      <div className="bg-fill-subtle flex items-start gap-3 rounded-[var(--radius-item)] p-4">
         <SectionIcon icon={Shirt} />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-foreground text-sm font-semibold">
@@ -557,10 +548,7 @@ export default function WardrobeScreen({
           </p>
           {canSync && (
             <span className="text-muted-foreground font-mono text-[10px]">
-              {username ? `${username} · ` : ""}
-              {remote
-                ? `на сервере: ${remote.model}`
-                : "на сервере: стандартный"}
+              {remote ? `Модель: ${remote.model}` : "Модель: стандартная"}
             </span>
           )}
         </div>

@@ -2,11 +2,20 @@
 
 ## Current desktop-fix pass
 
+**Screenshots in `docs/images/line-*.png` were produced by
+`npm run screenshots:offline`** on a machine with no browser (only
+`registry.npmjs.org` was reachable; Chromium needed libnspr4/libnss3 that no
+mirror could supply). The renderer parses the palette out of
+`src/styles/themes.css` and uses the bundled Geist TTFs, and the layout follows
+the components' own structure, but it is a token-driven vector drawing, not a
+capture of the live WebView. Re-running `npm run screenshots` on a desktop with
+Chrome replaces them with real captures at the same 1280x800 size.
+
 Design system: two themes on one attribute (`data-theme="line"|"old"`). The new
 palette re-declares the legacy slots so existing components restyle themselves,
 while `"old"` inherits `index.css` unchanged instead of a copy that would drift.
 The server dock, its phases and its degradation rules are covered by
-`tests/design-theme.test.ts` (11 tests, including the catalogue rail's single
+`tests/design-theme.test.ts` (12 tests, including the catalogue rail's single
 action and the game subscription that must outlive the detail screen);
 `/preview.html` renders the rail, a card and six dock states in both designs.
 
@@ -43,9 +52,13 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **196 tests, 195 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **203 tests, 202 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
-  regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
+  regressions plus the design regressions from the round-25 cleanup: a flat
+  canvas with no gradient anywhere outside `[data-theme="old"]`, panels drawn
+  with a shadow instead of a border and no `backdrop-filter`, the old design
+  still getting its bordered glass panel back, and a catalogue card that carries
+  no chip row. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred
   offline mode, accepted dev release flags, the Windows `task` scope error, and
   ticket endpoints leaking into offline/install-only demo servers).
@@ -252,6 +265,17 @@ Checked in the implementation sandbox:
   from the interface. Captured after this change: the single account screen, the
   server list unlocked by it, and the wardrobe with a sync status instead of a
   send button. 0 page errors.
+- Screenshot geometry is now an invariant, not a habit. All six README images
+  were captured at whatever height the screen needed (480, 860, 1000, 1060), so
+  the gallery mixed tall and short pictures. `scripts/screenshots.mjs` takes one
+  fixed viewport for every shot and throws if the viewport drifts,
+  `scripts/render-screens.mjs` draws the same six screens at the same size, and
+  `tests/screenshots.test.ts` reads each PNG's IHDR and fails unless it is exactly
+  1280x800. Mutation-checked, 5 of 5 caught: a 1280x860 PNG over one screen, a
+  per-screen `shot("wardrobe", 1000)` height, changing the shared height constant,
+  reading only the `[data-theme="line"]` block instead of `:root` + the palette
+  (which resolved every additive token to white cards), and dropping a screenshot
+  from the README.
 - Demo-mode guarantees mutation-checked (7 of 7 caught): skipping the branding
   restore, not passing `LINE_DEV_CA_CERT` to the app, serving arbitrary file names
   from `.provider/`, caching the config at startup again (which breaks the live

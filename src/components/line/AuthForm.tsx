@@ -9,7 +9,6 @@ import type { AuthMode } from "@/types/line";
 
 export interface AuthFormProps {
   /** The project name: one account unlocks all of its servers. */
-  providerName: string;
   /** False means the provider does not offer registration. */
   registrationAvailable?: boolean;
   loading?: boolean;
@@ -24,7 +23,6 @@ export interface AuthFormProps {
  * ConfigFieldRow. Colours and radii are inherited, never redefined.
  */
 export default function AuthForm({
-  providerName,
   registrationAvailable = true,
   loading = false,
   error,
@@ -73,15 +71,9 @@ export default function AuthForm({
   const message = validation ?? error;
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-foreground text-sm font-semibold">
-          Аккаунт проекта
-        </span>
-        <span className="text-muted-foreground text-[11px] leading-tight">
-          Один аккаунт {providerName} на все серверы проекта. Аккаунт Microsoft
-          не нужен.
-        </span>
-      </div>
+      {/* No heading and no explainer: the screen above already says which
+          account this is and that one sign-in covers every server. The card
+          starts with the switch, which is what a person came here to use. */}
 
       {registrationAvailable && (
         <Tabs value={mode} onValueChange={changeMode}>
@@ -105,7 +97,7 @@ export default function AuthForm({
             transition={{ duration: 0.15 }}
             className="flex flex-col gap-3"
           >
-            <div className="border-border/40 bg-card/50 flex flex-col gap-2 rounded-lg border p-3">
+            <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
               <Label
                 htmlFor={`${id}-username`}
                 className="text-foreground text-xs font-semibold"
@@ -131,7 +123,7 @@ export default function AuthForm({
                 aria-describedby={message ? `${id}-error` : undefined}
               />
             </div>
-            <div className="border-border/40 bg-card/50 flex flex-col gap-2 rounded-lg border p-3">
+            <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
               <Label
                 htmlFor={`${id}-password`}
                 className="text-foreground text-xs font-semibold"

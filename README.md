@@ -67,8 +67,14 @@
 
 ![Настройки](docs/images/line-settings.png)
 
-> Скриншоты — настоящие рендеры интерфейса с демо-проектом из
-> [`examples/`](examples/). Обновляются командой `npm run screenshots`.
+> Все скриншоты — одного размера, **1280×800**, и это проверяется тестом
+> (`tests/screenshots.test.ts`), чтобы галерея снова не поехала по высоте.
+> В обычной сборке их снимает браузер: `npm run screenshots` (Chrome/Edge,
+> настоящие компоненты с демо-проектом из [`examples/`](examples/)). Там, где
+> браузера нет, те же экраны рисует `npm run screenshots:offline`: он читает
+> палитру из `src/styles/themes.css` и шрифт Geist, но это векторная отрисовка
+> токенами, а не снимок живого WebView. Изображения в репозитории обновлены
+> офлайн-рендером.
 
 ## Что внутри
 
@@ -109,7 +115,7 @@ endpoint и интеграция мода с сессией Minecraft остаю
 | [DEMO.md](docs/DEMO.md)                 | Демо-режим: всё приложение одной командой    |
 | [GAME.md](docs/GAME.md)                 | Запуск сборки, каталоги, защита файлов       |
 | [BRANDING.md](docs/BRANDING.md)         | Палитра, логотипы, адрес провайдера, иконки  |
-| [DESIGN.md](docs/DESIGN.md)             | Дизайн-система, темы `line`/`old`, стекло    |
+| [DESIGN.md](docs/DESIGN.md)             | Дизайн-система, темы `line`/`old`, тени      |
 | [PROVIDER.md](docs/PROVIDER.md)         | Контракт API и формат `config.json`          |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Устройство, решения безопасности, roadmap    |
 | [RUNBOOK.md](docs/RUNBOOK.md)           | Подробные инструкции и ручные проверки       |

@@ -111,7 +111,7 @@ export default function LaunchControls({
       {running && (
         <p
           role="status"
-          className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400"
+          className="text-line-online bg-line-online/10 flex items-center gap-1.5 rounded-[var(--radius-control)] p-3 text-xs"
         >
           Игра запущена. Установка и откат заблокированы до выхода.
         </p>

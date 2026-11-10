@@ -41,8 +41,6 @@ export interface ServerActionPanelProps {
   availability?: ServerAvailability;
   progress?: InstallProgress | null;
   status?: GameStatus | null;
-  /** Pack label from `pack.json` (`revision`), shown instead of a bare hash. */
-  revision?: string;
   error?: string | null;
   disabled?: boolean;
   onPrimary: () => void;
@@ -104,7 +102,6 @@ export default function ServerActionPanel({
   availability = "ready",
   progress,
   status,
-  revision,
   error,
   disabled = false,
   onPrimary,
@@ -118,16 +115,16 @@ export default function ServerActionPanel({
   const unavailable = availability !== "ready";
 
   const statusText = useMemo(() => {
-    if (installing && progress) {
-      const step = INSTALL_PHASE_LABEL[progress.phase];
-      return percent === null ? step : `${step}… ${percent}%`;
-    }
+    // While an install runs, the caption under the bar already reads
+    // «Скачивание … 45%». Repeating the same two facts in the status row above
+    // it was the third copy of one number on a single screen.
+    if (installing && progress) return "Загрузка сборки";
     if (phase === "starting" && status?.message) return status.message;
     if (phase === "exited" && typeof status?.exitCode === "number") {
       return `${STATUS_LABEL.exited} · код ${status.exitCode}`;
     }
     return STATUS_LABEL[phase];
-  }, [installing, percent, phase, progress, status]);
+  }, [installing, phase, progress, status]);
 
   const canPress = !unavailable && (!disabled || installing || active);
 
@@ -147,31 +144,13 @@ export default function ServerActionPanel({
       className="flex flex-col gap-4 p-4"
     >
       <div className="flex items-start gap-3">
-        <div
-          data-line-icon
-          className="bg-fill flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-item)]"
-        >
-          {server.icon_url || server.logo_url ? (
-            <img
-              src={server.icon_url ?? server.logo_url}
-              alt=""
-              className="size-full object-cover"
-              loading="lazy"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <Wifi className="text-primary size-5" aria-hidden="true" />
-          )}
-        </div>
-
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h2
-            id="server-action-title"
-            className="text-foreground truncate text-[15px] leading-tight font-semibold"
-          >
+          {/* Still the region's accessible name, no longer a second visible
+              copy of the heading directly above it. */}
+          <h2 id="server-action-title" className="sr-only">
             {server.name}
           </h2>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <span
               className={cn(
                 "inline-flex items-center gap-1",
@@ -189,11 +168,6 @@ export default function ServerActionPanel({
                 {unavailable ? "Запуск не настроен" : statusText}
               </span>
             </span>
-            {revision && (
-              <span className="text-muted-foreground/80 font-mono text-[10px]">
-                {revision}
-              </span>
-            )}
             {server.minecraft_version && (
               <span className="font-mono text-[10px] opacity-80">
                 MC {server.minecraft_version}
@@ -243,7 +217,7 @@ export default function ServerActionPanel({
                     indeterminate (a quiet sweep) when it only knows bytes. */}
                 {percent === null ? (
                   <m.div
-                    className="via-primary/70 absolute inset-y-0 w-1/3 rounded-full bg-gradient-to-r from-transparent to-transparent"
+                    className="bg-primary/60 absolute inset-y-0 w-1/3 rounded-full"
                     animate={
                       reducedMotion ? undefined : { x: ["-40%", "260%"] }
                     }
@@ -255,7 +229,7 @@ export default function ServerActionPanel({
                   />
                 ) : (
                   <m.div
-                    className="from-primary to-primary/70 absolute inset-y-0 left-0 rounded-full bg-gradient-to-r"
+                    className="bg-primary absolute inset-y-0 left-0 rounded-full"
                     initial={false}
                     animate={{ width: `${percent}%` }}
                     transition={{
@@ -264,7 +238,6 @@ export default function ServerActionPanel({
                     }}
                   />
                 )}
-                <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/10 ring-inset" />
               </div>
               <div className="text-muted-foreground flex items-center justify-between font-mono text-[10px]">
                 <span>{INSTALL_PHASE_LABEL[progress!.phase]}</span>
@@ -294,7 +267,7 @@ export default function ServerActionPanel({
             className={cn(
               "h-11 w-full gap-2 rounded-[var(--radius-item)] text-sm font-semibold",
               active
-                ? "bg-destructive/15 text-destructive hover:bg-destructive/25 border-destructive/30 border"
+                ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
                 : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_10px_28px_-14px_var(--line-accent)]",
             )}
           >
@@ -316,8 +289,8 @@ export default function ServerActionPanel({
         <ShieldCheck className="size-3 shrink-0" aria-hidden="true" />
         <span>
           {server.launch_mode === "offline"
-            ? "Офлайн-сборка провайдера: ник аккаунта проекта, Microsoft-вход не нужен."
-            : "Вход только через аккаунт проекта."}
+            ? "Офлайн-сборка: ник аккаунта проекта."
+            : "Вход через аккаунт проекта."}
         </span>
       </div>
 

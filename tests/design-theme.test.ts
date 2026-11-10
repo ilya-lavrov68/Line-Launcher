@@ -137,27 +137,93 @@ test("the old theme is preserved, not copied", () => {
   assert.ok(sheet > legacy, "themes.css must load after the legacy tokens");
 });
 
-test("glass surfaces degrade to a plain panel in the old design", () => {
+test("panels in the new design are shadow, not outline", () => {
   assert.match(themes, /\[data-theme="line"\] \[data-line-glass\]/);
-  assert.match(themes, /backdrop-filter: blur\(20px\) saturate\(140%\)/);
+  const lineAt = themes.indexOf('[data-theme="line"] [data-line-glass] {');
+  const lineGlass = themes.slice(lineAt, themes.indexOf("}", lineAt));
+  // Elevation carries depth; a 1px border around every panel drew a frame
+  // around every piece of content and made the page read as a grid of boxes.
+  assert.match(lineGlass, /box-shadow:/);
+  assert.doesNotMatch(lineGlass, /border:/);
+  // No backdrop blur either: the backdrop is a flat colour, so there is
+  // nothing behind a panel to blur and it only cost frames.
+  assert.doesNotMatch(lineGlass, /backdrop-filter/);
+
   // The old design must get a real panel back, not an unstyled transparent box.
   const legacyAt = themes.lastIndexOf('[data-theme="old"] [data-line-glass]');
   const legacyGlass = themes.slice(legacyAt, themes.indexOf("}", legacyAt));
   assert.match(legacyGlass, /background: var\(--card\)/);
+  assert.match(legacyGlass, /border: 1px solid/);
   assert.match(legacyGlass, /box-shadow: none/);
   assert.match(themes, /\[data-theme="line"\] \[data-line-canvas\]/);
-  // The gradient animation belongs to the old design only, so the new one does
-  // not repaint a full-screen gradient every frame.
-  assert.match(
-    indexCss,
-    /\[data-theme="old"\] body \{\s*animation: gradientBg/,
-  );
+  // The new backdrop is one flat colour. Two accent glows over a diagonal ramp
+  // read as haze on a tool window and tinted text that had nothing to do with
+  // the accent.
+  const canvasAt = themes.indexOf("--line-canvas:", themes.indexOf(":root {"));
+  const canvasLine = themes.slice(canvasAt, themes.indexOf(";", canvasAt));
+  assert.doesNotMatch(canvasLine, /gradient/);
+  // `"old"` keeps its animated gradient, so the two themes still differ.
+  const oldAt = themes.indexOf('[data-theme="old"] {');
+  const oldCanvas = themes.slice(oldAt, themes.indexOf("}", oldAt));
+  assert.match(oldCanvas, /--line-canvas: linear-gradient/);
+  // The gradient ramp and its animation belong to the old design only, so the
+  // new one neither paints a full-screen gradient nor repaints it every frame.
+  const oldBodyAt = indexCss.indexOf('[data-theme="old"] body');
+  const oldBody = indexCss.slice(oldBodyAt, indexCss.indexOf("}", oldBodyAt));
+  assert.match(oldBody, /animation: gradientBg/);
+  assert.match(oldBody, /linear-gradient/);
+  // Nothing before that rule may paint a gradient of its own.
   assert.doesNotMatch(
-    indexCss.slice(0, indexCss.indexOf('[data-theme="old"] body')),
-    /animation: gradientBg 20s ease infinite;\s*\}\s*html/,
+    indexCss.slice(0, oldBodyAt),
+    /linear-gradient|animation: gradientBg/,
   );
   // Reduced motion turns glass into a solid surface rather than wobbling.
   assert.match(themes, /prefers-reduced-motion: reduce/);
+});
+
+test("no gradient survives anywhere outside the old design", () => {
+  // The user's rule: gradients are the tell of generated UI. The old theme is a
+  // frozen historical look and keeps its animated ramp; nothing that ships in
+  // the default design may paint one.
+  const files = [
+    "src/components/line/AccountScreen.tsx",
+    "src/components/line/AuthForm.tsx",
+    "src/components/line/ServerCard.tsx",
+    "src/components/line/ServerList.tsx",
+    "src/components/line/ServerDetail.tsx",
+    "src/components/line/ServerActionPanel.tsx",
+    "src/components/line/ServerCatalogRail.tsx",
+    "src/components/line/WardrobeScreen.tsx",
+    "src/components/line/SettingsScreen.tsx",
+    "src/components/line/SideNav.tsx",
+    "src/components/line/TitleBar.tsx",
+    "src/components/line/ConfigUrlInput.tsx",
+    "src/components/line/InstallProgress.tsx",
+    "src/components/line/ReleaseHistoryDialog.tsx",
+  ];
+  for (const file of files) {
+    const src = read(file);
+    // The legacy branch of ServerDetail is the frozen design, byte for byte.
+    const shipped =
+      file === "src/components/line/ServerDetail.tsx"
+        ? src.slice(0, src.indexOf("function LegacyDetail"))
+        : src;
+    assert.doesNotMatch(
+      shipped,
+      /bg-gradient|from-[a-z]+\/\d+ .*to-/,
+      `${file} paints a gradient in the new design`,
+    );
+  }
+  // The new theme's canvas token is a flat colour, not a ramp.
+  const canvas = themes.slice(
+    themes.indexOf(":root {"),
+    themes.indexOf(":root {") + 4000,
+  );
+  const lineBlock = canvas.slice(
+    canvas.indexOf("--line-canvas:"),
+    canvas.indexOf(";", canvas.indexOf("--line-canvas:")),
+  );
+  assert.doesNotMatch(lineBlock, /gradient/);
 });
 
 test("the theme is reachable and remembered", () => {
@@ -274,9 +340,16 @@ test("the catalogue says which server needs an update or a download", () => {
   const list = read("src/components/line/ServerList.tsx");
   // A status badge is generic text, so the card does not hardcode the states.
   assert.match(card, /statusLabel\?: string/);
-  assert.match(card, /statusLabel \?/);
+  assert.match(card, /statusLabel/);
   assert.match(card, /hasPack\?: boolean/);
-  assert.match(card, /ZIP \+ pack\.json/);
+  // The chip row is gone: one quiet meta line, and the pack is a word rather
+  // than a third boxed badge.
+  assert.match(card, /pack\.json/);
+  assert.doesNotMatch(
+    card,
+    /ZIP \+ pack/,
+    "the card must not carry a chip row",
+  );
   assert.match(list, /hasPack=\{Boolean\(server\.pack_manifest_url\)\}/);
   assert.match(list, /statusFor\?\.\(server\)/);
 });
@@ -298,4 +371,32 @@ test("the game subscription outlives the detail screen", () => {
     /\}, \[selected\]\);/,
   );
   assert.doesNotMatch(effect, /screen !== "detail"/);
+});
+
+test("the design switch exists before the sidebar does", () => {
+  const pill = read("src/components/line/ThemeSwitchPill.tsx");
+  const bar = read("src/components/line/TitleBar.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  const account = read("src/components/line/AccountScreen.tsx");
+
+  // The first screens are the address form and sign-in; the sidebar is not
+  // mounted there, so a switch that only lives in the sidebar is unreachable
+  // and the app looks unchanged to anyone who never signs in.
+  assert.match(bar, /trailing\?: React\.ReactNode/);
+  assert.match(bar, /\{trailing && \(/);
+  assert.match(launcher, /screen === "config" \|\| screen === "account"/);
+  assert.match(pill, /useTheme\(\)/);
+  assert.match(
+    pill,
+    /aria-label=\{`Включить \$\{toOld \? "старый" : "новый"\} дизайн`\}/,
+  );
+
+  // The login card must use the same surface as the dock, not the old bg-card
+  // (which is transparent in the new theme and looked like nothing changed).
+  // The attribute itself, not the comment that names it.
+  assert.match(account, /data-line-glass/);
+  assert.doesNotMatch(account, /bg-card(?!\/)/);
+  // And no decorative wash over the card: a gradient tint on top of a panel is
+  // what made the first screen look dirty at the corners.
+  assert.doesNotMatch(account, /bg-gradient-to-br/);
 });

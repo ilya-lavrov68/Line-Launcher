@@ -58,7 +58,7 @@ export default function AboutDialog({
           <p className="text-muted-foreground text-xs leading-relaxed">
             {brand.description}
           </p>
-          <div className="border-border/40 bg-card/50 flex flex-col gap-2 rounded-lg border p-3">
+          <div className="bg-fill/50 flex flex-col gap-2 rounded-[var(--radius-control)] p-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground text-xs">Версия</span>
               <span className="text-foreground font-mono text-xs">

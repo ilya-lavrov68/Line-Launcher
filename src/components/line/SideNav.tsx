@@ -92,8 +92,8 @@ export default function SideNav({
         reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
       }
       className={cn(
-        "border-border/50 bg-card/40 relative z-20 flex min-h-0 shrink-0",
-        "flex-col border-r backdrop-blur-md",
+        "border-border/50 bg-fill-subtle relative z-20 flex min-h-0 shrink-0",
+        "flex-col border-r",
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">

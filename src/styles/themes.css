@@ -20,7 +20,7 @@
  * easing `[0.22, 1, 0.36, 1]`. Adapted, not copied: tryliner redraws the page
  * from cover art (an album's colour is the screen); a launcher has no artwork to
  * sample and must stay legible over a long session, so the accent is the brand
- * colour and the backdrop is a single fixed gradient — no per-server tinting.
+ * colour and the backdrop is one flat value — no per-server tinting.
  */
 
 /* ─────────────────────────── theme palette ─────────────────────────── */
@@ -86,20 +86,15 @@
   --dur-fast: 120ms;
   --dur-page: 220ms;
 
-  /* The window backdrop. tryliner derives it from cover art; a launcher uses
-   * one fixed scene so the chrome never fights a random screenshot. */
-  --line-canvas:
-    radial-gradient(
-      120% 90% at 78% -10%,
-      color-mix(in oklch, var(--line-accent) 14%, transparent) 0%,
-      transparent 58%
-    ),
-    radial-gradient(
-      90% 70% at 6% 102%,
-      color-mix(in oklch, var(--line-accent) 9%, transparent) 0%,
-      transparent 62%
-    ),
-    linear-gradient(160deg, #0b0d11 0%, #08090c 46%, #050609 100%);
+  /* The window backdrop is one flat colour.
+   *
+   * It used to be two radial accent glows over a diagonal ramp. On a 1280x800
+   * window that reads as haze: it lifts the corners, lowers the centre, and
+   * puts a green cast behind text that has nothing to do with the accent. A
+   * launcher is a tool someone keeps open — the chrome should not compete with
+   * the provider's artwork, so the page is a single value and the only colour
+   * on screen is the one attached to an action. */
+  --line-canvas: #08090c;
 }
 
 /* ─────────────────────────── legacy theme ────────────────────────────
@@ -112,6 +107,7 @@
 [data-theme="old"] {
   /* The window border radius is part of the old look (14px, from index.css). */
   --radius: 14px;
+  /* The frozen legacy backdrop, kept exactly as the old design shipped it. */
   --line-canvas: linear-gradient(-45deg, #0a0a0a, #130b1c, #0a1128, #050514);
   --radius-control: 8px;
   --radius-item: 12px;
@@ -140,24 +136,34 @@
 /* ─────────────────────── component opt-in rules ─────────────────────── */
 
 @layer components {
-  /* Glass surface, only while the new theme is active. */
+  /* Panel surface, only while the new theme is active.
+   *
+   * No outline and no blur. A 1px border around every panel is the loudest
+   * thing on a dark screen — twelve panels draw twelve boxes and the eye reads
+   * a grid of frames instead of content. Elevation is the shadow's job; the
+   * border stays for dividers and for controls, where it carries a hit area
+   * the user has to find. Blur was deleted with the gradient backdrop: there is
+   * nothing behind a panel to blur, so it only cost frames. */
   [data-theme="line"] [data-line-glass] {
     background: var(--surface-glass);
-    border: 1px solid var(--line-hairline);
-    backdrop-filter: blur(20px) saturate(140%);
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
-      0 18px 40px -24px rgba(0, 0, 0, 0.9);
+      0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+      0 16px 40px -26px rgba(0, 0, 0, 0.9);
   }
 
-  /* Floating variant for the action dock: one continuous edge, no card stack. */
+  /* The action dock: one continuous surface, no separate header block. */
   [data-theme="line"] [data-line-glass="dock"] {
     border-radius: var(--radius-panel);
-    backdrop-filter: blur(28px) saturate(150%);
+  }
+
+  /* Card hover: a faint lift of the fill ladder rather than a colour change, so
+   * the catalogue reads as one surface and every preset keeps working. */
+  [data-theme="line"] [data-line-card] {
+    transition: background-color var(--dur-fast) var(--ease-line);
   }
 
   /* In "old", the same markup degrades to the previous plain panel instead of
-   * turning into an unstyled transparent box. */
+   * turning into an unstyled transparent box — border, blur and all. */
   [data-theme="old"] [data-line-glass] {
     background: var(--card);
     border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
@@ -172,22 +178,8 @@
   }
 }
 
-@keyframes line-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   [data-theme="line"] [data-line-glass] {
-    backdrop-filter: none;
     background: #14161b;
   }
 }

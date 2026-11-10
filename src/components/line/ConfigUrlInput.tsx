@@ -13,10 +13,8 @@ export interface ConfigUrlInputProps {
 }
 
 /**
- * Provider URL entry. Reuses Obsy's Onboarding card shell
- * (`border-border/50 bg-card rounded-2xl border p-10 shadow-2xl`), its
- * unframed icon, Input/Label/Button primitives and
- * Obsy's UrlInstallModal form layout. No new colours or radii.
+ * Provider URL entry. A shadowed panel with no outline, an unframed icon, and
+ * the Input/Label/Button primitives. No new colours or radii.
  */
 export default function ConfigUrlInput({
   initialUrl = "",
@@ -55,7 +53,7 @@ export default function ConfigUrlInput({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, type: "spring", bounce: 0.3 }}
-      className="border-border/50 bg-card flex w-full max-w-md flex-col items-center justify-center gap-6 rounded-2xl border p-10 text-center shadow-2xl"
+      className="bg-fill-subtle flex w-full max-w-md flex-col items-center justify-center gap-6 rounded-[var(--radius-item)] p-10 text-center shadow-2xl"
       aria-labelledby={`${id}-title`}
     >
       <Link2

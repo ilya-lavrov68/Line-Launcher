@@ -33,6 +33,7 @@ import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
 import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
+import ThemeSwitchPill from "./ThemeSwitchPill";
 import TitleBar from "./TitleBar";
 import WardrobeScreen from "./WardrobeScreen";
 import { closeWindow, minimizeWindow } from "@/lib/line/window";
@@ -541,7 +542,16 @@ export default function LineLauncher() {
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
           <div className="bg-background text-foreground flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
-            <TitleBar context={titleContext} />
+            <TitleBar
+              context={titleContext}
+              // Before the sidebar exists (address, sign-in, connecting) the
+              // design switch still has to be reachable.
+              trailing={
+                screen === "config" || screen === "account" ? (
+                  <ThemeSwitchPill />
+                ) : undefined
+              }
+            />
             <div className="flex min-h-0 w-full flex-1 overflow-hidden">
               <SideNav
                 section={section}
@@ -561,7 +571,7 @@ export default function LineLauncher() {
                   {error && !(section === "servers" && screen === "config") && (
                     <p
                       role="alert"
-                      className="text-destructive border-destructive/20 bg-destructive/5 mb-5 rounded-lg border p-3 text-xs"
+                      className="text-destructive bg-destructive/10 mb-5 rounded-[var(--radius-control)] p-3 text-xs"
                     >
                       {error}
                     </p>

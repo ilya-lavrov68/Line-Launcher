@@ -55,12 +55,12 @@ export default function InstallProgress({
     <m.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="border-border/40 bg-card/50 flex flex-col gap-3 rounded-lg border p-3"
+      className="bg-fill/50 flex flex-col gap-3 rounded-[var(--radius-control)] p-3"
     >
       <div className="flex items-center gap-2">
         {finished ? (
           <CheckCircle2
-            className="h-5 w-5 text-emerald-400"
+            className="text-line-online h-5 w-5"
             aria-hidden="true"
           />
         ) : failed ? (

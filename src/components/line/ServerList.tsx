@@ -23,9 +23,8 @@ export interface ServerListProps {
 }
 
 /**
- * Provider showcase. Header row and the stale-config warning reuse Obsy's
- * tokens: muted meta text, `border-amber-500/30 bg-amber-500/10 text-amber-300`
- * for warnings (as in AddonSecurityReviewModal), and the ghost/outline Buttons.
+ * Provider showcase. The stale-config warning is a tinted surface with an icon
+ * and amber text — no outline, because the colour and the icon already carry it.
  */
 export default function ServerList({
   providerName,
@@ -46,17 +45,14 @@ export default function ServerList({
     >
       {rail}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-muted-foreground text-[10px] font-medium">
-            Провайдер
-          </span>
-          <h2
-            id="server-list-title"
-            className="text-foreground text-xl font-bold tracking-tight"
-          >
-            {providerName}
-          </h2>
-        </div>
+        {/* The provider name is the section title. A «Провайдер» kicker above
+            it named the same thing twice and pushed the name down a line. */}
+        <h2
+          id="server-list-title"
+          className="text-foreground text-xl font-bold tracking-tight"
+        >
+          {providerName}
+        </h2>
         <Button
           variant="outline"
           size="sm"
@@ -75,7 +71,7 @@ export default function ServerList({
       {stale && (
         <p
           role="status"
-          className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
+          className="flex items-start gap-2 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
         >
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>

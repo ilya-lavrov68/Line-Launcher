@@ -716,6 +716,29 @@ try {
   );
   await shot("servers");
 
+  // The design switch is a real, instant change of the shell, and the choice
+  // has to survive a render and a reload of the settings screen.
+  const themeOf = () =>
+    page.evaluate(() => document.documentElement.dataset.theme);
+  check((await themeOf()) === "line", "the new design must be the default");
+  await page.getByRole("button", { name: "Сменить оформление" }).click();
+  check((await themeOf()) === "old", "the toggle did not reach the old design");
+  check(
+    (
+      await page.evaluate(() =>
+        JSON.parse(
+          JSON.stringify({ stored: localStorage.getItem("line.theme") }),
+        ),
+      )
+    ).stored === "old",
+    "the chosen design was not remembered",
+  );
+  await page.getByRole("button", { name: "Сменить оформление" }).click();
+  check(
+    (await themeOf()) === "line",
+    "the toggle did not return to the new design",
+  );
+
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
   // No second login on the server screen.
   check(
@@ -734,6 +757,11 @@ try {
     `server banner/icon did not render: ${JSON.stringify(artwork)}`,
   );
   await shot("server-detail");
+  // The dock reports the same single next step instead of a second control.
+  await page
+    .getByRole("region", { name: "Survival" })
+    .getByRole("button", { name: "Установить сборку" })
+    .waitFor();
   await page.getByRole("button", { name: "Установить сборку" }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("installed");
@@ -757,6 +785,21 @@ try {
 
   // Explicit offline mode enables play without ticket endpoints. Missing mode
   // remains disabled (covered by the contract tests and Demo Showcase).
+  // Switching design on the detail screen must not leave the new dock behind.
+  await page.getByRole("button", { name: "Сменить оформление" }).click();
+  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
+  check(
+    !(await page
+      .getByRole("region", { name: "Survival" })
+      .isVisible()
+      .catch(() => false)),
+    "the new dock stayed mounted under the old design",
+  );
+  await shot("server-detail-old");
+  await page.getByRole("button", { name: "Сменить оформление" }).click();
+  await page.getByRole("region", { name: "Survival" }).waitFor();
+  await shot("server-detail-line");
+
   await page.getByRole("button", { name: "Все серверы", exact: true }).click();
   await page.getByRole("button", { name: "Открыть сервер SkyBlock" }).click();
   await page.getByRole("button", { name: "Установить сборку" }).click();

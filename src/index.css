@@ -112,9 +112,17 @@ code {
   }
   body {
     @apply text-foreground;
+    /* The animated gradient belongs to the "old" design; scoping it keeps the
+     * new theme from repainting a full-screen gradient every frame. */
     background: linear-gradient(-45deg, #0a0a0a, #130b1c, #0a1128, #050514);
     background-size: 400% 400%;
+  }
+  [data-theme="old"] body {
     animation: gradientBg 20s ease infinite;
+  }
+  [data-theme="line"] body {
+    background: var(--line-canvas);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
@@ -249,6 +257,10 @@ input[id*="hidden-input"],
   flex-direction: column !important;
   box-sizing: border-box !important;
 }
+
+/* New design tokens. Imported last on purpose: everything above is the frozen
+ * "old" theme, and a later sheet wins for equal specificity. */
+@import "./styles/themes.css";
 
 /* Line respects the OS setting in addition to Framer Motion's MotionConfig. */
 @media (prefers-reduced-motion: reduce) {

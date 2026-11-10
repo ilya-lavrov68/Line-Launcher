@@ -2,6 +2,13 @@
 
 ## Current desktop-fix pass
 
+Design system: two themes on one attribute (`data-theme="line"|"old"`). The new
+palette re-declares the legacy slots so existing components restyle themselves,
+while `"old"` inherits `index.css` unchanged instead of a copy that would drift.
+The server dock, its phases and its degradation rules are covered by
+`tests/design-theme.test.ts`; `/preview.html` renders six dock states in both
+designs for visual review.
+
 Minecraft mode (`mc-launcher-core` 0.1.2): server-only, offline identity, no
 Microsoft path. The pack is a provider ZIP of a whole `.minecraft`, described by
 `pack.json`; download/verify reuses the existing verified installer, and the live
@@ -35,7 +42,7 @@ Checked in the implementation sandbox after the Java/UI/demo/offline changes:
 
 - `npm run check`, `npm run build`, `npm run brand:check`, Prettier, `rustfmt`
   and `git diff --check`: clean; `npm audit --omit=dev`: 0 vulnerabilities.
-- `npm test`: **185 tests, 184 passing, 1 skipped** (the JDK-dependent contract
+- `npm test`: **193 tests, 192 passing, 1 skipped** (the JDK-dependent contract
   case). Includes the new unframed-icon/manual-Java/proxy/offline/release-guard
   regressions. **10/10 targeted mutations were caught** (fake plus, framed icon,
   doubled PATH `bin`, unverified manual Java, release-wide proxy bypass, inferred

@@ -289,7 +289,10 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   // catalogue, because the greeting was transparent.
   assert.match(launcher, /<WelcomeScreen/);
   assert.match(launcher, /!introDone &&/);
-  assert.match(launcher, /\(gateSignIn \|\| !introDone\) && "invisible"/);
+  assert.match(
+    launcher,
+    /\(gateSignIn \|\| !introDone\) && "pointer-events-none opacity-0"/,
+  );
 
   // Reduced motion keeps the screen: it is content, not decoration.
   assert.match(welcome, /useReducedMotion/);
@@ -546,4 +549,57 @@ test("the 3D skin is centred, and its turn does not depend on the frame rate", (
   assert.match(viewer, /maxDeltaMs/);
   // Reduced motion must still mean no rotation at all.
   assert.match(viewer, /reduced \? null : startSpin/);
+});
+
+test("signing out does not flash a connection error before the gate", () => {
+  const launcher = read("src/components/line/LineLauncher.tsx");
+
+  // Measured defect: for five frames at full opacity, the panel behind the
+  // gate read "Нет соединения" with a retry button. Two independent causes,
+  // both fixed here.
+  //
+  // One: the account branch of the shell was wired to the same screens as a
+  // failed fetch, so a launcher with no session drew a connection error. It
+  // survives only for a template that has no provider to connect to — the one
+  // state the gate cannot cover.
+  // The account branch used to render the connecting screen unconditionally,
+  // so a signed-out launcher drew "Нет соединения" with a retry button. Only a
+  // template with no provider may render it now. Asserted against the source
+  // between two stable markers rather than by column, so Prettier's wrapping
+  // cannot break the test.
+  // The branch spans two lines in the source (Prettier wraps the condition), so
+  // the slice is anchored on its comment and on the next branch's start.
+  const branchStart = launcher.indexOf(
+    "// Not unreachable, and it used to be wrong",
+  );
+  const branch = launcher.slice(
+    branchStart,
+    launcher.indexOf("!snapshot &&", branchStart),
+  );
+  assert.match(
+    branch,
+    /mode === "unconfigured" \?/,
+    "the signed-out shell must not draw a connection error",
+  );
+  assert.doesNotMatch(
+    branch,
+    /loading=\{loading\}/,
+    "a signed-out shell must not render a live loading state",
+  );
+  assert.match(
+    branch,
+    /loading=\{false\}/,
+    "and it must not claim to be connecting while it waits for nothing",
+  );
+
+  // Two: `account` is what raises the gate, so a signed-out launcher keeps that
+  // name — the flash came from what the branch *drew*, not from the name.
+  assert.match(launcher, /setScreen\(current \? "servers" : "account"\)/);
+
+  // And the failure banner is not shown to a shell with no session: the player
+  // is already signed out, and the gate is covering it.
+  assert.match(
+    launcher,
+    /!\(section === "servers" && screen === "config"\) &&\n\s+session &&/,
+  );
 });

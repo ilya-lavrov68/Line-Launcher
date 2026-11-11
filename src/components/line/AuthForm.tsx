@@ -185,28 +185,31 @@ export default function AuthForm({
                 fades where it stands, in a fixed-height slot, so the button
                 below never moves when the text changes length. */}
             <div className="min-h-4">
-              <AnimatePresence initial={false} mode="wait">
-                <m.p
-                  key={mode}
-                  initial={reducedMotion ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={reducedMotion ? undefined : { opacity: 0 }}
-                  transition={{ duration: 0.14, ease: "easeOut" }}
-                  className="text-muted-foreground/80 text-[12px] leading-relaxed"
-                >
-                  {/* The hint and the error said the same sentence at the
-                      same moment ("not shorter than 8 characters" twice). While
-                      a message is showing, the hint steps aside and leaves its
-                      reserved height alone. */}
-                  <FieldMessage tone="hint">
-                    {message
-                      ? "\u00a0"
-                      : mode === "register"
+              {/* The hint and the error said the same sentence at the same
+                  moment ("not shorter than 8 characters" twice), so the hint
+                  steps aside while a message is showing — and it steps aside
+                  completely. Keeping it mounted with a blank string left its
+                  icon behind: an orphaned ⓘ above the error's own ⓘ, which
+                  looked like a doubled marker. The wrapper keeps the height,
+                  which is what actually stops the button from moving. */}
+              {!message && (
+                <AnimatePresence initial={false} mode="wait">
+                  <m.p
+                    key={mode}
+                    initial={reducedMotion ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={reducedMotion ? undefined : { opacity: 0 }}
+                    transition={{ duration: 0.14, ease: "easeOut" }}
+                    className="text-muted-foreground/80 text-[12px] leading-relaxed"
+                  >
+                    <FieldMessage tone="hint">
+                      {mode === "register"
                         ? t("auth.registerHint")
                         : t("auth.loginHint")}
-                  </FieldMessage>
-                </m.p>
-              </AnimatePresence>
+                    </FieldMessage>
+                  </m.p>
+                </AnimatePresence>
+              )}
             </div>
           </div>
         </div>

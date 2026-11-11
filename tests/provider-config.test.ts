@@ -211,3 +211,43 @@ test("reconnecting never strands a dev run on the address field", () => {
   // never successfully loaded a config.
   assert.match(reconnect, /setScreen\("config"\);\s*\n\s*\}/);
 });
+
+test("an expired config is refreshed before it can block sign-in", () => {
+  // The backend refuses auth/install against a config older than the
+  // provider's `cache_ttl_seconds` — correct, but the UI used to hand that
+  // refusal to the player as "Обновите конфигурацию", a sentence describing an
+  // action the sign-in panel has no button for. A window left open for the TTL
+  // (60 s in the reference provider) made the launcher look unauthenticable.
+  const state = read("src-tauri/src/line/state.rs");
+  assert.match(state, /pub fn config_is_stale\(&self\) -> LineResult<bool>/);
+  // Same rule as `fresh_config`, so the two can never disagree: stale means
+  // strictly older than the TTL, in milliseconds.
+  assert.match(state, /ttl_seconds\(\)\.saturating_mul\(1000\)/);
+
+  const commands = read("src-tauri/src/line/config_commands.rs");
+  assert.match(commands, /pub async fn ensure_fresh_config\(/);
+  // No request when the config is already fine.
+  assert.match(
+    commands,
+    /if !state\.config_is_stale\(\)\? \{\s*return Ok\(None\);/,
+  );
+  // A force refetch, because the cached copy would otherwise be served back
+  // with its old timestamp and stay expired.
+  assert.match(commands, /fetch_line_config\(url, Some\(true\), app, state\)/);
+
+  // Registered with Tauri, and called by the UI before it authenticates.
+  assert.match(read("src-tauri/src/lib.rs"), /ensure_fresh_config/);
+  assert.match(read("src/lib/line/api.ts"), /ensureFreshConfig/);
+  const shell = read("src/components/line/LineLauncher.tsx");
+  const authenticate = shell.slice(
+    shell.indexOf("async function authenticate("),
+    shell.indexOf("async function authenticate(") + 900,
+  );
+  assert.match(authenticate, /ensureFreshConfig\(\)/);
+  // A failed refresh must not stop the attempt: the real reason is better than
+  // "refresh failed".
+  assert.match(
+    authenticate,
+    /ensureFreshConfig\(\)\s*\n?\s*\.catch\(\(\) => null\)/,
+  );
+});

@@ -54,6 +54,14 @@ export const lineApi = {
   cachedConfig: () => call<ConfigSnapshot | null>("get_cached_config"),
   fetchConfig: (url: string, force = false) =>
     call<ConfigSnapshot>("fetch_line_config", { url, force }),
+  /**
+   * Re-fetch the active config when it is older than the provider's TTL.
+   *
+   * Auth and install refuse a stale config, so the UI asks for this first and
+   * the player never sees "Обновите конфигурацию" with nothing to press.
+   * `null` means it was already fresh and no request was made.
+   */
+  ensureFreshConfig: () => call<ConfigSnapshot | null>("ensure_fresh_config"),
   authenticate: (mode: AuthMode, credentials: AuthCredentials) =>
     call<AuthSessionInfo>(mode === "login" ? "line_login" : "line_register", {
       request: credentials,

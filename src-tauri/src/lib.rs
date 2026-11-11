@@ -19,6 +19,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             line::config_commands::get_cached_config,
             line::config_commands::fetch_line_config,
+            line::config_commands::ensure_fresh_config,
             line::auth::line_login,
             line::auth::line_register,
             line::auth::line_logout,

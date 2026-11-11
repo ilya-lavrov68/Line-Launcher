@@ -38,8 +38,6 @@ export const ru = {
   "window.close": "Закрыть",
   "window.connecting": "Подключение",
 
-  "welcome.brand": "LINE LAUNCHER",
-
   "signin.tagline": "Один вход — все серверы проекта.",
   "signin.serverCount": "Серверов: {count}.",
   "signin.footer": "Вход только через аккаунт проекта.",
@@ -372,8 +370,6 @@ const en: Dictionary = {
   "window.close": "Close",
   "window.connecting": "Connecting",
 
-  "welcome.brand": "LINE LAUNCHER",
-
   "signin.tagline": "One sign-in — every server in the project.",
   "signin.serverCount": "Servers: {count}.",
   "signin.footer": "Sign-in uses your project account only.",
@@ -702,8 +698,6 @@ const de: Dictionary = {
   "window.restore": "Wiederherstellen",
   "window.close": "Schließen",
   "window.connecting": "Verbindung",
-
-  "welcome.brand": "LINE LAUNCHER",
 
   "signin.tagline": "Eine Anmeldung — alle Server des Projekts.",
   "signin.serverCount": "Server: {count}.",
@@ -1039,8 +1033,6 @@ const fr: Dictionary = {
   "window.restore": "Restaurer",
   "window.close": "Fermer",
   "window.connecting": "Connexion",
-
-  "welcome.brand": "LINE LAUNCHER",
 
   "signin.tagline": "Une connexion — tous les serveurs du projet.",
   "signin.serverCount": "Serveurs : {count}.",

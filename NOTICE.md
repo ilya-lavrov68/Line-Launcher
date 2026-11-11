@@ -53,6 +53,11 @@ at runtime). The two TTFs in `scripts/fonts/` are the same font in a rasteriser-
 format and are used only by `scripts/render-screens.mjs`. Geist is licensed under the SIL
 Open Font License 1.1, preserved in `LICENSES/Geist-OFL.txt`.
 
+The greeting's word is set in **Pacifico** (`@fontsource/pacifico` at runtime), the only
+place a handwriting face is used. The TTF in `scripts/fonts/` is the same font converted
+for the rasteriser and is used only by `scripts/render-screens.mjs`. Pacifico is licensed
+under the SIL Open Font License 1.1, preserved in `LICENSES/Pacifico-OFL.txt`.
+
 ## Other dependencies
 
 Third-party dependencies retain their respective licenses. This notice is

@@ -25,6 +25,9 @@ node_modules
 
 # Smoke-test screenshots and the local reference provider
 .smoke/
+# Vector approximations of the gallery, for machines with no browser. Never
+# published: docs/images/ is photographed from the running app.
+.offline-shots/
 .provider/
 
 # Local secrets and runtime data

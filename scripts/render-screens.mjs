@@ -18,8 +18,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+/**
+ * Where the vector renders go.
+ *
+ * Deliberately NOT `docs/images`: that folder is the README gallery, and it
+ * belongs to `scripts/screenshots.mjs`, which photographs the real components in
+ * a browser. The two writers used to share the path, so running the offline
+ * renderer — the fallback for machines with no browser — silently replaced every
+ * real screenshot with a token-drawn approximation: the settings page lost its
+ * language section, labels drifted, and the gallery began showing a design the
+ * app does not have. The fallback now has its own folder and overwrites nothing.
+ */
 const outDir = path.resolve(
-  process.env.SHOTS_DIR || path.join(root, "docs/images"),
+  process.env.SHOTS_DIR || path.join(root, ".offline-shots"),
 );
 const checkOnly = process.argv.includes("--check");
 
@@ -206,6 +217,9 @@ const mix = ([r1, g1, b1, a1 = 1], [r2, g2, b2, a2 = 1], t) => [
 const FONT_FILES = [
   ["geist-cyrillic-wght-normal.ttf", "Line UI Cyrillic"],
   ["geist-latin-wght-normal.ttf", "Line UI Latin"],
+  // The greeting's handwriting face, converted from the woff2 the app ships
+  // (SIL OFL, see `LICENSES/Pacifico-OFL.txt`) for the same reason as Geist.
+  ["pacifico-latin-400-normal.ttf", "Line Hand"],
 ];
 const FONT_NAMES = FONT_FILES.map(([, family]) => `"${family}"`);
 const FONT = FONT_NAMES.join(", ");
@@ -691,30 +705,15 @@ function appFooter(ctx, top, height) {
 }
 
 /**
- * A panel. No outline and no sheen: the CSS draws elevation with a shadow, so
- * the render has to as well or the screenshots show a design the app does not
- * have. The shadow is drawn first, offset down and blurred, then the surface
- * sits on top of it.
+ * A panel: a translucent sheet, nothing else.
+ *
+ * There is no shadow and no inner highlight, because the CSS has none — the
+ * launcher draws depth with the fill ladder and the backdrop blur, and a
+ * gallery that invented a shadow would be documenting a design the app does
+ * not ship.
  */
 function glass(ctx, x, y, w, h, radius = 18) {
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 34;
-  ctx.shadowOffsetY = 14;
   fillRound(ctx, x, y, w, h, radius, rgba(T.surfaceGlass));
-  ctx.restore();
-  // The 1px inner highlight the CSS keeps: it separates a dark panel from a
-  // dark page at the top edge, which a shadow alone cannot do.
-  strokeRound(
-    ctx,
-    x + 0.5,
-    y + 0.5,
-    w - 1,
-    h - 1,
-    radius,
-    "rgba(255,255,255,0.04)",
-    1,
-  );
 }
 
 function button(
@@ -866,10 +865,11 @@ function screenConnecting(ctx) {
 /**
  * «Welcome» — the greeting that runs before anything else.
  *
- * The word is drawn at display size, with a hairline under it and the product
- * name in small caps below, on the page's own colour field. No chrome: this
- * screen covers the window, so drawing a title bar or a rail here would show a
- * frame the app does not have at this point.
+ * The word is written at display size on the page's own colour field, and
+ * nothing else: the product name that used to sit under a hairline was a
+ * caption, and the greeting does not have one. No chrome either — this screen
+ * covers the window, so a title bar or a rail here would show a frame the app
+ * does not have at this point.
  */
 /**
  * The default backdrop («Полярное сияние») as a soft radial field.
@@ -909,13 +909,30 @@ function paintField(ctx, strength = 1) {
   );
 }
 
+/**
+ * The greeting's face.
+ *
+ * Pacifico is registered from the TTF above like the UI font, because a canvas
+ * has no @font-face to load: naming the family without registering it silently
+ * falls back to a system script face and the gallery stops matching the app.
+ */
+const HAND_FONT = '400 120px "Line Hand", "Segoe Script", cursive';
+
 function screenWelcome(ctx) {
-  background(ctx);
   const cx = SHOT_WIDTH / 2;
   const cy = SHOT_HEIGHT / 2;
 
-  // The gradient the launcher ships with, painted as the same soft field the
-  // CSS fallback uses.
+  // The field the greeting stands on.
+  //
+  // Not near-black with two bright pools on it: at the moment the greeting runs,
+  // the aurora shader has spread its colour over the whole window and the page
+  // reads as a fairly even indigo, brightest at the top left. Painting a black
+  // page and dropping glows on it is what made the offline render of this screen
+  // look nothing like the app — a bright word over a black void.
+  ctx.fillStyle = rgba(T.canvas);
+  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
+  ctx.fillStyle = rgba(hexRgb("46409b"));
+  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
   const glow = (x, y, w, h, colour) => {
     const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) / 2);
     g.addColorStop(0, colour);
@@ -923,47 +940,57 @@ function screenWelcome(ctx) {
     ctx.fillStyle = g;
     ctx.fillRect(x - w / 2, y - h / 2, w, h);
   };
+  // The shader's own pools, kept as modulation rather than as the only source
+  // of colour.
   glow(
     SHOT_WIDTH * 0.45,
     SHOT_HEIGHT * 0.36,
-    1100,
-    900,
-    rgba(hexRgb("6a3df5"), 0.5),
+    1300,
+    1000,
+    rgba(hexRgb("6a3df5"), 0.2),
   );
   glow(
     SHOT_WIDTH * 0.78,
     SHOT_HEIGHT * 0.72,
-    800,
-    700,
-    rgba(hexRgb("35aef2"), 0.34),
+    1000,
+    900,
+    rgba(hexRgb("35aef2"), 0.16),
   );
   glow(
-    SHOT_WIDTH * 0.2,
-    SHOT_HEIGHT * 0.8,
+    SHOT_WIDTH * 0.12,
+    SHOT_HEIGHT * 0.85,
+    900,
     700,
-    600,
-    rgba(hexRgb("f59a22"), 0.16),
+    rgba(hexRgb("f59a22"), 0.1),
   );
 
-  // The word: the one thing on this screen.
+  // The wash the real screen puts over the field so a white word stays crisp.
+  // It is light — 28% in the middle, 52% at the edges — and a radial gradient,
+  // not a flat sheet: painting a flat sheet here is what made the offline
+  // render of this screen look nothing like the app.
+  const wash = ctx.createRadialGradient(
+    SHOT_WIDTH / 2,
+    SHOT_HEIGHT * 0.42,
+    0,
+    SHOT_WIDTH / 2,
+    SHOT_HEIGHT * 0.42,
+    SHOT_WIDTH * 0.62,
+  );
+  wash.addColorStop(0, "rgba(8,9,12,0.28)");
+  wash.addColorStop(1, "rgba(8,9,12,0.52)");
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
+
+  // The word, and only the word: a handwriting face at display size, centred on
+  // the optical middle. The real screen writes it stroke by stroke; a still
+  // image can only show where it ends up, so the size and the face carry it.
   ctx.save();
   ctx.fillStyle = rgba(T.foreground);
-  ctx.font = font(104, 600);
+  ctx.font = HAND_FONT;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.letterSpacing = "-5px";
-  ctx.fillText("Welcome", cx, cy + 26);
-  ctx.restore();
-
-  // Hairline, then the product name in tracked-out small caps.
-  ctx.fillStyle = rgba(T.foreground, 0.25);
-  ctx.fillRect(cx - 80, cy + 62, 160, 1);
-  ctx.save();
-  ctx.fillStyle = rgba(T.mutedForeground);
-  ctx.font = font(11, 500);
-  ctx.textAlign = "center";
-  ctx.letterSpacing = "3px";
-  ctx.fillText("LINE LAUNCHER", cx, cy + 96);
+  ctx.letterSpacing = "0px";
+  ctx.fillText("Welcome", cx, cy + 44);
   ctx.restore();
 }
 

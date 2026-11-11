@@ -14,7 +14,7 @@ export interface ConfigUrlInputProps {
 }
 
 /**
- * Provider URL entry. A shadowed panel with no outline, an unframed icon, and
+ * Provider URL entry. A filled panel with no outline, an unframed icon, and
  * the Input/Label/Button primitives. No new colours or radii.
  */
 export default function ConfigUrlInput({
@@ -55,7 +55,7 @@ export default function ConfigUrlInput({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, type: "spring", bounce: 0.3 }}
-      className="bg-fill-subtle flex w-full max-w-md flex-col items-center justify-center gap-6 rounded-[var(--radius-item)] p-10 text-center shadow-2xl"
+      className="bg-fill-subtle flex w-full max-w-md flex-col items-center justify-center gap-6 rounded-[var(--radius-item)] p-10 text-center"
       aria-labelledby={`${id}-title`}
     >
       <Link2
@@ -125,7 +125,7 @@ export default function ConfigUrlInput({
         <Button
           type="submit"
           disabled={loading || !url.trim()}
-          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm"
+          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold"
         >
           {loading ? (
             <RefreshCw className="h-4 w-4 animate-spin" />

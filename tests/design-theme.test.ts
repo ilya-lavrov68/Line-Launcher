@@ -271,10 +271,10 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   const welcome = read("src/components/line/WelcomeScreen.tsx");
   const launcher = read("src/components/line/LineLauncher.tsx");
 
-  // The word is written letter by letter, not faded in as one block.
-  assert.match(welcome, /const letters = Array\.from\(word\)/);
-  assert.match(welcome, /letters\.map\(/);
-  assert.match(welcome, /LETTER_STAGGER/);
+  // The word is written by one stroke crossing it — not faded in as a block,
+  // and not split into per-letter boxes (see the test below for why).
+  assert.match(welcome, /const word = "Welcome"/);
+  assert.match(welcome, /DRAW_DURATION/);
   // A fixed-length prologue: the timer is not tied to a fetch or a session.
   assert.match(welcome, /setTimeout\(onDone, total\)/);
   // With reduced motion there is no draw to watch, so the screen needs a floor
@@ -293,6 +293,27 @@ test("the greeting draws itself and ends without waiting for the network", () =>
 
   // Reduced motion keeps the screen: it is content, not decoration.
   assert.match(welcome, /useReducedMotion/);
+
+  // The greeting is the word and nothing else. The product name and the
+  // hairline under it were a caption on a greeting; both are gone.
+  assert.doesNotMatch(welcome, /welcome\.brand/);
+  assert.doesNotMatch(welcome, /<m\.p/);
+  assert.doesNotMatch(welcome, /h-px/);
+
+  // Written, not faded: a hard-edged mask uncovers the word, which is what
+  // makes it read as a pen rather than a dissolve.
+  assert.match(welcome, /clipPath: "inset\(-40% 100% -40% -12%\)"/);
+  assert.match(welcome, /font-hand/);
+  // The handwriting face is a real dependency, not a stack of names that will
+  // silently resolve to the system sans on most machines.
+  assert.match(read("src/index.css"), /@import "@fontsource\/pacifico"/);
+  assert.match(read("src/index.css"), /--font-hand: "Pacifico"/);
+
+  // The wash stays light. It used to reach 94% black, which hid the animated
+  // field the greeting is supposed to sit on.
+  assert.match(welcome, /WASH/);
+  assert.doesNotMatch(welcome, /0\.94/);
+  assert.doesNotMatch(welcome, /0\.72\)/);
 });
 
 test("the animated backdrop is decoration that cannot take the window down", () => {
@@ -404,4 +425,62 @@ test("the brand mark in the gallery is the real logo file, not a drawing", () =>
   assert.doesNotMatch(renderer, /ctx\.moveTo\(3, 3\)/);
   const logo = read("branding/assets/logo.svg");
   assert.match(logo, /fill="#FFFF01"/i);
+});
+
+test("the launcher casts no shadows", () => {
+  // Depth here is the fill ladder and the backdrop blur; a drop shadow over a
+  // moving colour field read as grime along the panel edge, and an inset 1px
+  // highlight drew a second border inside the real one. Both were removed on
+  // purpose, so they must not creep back one component at a time.
+  const css = read("src/index.css");
+  const glass = css.slice(
+    css.indexOf("[data-line-glass] {"),
+    css.indexOf("[data-line-glass] {") + 400,
+  );
+  // Match the declaration, not the comment that explains why it is gone.
+  assert.doesNotMatch(glass, /^\s*box-shadow\s*:/m);
+
+  const files = [
+    "src/components/line/ConfigUrlInput.tsx",
+    "src/components/line/LineLauncher.tsx",
+    "src/components/ui/popover.tsx",
+    "src/components/ui/select.tsx",
+    "src/components/ui/tooltip.tsx",
+    "src/components/ui/tabs.tsx",
+  ];
+  for (const file of files) {
+    assert.doesNotMatch(
+      read(file),
+      /shadow-(?:sm|md|lg|xl|2xl)\b/,
+      `${file} still casts a drop shadow`,
+    );
+  }
+
+  // Focus rings are not shadows-for-look: they are the keyboard affordance and
+  // they stay.
+  assert.match(css, /box-shadow: 0 0 0 3px color-mix/);
+});
+
+test("the greeting word is never split into per-letter boxes", () => {
+  const welcome = read("src/components/line/WelcomeScreen.tsx");
+
+  // The first version mapped the letters to spans and put `overflow: hidden`
+  // on each one. A connected script is a single stroke: boxing every glyph
+  // clipped the ascenders that rise above the line box and cut the joins where
+  // one letter overlaps the next, so the word arrived chopped into cells. The
+  // mask belongs to the whole word, and there is no per-letter element at all.
+  assert.doesNotMatch(welcome, /letters\.map\(/);
+  assert.doesNotMatch(welcome, /Array\.from\(word\)/);
+  assert.doesNotMatch(welcome, /LETTER_STAGGER/);
+  assert.doesNotMatch(
+    welcome,
+    /overflow-hidden[\s\S]{0,80}data-line-welcome-word/,
+  );
+
+  // The glyph box is larger than the em box, so it must not be cropped: no
+  // `overflow: hidden` on the word, and the mask reaches well past the glyphs
+  // on every side so descenders and the `W`'s swash survive.
+  assert.match(welcome, /clipPath: "inset\(-40% 100% -40% -12%\)"/);
+  assert.match(welcome, /clipPath: "inset\(-40% -12% -40% -12%\)"/);
+  assert.doesNotMatch(welcome, /leading-\[0\.9\]/);
 });

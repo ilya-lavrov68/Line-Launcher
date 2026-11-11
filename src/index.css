@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource/pacifico";
 
 /* Line Design System.
  *
@@ -150,6 +151,13 @@
 
   --font-heading: var(--font-sans);
   --font-sans: "Geist Variable", sans-serif;
+  /* One use: the greeting's word, which is written rather than set. A
+   * handwriting face everywhere else would be a costume; on a single word it
+   * is the point. Pacifico is the sweeping, connected kind of script — the
+   * letters join and overlap, which is what "written by a pen" looks like —
+   * and it carries Cyrillic, so the same rule works for any language the
+   * greeting is ever translated into. */
+  --font-hand: "Pacifico", "Geist Variable", cursive;
 
   --color-fill: var(--fill);
   --color-fill-subtle: var(--fill-subtle);
@@ -180,9 +188,11 @@
     background: var(--surface-glass);
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
-      0 24px 60px -32px rgba(0, 0, 0, 0.95);
+    /* No box-shadow, by decision. Every panel here is a translucent sheet over a
+     * moving colour field: a drop shadow on that reads as grime along the sheet's
+     * edge, and a 1px inset highlight draws a second border inside the real one.
+     * Depth comes from the fill ladder and the blur, which were doing the work
+     * anyway. */
   }
 
   /* The action dock: one continuous surface, no separate header block. */

@@ -58,7 +58,6 @@ test("every language carries every key, and none is left in Russian", () => {
   // proper noun or an oversight. The list is explicit so adding a Russian copy
   // under another language has to be a decision.
   const identicalOnPurpose = new Set([
-    "welcome.brand",
     "about.title",
     "settings.java",
     "settings.runtime",

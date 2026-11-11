@@ -93,48 +93,6 @@ export function SkeletonServerGrid({ count = 6 }: { count?: number }) {
   );
 }
 
-/**
- * The server detail page: a banner, a title row and the dock at the bottom.
- * The dock keeps its place, because that is the one control a returning player
- * aims at without reading — moving it after load is worse than showing it late.
- */
-export function SkeletonServerDetail() {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      className="flex min-h-full flex-col gap-5"
-    >
-      <div className="flex items-center gap-2">
-        <SkeletonBlock className="size-4" />
-        <SkeletonBlock className="h-3 w-24" />
-      </div>
-      <SkeletonBlock className="h-40 w-full" rounded="md" />
-      <div className="flex items-start gap-3">
-        <SkeletonBlock className="size-11 shrink-0" rounded="md" />
-        <div className="flex flex-1 flex-col gap-2">
-          <SkeletonBlock className="h-5 w-1/3" />
-          <SkeletonBlock className="h-3 w-1/5" />
-        </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        <SkeletonBlock className="h-3 w-full" />
-        <SkeletonBlock className="h-3 w-11/12" />
-        <SkeletonBlock className="h-3 w-2/3" />
-      </div>
-      {/* The dock, pinned to the bottom edge like the real one. */}
-      <div className="mt-auto flex items-center justify-between gap-3 rounded-[var(--radius-panel)] p-4">
-        <div className="flex flex-col gap-2">
-          <SkeletonBlock className="h-3.5 w-40" />
-          <SkeletonBlock className="h-2.5 w-28" />
-        </div>
-        <SkeletonBlock className="h-10 w-32" rounded="md" />
-      </div>
-    </div>
-  );
-}
-
 /** Settings: a heading, then the stacked sections with their controls. */
 export function SkeletonSettings() {
   return (

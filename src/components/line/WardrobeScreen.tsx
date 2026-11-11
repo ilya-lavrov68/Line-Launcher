@@ -25,6 +25,8 @@ import {
 import { errorMessage, lineApi } from "@/lib/line/api";
 import { cn } from "@/lib/utils";
 import { MAX_SKIN_BYTES, validateSkinFile } from "@/lib/line/skin";
+import { decodePng } from "@/lib/line/png";
+import { detectSkinModel } from "@/lib/line/skin-model";
 import { useT } from "@/lib/line/i18n";
 import { SkeletonWardrobe } from "@/components/line/Skeleton";
 import type { SkinLibrarySnapshot, SkinModel, SkinState } from "@/types/line";
@@ -67,6 +69,8 @@ export default function WardrobeScreen({
   const [sync, setSync] = useState<SyncPhase>("idle");
   const [syncError, setSyncError] = useState<string>();
   const [model, setModel] = useState<SkinModel>("classic");
+  /** True while `model` was read from the picked file and not chosen by hand. */
+  const [modelDetected, setModelDetected] = useState(false);
   const [name, setName] = useState("");
   const [pending, setPending] = useState<{
     bytes: Uint8Array;
@@ -176,6 +180,18 @@ export default function WardrobeScreen({
     };
   }, [pending]);
 
+  /**
+   * Best-effort read of the arm width from the file the player just picked.
+   * Never throws: an unreadable file leaves the dropdown where it was, which is
+   * no worse than the old behaviour.
+   */
+  async function detectModel(
+    bytes: Uint8Array,
+  ): Promise<SkinModel | "unknown"> {
+    const image = await decodePng(bytes);
+    return image ? detectSkinModel(image) : "unknown";
+  }
+
   function chooseFile(file: File | undefined) {
     setError(undefined);
     setNotice(undefined);
@@ -190,12 +206,21 @@ export default function WardrobeScreen({
     // moment later — «Второй» became «second» under the player's cursor. The
     // file name is already known here; there is nothing to wait for.
     if (!name.trim()) setName(file.name.replace(/\.png$/i, "").slice(0, 64));
-    void file.arrayBuffer().then((buffer) => {
+    void file.arrayBuffer().then(async (buffer) => {
       const bytes = new Uint8Array(buffer);
       const problem = validateSkinFile(bytes);
       if (problem) {
         setError(problem);
         return;
+      }
+      // The model comes from the file, not from a dropdown the player has to
+      // get right. A Minecraft skin does not name its own arm width, but the
+      // pixels do (see `detectSkinModel`); the select stays below so an
+      // ambiguous texture can still be corrected by hand.
+      const detected = await detectModel(bytes);
+      if (detected !== "unknown") {
+        setModel(detected);
+        setModelDetected(true);
       }
       setPending((previous) => {
         if (previous) URL.revokeObjectURL(previous.url);
@@ -421,7 +446,11 @@ export default function WardrobeScreen({
               <Select
                 value={model}
                 disabled={controlsDisabled}
-                onValueChange={(value) => setModel(value as SkinModel)}
+                onValueChange={(value) => {
+                  setModel(value as SkinModel);
+                  // Chosen by hand from here on: stop claiming it was read.
+                  setModelDetected(false);
+                }}
               >
                 <SelectTrigger className="w-full text-xs">
                   <SelectValue>
@@ -439,6 +468,15 @@ export default function WardrobeScreen({
                   <SelectItem value="slim">{t("wardrobe.slim")}</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Says where the value came from. The player did not pick it and
+                  should not have to wonder whether it is right. Placed under
+                  the field rather than between it and its label: above, it
+                  pushed this one field out of line with the button beside it. */}
+              {pending && modelDetected && (
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  {t("wardrobe.modelDetected")}
+                </p>
+              )}
             </div>
           </div>
           {pending && (

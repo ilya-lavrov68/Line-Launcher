@@ -97,12 +97,14 @@ export default function BackdropPicker({
             name: t(backdropNameKey(active.id)),
           })}
           className={cn(
-            "border-input bg-fill-subtle hover:bg-fill group flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[var(--radius-control)] border px-2 pr-2.5 text-left transition-colors",
+            "border-input bg-fill-subtle hover:bg-fill group flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[var(--radius-control)] border px-2.5 text-left transition-colors",
             "focus-visible:ring-ring/40 focus-visible:ring-2 focus-visible:outline-none",
             disabled && "pointer-events-none opacity-50",
           )}
         >
-          <Swatch theme={active} className="h-5 w-9" />
+          {/* No swatch. At 36×20 a gradient is a smear, and the live preview
+              beside the list already shows the real thing — the thumbnail only
+              added a second, worse picture of the same theme. */}
           <span className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
             {t(backdropNameKey(active.id))}
           </span>
@@ -150,7 +152,6 @@ export default function BackdropPicker({
                     selected ? "bg-fill" : "hover:bg-fill-subtle",
                   )}
                 >
-                  <Swatch theme={theme} className="h-4.5 w-8" />
                   <span
                     className={cn(
                       "min-w-0 flex-1 truncate text-xs",
@@ -195,29 +196,6 @@ export default function BackdropPicker({
       */}
       {peeked !== null && <BackdropPreview theme={previewed} open />}
     </div>
-  );
-}
-
-/** The theme at chip size: its own three colours, on its own background. */
-function Swatch({
-  theme,
-  className,
-}: {
-  theme: BackdropTheme;
-  className?: string;
-}) {
-  const [warm, cool, mid] = theme.swatch;
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "border-border/60 block shrink-0 overflow-hidden rounded-[5px] border",
-        className,
-      )}
-      style={{
-        backgroundImage: `radial-gradient(120% 120% at 12% 18%, ${warm}, transparent 62%), radial-gradient(120% 120% at 88% 84%, ${cool}, transparent 62%), radial-gradient(90% 90% at 62% 42%, ${mid}, transparent 70%), linear-gradient(${theme.config.background}, ${theme.config.background})`,
-      }}
-    />
   );
 }
 

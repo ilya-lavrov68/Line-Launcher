@@ -770,8 +770,6 @@ export default function LineLauncher() {
                   section={section}
                   collapsed={settings?.settings.sidebarCollapsed ?? true}
                   providerName={snapshot?.config.provider.name}
-                  username={session?.username}
-                  onLogout={() => void logout()}
                   actionsDisabled={actionsBusy || loading}
                   onNavigate={navigate}
                   onToggleCollapsed={() => void toggleSidebar()}

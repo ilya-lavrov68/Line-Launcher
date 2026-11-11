@@ -154,7 +154,11 @@ export default function SettingsScreen({
     setJavaLoading(true);
     setJavaSearchError(undefined);
     try {
-      const list = await lineApi.javaRuntimes();
+      // The command is typed `JavaRuntimeInfo[]`, but a null or malformed
+      // answer from a stale backend must not take the whole settings screen
+      // down with "Cannot read properties of null (reading 'some')" — which is
+      // what happened: the screen rendered black with no explanation.
+      const list = (await lineApi.javaRuntimes()) ?? [];
       // A manually verified JDK need not be on PATH or in a vendor directory.
       if (
         settings.javaPath &&

@@ -2,7 +2,6 @@ import { m, useReducedMotion } from "framer-motion";
 import {
   ChevronLeft,
   Info,
-  LogOut,
   RefreshCw,
   Server,
   Settings,
@@ -27,9 +26,6 @@ export interface SideNavProps {
   section: LineSection;
   collapsed: boolean;
   providerName?: string;
-  /** The one project account; shown so it is clear it is shared by all servers. */
-  username?: string;
-  onLogout: () => void;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
   onChangeProvider: () => void;
@@ -60,8 +56,6 @@ export default function SideNav({
   section,
   collapsed,
   providerName,
-  username,
-  onLogout,
   onNavigate,
   onToggleCollapsed,
   onChangeProvider,
@@ -153,38 +147,6 @@ export default function SideNav({
       </div>
 
       <div className="flex shrink-0 flex-col gap-1 p-2">
-        {username && (
-          <div
-            className={cn(
-              "flex items-center gap-2",
-              collapsed ? "flex-col px-0" : "px-2.5 py-1.5",
-            )}
-          >
-            <UserRound
-              className="text-muted-foreground h-5 w-5 shrink-0"
-              aria-hidden="true"
-            />
-            {!collapsed && (
-              <span
-                className="text-foreground min-w-0 flex-1 truncate text-xs font-medium"
-                title={username}
-              >
-                {username}
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              disabled={actionsDisabled}
-              aria-label={t("nav.logout", { username: username ?? "" })}
-              title={t("nav.logout", { username: username ?? "" })}
-              onClick={onLogout}
-              className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer disabled:cursor-not-allowed"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-        )}
         <Button
           variant="ghost"
           disabled={actionsDisabled}

@@ -36,14 +36,23 @@ export default function AuthForm({
   const [mode, setMode] = useState<AuthMode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [validation, setValidation] = useState<string>();
+  // Only complains once the player has typed something in the second field:
+  // an empty confirmation on a half-filled form is not a mistake yet, it is
+  // just a form being filled in.
+  const confirmMismatch =
+    mode === "register" && confirm.length > 0 && confirm !== password;
 
   function changeMode(value: string | number | null) {
     if (loading || (value !== "login" && value !== "register")) return;
     setMode(value);
     setPassword("");
+    setConfirm("");
     setShowPassword(false);
+    setShowConfirm(false);
     setValidation(undefined);
   }
 
@@ -52,6 +61,10 @@ export default function AuthForm({
     if (loading) return;
     if (!/^[A-Za-z0-9_]{3,32}$/.test(username)) {
       setValidation(t("auth.usernameHint"));
+      return;
+    }
+    if (mode === "register" && confirm !== password) {
+      setValidation(t("auth.passwordMismatch"));
       return;
     }
     if (
@@ -69,6 +82,8 @@ export default function AuthForm({
     setValidation(undefined);
     onSubmit(mode, username, password);
     setPassword("");
+    setConfirm("");
+    setShowConfirm(false);
   }
 
   const message = validation ?? error;
@@ -212,6 +227,76 @@ export default function AuthForm({
               )}
             </div>
           </div>
+
+          {/* The confirmation is only part of registering: a second copy of the
+              password that must match the first, so a typo is caught here and
+              not by a login attempt that cannot work. It has its own eye:
+              comparing two strings you cannot read is what this field exists
+              to avoid, but revealing one and not the other is also a legitimate
+              way to check a typo, so the two are independent. */}
+          {mode === "register" && (
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor={`${id}-confirm`}
+                className="text-muted-foreground text-xs font-medium"
+              >
+                {t("auth.confirmPassword")}
+              </Label>
+              <div className="relative">
+                <Input
+                  id={`${id}-confirm`}
+                  type={showConfirm ? "text" : "password"}
+                  value={confirm}
+                  onChange={(event) => {
+                    setConfirm(event.target.value);
+                    setValidation(undefined);
+                  }}
+                  autoComplete="new-password"
+                  required
+                  maxLength={1024}
+                  disabled={loading}
+                  className="appearance-none pr-9 text-xs"
+                  aria-invalid={confirmMismatch || undefined}
+                  aria-describedby={`${id}-confirm-note`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground absolute top-0.5 right-0.5 cursor-pointer"
+                  onClick={() => setShowConfirm((value) => !value)}
+                  aria-label={
+                    showConfirm
+                      ? t("auth.hidePassword")
+                      : t("auth.showPassword")
+                  }
+                  aria-pressed={showConfirm}
+                  disabled={loading}
+                >
+                  {showConfirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {/* Reserved height for the same reason as everywhere else on this
+                  form: the message appears and disappears while the player
+                  types, and a slot that grows would move the button under the
+                  pointer mid-click. */}
+              <div id={`${id}-confirm-note`} className="min-h-4">
+                {confirmMismatch ? (
+                  <FieldMessage tone="error">
+                    {t("auth.passwordMismatch")}
+                  </FieldMessage>
+                ) : confirm.length > 0 && confirm === password ? (
+                  <FieldMessage tone="success">
+                    {t("auth.passwordMatch")}
+                  </FieldMessage>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
 
         {/*
@@ -228,39 +313,65 @@ export default function AuthForm({
           disabled={loading}
           className="h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-item)] text-sm font-semibold"
         >
-          {loading ? (
-            <RefreshCw className="h-5 w-5 animate-spin" />
-          ) : mode === "login" ? (
-            <LogIn className="h-5 w-5" />
-          ) : (
-            <UserPlus className="h-5 w-5" />
-          )}
-          {/* One swapped word, faded rather than replaced: `mode` is the only
-              thing that changes here, so a 140ms cross-fade is all the motion
-              this needs. Position is fixed by the flex row, so nothing moves. */}
-          <span className="relative grid place-items-center">
+          {/* The icon and the label are one group, and one invisible copy of
+              every state is laid out beneath it in the same grid cell. That
+              reserve — not a spacer inside the label — is what keeps the
+              contents still: the cell is already as wide as the widest state,
+              so switching tabs or submitting cannot resize it. The visible
+              group is centred inside that cell, which is the part that was
+              broken: the old code reserved "Create account" *inside* the
+              label, so in login mode the icon sat one gap from a box that was
+              far wider than "Sign in", leaving a 48px hole that read as a
+              clipped glyph. Reserving the whole group holds the gap at 8px in
+              every state while still never moving anything. */}
+          <span className="grid place-items-center">
             <span
               aria-hidden="true"
-              className="invisible col-start-1 row-start-1 whitespace-nowrap"
+              className="invisible col-start-1 row-start-1 inline-flex items-center gap-2"
             >
-              {t("auth.submitRegister")}
+              <UserPlus className="h-5 w-5 shrink-0" />
+              <span className="whitespace-nowrap">
+                {t("auth.submitRegister")}
+              </span>
             </span>
-            <AnimatePresence initial={false} mode="popLayout">
-              <m.span
-                key={loading ? "loading" : mode}
-                initial={reducedMotion ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={reducedMotion ? undefined : { opacity: 0 }}
-                transition={{ duration: 0.14, ease: "easeOut" }}
-                className="col-start-1 row-start-1 whitespace-nowrap"
-              >
-                {loading
-                  ? t("auth.submitting")
-                  : mode === "login"
-                    ? t("auth.submitLogin")
-                    : t("auth.submitRegister")}
-              </m.span>
-            </AnimatePresence>
+            <span
+              aria-hidden="true"
+              className="invisible col-start-1 row-start-1 inline-flex items-center gap-2"
+            >
+              <RefreshCw className="h-5 w-5 shrink-0" />
+              <span className="whitespace-nowrap">{t("auth.submitting")}</span>
+            </span>
+            <span className="col-start-1 row-start-1 inline-flex items-center gap-2">
+              {loading ? (
+                <RefreshCw className="h-5 w-5 shrink-0 animate-spin" />
+              ) : mode === "login" ? (
+                <LogIn className="h-5 w-5 shrink-0" />
+              ) : (
+                <UserPlus className="h-5 w-5 shrink-0" />
+              )}
+              {/* One swapped word, faded rather than replaced: `mode` is the
+                  only thing that changes here, so a 140ms cross-fade is all the
+                  motion this needs. The two labels share a grid cell, so the
+                  outgoing word cannot push the icon while it fades. */}
+              <span className="relative grid place-items-center">
+                <AnimatePresence initial={false} mode="popLayout">
+                  <m.span
+                    key={loading ? "loading" : mode}
+                    initial={reducedMotion ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={reducedMotion ? undefined : { opacity: 0 }}
+                    transition={{ duration: 0.14, ease: "easeOut" }}
+                    className="col-start-1 row-start-1 whitespace-nowrap"
+                  >
+                    {loading
+                      ? t("auth.submitting")
+                      : mode === "login"
+                        ? t("auth.submitLogin")
+                        : t("auth.submitRegister")}
+                  </m.span>
+                </AnimatePresence>
+              </span>
+            </span>
           </span>
         </Button>
       </form>

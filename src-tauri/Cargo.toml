@@ -1,6 +1,6 @@
 [package]
 name = "line-launcher"
-version = "0.1.0"
+version = "0.10.0"
 description = "Line Launcher by Plus In Plus — provider-configured Minecraft launcher"
 authors = ["Plus In Plus"]
 edition = "2021"

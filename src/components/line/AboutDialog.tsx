@@ -2,6 +2,7 @@ import { Info } from "lucide-react";
 import { brand } from "@/brand/generated";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/line/i18n";
+import { displayVersion, isPrerelease } from "@/lib/line/version";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,10 @@ export default function AboutDialog({
 }: AboutDialogProps) {
   const t = useT();
   const controlled = open !== undefined;
+  // A build before 1.0.0 makes no compatibility promise, and the player is
+  // about to hand this launcher their account — say so in plain words instead
+  // of leaving them to decode the number.
+  const preview = isPrerelease(version);
   return (
     <Dialog {...(controlled ? { open, onOpenChange } : {})}>
       {!controlled && (
@@ -74,9 +79,25 @@ export default function AboutDialog({
                 {t("about.versionLabel")}
               </span>
               <span className="text-foreground font-mono text-[11px]">
-                v{version}
+                v{displayVersion(version)}
               </span>
             </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground text-[11px]">
+                {t("about.channelLabel")}
+              </span>
+              <span className="text-foreground text-[11px]">
+                {preview ? t("about.channelPreview") : t("about.channelStable")}
+              </span>
+            </div>
+            {/* The explanation goes under the row, at the panel's own width,
+                rather than inside it: as a value it wrapped the label line and
+                threw the three-row grid out of alignment. */}
+            {preview && (
+              <p className="text-muted-foreground text-left text-[10px] leading-relaxed">
+                {t("about.channelPreviewHint")}
+              </p>
+            )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground text-[11px]">
                 {t("about.publisher")}

@@ -47,6 +47,7 @@ import {
 } from "@/lib/line/window";
 import { toLineError, type SettingsSnapshot } from "@/types/line";
 import { initialLanguage, setLanguage, useT } from "@/lib/line/i18n";
+import { displayVersion, isPrerelease } from "@/lib/line/version";
 import {
   SkeletonServerGrid,
   SkeletonSettings,
@@ -54,7 +55,14 @@ import {
 
 type Screen = "config" | "account" | "servers" | "detail";
 
-const LAUNCHER_VERSION = "0.1.0";
+/**
+ * Injected by Vite from `version.json` (see `define` in vite.config.ts). It is
+ * checked once, when the module loads, rather than trusted: a build that lost
+ * the define would otherwise render the string "undefined" in the footer and
+ * «О программе» instead of failing loudly.
+ */
+const LAUNCHER_VERSION: string =
+  typeof __LAUNCHER_VERSION__ === "string" ? __LAUNCHER_VERSION__ : "0.0.0";
 
 export default function LineLauncher() {
   const [screen, setScreen] = useState<Screen>("config");
@@ -976,8 +984,19 @@ export default function LineLauncher() {
             <footer className="text-muted-foreground/70 relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 px-2 pb-1.5 text-[12px]">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>
-                  {brand.shortName} | {LAUNCHER_VERSION}
+                  {brand.shortName} | {displayVersion(LAUNCHER_VERSION)}
                 </span>
+                {/* A pre-1.0 build says so where a player already looks for the
+                    version, so a screenshot of a bug can be matched to the
+                    build it came from. */}
+                {isPrerelease(LAUNCHER_VERSION) && (
+                  <span
+                    className="border-border/50 text-muted-foreground rounded-[4px] border px-1.5 py-px text-[10px] leading-normal uppercase"
+                    title={t("about.channelPreview")}
+                  >
+                    {t("about.channelPreviewShort")}
+                  </span>
+                )}
                 {brand.attribution.placement === "footer" && <Attribution />}
               </span>
               <span className="flex items-center gap-1.5">

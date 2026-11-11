@@ -356,6 +356,30 @@
     margin: 0;
   }
 
+  /* Password fields: no second eye.
+   *
+   * Edge and WebView2 draw their own reveal button inside `type="password"`,
+   * and Safari draws its own on macOS; the app already has a proper Button for
+   * that job, translated and keyboard-reachable. Left alone, the field showed
+   * two eyes side by side — the platform's unthemed one and ours. Only the
+   * native control is removed; nothing about the input itself changes.
+   */
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  input[type="password"]::-webkit-credentials-auto-fill-button,
+  input[type="password"]::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+    width: 0 !important;
+    margin: 0 !important;
+  }
+
   /* Drop-downs that are genuinely native (`<select>`), as opposed to the Radix
    * listbox the app usually uses: same height and border as an input, with the
    * chevron drawn by us so Windows' bevelled arrow does not come along. */

@@ -2,6 +2,7 @@ import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Eye, EyeOff, LogIn, RefreshCw, UserPlus } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import FieldMessage from "./FieldMessage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -97,7 +98,13 @@ export default function AuthForm({
         </Tabs>
       )}
 
-      <form onSubmit={submit} className="flex flex-col gap-4">
+      <form
+        // Native validation bubbles are not this app's design; `submit` does
+        // the same checks and shows them in the field's own message slot.
+        noValidate
+        onSubmit={submit}
+        className="flex flex-col gap-4"
+      >
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label
@@ -147,7 +154,11 @@ export default function AuthForm({
                 required
                 maxLength={1024}
                 disabled={loading}
-                className="pr-9 text-xs"
+                // `appearance-none` suppresses the platform's own reveal
+                // control (Edge/WebView2 and macOS both draw one inside a
+                // password input); the eye on the right is the app's, and two
+                // of them were showing side by side.
+                className="appearance-none pr-9 text-xs"
                 aria-invalid={Boolean(message)}
                 aria-describedby={message ? `${id}-error` : undefined}
               />
@@ -183,9 +194,17 @@ export default function AuthForm({
                   transition={{ duration: 0.14, ease: "easeOut" }}
                   className="text-muted-foreground/80 text-[12px] leading-relaxed"
                 >
-                  {mode === "register"
-                    ? t("auth.registerHint")
-                    : t("auth.loginHint")}
+                  {/* The hint and the error said the same sentence at the
+                      same moment ("not shorter than 8 characters" twice). While
+                      a message is showing, the hint steps aside and leaves its
+                      reserved height alone. */}
+                  <FieldMessage tone="hint">
+                    {message
+                      ? "\u00a0"
+                      : mode === "register"
+                        ? t("auth.registerHint")
+                        : t("auth.loginHint")}
+                  </FieldMessage>
                 </m.p>
               </AnimatePresence>
             </div>
@@ -197,16 +216,8 @@ export default function AuthForm({
           error moved the submit button on every attempt. The height is fixed so
           clearing the message while the request runs cannot shift the layout.
         */}
-        <div className="min-h-4" aria-live="polite">
-          {message && (
-            <p
-              id={`${id}-error`}
-              role="alert"
-              className="text-destructive text-xs leading-relaxed"
-            >
-              {message}
-            </p>
-          )}
+        <div className="min-h-4" aria-live="polite" aria-atomic="true">
+          {message && <FieldMessage id={`${id}-error`}>{message}</FieldMessage>}
         </div>
 
         <Button

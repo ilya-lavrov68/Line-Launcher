@@ -57,6 +57,10 @@ export const ru = {
   "auth.submitting": "Проверяем данные…",
   "auth.submitLogin": "Войти",
   "auth.submitRegister": "Создать аккаунт",
+  "auth.confirmPassword": "Повторите пароль",
+  "auth.passwordMismatch": "Пароли не совпадают.",
+  "auth.passwordMatch": "Пароли совпадают.",
+  "auth.showBoth": "Показать оба пароля",
   "auth.privacy":
     "Пароль передаётся только API проекта по HTTPS. Токен сессии остаётся в Rust и не сохраняется в браузере.",
 
@@ -396,6 +400,10 @@ const en: Dictionary = {
   "auth.submitting": "Checking…",
   "auth.submitLogin": "Sign in",
   "auth.submitRegister": "Create account",
+  "auth.confirmPassword": "Repeat password",
+  "auth.passwordMismatch": "The passwords do not match.",
+  "auth.passwordMatch": "The passwords match.",
+  "auth.showBoth": "Show both passwords",
   "auth.privacy":
     "The password goes only to the project API over HTTPS. The session token stays in Rust and is never stored in the browser.",
 
@@ -734,6 +742,10 @@ const de: Dictionary = {
   "auth.submitting": "Wird geprüft…",
   "auth.submitLogin": "Anmelden",
   "auth.submitRegister": "Konto erstellen",
+  "auth.confirmPassword": "Passwort wiederholen",
+  "auth.passwordMismatch": "Die Passwörter stimmen nicht überein.",
+  "auth.passwordMatch": "Die Passwörter stimmen überein.",
+  "auth.showBoth": "Beide Passwörter anzeigen",
   "auth.privacy":
     "Das Passwort geht ausschließlich per HTTPS an die Projekt-API. Das Sitzungstoken bleibt in Rust und wird nicht im Browser gespeichert.",
 
@@ -1076,6 +1088,10 @@ const fr: Dictionary = {
   "auth.submitting": "Vérification…",
   "auth.submitLogin": "Se connecter",
   "auth.submitRegister": "Créer un compte",
+  "auth.confirmPassword": "Répétez le mot de passe",
+  "auth.passwordMismatch": "Les mots de passe ne correspondent pas.",
+  "auth.passwordMatch": "Les mots de passe correspondent.",
+  "auth.showBoth": "Afficher les deux mots de passe",
   "auth.privacy":
     "Le mot de passe ne part que vers l'API du projet en HTTPS. Le jeton de session reste dans Rust et n'est jamais stocké dans le navigateur.",
 

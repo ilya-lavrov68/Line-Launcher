@@ -46,6 +46,11 @@ import {
   restoreWindow,
 } from "@/lib/line/window";
 import { toLineError, type SettingsSnapshot } from "@/types/line";
+import { initialLanguage, setLanguage, useT } from "@/lib/line/i18n";
+import {
+  SkeletonServerGrid,
+  SkeletonSettings,
+} from "@/components/line/Skeleton";
 
 type Screen = "config" | "account" | "servers" | "detail";
 
@@ -65,6 +70,7 @@ export default function LineLauncher() {
    * dev` lets a developer type one.
    */
   const mode = connectionMode(bakedProvider, import.meta.env.DEV);
+  const t = useT();
   const [section, setSection] = useState<LineSection>("servers");
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -101,10 +107,10 @@ export default function LineLauncher() {
   const railStatus = !railServer
     ? ""
     : railProgress
-      ? "Загрузка сборки"
+      ? t("servers.railDownloading")
       : installedIds.has(railServer.id)
-        ? "Сборка установлена"
-        : "Сборка не установлена";
+        ? t("servers.railInstalled")
+        : t("servers.railMissing");
   const gameActive =
     gameStatus?.phase === "starting" || gameStatus?.phase === "running";
   const actionsBusy = installing || authLoading || launching || gameActive;
@@ -154,7 +160,12 @@ export default function LineLauncher() {
     void lineApi
       .settings()
       .then((value) => {
-        if (!cancelled) setSettings(value);
+        if (cancelled) return;
+        // The stored language wins; with no stored choice the system language
+        // decides, and Russian is the floor. Applied before the first paint of
+        // any translated screen — the intro is still running at this point.
+        setLanguage(initialLanguage(value.settings.language));
+        setSettings(value);
       })
       .catch(() => undefined);
     return () => {
@@ -233,7 +244,7 @@ export default function LineLauncher() {
 
   async function selectServer(server: LineServer) {
     if (snapshot?.stale) {
-      setError("Обновите конфигурацию перед входом и установкой.");
+      setError(t("detail.refreshFirst"));
       return;
     }
     const generation = ++detailGeneration.current;
@@ -302,7 +313,7 @@ export default function LineLauncher() {
     setSelected(null);
     setScreen("account");
     setSection("servers");
-    setAuthError("Сессия истекла. Войдите повторно.");
+    setAuthError(t("status.authExpired"));
     void lineApi.forgetSyncedSkin().catch(() => undefined);
     return true;
   }
@@ -312,7 +323,7 @@ export default function LineLauncher() {
     if (session.expiresAt <= Date.now()) {
       setSession(null);
       setScreen("account");
-      setAuthError("Сессия истекла. Войдите повторно.");
+      setAuthError(t("status.authExpired"));
       return;
     }
     const id = crypto.randomUUID();
@@ -474,7 +485,7 @@ export default function LineLauncher() {
     setSelected(null);
     setScreen("account");
     setSection("servers");
-    setAuthError("Сессия истекла. Войдите повторно.");
+    setAuthError(t("status.authExpired"));
   }
 
   async function openHistory(open: boolean) {
@@ -524,14 +535,14 @@ export default function LineLauncher() {
 
   const titleContext =
     section === "settings"
-      ? "Настройки"
+      ? t("nav.settings")
       : section === "wardrobe"
-        ? "Гардероб"
+        ? t("nav.wardrobe")
         : section === "account"
-          ? "Аккаунт"
+          ? t("nav.account")
           : screen === "detail" && selected
             ? selected.name
-            : (snapshot?.config.provider.name ?? "Подключение");
+            : (snapshot?.config.provider.name ?? t("window.connecting"));
 
   function navigate(next: LineSection) {
     setSection(next);
@@ -691,6 +702,13 @@ export default function LineLauncher() {
                         transition={{ duration: 0.18 }}
                         className="flex min-h-full flex-1 flex-col"
                       >
+                        {/* The snapshot arrives a moment after the shell does.
+                            Until it does, the page shows its own geometry instead
+                            of an empty panel — the row of sections is the shape
+                            a player learns on first visit. */}
+                        {section === "settings" && !settings && (
+                          <SkeletonSettings />
+                        )}
                         {section === "settings" && settings && (
                           <SettingsScreen
                             snapshot={settings}
@@ -702,7 +720,8 @@ export default function LineLauncher() {
                           <ProfileScreen
                             session={session}
                             providerName={
-                              snapshot?.config.provider.name ?? "проект"
+                              snapshot?.config.provider.name ??
+                              t("common.project")
                             }
                             canSync={canSyncSkin}
                             onLogout={() => void logout()}
@@ -714,7 +733,7 @@ export default function LineLauncher() {
                           // Signing out while this page is open must not leave a
                           // blank panel; the sign-in screen is the honest state.
                           <div className="text-muted-foreground mx-auto flex w-full max-w-3xl flex-col items-start gap-2 py-10 text-xs">
-                            <p>Вы не вошли в аккаунт.</p>
+                            <p>{t("status.noSession")}</p>
                           </div>
                         )}
                         {section === "wardrobe" && (
@@ -766,6 +785,10 @@ export default function LineLauncher() {
                         )}
                         {section === "servers" &&
                           screen === "servers" &&
+                          !snapshot &&
+                          loading && <SkeletonServerGrid />}
+                        {section === "servers" &&
+                          screen === "servers" &&
                           snapshot && (
                             <ServerList
                               rail={
@@ -779,7 +802,7 @@ export default function LineLauncher() {
                               }
                               statusFor={(server) =>
                                 installedIds.has(server.id)
-                                  ? "Готов"
+                                  ? t("servers.ready")
                                   : undefined
                               }
                               providerName={snapshot.config.provider.name}
@@ -858,7 +881,7 @@ export default function LineLauncher() {
               </span>
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                Только авторизация провайдера
+                {t("status.offlineOnly")}
               </span>
             </footer>
           </div>

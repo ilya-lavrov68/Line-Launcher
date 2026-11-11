@@ -145,6 +145,10 @@ const page = await browser.newPage({
   viewport: { width: 1280, height: 900 },
   // Obsy's animated gradient never settles; screenshots must disable motion.
   reducedMotion: "reduce",
+  // The launcher follows the system language until a language is chosen, and
+  // this suite asserts Russian labels. Without a locale Chromium reports
+  // en-US and the first run would come up in English.
+  locale: "ru-RU",
 });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
@@ -576,8 +580,13 @@ try {
   );
 
   // Custom title bar: the caption buttons must actually reach the window plugin.
-  for (const label of ["Свернуть окно", "Развернуть окно"]) {
-    const button = page.getByRole("button", { name: label });
+  // The labels come from the catalogue now, so they are the short window verbs
+  // rather than the old "…окно" phase.
+  // `exact` matters now that the window verb and the sidebar verb are both
+  // "Свернуть": the caption buttons are the short ones, the rail's are
+  // "Свернуть меню".
+  for (const label of ["Свернуть", "Развернуть"]) {
+    const button = page.getByRole("button", { name: label, exact: true });
     await button.waitFor();
     await button.click();
   }
@@ -620,9 +629,10 @@ try {
         };
       }),
     );
-  // Five sections now: memory, Java, backdrop, window behaviour and cache.
+  // Six sections now: language, memory, backdrop, Java, window behaviour and
+  // the configuration cache. Language is first, above memory.
   check(
-    sectionIcons.length === 5 &&
+    sectionIcons.length === 6 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&
@@ -1118,6 +1128,96 @@ try {
       `credit overflows the viewport at ${width}px`,
     );
   }
+
+  // ── Four languages, switched live ────────────────────────────────────────
+  //
+  // "Ничего не должно быть криво" is a layout claim, so it is measured: every
+  // language is applied through the real picker, and anything that clips its
+  // own content horizontally is reported with the offending text. German and
+  // French are the long ones — if a label was going to wrap out of shape, this
+  // is where it would.
+  await page.getByRole("button", { name: "Настройки" }).click();
+  await page.getByText("Память игры", { exact: true }).waitFor();
+
+  const clippings = async () =>
+    page.evaluate(() => {
+      const bad = [];
+      for (const node of document.querySelectorAll("[data-line-settings] *")) {
+        const style = getComputedStyle(node);
+        if (style.display === "none" || style.visibility === "hidden") break;
+        if (style.overflowX !== "visible") continue; // explicit scrollers are fine
+        if (node.clientWidth === 0) continue;
+        if (node.scrollWidth - node.clientWidth <= 1) continue;
+        const text = (node.textContent ?? "").trim();
+        if (!text) continue;
+        // Name the widest child too: the culprit is usually one level in.
+        let widest = null;
+        for (const child of node.children) {
+          if (child.scrollWidth - node.clientWidth > 1) {
+            widest = {
+              tag: child.tagName.toLowerCase(),
+              cls: (child.className ?? "").toString().slice(0, 70),
+              text: (child.textContent ?? "").trim().slice(0, 40),
+              sw: child.scrollWidth,
+            };
+            break;
+          }
+        }
+        bad.push({
+          tag: node.tagName.toLowerCase(),
+          cls: (node.className ?? "").toString().slice(0, 80),
+          text: text.slice(0, 40),
+          sw: node.scrollWidth,
+          cw: node.clientWidth,
+          widest,
+        });
+      }
+      return bad;
+    });
+
+  const languages = [
+    ["Deutsch", "Sprache"],
+    ["Français", "Langue"],
+    ["English", "Language"],
+    ["Русский", "Язык"],
+  ];
+  for (const [label, heading] of languages) {
+    const trigger = page.locator("#setting-language");
+    await trigger.click();
+    await page.getByRole("option", { name: label, exact: true }).click();
+    await page.getByText(heading, { exact: true }).first().waitFor();
+    // The switch is synchronous: no network, no reload, the same DOM.
+    const stillHere = await page
+      .getByText("Память игры", { exact: false })
+      .count();
+    const clipped = await clippings();
+    // One image per language, kept next to the run: the German settings screen
+    // is the widest the interface ever gets, so it is the one worth looking at.
+    await shot(`i18n-${label.toLowerCase()}`).catch(() => {});
+    check(
+      clipped.length === 0,
+      `${label}: settings text overflows its box: ${JSON.stringify(clipped).slice(0, 300)}`,
+    );
+    check(
+      label === "Русский" ? stillHere > 0 : stillHere === 0,
+      `${label}: the switch did not replace the previous language's text`,
+    );
+  }
+
+  // Back to Russian for the rest of the suite and for the stored setting.
+  await page.locator("#setting-language").click();
+  await page.getByRole("option", { name: "Русский", exact: true }).click();
+  await page.getByText("Настройки", { exact: true }).first().waitFor();
+
+  const languageCalls = await page.evaluate(() =>
+    window.__calls
+      .filter((c) => c[0] === "save_settings")
+      .map((c) => c[1]?.settings?.language ?? null),
+  );
+  check(
+    languageCalls.filter(Boolean).length >= 4,
+    `the language was not persisted on every switch: ${JSON.stringify(languageCalls)}`,
+  );
 
   const commands = await page.evaluate(() => window.__calls.map((c) => c[0]));
   for (const required of [

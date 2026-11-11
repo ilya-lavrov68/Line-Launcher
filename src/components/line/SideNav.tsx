@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/line/i18n";
 
 export type LineSection = "servers" | "wardrobe" | "account" | "settings";
 
@@ -68,20 +69,21 @@ export default function SideNav({
   actionsDisabled = false,
 }: SideNavProps) {
   const reducedMotion = useReducedMotion();
+  const t = useT();
   const items: NavItem[] = [
-    { id: "servers", label: "Серверы", icon: Server },
+    { id: "servers", label: t("nav.servers"), icon: Server },
     // Never gated: the local history works signed out and offline.
-    { id: "wardrobe", label: "Гардероб", icon: Shirt },
+    { id: "wardrobe", label: t("nav.wardrobe"), icon: Shirt },
     // The account is a page now, not only a name in the footer: it is where the
     // player sees what they look like in game, and the only place the session
     // state is explained.
-    { id: "account", label: "Аккаунт", icon: UserRound },
-    { id: "settings", label: "Настройки", icon: Settings },
+    { id: "account", label: t("nav.account"), icon: UserRound },
+    { id: "settings", label: t("nav.settings"), icon: Settings },
   ];
 
   return (
     <m.nav
-      aria-label="Основная навигация"
+      aria-label={t("nav.primary")}
       initial={false}
       animate={{ width: collapsed ? 60 : 208 }}
       transition={
@@ -174,8 +176,8 @@ export default function SideNav({
               variant="ghost"
               size="icon-xs"
               disabled={actionsDisabled}
-              aria-label={`Выйти из аккаунта ${username}`}
-              title={`Выйти из аккаунта ${username}`}
+              aria-label={t("nav.logout", { username: username ?? "" })}
+              title={t("nav.logout", { username: username ?? "" })}
               onClick={onLogout}
               className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer disabled:cursor-not-allowed"
             >
@@ -186,8 +188,8 @@ export default function SideNav({
         <Button
           variant="ghost"
           disabled={actionsDisabled}
-          aria-label="Переподключиться"
-          title={collapsed ? "Переподключиться" : undefined}
+          aria-label={t("nav.reconnect")}
+          title={collapsed ? t("nav.reconnect") : undefined}
           onClick={onChangeProvider}
           className={cn(
             "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
@@ -195,12 +197,12 @@ export default function SideNav({
           )}
         >
           <RefreshCw className="h-5 w-5 shrink-0" aria-hidden="true" />
-          {!collapsed && <span className="truncate">Переподключиться</span>}
+          {!collapsed && <span className="truncate">{t("nav.reconnect")}</span>}
         </Button>
         <Button
           variant="ghost"
-          aria-label="О программе"
-          title={collapsed ? "О программе" : undefined}
+          aria-label={t("nav.about")}
+          title={collapsed ? t("nav.about") : undefined}
           onClick={onAbout}
           className={cn(
             "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
@@ -208,7 +210,7 @@ export default function SideNav({
           )}
         >
           <Info className="h-5 w-5 shrink-0" aria-hidden="true" />
-          {!collapsed && <span className="truncate">О программе</span>}
+          {!collapsed && <span className="truncate">{t("nav.about")}</span>}
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
         {!collapsed && brand.attribution.placement === "header" && (
@@ -220,8 +222,8 @@ export default function SideNav({
           variant="ghost"
           onClick={onToggleCollapsed}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
-          title={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
+          title={collapsed ? t("nav.expand") : t("nav.collapse")}
           className={cn(
             "text-muted-foreground hover:text-foreground h-8 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
@@ -234,7 +236,7 @@ export default function SideNav({
             )}
             aria-hidden="true"
           />
-          {!collapsed && <span className="truncate">Свернуть</span>}
+          {!collapsed && <span className="truncate">{t("nav.collapse")}</span>}
         </Button>
       </div>
     </m.nav>

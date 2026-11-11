@@ -32,6 +32,11 @@ import type { GradientConfig } from "hazeglow";
 
 export interface BackdropTheme {
   id: string;
+  /**
+   * Russian name, and the only place a theme is named. Other languages are in
+   * the message catalogue under `backdrop.<id>`; the picker translates the id,
+   * so adding a language never touches this file.
+   */
   name: string;
   /**
    * Three colours that read as the theme at thumbnail size, picked from its own
@@ -583,6 +588,21 @@ export const BACKDROP_THEMES: BackdropTheme[] = [
 ];
 
 export const DEFAULT_BACKDROP_ID = "aurora";
+
+/**
+ * The catalogue key for a theme's name.
+ *
+ * Typed as an intersection with `string`, not as `` `backdrop.${string}` ``:
+ * the letter would let any id through to the translator, including a stored
+ * theme from a newer build that this one does not know. The picker only ever
+ * passes ids from `BACKDROP_THEMES`, and the catalogue has one name per id —
+ * `tests/i18n.test.ts` is what keeps the two lists in step.
+ */
+export type BackdropNameKey = `backdrop.${string}`;
+
+export function backdropNameKey(id: string): BackdropNameKey {
+  return `backdrop.${id}` as BackdropNameKey;
+}
 
 export function backdropTheme(id: string | null | undefined): BackdropTheme {
   return BACKDROP_THEMES.find((entry) => entry.id === id) ?? BACKDROP_THEMES[0];

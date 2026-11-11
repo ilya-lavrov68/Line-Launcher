@@ -113,8 +113,8 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
     'role="status"',
     'role="progressbar"',
     "aria-valuenow",
-    "Загрузка сборки",
-    "Играть",
+    't("detail.installing")',
+    't("detail.play")',
   ]) {
     assert.ok(panel.includes(piece), `missing ${piece}`);
   }
@@ -172,8 +172,8 @@ test("the catalogue rail is tryliner's now-playing strip, translated", () => {
   // One region, one action. A play button here would promise a launch that may
   // need an install first, so the strip only opens the server screen.
   assert.match(rail, /role="region"/);
-  assert.match(rail, /aria-label="Текущий сервер"/);
-  assert.match(rail, /<span>Открыть<\/span>/);
+  assert.match(rail, /aria-label=\{t\("servers\.rail"\)\}/);
+  assert.match(rail, /\{t\("servers\.openShort"\)\}/);
   assert.doesNotMatch(rail, /Играть|Остановить/);
   // Progress is a hairline with a real progressbar role, not a decoration.
   assert.match(rail, /role="progressbar"/);

@@ -12,6 +12,7 @@ import {
   toggleMaximizeWindow,
 } from "@/lib/line/window";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/line/i18n";
 
 export interface TitleBarProps {
   /** Breadcrumb shown next to the product name. */
@@ -28,6 +29,7 @@ export interface TitleBarProps {
  * automatically because Tauri ignores the drag region on interactive elements.
  */
 export default function TitleBar({ context }: TitleBarProps) {
+  const t = useT();
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export default function TitleBar({ context }: TitleBarProps) {
             variant="ghost"
             size="icon"
             onClick={() => void minimizeWindow()}
-            aria-label="Свернуть окно"
+            aria-label={t("window.minimize")}
             className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
           >
             <Minus className="h-4 w-4" aria-hidden="true" />
@@ -103,7 +105,7 @@ export default function TitleBar({ context }: TitleBarProps) {
             variant="ghost"
             size="icon"
             onClick={() => void toggleMaximizeWindow()}
-            aria-label={maximized ? "Восстановить окно" : "Развернуть окно"}
+            aria-label={maximized ? t("window.restore") : t("window.maximize")}
             className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
           >
             {maximized ? (
@@ -116,7 +118,7 @@ export default function TitleBar({ context }: TitleBarProps) {
             variant="ghost"
             size="icon"
             onClick={() => void closeWindow()}
-            aria-label="Закрыть окно"
+            aria-label={t("window.close")}
             className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
           >
             <X className="h-4 w-4" aria-hidden="true" />

@@ -1,6 +1,7 @@
 import { m } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/line/i18n";
 import type {
   GameStatus,
   InstallProgress,
@@ -96,6 +97,7 @@ export default function ServerDetail(props: ServerDetailProps) {
     availability,
     onBack,
   } = props;
+  const t = useT();
   const phase = phaseOf(server, receipt, progress, status);
   const legacy = actionsBusy || installing || launching;
   // Explicit opt-in from the provider, never inferred from the presence of an
@@ -119,7 +121,7 @@ export default function ServerDetail(props: ServerDetailProps) {
         className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 self-start text-xs"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        <span>Все серверы</span>
+        <span>{t("detail.allServers")}</span>
       </Button>
 
       {/* The page opens on the server's own artwork, full width, the way
@@ -225,8 +227,7 @@ export default function ServerDetail(props: ServerDetailProps) {
 
       {!isMinecraft && hasSession && phase === "needs-install" && (
         <p className="text-muted-foreground px-2 text-[12px] leading-relaxed">
-          Сборка скачается целиком: архив провайдера, проверка sha256 и
-          распаковка. Прогресс виден здесь же, меню не блокируется.
+          {t("detail.installHint")}
         </p>
       )}
 

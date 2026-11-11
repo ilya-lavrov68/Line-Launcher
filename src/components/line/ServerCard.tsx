@@ -2,6 +2,7 @@ import { Check, CloudDownload, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/line/i18n";
 
 export interface ServerCardProps {
   name: string;
@@ -47,6 +48,7 @@ export default function ServerCard({
   disabled = false,
   onClick,
 }: ServerCardProps) {
+  const t = useT();
   const [imageFailed, setImageFailed] = useState(false);
   const [bannerFailed, setBannerFailed] = useState(false);
 
@@ -58,7 +60,7 @@ export default function ServerCard({
   const state = statusLabel
     ? { label: statusLabel, tone: "busy" as const }
     : installed
-      ? { label: "Установлен", tone: "ready" as const }
+      ? { label: t("servers.installed"), tone: "ready" as const }
       : null;
 
   return (
@@ -79,7 +81,7 @@ export default function ServerCard({
         variant="ghost"
         disabled={disabled}
         onClick={onClick}
-        aria-label={`Открыть сервер ${name}`}
+        aria-label={t("servers.open", { name })}
         data-line-card
         className={cn(
           // A tinted surface instead of a border. `fill-subtle` is one step above
@@ -185,9 +187,7 @@ export default function ServerCard({
             <p className="text-muted-foreground/80 flex items-center gap-1.5 font-mono text-[12px]">
               {minecraftVersion && <span>Minecraft {minecraftVersion}</span>}
               {minecraftVersion && hasPack && <span aria-hidden="true">·</span>}
-              {hasPack && (
-                <span title="Провайдер публикует pack.json">pack.json</span>
-              )}
+              {hasPack && <span title={t("servers.packJson")}>pack.json</span>}
             </p>
           )}
         </div>

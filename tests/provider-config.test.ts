@@ -172,8 +172,9 @@ test("the shell has no provider choice and no player-facing URL field", () => {
   assert.doesNotMatch(shell, /allowManualUrl/);
 
   const nav = read("src/components/line/SideNav.tsx");
-  assert.doesNotMatch(nav, /Сменить провайдера/);
-  assert.match(nav, /Переподключиться/);
+  assert.doesNotMatch(nav, /Сменить провайдера|ProviderPicker/);
+  // One action, translated: the label now comes from the catalogue.
+  assert.match(nav, /t\("nav\.reconnect"\)/);
 
   const connecting = read("src/components/line/ConnectingScreen.tsx");
   assert.doesNotMatch(connecting, /<Input|type="url"/, "no address field");

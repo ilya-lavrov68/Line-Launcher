@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import SkinPreview from "@/components/line/SkinPreview";
 import { cn } from "@/lib/utils";
 import type { SkinModel } from "@/types/line";
+import { useT } from "@/lib/line/i18n";
 
 export interface SkinViewer3DProps {
   /** Provider HTTPS texture URL, or an object URL for a local file. */
@@ -41,6 +42,7 @@ export default function SkinViewer3D({
   className,
   height = 288,
 }: SkinViewer3DProps) {
+  const t = useT();
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "flat">(
     src ? "loading" : "flat",
@@ -156,11 +158,11 @@ export default function SkinViewer3D({
           commit that first sees `src`, and it needs this ref by then. Gating the
           element on `status` meant the ref was null on that commit, the effect
           returned early, and nothing ever re-ran it — the viewer sat on
-          "Готовим 3D…" forever. */}
+          the placeholder forever. */}
       {src && <div ref={hostRef} className="absolute inset-0" />}
       {status === "loading" && (
         <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-xs">
-          Готовим 3D…
+          {t("skin.preparing3d")}
         </div>
       )}
       {status === "flat" &&
@@ -175,7 +177,7 @@ export default function SkinViewer3D({
           </div>
         ) : (
           <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-xs">
-            Скин не выбран
+            {t("skin.none")}
           </div>
         ))}
     </div>

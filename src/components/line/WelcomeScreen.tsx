@@ -1,6 +1,7 @@
 import { m, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
 import { brand } from "@/brand/generated";
+import { useT } from "@/lib/line/i18n";
 
 /**
  * The greeting a player sees before anything else.
@@ -36,7 +37,10 @@ export default function WelcomeScreen({
   holdMs = 620,
 }: WelcomeScreenProps) {
   const reduced = useReducedMotion();
-  // "Welcome" is the word on screen; the brand name is what it welcomes you to.
+  const t = useT();
+  // The word is not translated: "Welcome" is the greeting this screen is
+  // modelled on, and it reads as a wordmark, not as a sentence. The line under
+  // it is the product name, and that one follows the interface language.
   const word = "Welcome";
   const letters = Array.from(word);
 
@@ -133,7 +137,7 @@ export default function WelcomeScreen({
         }}
         className="text-muted-foreground mt-4 text-xs font-medium tracking-[0.24em] uppercase"
       >
-        {brand.name}
+        {t("welcome.brand", { brand: brand.name })}
       </m.p>
     </m.div>
   );

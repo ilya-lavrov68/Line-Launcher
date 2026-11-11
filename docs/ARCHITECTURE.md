@@ -79,12 +79,17 @@ TTL кэша ограничен 60–86400 секундами; отсутств�
 - Удалён чужой updater endpoint/public key и автоматическая установка обновлений Obsy. Release workflow теперь строит неподписанные кандидаты без публикации.
 - `src/types/line.ts`: публичный контракт конфигурации, IPC DTO и ошибки.
 - `src-tauri/src/line/`: config/cache/auth/state/storage/http/install/launch/error-модули.
-- `src/components/line/`: `ConfigUrlInput`, `ServerList`, `ServerCard`, `AuthForm`, `InstallProgress`, orchestration `LineLauncher`.
+- `src/components/line/`: `ConfigUrlInput`, `ServerList`, `ServerCard`, `AuthForm`, `WelcomeScreen`, `SignInScreen`, `Skeleton` (заглушки загрузки по форме экранов), orchestration `LineLauncher`. Переводы — `src/lib/line/languages.ts` + `i18n-dictionaries.ts` + `i18n-core.ts` (стор) и `i18n.ts` (`useT`).
 - `Button`, `Input`, `Label`, `Tabs`, `Progress` переиспользуются. Отдельных Card/Modal/ProgressBar в Obsy нет; карточки следуют `InstalledAddonCard`, диалоги — `Dialog`, прогресс — составному `Progress`.
 - Tailwind v4, исходные токены и скругления Obsy без изменений, Framer Motion, Lucide, Base UI. Учтён reduced motion; карточки доступны с клавиатуры. Захардкоженные цвета убраны в пользу токенов Obsy.
 - Build-time брендинг: `branding/line.brand.json` → генератор CSS/TS/Tauri-overlay/иконок, пресеты и переопределения только для семантических цветов, обязательная по лицензии видимая атрибуция Line Launcher | Plus In Plus (`docs/BRANDING.md`).
 - Тесты контракта TS, тесты валидатора брендинга и Rust-тесты путей/размеров/symlink/cancellation/lock/atomic write/SemVer.
 - CI переведён на npm lockfile: frontend/branding/license tests, Java-client integration matrix и Rust fmt/check/test/clippy на Linux/Windows/macOS. Rust-прогоны ещё должны быть выполнены в CI до релиза.
+
+### Переводы и загрузка
+
+- **Четыре языка, все в сборке.** `src/lib/line/languages.ts` — список (`ru`, `en`, `de`, `fr`), порядок и эндонимы для выбора; `i18n-dictionaries.ts` — каталог, где русский является источником истины, а `Dictionary` выводится из него, поэтому пропущенный ключ в любом языке — ошибка компиляции, а не строка, которая молча осталась русской. Все четыре словаря статически импортированы: переключение синхронное, без запроса и без промежуточного состояния. `i18n-core.ts` держит текущий язык как модульный стор (поэтому `t()` работает и вне React — в валидаторах скинов и ошибках IPC), `i18n.ts` добавляет `useT()` через `useSyncExternalStore`. Пока игрок не выбрал язык, `resolveLanguage` берёт язык системы, а русский остаётся языком по умолчанию; сохранённый выбор перебивает систему. Язык хранится в `LauncherSettings.language` вместе с остальными настройками (одна запись, одна схема, переживает переустановку WebView). `tests/i18n.test.ts` проверяет одинаковый набор ключей, отсутствие русского текста в латинских словарях, сохранность плейсхолдеров, порядок языков, названия всех двенадцати фонов и то, что выбор языка — первая секция настроек.
+- **Skeleton-загрузка по форме элементов.** `src/components/line/Skeleton.tsx`: заглушки повторяют геометрию того, что заменяют, — карточка сервера (баннер 96 px, иконка 32 px, три строки текста), сетка каталога в тех же трёх колонках, страница сервера с доком, прижатым к нижнему краю, квадратный бокс 3D-просмотра в профиле, двухколоночный гардероб, строки истории сборок, карточка входа. Скелетоны `aria-hidden`, живые регионы вокруг них несут `role="status"`/`aria-busy`; при `prefers-reduced-motion` остаётся форма без мерцания. Спиннер остался только там, где скелетон невозможен: кнопки, которые уже нажаты, и повторная попытка после ошибки.
 
 ### Выполнено в срезе интерфейса игрока
 

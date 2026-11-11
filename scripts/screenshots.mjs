@@ -201,6 +201,8 @@ const page = await browser.newPage({
   viewport: { width: SHOT_WIDTH, height: SHOT_HEIGHT },
   reducedMotion: "reduce",
   deviceScaleFactor: 1,
+  // The gallery documents the primary language; see the note in ui-smoke.
+  locale: "ru-RU",
 });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));

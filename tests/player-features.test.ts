@@ -229,8 +229,14 @@ test("the title bar can actually control the window", () => {
   }
   const titleBar = read("src/components/line/TitleBar.tsx");
   assert.match(titleBar, /data-tauri-drag-region/);
-  for (const label of ["Свернуть окно", "Закрыть окно"]) {
-    assert.ok(titleBar.includes(label), `caption button ${label} is unnamed`);
+  // The labels moved into the catalogue with the four-language interface; the
+  // test now checks the component really names its buttons, and the catalogue
+  // test checks the names exist in every language.
+  for (const key of ["window.minimize", "window.close", "window.maximize"]) {
+    assert.ok(
+      titleBar.includes(`t("${key}")`),
+      `caption button ${key} is unnamed`,
+    );
   }
 });
 
@@ -242,7 +248,7 @@ test("the new chrome uses semantic tokens, never hardcoded colours", () => {
     "src/components/line/SideNav.tsx",
     "src/components/line/SettingsScreen.tsx",
     "src/components/line/WardrobeScreen.tsx",
-    "src/components/line/ServerBanner.tsx",
+    "src/components/line/ServerDetail.tsx",
     "src/components/line/SkinPreview.tsx",
   ]) {
     const src = read(file);
@@ -317,7 +323,7 @@ test("submit buttons keep a reserved message slot so they cannot jump", () => {
   for (const file of [
     "src/components/line/ConfigUrlInput.tsx",
     "src/components/line/AuthForm.tsx",
-    "src/components/line/LaunchControls.tsx",
+    "src/components/line/ServerActionPanel.tsx",
     "src/components/line/LineLauncher.tsx",
   ]) {
     assert.ok(
@@ -474,9 +480,11 @@ test("there is no manual send button: the sync runs by itself", () => {
     screen,
     /if \(result\.status === "synced"\) setRemote\(result\.skin\)/,
   );
-  // The player sees a status, not an action.
-  assert.match(screen, /Отправляем активный скин/);
-  assert.match(screen, /автоматически/);
+  // The player sees a status, not an action. The status text lives in the
+  // catalogue, so the screen is checked for the key and the catalogue for the
+  // sentence — a translated interface still has to say this.
+  assert.match(screen, /t\("wardrobe\.syncing"\)/);
+  assert.match(screen, /t\("wardrobe\.syncedAuto"/);
   // Manual upload commands are gone from the whole IPC surface.
   const commands = read("src-tauri/src/lib.rs");
   assert.doesNotMatch(commands, /upload_skin|wardrobe::reset_skin/);

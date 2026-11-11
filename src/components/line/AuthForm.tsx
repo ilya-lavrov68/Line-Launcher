@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useT } from "@/lib/line/i18n";
 import type { AuthMode } from "@/types/line";
 
 export interface AuthFormProps {
@@ -30,6 +31,7 @@ export default function AuthForm({
 }: AuthFormProps) {
   const id = useId();
   const reducedMotion = useReducedMotion();
+  const t = useT();
   const [mode, setMode] = useState<AuthMode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +50,7 @@ export default function AuthForm({
     event.preventDefault();
     if (loading) return;
     if (!/^[A-Za-z0-9_]{3,32}$/.test(username)) {
-      setValidation("Логин: 3–32 латинских буквы, цифры или _.");
+      setValidation(t("auth.usernameHint"));
       return;
     }
     if (
@@ -58,8 +60,8 @@ export default function AuthForm({
     ) {
       setValidation(
         mode === "register"
-          ? "Пароль: не менее 8 символов."
-          : "Введите пароль.",
+          ? t("auth.passwordShort")
+          : t("auth.passwordRequired"),
       );
       return;
     }
@@ -88,7 +90,7 @@ export default function AuthForm({
                 // is the "sharp switch" the switch itself was accused of.
                 className="transition-colors duration-200"
               >
-                {value === "login" ? "Вход" : "Регистрация"}
+                {value === "login" ? t("auth.login") : t("auth.register")}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -102,7 +104,7 @@ export default function AuthForm({
               htmlFor={`${id}-username`}
               className="text-muted-foreground text-xs font-medium"
             >
-              Логин
+              {t("auth.username")}
             </Label>
             <Input
               id={`${id}-username`}
@@ -128,7 +130,7 @@ export default function AuthForm({
               htmlFor={`${id}-password`}
               className="text-muted-foreground text-xs font-medium"
             >
-              Пароль
+              {t("auth.password")}
             </Label>
             <div className="relative">
               <Input
@@ -155,7 +157,9 @@ export default function AuthForm({
                 size="icon-sm"
                 className="text-muted-foreground hover:text-foreground absolute top-0.5 right-0.5 cursor-pointer"
                 onClick={() => setShowPassword((value) => !value)}
-                aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                aria-label={
+                  showPassword ? t("auth.hidePassword") : t("auth.showPassword")
+                }
                 aria-pressed={showPassword}
                 disabled={loading}
               >
@@ -180,8 +184,8 @@ export default function AuthForm({
                   className="text-muted-foreground/80 text-[12px] leading-relaxed"
                 >
                   {mode === "register"
-                    ? "Пароль не короче 8 символов."
-                    : "Тот же вход открывает все серверы проекта."}
+                    ? t("auth.registerHint")
+                    : t("auth.loginHint")}
                 </m.p>
               </AnimatePresence>
             </div>
@@ -225,7 +229,7 @@ export default function AuthForm({
               aria-hidden="true"
               className="invisible col-start-1 row-start-1 whitespace-nowrap"
             >
-              Создать аккаунт
+              {t("auth.submitRegister")}
             </span>
             <AnimatePresence initial={false} mode="popLayout">
               <m.span
@@ -237,10 +241,10 @@ export default function AuthForm({
                 className="col-start-1 row-start-1 whitespace-nowrap"
               >
                 {loading
-                  ? "Проверяем данные…"
+                  ? t("auth.submitting")
                   : mode === "login"
-                    ? "Войти"
-                    : "Создать аккаунт"}
+                    ? t("auth.submitLogin")
+                    : t("auth.submitRegister")}
               </m.span>
             </AnimatePresence>
           </span>
@@ -248,8 +252,7 @@ export default function AuthForm({
       </form>
 
       <p className="text-muted-foreground/80 text-[12px] leading-relaxed">
-        Пароль передаётся только API проекта по HTTPS. Токен сессии остаётся в
-        Rust и не сохраняется в браузере.
+        {t("auth.privacy")}
       </p>
     </div>
   );

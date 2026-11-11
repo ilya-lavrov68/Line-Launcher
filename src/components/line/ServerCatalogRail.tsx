@@ -2,6 +2,7 @@ import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Play, Server as ServerIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InstallProgress, LineServer } from "@/types/line";
+import { useT } from "@/lib/line/i18n";
 
 export interface ServerCatalogRailProps {
   server: LineServer | null;
@@ -30,6 +31,7 @@ export function ServerCatalogRail({
   onOpen,
 }: ServerCatalogRailProps) {
   const reducedMotion = useReducedMotion();
+  const t = useT();
   const percent =
     progress && Number.isFinite(progress.percent)
       ? Math.min(100, Math.max(0, Math.round(progress.percent)))
@@ -51,7 +53,7 @@ export function ServerCatalogRail({
           <section
             data-line-glass
             role="region"
-            aria-label="Текущий сервер"
+            aria-label={t("servers.rail")}
             className="flex items-center gap-3 p-3"
           >
             <div
@@ -96,7 +98,7 @@ export function ServerCatalogRail({
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={percent}
-                  aria-label="Загрузка сборки"
+                  aria-label={t("servers.railDownloading")}
                   className="bg-fill mt-1.5 h-1 w-full overflow-hidden rounded-full"
                 >
                   <m.div
@@ -120,7 +122,7 @@ export function ServerCatalogRail({
               className="h-7 shrink-0 gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[12px] font-medium"
             >
               <Play className="size-3 fill-current" aria-hidden="true" />
-              <span>Открыть</span>
+              <span>{t("servers.openShort")}</span>
             </Button>
           </section>
         </m.div>

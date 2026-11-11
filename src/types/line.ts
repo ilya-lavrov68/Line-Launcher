@@ -162,6 +162,11 @@ export interface LauncherSettings {
   afterLaunch: AfterLaunch;
   /** Backdrop theme id; unknown or absent means the default gradient. */
   backdrop?: string | null;
+  /**
+   * Interface language code (`ru`, `en`, `de`, `fr`). Unknown or absent means
+   * the UI follows the system language, then Russian.
+   */
+  language?: string | null;
   windowWidth: number;
   windowHeight: number;
   windowMaximized: boolean;
@@ -345,12 +350,21 @@ export function isLineError(value: unknown): value is LineError {
   );
 }
 
-export function toLineError(value: unknown): LineError {
+/**
+ * Any thrown value → a `LineError`.
+ *
+ * The fallback message is not a literal here: this module is imported by tests
+ * and by code that never renders, and a frozen Russian string would be the one
+ * sentence on a German screen that stayed Russian. `fallback` lets a caller
+ * that already has a translator pass the sentence in; without one the
+ * catalogue is read at call time.
+ */
+export function toLineError(value: unknown, fallback?: string): LineError {
   if (isLineError(value)) return value;
   // Do not display/log an unknown exception: it could contain a signed URL or token.
   return {
     code: "INTERNAL",
-    message: "Не удалось выполнить операцию. Повторите попытку.",
+    message: fallback ?? "Не удалось выполнить операцию. Повторите попытку.",
     retryable: false,
   };
 }

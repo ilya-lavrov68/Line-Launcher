@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isLegacySkin, readPngHeader, skinLayout } from "@/lib/line/skin";
 import { cn } from "@/lib/utils";
 import type { SkinModel } from "@/types/line";
+import { useT } from "@/lib/line/i18n";
 
 export interface SkinPreviewProps {
   /** Object URL or provider HTTPS texture URL. */
@@ -25,6 +26,7 @@ export default function SkinPreview({
   scale = 6,
   className,
 }: SkinPreviewProps) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
 
@@ -107,7 +109,7 @@ export default function SkinPreview({
     >
       {failed || !src ? (
         <span className="text-muted-foreground p-4 text-center text-[12px] leading-relaxed">
-          {failed ? "Не удалось показать текстуру" : "Скин не выбран"}
+          {failed ? t("skin.previewFailed") : t("skin.none")}
         </span>
       ) : (
         <canvas
@@ -115,7 +117,9 @@ export default function SkinPreview({
           width={16 * scale}
           height={32 * scale}
           role="img"
-          aria-label={`Предпросмотр скина, модель ${model === "slim" ? "slim" : "classic"}`}
+          aria-label={t("skin.previewAria", {
+            model: model === "slim" ? "slim" : "classic",
+          })}
           className="[image-rendering:pixelated]"
         />
       )}

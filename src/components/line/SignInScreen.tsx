@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { brand } from "@/brand/generated";
 import BrandMark from "@/components/line/BrandMark";
 import TitleBar from "@/components/line/TitleBar";
+import { useT } from "@/lib/line/i18n";
 import type { AuthMode } from "@/types/line";
 import Attribution from "./Attribution";
 import AuthForm from "./AuthForm";
@@ -43,6 +44,7 @@ export default function SignInScreen({
   onSubmit,
 }: SignInScreenProps) {
   const reduced = useReducedMotion();
+  const t = useT();
   const [entered, setEntered] = useState(false);
 
   // One entrance, once. Re-running it when the player types would be a blink
@@ -85,8 +87,9 @@ export default function SignInScreen({
             {providerName}
           </h1>
           <p className="text-muted-foreground mt-2 mb-6 text-center text-[13px] leading-relaxed">
-            Один вход — все серверы проекта.
-            {serverCount > 0 && ` Серверов: ${serverCount}.`}
+            {t("signin.tagline")}
+            {serverCount > 0 &&
+              ` ${t("signin.serverCount", { count: serverCount })}`}
           </p>
 
           <div
@@ -105,7 +108,7 @@ export default function SignInScreen({
             {brand.attribution.placement === "footer" ? (
               <Attribution />
             ) : (
-              <>Вход только через аккаунт проекта.</>
+              <>{t("signin.footer")}</>
             )}
           </p>
         </m.div>

@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   Coffee,
+  Languages,
   MemoryStick,
   Palette,
   RefreshCw,
@@ -31,6 +32,8 @@ import type {
 import { cn } from "@/lib/utils";
 import BackdropPicker from "@/components/line/BackdropPicker";
 import SectionIcon from "@/components/line/SectionIcon";
+import { LANGUAGES, LANGUAGE_NAMES, isLanguage } from "@/lib/line/languages";
+import { setLanguage, useT, type Translator } from "@/lib/line/i18n";
 
 export interface SettingsScreenProps {
   snapshot: SettingsSnapshot;
@@ -39,28 +42,39 @@ export interface SettingsScreenProps {
   disabled?: boolean;
 }
 
-const AFTER_LAUNCH: { value: AfterLaunch; label: string; hint: string }[] = [
-  {
-    value: "tray",
-    label: "Скрывать в трей",
-    hint: "Окно исчезает из панели задач, лаунчер ждёт в трее",
-  },
-  {
-    value: "minimize",
-    label: "Свернуть",
-    hint: "Окно остаётся на панели задач",
-  },
-  {
-    value: "close",
-    label: "Закрыть лаунчер",
-    hint: "Процесс завершается вместе с игрой",
-  },
-  {
-    value: "keep",
-    label: "Оставить как есть",
-    hint: "Окно не трогаем",
-  },
-];
+/**
+ * The four after-launch choices, built from the translator on each render.
+ *
+ * These used to be a module constant. A constant would freeze whatever language
+ * was current when the module was first imported, which is precisely the bug an
+ * instant switch would then show: the picker in Russian, the list in German.
+ */
+function afterLaunchOptions(
+  t: Translator,
+): { value: AfterLaunch; label: string; hint: string }[] {
+  return [
+    {
+      value: "tray",
+      label: t("settings.afterLaunch.tray"),
+      hint: t("settings.afterLaunch.trayHint"),
+    },
+    {
+      value: "minimize",
+      label: t("settings.afterLaunch.minimize"),
+      hint: t("settings.afterLaunch.minimizeHint"),
+    },
+    {
+      value: "close",
+      label: t("settings.afterLaunch.close"),
+      hint: t("settings.afterLaunch.closeHint"),
+    },
+    {
+      value: "keep",
+      label: t("settings.afterLaunch.keep"),
+      hint: t("settings.afterLaunch.keepHint"),
+    },
+  ];
+}
 
 /** Base UI renders the raw value unless SelectValue formats it. */
 function runtimeLabel(
@@ -117,6 +131,8 @@ export default function SettingsScreen({
   onChange,
   disabled = false,
 }: SettingsScreenProps) {
+  const t = useT();
+  const afterLaunch = afterLaunchOptions(t);
   const { settings, heapCeilingMb, suggestedHeapMb, totalMemoryMb } = snapshot;
   const [runtimes, setRuntimes] = useState<JavaRuntimeInfo[]>([]);
   const [javaLoading, setJavaLoading] = useState(true);
@@ -186,7 +202,10 @@ export default function SettingsScreen({
       setJavaPathInput(next.settings.javaPath ?? runtime.path);
       setJavaSearchError(undefined);
       setNotice(
-        `Java ${runtime.major} (${runtime.version}) проверена и выбрана для запуска.`,
+        t("settings.javaPicked", {
+          major: runtime.major,
+          version: runtime.version,
+        }),
       );
     } catch (cause) {
       setError(errorMessage(cause));
@@ -220,9 +239,7 @@ export default function SettingsScreen({
     try {
       const removed = await lineApi.clearConfigCache();
       setNotice(
-        removed
-          ? "Кэш конфигурации очищен. Установленные сборки не затронуты."
-          : "Кэш конфигурации уже пуст.",
+        removed ? t("settings.cacheCleared") : t("settings.cacheEmpty"),
       );
     } catch (cause) {
       setError(errorMessage(cause));
@@ -235,14 +252,16 @@ export default function SettingsScreen({
   const automatic = settings.heapMb === null;
 
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+    <section
+      data-line-settings
+      className="mx-auto flex w-full max-w-2xl flex-col gap-4"
+    >
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
-          Настройки
+          {t("settings.title")}
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          Параметры применяются к следующему запуску игры. Сборки и история
-          релизов не изменяются.
+          {t("settings.subtitle")}
         </p>
       </div>
 
@@ -265,10 +284,60 @@ export default function SettingsScreen({
       )}
 
       <div className="flex flex-col gap-8">
+        {/* Language comes first, above memory. It is the one setting that
+            changes what every other label on this page says, so a player who
+            cannot read the screen has to be able to reach it without scrolling
+            past three sections they cannot read either. It is also the first
+            thing people look for, and looking for it at the top is the whole
+            of the reason. */}
+
+        <Section
+          icon={Languages}
+          title={t("settings.lang")}
+          description={t("settings.langHint")}
+        >
+          <div className="flex flex-col gap-2">
+            <Select
+              value={t.language}
+              disabled={busy}
+              onValueChange={(value) => {
+                if (!isLanguage(value) || value === t.language) return;
+                // The store notifies first, so every string on this page is
+                // already in the new language before the write is sent; the
+                // picker itself re-renders from the same store a moment later.
+                setLanguage(value);
+                void persist({ ...settings, language: value });
+              }}
+            >
+              <SelectTrigger
+                id="setting-language"
+                className="w-full text-xs"
+                aria-label={t("settings.lang")}
+              >
+                <SelectValue>
+                  {(value: string | null) =>
+                    LANGUAGE_NAMES[isLanguage(value) ? value : t.language]
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {LANGUAGE_NAMES[code]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Section>
+
         <Section
           icon={MemoryStick}
-          title="Память игры"
-          description={`Компьютер: ${totalMemoryMb} МБ, доступно до ${heapCeilingMb} МБ.`}
+          title={t("settings.memory")}
+          description={t("settings.memoryHint", {
+            total: totalMemoryMb,
+            ceiling: heapCeilingMb,
+          })}
         >
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
@@ -276,12 +345,15 @@ export default function SettingsScreen({
                 htmlFor="heap-slider"
                 className="text-muted-foreground text-xs"
               >
-                Выделено Java
+                {t("settings.heapLabel")}
               </Label>
               <span className="text-foreground font-mono text-xs">
-                {heap} МБ
+                {t("settings.heapValue", { heap })}
                 {automatic && (
-                  <span className="text-muted-foreground"> · авто</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {t("settings.auto")}
+                  </span>
                 )}
               </span>
             </div>
@@ -298,7 +370,7 @@ export default function SettingsScreen({
               onValueCommitted={(value) =>
                 void commitHeap(Array.isArray(value) ? value[0] : value)
               }
-              aria-label="Объём памяти для игры, МБ"
+              aria-label={t("settings.memoryLabel")}
             />
             <Button
               variant="outline"
@@ -307,15 +379,15 @@ export default function SettingsScreen({
               onClick={() => void commitHeap(suggestedHeapMb)}
               className="cursor-pointer self-start text-xs"
             >
-              Вернуть автоматический подбор
+              {t("settings.memoryAuto")}
             </Button>
           </div>
         </Section>
 
         <Section
           icon={Palette}
-          title="Фон лаунчера"
-          description="Двенадцать градиентов, каждый медленно движется. Переключение плавное, выбор сохраняется."
+          title={t("settings.backdrop")}
+          description={t("settings.backdropHint")}
         >
           <BackdropPicker
             value={settings.backdrop}
@@ -327,10 +399,12 @@ export default function SettingsScreen({
         <Section
           icon={Coffee}
           title="Java"
-          description="Только проверенные рантаймы, версия под требование сборки."
+          description={t("settings.javaHint")}
         >
           <div className="flex flex-col gap-2">
-            <Label className="text-muted-foreground text-xs">Рантайм</Label>
+            <Label className="text-muted-foreground text-xs">
+              {t("settings.runtime")}
+            </Label>
             <Select
               value={settings.javaPath ?? "auto"}
               disabled={busy || javaLoading}
@@ -345,17 +419,15 @@ export default function SettingsScreen({
                 <SelectValue>
                   {(value: string | null) =>
                     javaLoading
-                      ? "Поиск Java…"
+                      ? t("settings.javaSearching")
                       : !value || value === "auto"
-                        ? "Автоматически по версии сборки"
+                        ? t("settings.javaAuto")
                         : (runtimeLabel(runtimes, value) ?? value)
                   }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">
-                  Автоматически по версии сборки
-                </SelectItem>
+                <SelectItem value="auto">{t("settings.javaAuto")}</SelectItem>
                 {runtimes.map((runtime) => (
                   <SelectItem key={runtime.path} value={runtime.path}>
                     Java {runtime.major} · {runtime.version}
@@ -378,8 +450,7 @@ export default function SettingsScreen({
             )}
             {!javaLoading && runtimes.length === 0 && !javaSearchError && (
               <p className="text-xs leading-relaxed text-amber-300">
-                Автоматический поиск не нашёл доступную Java. Если JDK
-                установлен, укажите путь ниже или повторите поиск.
+                {t("settings.javaNotFound")}
               </p>
             )}
             <Button
@@ -393,14 +464,16 @@ export default function SettingsScreen({
                 className={javaLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
                 aria-hidden="true"
               />
-              {javaLoading ? "Проверяем Java…" : "Повторить поиск Java"}
+              {javaLoading
+                ? t("settings.javaChecking")
+                : t("settings.javaResearch")}
             </Button>
             <div className="border-border/40 flex flex-col gap-2 border-t pt-3">
               <Label
                 htmlFor="java-path"
                 className="text-muted-foreground text-xs"
               >
-                Или укажите установленную Java вручную
+                {t("settings.javaManual")}
               </Label>
               <Input
                 id="java-path"
@@ -423,8 +496,7 @@ export default function SettingsScreen({
                 id="java-path-help"
                 className="text-muted-foreground text-[12px] leading-relaxed"
               >
-                Полный путь к java.exe, папке bin или JDK. Лаунчер проверит его
-                запуском java -version; переустанавливать Java не нужно.
+                {t("settings.javaPathHelp")}
               </p>
               <Button
                 variant="outline"
@@ -433,20 +505,22 @@ export default function SettingsScreen({
                 onClick={() => void chooseJavaPath()}
                 className="cursor-pointer self-start text-xs"
               >
-                {javaChecking ? "Проверяем путь…" : "Проверить и выбрать"}
+                {javaChecking
+                  ? t("settings.javaCheckingPath")
+                  : t("settings.javaPick")}
               </Button>
             </div>
           </div>
         </Section>
 
-        <Section icon={RefreshCw} title="Поведение и окно">
+        <Section icon={RefreshCw} title={t("settings.window")}>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="setting-after-launch"
                 className="text-muted-foreground text-xs"
               >
-                Лаунчер при запуске игры
+                {t("settings.windowHint")}
               </Label>
               <Select
                 value={settings.afterLaunch}
@@ -461,13 +535,13 @@ export default function SettingsScreen({
                 <SelectTrigger className="w-full text-xs">
                   <SelectValue>
                     {(value: AfterLaunch | null) =>
-                      AFTER_LAUNCH.find((option) => option.value === value)
-                        ?.label ?? "Скрывать в трей"
+                      afterLaunch.find((option) => option.value === value)
+                        ?.label ?? t("settings.afterLaunch.tray")
                     }
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {AFTER_LAUNCH.map((option) => (
+                  {afterLaunch.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -475,18 +549,17 @@ export default function SettingsScreen({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-[11px] leading-relaxed">
-                {AFTER_LAUNCH.find(
+                {afterLaunch.find(
                   (option) => option.value === settings.afterLaunch,
                 )?.hint ?? ""}{" "}
-                Когда игра закроется, лаунчер вернётся сам — выбранное действие
-                применяется только к запуску.
+                {t("settings.afterLaunch.note")}
               </p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               {(
                 [
-                  ["windowWidth", "Ширина", settings.windowWidth],
-                  ["windowHeight", "Высота", settings.windowHeight],
+                  ["windowWidth", t("settings.width"), settings.windowWidth],
+                  ["windowHeight", t("settings.height"), settings.windowHeight],
                 ] as const
               ).map(([key, label, value]) => (
                 <div key={key} className="flex flex-col gap-1.5">
@@ -525,12 +598,12 @@ export default function SettingsScreen({
                     <div className="absolute inset-y-1 right-1 flex flex-col">
                       {(
                         [
-                          ["Увеличить", ChevronUp],
-                          ["Уменьшить", ChevronDown],
+                          ["increase", t("settings.increase"), ChevronUp],
+                          ["decrease", t("settings.decrease"), ChevronDown],
                         ] as const
-                      ).map(([hint, Icon]) => (
+                      ).map(([step, hint, Icon]) => (
                         <button
-                          key={hint}
+                          key={step}
                           type="button"
                           aria-label={`${hint} ${label.toLowerCase()}`}
                           disabled={busy}
@@ -541,7 +614,7 @@ export default function SettingsScreen({
                             if (!input) return;
                             // Native stepping, so `min`/`max`/`step` stay the
                             // single source of truth for the allowed value.
-                            if (hint === "Увеличить") input.stepUp();
+                            if (step === "increase") input.stepUp();
                             else input.stepDown();
                             const parsed = Number(input.value);
                             if (Number.isInteger(parsed) && parsed !== value)
@@ -568,7 +641,7 @@ export default function SettingsScreen({
                 }
                 className="cursor-pointer text-xs"
               >
-                Применить размер
+                {t("settings.applySize")}
               </Button>
             </div>
           </div>
@@ -576,8 +649,8 @@ export default function SettingsScreen({
 
         <Section
           icon={Trash2}
-          title="Кэш конфигурации"
-          description="Удалит только сохранённый config.json. Сборки, история и входы останутся."
+          title={t("settings.cache")}
+          description={t("settings.cacheHint")}
         >
           <Button
             variant="outline"
@@ -586,7 +659,7 @@ export default function SettingsScreen({
             onClick={() => void clearCache()}
             className="cursor-pointer self-start text-xs"
           >
-            Очистить кэш конфигурации
+            {t("settings.cacheClear")}
           </Button>
         </Section>
       </div>

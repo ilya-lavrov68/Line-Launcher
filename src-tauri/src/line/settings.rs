@@ -50,6 +50,14 @@ pub struct LauncherSettings {
     /// two copies that drift.
     #[serde(default)]
     pub backdrop: Option<String>,
+    /// Interface language (`ru`, `en`, `de`, `fr`). A plain string for the same
+    /// reason as `backdrop`: the catalogue of languages lives in TypeScript, and
+    /// an unknown code falls back to Russian rather than blanking the interface.
+    /// `None` means "nobody has chosen yet": the UI then follows the system
+    /// language, and Russian is only the floor when the system is neither `en`,
+    /// `de` nor `fr`. Once a choice is stored it outranks the system.
+    #[serde(default)]
+    pub language: Option<String>,
     pub window_width: u32,
     pub window_height: u32,
     pub window_maximized: bool,
@@ -63,6 +71,7 @@ impl Default for LauncherSettings {
             sidebar_collapsed: true,
             after_launch: AfterLaunch::Keep,
             backdrop: None,
+            language: None,
             window_width: 1100,
             window_height: 720,
             window_maximized: false,

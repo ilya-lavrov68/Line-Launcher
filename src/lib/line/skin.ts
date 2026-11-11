@@ -1,4 +1,5 @@
 import type { SkinModel } from "@/types/line";
+import { t } from "./i18n-core.ts";
 
 /** Minecraft accepts exactly these texture sizes. */
 export const SKIN_SIZES = [
@@ -93,22 +94,22 @@ export function readPngHeader(bytes: Uint8Array): PngHeader | null {
  * immediate message instead of a round trip. Rust revalidates regardless.
  */
 export function validateSkinFile(bytes: Uint8Array): string | null {
-  if (bytes.length === 0) return "Файл пуст.";
+  if (bytes.length === 0) return t("skin.errEmpty");
   if (bytes.length > MAX_SKIN_BYTES) {
-    return "Скин больше 256 КБ. Используйте текстуру 64×64 или 64×32.";
+    return t("wardrobe.fileTooBig");
   }
   const header = readPngHeader(bytes);
-  if (!header) return "Нужен файл PNG.";
+  if (!header) return t("skin.errNotPng");
   if (!SKIN_SIZES.some(([w, h]) => w === header.width && h === header.height)) {
-    return `Размер скина должен быть 64×64 или 64×32, получен ${header.width}×${header.height}.`;
+    return t("skin.errSize", { width: header.width, height: header.height });
   }
   // Palette PNGs are valid skins (see the Rust validator): only greyscale,
   // greyscale+alpha and 16-bit channels are refused. Depth 8 is still checked
   // first because a 16-bit PNG of any colour type is a different texture.
   if (header.bitDepth !== 8 || ![2, 3, 6].includes(header.colourType)) {
-    return "Скин должен быть PNG с глубиной 8 бит: RGB, RGBA или палитровый.";
+    return t("skin.errDepth");
   }
-  if (header.interlace !== 0) return "Чересстрочный PNG не поддерживается.";
+  if (header.interlace !== 0) return t("skin.errInterlaced");
   return null;
 }
 

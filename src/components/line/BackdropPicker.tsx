@@ -7,11 +7,13 @@ import {
 } from "@/components/ui/popover";
 import {
   BACKDROP_THEMES,
+  backdropNameKey,
   backdropField,
   backdropTheme,
   type BackdropTheme,
 } from "@/lib/line/backdrops";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/line/i18n";
 
 /**
  * Backdrop picker.
@@ -47,6 +49,7 @@ export default function BackdropPicker({
   onChange,
   disabled = false,
 }: BackdropPickerProps) {
+  const t = useT();
   const active = backdropTheme(value);
   const [open, setOpen] = useState(false);
   /** Theme hovered or focused in the list; the preview shows this one. */
@@ -90,7 +93,9 @@ export default function BackdropPicker({
       >
         <PopoverTrigger
           disabled={disabled}
-          aria-label={`Фон лаунчера: ${active.name}. Открыть список`}
+          aria-label={t("settings.backdropPreview", {
+            name: t(backdropNameKey(active.id)),
+          })}
           className={cn(
             "border-input bg-fill-subtle hover:bg-fill group flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[var(--radius-control)] border px-2 pr-2.5 text-left transition-colors",
             "focus-visible:ring-ring/40 focus-visible:ring-2 focus-visible:outline-none",
@@ -99,7 +104,7 @@ export default function BackdropPicker({
         >
           <Swatch theme={active} className="h-5 w-9" />
           <span className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
-            {active.name}
+            {t(backdropNameKey(active.id))}
           </span>
           <ChevronDown
             aria-hidden="true"
@@ -121,7 +126,7 @@ export default function BackdropPicker({
         >
           <div
             role="radiogroup"
-            aria-label="Фон лаунчера"
+            aria-label={t("settings.backdrop")}
             className="flex flex-col"
           >
             {BACKDROP_THEMES.map((theme) => {
@@ -154,7 +159,7 @@ export default function BackdropPicker({
                         : "text-foreground/85",
                     )}
                   >
-                    {theme.name}
+                    {t(backdropNameKey(theme.id))}
                   </span>
                   {selected && (
                     <Check
@@ -178,7 +183,17 @@ export default function BackdropPicker({
         Rendered at a fixed size and clipped: an animated shader wants a stable
         box, and scaling a canvas with `backdrop-filter` over it costs frames.
       */}
-      <BackdropPreview theme={previewed} open={peeked !== null} />
+      {/*
+        Mounted only while it is showing. It is absolutely positioned 208px to
+        the right of the trigger, and an absolutely positioned box still counts
+        towards its container's scrollWidth — parked here permanently it made
+        the settings column 212px wider than its parent and turned the page into
+        a horizontal scroller, with the long German labels the only thing anyone
+        noticed, because that is when the overflow finally got a chance to show.
+        Fading in on hover is unaffected: it mounts and animates from the same
+        render that sets `peeked`.
+      */}
+      {peeked !== null && <BackdropPreview theme={previewed} open />}
     </div>
   );
 }
@@ -223,6 +238,7 @@ function BackdropPreview({
   theme: BackdropTheme;
   open: boolean;
 }) {
+  const t = useT();
   return (
     <div
       aria-hidden="true"
@@ -273,7 +289,7 @@ function BackdropPreview({
           />
         </div>
         <span className="text-foreground truncate px-0.5 text-[11px] font-medium">
-          {theme.name}
+          {t(backdropNameKey(theme.id))}
         </span>
       </div>
     </div>

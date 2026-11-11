@@ -5,6 +5,8 @@ import SkinViewer3D from "@/components/line/SkinViewer3D";
 import { Button } from "@/components/ui/button";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type { AuthSessionInfo, SkinState } from "@/types/line";
+import { useT } from "@/lib/line/i18n";
+import { SkeletonProfile } from "@/components/line/Skeleton";
 
 export interface ProfileScreenProps {
   session: AuthSessionInfo;
@@ -37,6 +39,7 @@ export default function ProfileScreen({
   onOpenWardrobe,
   disabled = false,
 }: ProfileScreenProps) {
+  const t = useT();
   const [skin, setSkin] = useState<SkinState | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +75,7 @@ export default function ProfileScreen({
       setActiveName(entry?.name ?? null);
       if (entry) {
         const bytes = await lineApi.skinTexture(entry.id);
-        if (!bytes?.length) throw new Error("Текстура не найдена на диске.");
+        if (!bytes?.length) throw new Error(t("profile.textureMissing"));
         const url = URL.createObjectURL(
           new Blob([new Uint8Array(bytes)], { type: "image/png" }),
         );
@@ -93,14 +96,31 @@ export default function ProfileScreen({
     return disposeUrl;
   }, [load, disposeUrl, session.username]);
 
+  // The skin is a library read plus a texture decode, so the first paint of this
+  // page has no picture and no skin name. Showing the page's own two-column
+  // geometry during that beat is why the skeleton exists: the viewer box is
+  // square and already in place when the texture lands.
+  if (loading && !skin) {
+    return (
+      <section className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-foreground text-xl font-bold tracking-tight">
+            {t("profile.title")}
+          </h2>
+        </div>
+        <SkeletonProfile />
+      </section>
+    );
+  }
+
   return (
     <section className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
-          Аккаунт
+          {t("profile.title")}
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          Один аккаунт на весь проект {providerName}.
+          {t("profile.subtitle", { provider: providerName })}
         </p>
       </div>
 
@@ -131,18 +151,22 @@ export default function ProfileScreen({
             something a player can act on; a millisecond epoch is not.
           */}
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
-            <dt className="text-muted-foreground">Сессия истекает</dt>
+            <dt className="text-muted-foreground">
+              {t("profile.sessionExpires")}
+            </dt>
             <dd className="text-foreground">
-              {new Date(session.expiresAt).toLocaleString("ru-RU", {
+              {new Date(session.expiresAt).toLocaleString(t.language, {
                 day: "numeric",
                 month: "long",
                 hour: "2-digit",
                 minute: "2-digit",
               })}
             </dd>
-            <dt className="text-muted-foreground">Скин</dt>
+            <dt className="text-muted-foreground">{t("profile.skin")}</dt>
             <dd className="text-foreground truncate">
-              {loading ? "Загрузка…" : (activeName ?? "Стандартный")}
+              {loading
+                ? t("common.loading")
+                : (activeName ?? t("profile.standard"))}
             </dd>
           </dl>
 
@@ -155,7 +179,7 @@ export default function ProfileScreen({
               className="cursor-pointer items-center gap-1.5 text-xs"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Обновить
+              {t("servers.refresh")}
             </Button>
             <Button
               size="sm"
@@ -165,7 +189,7 @@ export default function ProfileScreen({
               className="cursor-pointer items-center gap-1.5 text-xs"
             >
               <Shirt className="h-4 w-4" aria-hidden="true" />
-              Гардероб
+              {t("nav.wardrobe")}
             </Button>
             <Button
               size="sm"
@@ -175,7 +199,7 @@ export default function ProfileScreen({
               className="text-muted-foreground hover:text-foreground cursor-pointer items-center gap-1.5 text-xs"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
-              Выйти
+              {t("profile.logout")}
             </Button>
           </div>
         </div>
@@ -189,9 +213,9 @@ export default function ProfileScreen({
           <p className="text-muted-foreground text-[11px] leading-relaxed">
             {skin
               ? canSync
-                ? "Этот скин отправлен на сервер — вы выглядите так в игре."
-                : "Скин активен локально. Проект не поддерживает загрузку скинов."
-              : "Выберите скин в гардеробе, чтобы увидеть его здесь."}
+                ? t("profile.synced")
+                : t("profile.localOnly")
+              : t("profile.pickSkin")}
           </p>
         </div>
       </div>

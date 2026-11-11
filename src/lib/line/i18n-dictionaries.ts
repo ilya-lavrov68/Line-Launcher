@@ -254,7 +254,7 @@ export const ru = {
   "settings.memoryAuto": "Вернуть автоматический подбор",
   "settings.backdrop": "Фон лаунчера",
   "settings.backdropHint":
-    "Двенадцать градиентов, каждый медленно движется. Переключение плавное, выбор сохраняется.",
+    "Двенадцать градиентов, каждый движется по-своему. Переключение плавное, выбор сохраняется.",
   "settings.backdropPreview": "Фон лаунчера: {name}. Открыть список",
   "backdrop.aurora": "Полярное сияние",
   "backdrop.zenith": "Зенит",
@@ -588,7 +588,7 @@ const en: Dictionary = {
   "settings.memoryAuto": "Go back to automatic sizing",
   "settings.backdrop": "Launcher backdrop",
   "settings.backdropHint":
-    "Twelve gradients, each one slowly moving. Switching dissolves, the choice is kept.",
+    "Twelve gradients, each one moving in its own way. Switching dissolves, the choice is kept.",
   "settings.backdropPreview": "Launcher backdrop: {name}. Open the list",
   "backdrop.aurora": "Aurora",
   "backdrop.zenith": "Zenith",
@@ -922,7 +922,7 @@ const de: Dictionary = {
   "settings.memoryAuto": "Zurück zur automatischen Wahl",
   "settings.backdrop": "Hintergrund des Launchers",
   "settings.backdropHint":
-    "Zwölf Farbverläufe, jeder bewegt sich langsam. Der Wechsel blendet über, die Wahl bleibt gespeichert.",
+    "Zwölf Farbverläufe, jeder bewegt sich auf seine eigene Weise. Der Wechsel blendet über, die Wahl bleibt gespeichert.",
   "settings.backdropPreview": "Hintergrund: {name}. Liste öffnen",
   "backdrop.aurora": "Polarlicht",
   "backdrop.zenith": "Zenit",
@@ -1254,7 +1254,7 @@ const fr: Dictionary = {
   "settings.memoryAuto": "Revenir au choix automatique",
   "settings.backdrop": "Fond du launcher",
   "settings.backdropHint":
-    "Douze dégradés, chacun se déplace lentement. Le changement fond en douceur, le choix est conservé.",
+    "Douze dégradés, chacun se déplace à sa manière. Le changement fond en douceur, le choix est conservé.",
   "settings.backdropPreview": "Fond du launcher : {name}. Ouvrir la liste",
   "backdrop.aurora": "Aurore",
   "backdrop.zenith": "Zénith",

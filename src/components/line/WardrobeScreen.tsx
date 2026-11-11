@@ -27,12 +27,7 @@ import { cn } from "@/lib/utils";
 import { MAX_SKIN_BYTES, validateSkinFile } from "@/lib/line/skin";
 import { useT } from "@/lib/line/i18n";
 import { SkeletonWardrobe } from "@/components/line/Skeleton";
-import {
-  toLineError,
-  type SkinLibrarySnapshot,
-  type SkinModel,
-  type SkinState,
-} from "@/types/line";
+import type { SkinLibrarySnapshot, SkinModel, SkinState } from "@/types/line";
 
 export interface WardrobeScreenProps {
   username?: string;
@@ -115,7 +110,17 @@ export default function WardrobeScreen({
       // A failed upload keeps the local choice; the next mount/sign-in retries.
       setSync("failed");
       setSyncError(errorMessage(cause));
-      if (toLineError(cause).code === "AUTH_REQUIRED") authRequired.current?.();
+      // Deliberately NOT calling `onAuthRequired` here.
+      //
+      // This is the background sync that runs by itself when the screen mounts.
+      // Signing the player out on it made opening the wardrobe a logout: any
+      // rejection from the provider — an expired token, a 403 from a proxy in
+      // front of it, a wardrobe endpoint that answers 401 because it is not
+      // configured — came back as AUTH_REQUIRED and cleared the session, taking
+      // the whole screen with it, mid-edit, without the player pressing
+      // anything. The failure is already shown in the sync status above; a
+      // genuine expiry is caught by the next *user-initiated* action, which is
+      // where a sign-out is expected.
     }
   }, [canSync]);
 

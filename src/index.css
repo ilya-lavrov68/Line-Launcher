@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/caveat";
+@import "@fontsource/pacifico";
 
 /* Line Design System.
  *
@@ -153,9 +153,11 @@
   --font-sans: "Geist Variable", sans-serif;
   /* One use: the greeting's word, which is written rather than set. A
    * handwriting face everywhere else would be a costume; on a single word it
-   * is the point. Caveat carries Cyrillic too, so the same rule works for any
-   * language the greeting is ever translated into. */
-  --font-hand: "Caveat Variable", "Geist Variable", cursive;
+   * is the point. Pacifico is the sweeping, connected kind of script — the
+   * letters join and overlap, which is what "written by a pen" looks like —
+   * and it carries Cyrillic, so the same rule works for any language the
+   * greeting is ever translated into. */
+  --font-hand: "Pacifico", "Geist Variable", cursive;
 
   --color-fill: var(--fill);
   --color-fill-subtle: var(--fill-subtle);

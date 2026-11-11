@@ -218,8 +218,8 @@ const FONT_FILES = [
   ["geist-cyrillic-wght-normal.ttf", "Line UI Cyrillic"],
   ["geist-latin-wght-normal.ttf", "Line UI Latin"],
   // The greeting's handwriting face, converted from the woff2 the app ships
-  // (SIL OFL, see `LICENSES/Caveat-OFL.txt`) for the same reason as Geist.
-  ["caveat-latin-wght-normal.ttf", "Line Hand"],
+  // (SIL OFL, see `LICENSES/Pacifico-OFL.txt`) for the same reason as Geist.
+  ["pacifico-latin-400-normal.ttf", "Line Hand"],
 ];
 const FONT_NAMES = FONT_FILES.map(([, family]) => `"${family}"`);
 const FONT = FONT_NAMES.join(", ");
@@ -910,12 +910,13 @@ function paintField(ctx, strength = 1) {
 }
 
 /**
- * The greeting's face. Caveat is installed by the app's own dependency; the
- * renderer asks the system for it and falls back to a script-ish stack when the
- * package is not visible from this process (it is a plain canvas, not a
- * browser, so there is no @font-face to load).
+ * The greeting's face.
+ *
+ * Pacifico is registered from the TTF above like the UI font, because a canvas
+ * has no @font-face to load: naming the family without registering it silently
+ * falls back to a system script face and the gallery stops matching the app.
  */
-const HAND_FONT = '132px "Line Hand", "Segoe Script", cursive';
+const HAND_FONT = '400 120px "Line Hand", "Segoe Script", cursive';
 
 function screenWelcome(ctx) {
   const cx = SHOT_WIDTH / 2;

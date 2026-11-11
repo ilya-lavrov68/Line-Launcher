@@ -1,8 +1,9 @@
 import { m } from "framer-motion";
-import { Link2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Link2, RefreshCw } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { useT } from "@/lib/line/i18n";
 import { Button } from "@/components/ui/button";
+import FieldMessage from "./FieldMessage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -72,7 +73,11 @@ export default function ConfigUrlInput({
         </p>
       </div>
 
-      <form onSubmit={submit} className="flex w-full flex-col gap-4 text-left">
+      <form
+        noValidate
+        onSubmit={submit}
+        className="flex w-full flex-col gap-4 text-left"
+      >
         <div className="flex flex-col gap-2">
           <Label htmlFor={id} className="text-xs">
             {t("connect.urlLabel")}
@@ -108,17 +113,11 @@ export default function ConfigUrlInput({
             aria-live="polite"
           >
             {message ? (
-              <p id={`${id}-error`} role="alert" className="text-destructive">
-                {message}
-              </p>
+              <FieldMessage id={`${id}-error`}>{message}</FieldMessage>
             ) : (
-              <p
-                id={`${id}-help`}
-                className="text-muted-foreground flex items-start gap-1.5"
-              >
-                <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
+              <FieldMessage tone="hint" id={`${id}-help`}>
                 {t("connect.urlHelp")}
-              </p>
+              </FieldMessage>
             )}
           </div>
         </div>

@@ -192,3 +192,22 @@ test("provider URLs are validated by the same rules as runtime URLs", () => {
   assert.match(fn, /username|password/);
   assert.match(fn, /fragment/);
 });
+
+test("reconnecting never strands a dev run on the address field", () => {
+  const shell = read("src/components/line/LineLauncher.tsx");
+
+  // `reconnect` used to reset `screen` to "config" for every mode and only an
+  // `auto` build went on to fetch the config, so in a dev run a single press of
+  // «Переподключиться» left the player on a URL field with the sign-in page
+  // unreachable — the app looked like it had no way to log in at all.
+  const reconnect = shell.slice(
+    shell.indexOf("function reconnect()"),
+    shell.indexOf("function reconnect()") + 1400,
+  );
+  assert.match(reconnect, /if \(mode === "auto"\)/);
+  // The dev branch keeps a working config and goes to the account screen...
+  assert.match(reconnect, /if \(snapshot\) \{\s*setScreen\("account"\);/);
+  // ...and the address field is only the last resort, for a dev run that has
+  // never successfully loaded a config.
+  assert.match(reconnect, /setScreen\("config"\);\s*\n\s*\}/);
+});

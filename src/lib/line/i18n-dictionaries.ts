@@ -309,6 +309,12 @@ export const ru = {
 
   "about.title": "О программе",
   "about.versionLabel": "Версия",
+  "about.channelLabel": "Канал",
+  "about.channelStable": "Стабильная сборка",
+  "about.channelPreview": "Предварительная сборка",
+  "about.channelPreviewHint":
+    "Интерфейс и формат могут ещё меняться — сборка до 1.0.0",
+  "about.channelPreviewShort": "пре-релиз",
   "about.publisher": "Издатель",
   "about.version": "Версия {version}",
   "about.body":
@@ -643,6 +649,12 @@ const en: Dictionary = {
 
   "about.title": "About",
   "about.versionLabel": "Version",
+  "about.channelLabel": "Channel",
+  "about.channelStable": "Stable build",
+  "about.channelPreview": "Preview build",
+  "about.channelPreviewHint":
+    "The interface and format can still change — this build is before 1.0.0",
+  "about.channelPreviewShort": "pre-release",
   "about.publisher": "Publisher",
   "about.version": "Version {version}",
   "about.body":
@@ -977,6 +989,12 @@ const de: Dictionary = {
 
   "about.title": "Über die App",
   "about.versionLabel": "Version",
+  "about.channelLabel": "Kanal",
+  "about.channelStable": "Stabile Version",
+  "about.channelPreview": "Vorabversion",
+  "about.channelPreviewHint":
+    "Oberfläche und Format können sich noch ändern — diese Version ist vor 1.0.0",
+  "about.channelPreviewShort": "Vorabversion",
   "about.publisher": "Herausgeber",
   "about.version": "Version {version}",
   "about.body":
@@ -1310,6 +1328,12 @@ const fr: Dictionary = {
 
   "about.title": "À propos",
   "about.versionLabel": "Version",
+  "about.channelLabel": "Canal",
+  "about.channelStable": "Version stable",
+  "about.channelPreview": "Version préliminaire",
+  "about.channelPreviewHint":
+    "L'interface et le format peuvent encore changer — cette version précède la 1.0.0",
+  "about.channelPreviewShort": "préversion",
   "about.publisher": "Éditeur",
   "about.version": "Version {version}",
   "about.body":

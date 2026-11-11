@@ -194,10 +194,16 @@ impl LineState {
         if epoch_millis().saturating_sub(inner.active_fetched_at)
             > config.ttl_seconds().saturating_mul(1000)
         {
+            // NOT AuthRequired. Nothing about the account is wrong — the
+            // config the provider served us is simply older than its own TTL.
+            // Reporting it as an auth failure made every screen that sees this
+            // code throw the session away and show «Сессия истекла»: a player
+            // who left the window open for five minutes got logged out of a
+            // session that had hours left on it.
             return Err(LineError::new(
-                ErrorCode::AuthRequired,
-                "Конфигурация устарела. Обновите её перед входом и установкой.",
-                false,
+                ErrorCode::Busy,
+                "Конфигурация провайдера устарела. Обновите её и повторите действие.",
+                true,
             ));
         }
         Ok((url.clone(), config.clone()))
@@ -235,10 +241,13 @@ impl LineState {
             ));
         }
         if self.generation() != generation {
+            // A config refresh landed between `authenticate` and
+            // `save_session`. The credentials were accepted; retrying is the
+            // whole fix, so this must not read as «session expired» either.
             return Err(LineError::new(
-                ErrorCode::AuthRequired,
-                "Конфигурация изменилась. Повторите вход.",
-                false,
+                ErrorCode::Busy,
+                "Конфигурация провайдера обновилась. Повторите вход.",
+                true,
             ));
         }
         inner.session = Some(session);

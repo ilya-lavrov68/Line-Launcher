@@ -18,6 +18,11 @@ import {
 const ROOT = path.resolve(import.meta.dirname, "..");
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
 
+/** Source-only view: comments explain old behaviour and name old codes. */
+function stripComments(text: string) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 const URL_OK = "https://example.com/line/config.json";
 
 function rejects(input: unknown, fragment: string | RegExp) {
@@ -239,15 +244,157 @@ test("an expired config is refreshed before it can block sign-in", () => {
   assert.match(read("src-tauri/src/lib.rs"), /ensure_fresh_config/);
   assert.match(read("src/lib/line/api.ts"), /ensureFreshConfig/);
   const shell = read("src/components/line/LineLauncher.tsx");
-  const authenticate = shell.slice(
-    shell.indexOf("async function authenticate("),
-    shell.indexOf("async function authenticate(") + 900,
-  );
-  assert.match(authenticate, /ensureFreshConfig\(\)/);
-  // A failed refresh must not stop the attempt: the real reason is better than
-  // "refresh failed".
+
+  // One helper owns the rule, because three actions need it and they drifted
+  // apart when each carried its own copy: sign-in had the refresh, launch and
+  // install did not, so the first press after the window had been open for a
+  // few minutes failed with an error the player could do nothing about.
   assert.match(
-    authenticate,
-    /ensureFreshConfig\(\)\s*\n?\s*\.catch\(\(\) => null\)/,
+    shell,
+    /async function refreshConfigIfStale\(\) \{\s*const refreshed = await lineApi\.ensureFreshConfig\(\)\.catch\(\(\) => null\);/,
+  );
+
+  for (const action of [
+    "async function authenticate(",
+    "async function launch()",
+    "async function install()",
+  ]) {
+    const at = shell.indexOf(action);
+    assert.ok(at > 0, `${action} must exist`);
+    const body = shell.slice(at, at + 2000);
+    assert.match(
+      body,
+      /await refreshConfigIfStale\(\)/,
+      `${action} must refresh a stale config before it acts`,
+    );
+  }
+});
+
+test("a stale config is never reported as an expired session", () => {
+  // This was the bug behind «Попробовать снова» logging the player out: the
+  // backend answers `fresh_config()` with AUTH_REQUIRED when the config is past
+  // its TTL, and every UI path that sees AUTH_REQUIRED clears the session.
+  // Nothing about the account is wrong in that case — the config is simply old.
+  const state = stripComments(read("src-tauri/src/line/state.rs"));
+  const fresh = state.slice(
+    state.indexOf("pub fn fresh_config(&self)"),
+    state.indexOf("pub fn generation(&self)"),
+  );
+  assert.match(fresh, /Конфигурация провайдера устарела/);
+  assert.doesNotMatch(
+    fresh,
+    /AuthRequired/,
+    "a stale config must not claim the session expired",
+  );
+
+  // The same applies to a generation bump racing a sign-in: the credentials
+  // were accepted, so it is a retry, not a rejection.
+  const save = state.slice(
+    state.indexOf("pub fn save_session("),
+    state.indexOf("pub fn session(&self)"),
+  );
+  assert.doesNotMatch(save, /AuthRequired/);
+
+  // AUTH_REQUIRED now means exactly one thing everywhere in the backend: the
+  // provider said 401/403, or there is no session. Check the two files whose
+  // remaining uses must stay auth-related.
+  for (const file of ["src-tauri/src/line/wardrobe.rs"]) {
+    const source = stripComments(read(file));
+    for (const match of source.matchAll(/ErrorCode::AuthRequired/g)) {
+      const around = source.slice(Math.max(0, match.index - 400), match.index);
+      assert.match(
+        around,
+        /401 \| 403|Войдите/,
+        `${file}: AuthRequired must only follow a 401/403 or an absent session`,
+      );
+    }
+  }
+});
+
+test("launch-ticket IPC failures do not read as expired sessions", () => {
+  // The private channel to the mod reports timeouts, closed sockets and wrong
+  // peers. All of it used to arrive as AUTH_REQUIRED, so a mod that was slow to
+  // ask for its ticket signed the player out mid-launch — intermittently,
+  // depending on timing, which is exactly how the report came in.
+  const ipc = stripComments(read("src-tauri/src/line/ipc.rs"));
+  for (const message of [
+    "Мод не запросил launch ticket вовремя.",
+    "Мод не ответил вовремя.",
+    "Мод предъявил неверный канал.",
+    "Не удалось передать ticket моду.",
+    "Не удалось завершить передачу ticket.",
+    "К приватному каналу обратился посторонний процесс.",
+  ]) {
+    const at = ipc.indexOf(message);
+    assert.ok(at > 0, `${message} must still exist`);
+    const before = ipc.slice(Math.max(0, at - 160), at);
+    assert.match(
+      before,
+      /ErrorCode::Busy/,
+      `"${message}" is an IPC failure, not an auth failure`,
+    );
+  }
+
+  const launch = stripComments(read("src-tauri/src/line/launch.rs"));
+  const exitedAt = launch.indexOf(
+    "Игра завершилась до получения launch ticket",
+  );
+  assert.ok(exitedAt > 0);
+  assert.match(
+    launch.slice(Math.max(0, exitedAt - 200), exitedAt),
+    /ErrorCode::Busy/,
+    "a game that exits before asking for a ticket is a mod problem",
+  );
+
+  // And the one remaining use in launch.rs is the real thing: the provider
+  // answered 401/403.
+  const ticketIssue = launch.slice(
+    launch.indexOf("async fn issue_ticket"),
+    launch.indexOf("fn parse_ticket_response"),
+  );
+  assert.match(ticketIssue, /Some\(401 \| 403\)/);
+  assert.match(ticketIssue, /ErrorCode::AuthRequired/);
+});
+
+test("the UI confirms a dead session before throwing it away", () => {
+  const shell = stripComments(read("src/components/line/LineLauncher.tsx"));
+
+  // `authExpired` is the single gate every failed action goes through. It must
+  // ask the backend whether a session still exists before ending it: the code
+  // in the error is a claim about the request, not proof about the account.
+  const gate = shell.slice(
+    shell.indexOf("async function authExpired("),
+    shell.indexOf("function endSession("),
+  );
+  assert.match(gate, /await lineApi\.session\(\)/);
+  assert.match(gate, /stillThere\.expiresAt > Date\.now\(\)/);
+  // Alive means restored and reported as not-expired.
+  assert.match(gate, /setSession\(/);
+  assert.match(gate, /return false;/);
+  // Gone means the one place that clears the session runs.
+  assert.match(gate, /endSession\(t\("status\.authExpired"\)\)/);
+  assert.match(gate, /return true;/);
+
+  // All three actions that can fail with AUTH_REQUIRED route through it rather
+  // than clearing the session themselves.
+  for (const action of [
+    "async function install()",
+    "async function launch()",
+  ]) {
+    const at = shell.indexOf(action);
+    assert.ok(at > 0, `${action} must exist`);
+    const body = shell.slice(at, at + 3000);
+    assert.match(body, /await authExpired\(cause\)/, `${action} must confirm`);
+  }
+
+  // And the child screens never clear the session themselves: they only ask.
+  const requireAuth = shell.slice(
+    shell.indexOf("const requireAuth = () =>"),
+    shell.indexOf("async function confirmSignOut()"),
+  );
+  assert.doesNotMatch(requireAuth, /setSession\(null\)/);
+  assert.match(
+    shell.slice(shell.indexOf("async function confirmSignOut()")),
+    /await lineApi\.session\(\)/,
   );
 });

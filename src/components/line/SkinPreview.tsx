@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isLegacySkin, readPngHeader, skinLayout } from "@/lib/line/skin";
+import { skinLayout } from "@/lib/line/skin";
 import { cn } from "@/lib/utils";
 import type { SkinModel } from "@/types/line";
 import { useT } from "@/lib/line/i18n";
@@ -125,10 +125,4 @@ export default function SkinPreview({
       )}
     </div>
   );
-}
-
-/** Exposed for the wardrobe so it can pick the layout without decoding twice. */
-export function previewIsLegacy(bytes: Uint8Array): boolean {
-  const header = readPngHeader(bytes);
-  return header ? isLegacySkin(header) : false;
 }

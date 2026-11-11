@@ -587,8 +587,6 @@ export const BACKDROP_THEMES: BackdropTheme[] = [
   },
 ];
 
-export const DEFAULT_BACKDROP_ID = "aurora";
-
 /**
  * The catalogue key for a theme's name.
  *

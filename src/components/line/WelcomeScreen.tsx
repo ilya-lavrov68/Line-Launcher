@@ -1,20 +1,18 @@
 import { m, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
-import { brand } from "@/brand/generated";
-import { useT } from "@/lib/line/i18n";
 
 /**
  * The greeting a player sees before anything else.
  *
- * A word that draws itself, the way the Apple `hello` draws: the letters arrive
- * one after another, each rising a few pixels and settling, and the whole word
- * is written rather than faded in as a block — a block fade reads as a loading
- * state, and this screen is not loading anything.
+ * One word, and nothing else. It is written the way a pen writes: each letter
+ * is stroked into place rather than faded in, so the eye follows a hand across
+ * the screen instead of watching a block of text appear. There is no product
+ * name under it and no rule: those were a caption on a greeting, and a greeting
+ * does not have a caption.
  *
- * It covers the launcher, so it has no chrome of its own: no title bar, no rail,
- * no panel. Only the word, the product name under it, and the page's own
- * backdrop showing through. Everything above it is `position: fixed`, so the
- * greeting cannot be scrolled past.
+ * It covers the launcher, so it has no chrome of its own — no title bar, no
+ * rail, no panel. Only the word, over the page's own colour field, which shows
+ * through a wash light enough to leave the gradient visible.
  */
 export interface WelcomeScreenProps {
   /** Runs when the last letter has landed and the hold has elapsed. */
@@ -28,33 +26,36 @@ const LETTER_STAGGER = 0.085;
 const LETTER_DURATION = 0.62;
 /** Shortest time the greeting may stay on screen, motion or not. */
 const REDUCED_MIN_MS = 1500;
-/** The bar under the word, drawn left to right once the letters are down. */
-const RULE_DELAY = 0.1;
-const RULE_DURATION = 0.7;
+
+/**
+ * The wash over the backdrop.
+ *
+ * Light on purpose. The first version went to 94% black at the edges, which is
+ * not a wash — it is a lid: the animated gradient behind the greeting, the one
+ * thing that makes the first second feel like this launcher, was invisible. At
+ * these stops the field still reads through the middle and only the corners
+ * are pulled down far enough to keep a white word crisp.
+ */
+const WASH =
+  "radial-gradient(120% 100% at 50% 42%, rgba(8,9,12,0.28), rgba(8,9,12,0.52) 78%)";
 
 export default function WelcomeScreen({
   onDone,
   holdMs = 620,
 }: WelcomeScreenProps) {
   const reduced = useReducedMotion();
-  const t = useT();
-  // The word is not translated: "Welcome" is the greeting this screen is
-  // modelled on, and it reads as a wordmark, not as a sentence. The line under
-  // it is the product name, and that one follows the interface language.
+  // Not translated, on purpose: it is a wordmark — the greeting itself, not a
+  // sentence that belongs to one language.
   const word = "Welcome";
   const letters = Array.from(word);
 
-  // With reduced motion the word is simply there, and the screen leaves after a
-  // readable pause instead of animating. The timer is the same either way, so
-  // the sequence stays predictable.
   /**
    * How long the greeting stays up.
    *
-   * With motion the word takes its own time to draw. Without motion there is
-   * no draw — but the screen must still last long enough to be *read*, not
+   * With motion the word takes its own time to be written. Without motion there
+   * is no stroke — but the screen must still last long enough to be *read*, not
    * flashed: skipping the animation used to cut the whole greeting down to the
-   * 620ms hold, which is shorter than it takes to focus on a word. The floor
-   * is what a static greeting needs to register.
+   * 620ms hold, which is shorter than it takes to focus on a word.
    */
   const drawMs = reduced
     ? 0
@@ -62,8 +63,8 @@ export default function WelcomeScreen({
   const total = Math.max(drawMs + holdMs, REDUCED_MIN_MS);
 
   // The greeting is a fixed-length prologue, not a loading state: it ends when
-  // the word has been drawn and held, whether or not the provider has answered,
-  // so the sign-in page is never blocked behind the network.
+  // the word has been written and held, whether or not the provider has
+  // answered, so the sign-in page is never blocked behind the network.
   useEffect(() => {
     const timer = window.setTimeout(onDone, total);
     return () => window.clearTimeout(timer);
@@ -78,67 +79,41 @@ export default function WelcomeScreen({
         opacity: 0,
         transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
       }}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden"
-      // The shell paints the backdrop behind this layer, so the greeting is
-      // read over the same gradient the launcher keeps. An opaque sheet here
-      // was the alternative; it made the first frame of the product the only
-      // frame without its colour field.
-      style={{
-        background:
-          "radial-gradient(120% 100% at 50% 42%, rgba(8,9,12,0.72), rgba(8,9,12,0.94) 70%)",
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
+      style={{ background: WASH }}
     >
-      {/* The word, in the display face at a size that owns the screen. The
-          letters are clipped individually so the rise does not require a
-          different mask per glyph. */}
       <span
         aria-label={word}
-        className="text-foreground flex items-baseline overflow-hidden font-sans text-[13vw] leading-[0.95] font-semibold tracking-[-0.055em] select-none sm:text-[104px]"
+        data-line-welcome-word
+        // `font-hand` is Caveat, the one place a handwriting face is used. The
+        // size is larger than a sans wordmark of the same length: a script at
+        // 104px reads like 72px of Geist, because the strokes are thin and the
+        // counters are open.
+        className="text-foreground font-hand flex items-baseline overflow-hidden text-[15vw] leading-[0.9] font-medium tracking-[0.005em] select-none sm:text-[132px]"
       >
         {letters.map((letter, index) => (
           <m.span
             key={`${letter}-${index}`}
             aria-hidden="true"
-            initial={reduced ? false : { y: "110%", opacity: 0 }}
-            animate={{ y: "0%", opacity: 1 }}
+            // A pen does not lift a letter onto the page from below; it makes a
+            // stroke. `clipPath` uncovers the glyph from left to right with a
+            // hard edge — that edge is the nib — and the letter sits perfectly
+            // still while it arrives. Nothing moves, which is what makes it read
+            // as writing rather than as animation.
+            initial={reduced ? false : { clipPath: "inset(0 100% 0 0)" }}
+            animate={{ clipPath: "inset(0 0% 0 0)" }}
             transition={{
               delay: index * LETTER_STAGGER,
               duration: LETTER_DURATION,
-              ease: [0.16, 1, 0.3, 1],
+              // Quick where the nib lands, easing as it lifts.
+              ease: [0.65, 0, 0.13, 1],
             }}
-            className="inline-block will-change-transform"
+            className="inline-block"
           >
             {letter}
           </m.span>
         ))}
       </span>
-
-      {/* A hairline that draws itself under the word, then the product name
-          fading up under it. Two lines of motion instead of a spinner: the
-          screen says "starting" without a control that looks clickable. */}
-      <m.span
-        aria-hidden="true"
-        initial={reduced ? false : { scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{
-          delay: RULE_DELAY + letters.length * LETTER_STAGGER * 0.55,
-          duration: RULE_DURATION,
-          ease: [0.22, 1, 0.36, 1],
-        }}
-        className="bg-foreground/25 mt-5 h-px w-40 origin-left"
-      />
-      <m.p
-        initial={reduced ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{
-          delay: RULE_DELAY + letters.length * LETTER_STAGGER * 0.7 + 0.15,
-          duration: 0.5,
-          ease: [0.22, 1, 0.36, 1],
-        }}
-        className="text-muted-foreground mt-4 text-xs font-medium tracking-[0.24em] uppercase"
-      >
-        {t("welcome.brand", { brand: brand.name })}
-      </m.p>
     </m.div>
   );
 }

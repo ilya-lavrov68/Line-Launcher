@@ -70,6 +70,14 @@ test("the bundled render font keeps its licence next to it", () => {
   const ofl = read("LICENSES/Geist-OFL.txt").toString("utf8");
   assert.match(ofl, /SIL Open Font License, Version 1\.1/);
   assert.match(ofl, /The Geist Project Authors/);
+
+  // The greeting's handwriting face is a second redistributed font, so it needs
+  // the same treatment: named in NOTICE.md and its OFL text next to it.
+  assert.match(notice, /Caveat/);
+  assert.match(notice, /LICENSES\/Caveat-OFL\.txt/);
+  const caveat = read("LICENSES/Caveat-OFL.txt").toString("utf8");
+  assert.match(caveat, /SIL Open Font License, Version 1\.1/);
+  assert.match(caveat, /The Caveat Project Authors/);
 });
 
 test("both screenshot writers agree on the size", () => {

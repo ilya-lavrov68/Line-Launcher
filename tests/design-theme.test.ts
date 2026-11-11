@@ -293,6 +293,27 @@ test("the greeting draws itself and ends without waiting for the network", () =>
 
   // Reduced motion keeps the screen: it is content, not decoration.
   assert.match(welcome, /useReducedMotion/);
+
+  // The greeting is the word and nothing else. The product name and the
+  // hairline under it were a caption on a greeting; both are gone.
+  assert.doesNotMatch(welcome, /welcome\.brand/);
+  assert.doesNotMatch(welcome, /<m\.p/);
+  assert.doesNotMatch(welcome, /h-px/);
+
+  // Written, not faded: a hard-edged clip uncovers each glyph, which is what
+  // makes it read as a pen rather than a dissolve.
+  assert.match(welcome, /clipPath: "inset\(0 100% 0 0\)"/);
+  assert.match(welcome, /font-hand/);
+  // The handwriting face is a real dependency, not a stack of names that will
+  // silently resolve to the system sans on most machines.
+  assert.match(read("src/index.css"), /@import "@fontsource-variable\/caveat"/);
+  assert.match(read("src/index.css"), /--font-hand:/);
+
+  // The wash stays light. It used to reach 94% black, which hid the animated
+  // field the greeting is supposed to sit on.
+  assert.match(welcome, /WASH/);
+  assert.doesNotMatch(welcome, /0\.94/);
+  assert.doesNotMatch(welcome, /0\.72\)/);
 });
 
 test("the animated backdrop is decoration that cannot take the window down", () => {
@@ -404,4 +425,38 @@ test("the brand mark in the gallery is the real logo file, not a drawing", () =>
   assert.doesNotMatch(renderer, /ctx\.moveTo\(3, 3\)/);
   const logo = read("branding/assets/logo.svg");
   assert.match(logo, /fill="#FFFF01"/i);
+});
+
+test("the launcher casts no shadows", () => {
+  // Depth here is the fill ladder and the backdrop blur; a drop shadow over a
+  // moving colour field read as grime along the panel edge, and an inset 1px
+  // highlight drew a second border inside the real one. Both were removed on
+  // purpose, so they must not creep back one component at a time.
+  const css = read("src/index.css");
+  const glass = css.slice(
+    css.indexOf("[data-line-glass] {"),
+    css.indexOf("[data-line-glass] {") + 400,
+  );
+  // Match the declaration, not the comment that explains why it is gone.
+  assert.doesNotMatch(glass, /^\s*box-shadow\s*:/m);
+
+  const files = [
+    "src/components/line/ConfigUrlInput.tsx",
+    "src/components/line/LineLauncher.tsx",
+    "src/components/ui/popover.tsx",
+    "src/components/ui/select.tsx",
+    "src/components/ui/tooltip.tsx",
+    "src/components/ui/tabs.tsx",
+  ];
+  for (const file of files) {
+    assert.doesNotMatch(
+      read(file),
+      /shadow-(?:sm|md|lg|xl|2xl)\b/,
+      `${file} still casts a drop shadow`,
+    );
+  }
+
+  // Focus rings are not shadows-for-look: they are the keyboard affordance and
+  // they stay.
+  assert.match(css, /box-shadow: 0 0 0 3px color-mix/);
 });

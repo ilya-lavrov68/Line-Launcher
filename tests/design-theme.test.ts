@@ -113,8 +113,8 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
     'role="status"',
     'role="progressbar"',
     "aria-valuenow",
-    "Загрузка сборки",
-    "Играть",
+    't("detail.installing")',
+    't("detail.play")',
   ]) {
     assert.ok(panel.includes(piece), `missing ${piece}`);
   }
@@ -172,8 +172,8 @@ test("the catalogue rail is tryliner's now-playing strip, translated", () => {
   // One region, one action. A play button here would promise a launch that may
   // need an install first, so the strip only opens the server screen.
   assert.match(rail, /role="region"/);
-  assert.match(rail, /aria-label="Текущий сервер"/);
-  assert.match(rail, /<span>Открыть<\/span>/);
+  assert.match(rail, /aria-label=\{t\("servers\.rail"\)\}/);
+  assert.match(rail, /\{t\("servers\.openShort"\)\}/);
   assert.doesNotMatch(rail, /Играть|Остановить/);
   // Progress is a hairline with a real progressbar role, not a decoration.
   assert.match(rail, /role="progressbar"/);
@@ -233,7 +233,7 @@ test("the game subscription outlives the detail screen", () => {
 
 test("the login screen is one panel, not nested cards", () => {
   const bar = read("src/components/line/TitleBar.tsx");
-  const account = read("src/components/line/AccountScreen.tsx");
+  const account = read("src/components/line/SignInScreen.tsx");
   const form = read("src/components/line/AuthForm.tsx");
 
   // The title bar carries the mark and the product name and nothing to the
@@ -257,6 +257,42 @@ test("the login screen is one panel, not nested cards", () => {
   // And no decorative wash over the card: a gradient tint on top of a panel is
   // what made the first screen look dirty at the corners.
   assert.doesNotMatch(account, /bg-gradient-to-br/);
+
+  // Signing in is a page, not a panel inside the launcher: it must not paint
+  // its own opaque background (the shell's backdrop shows through) and it must
+  // keep the window's own frame, or a frameless window opened here could not be
+  // moved or closed.
+  assert.doesNotMatch(account, /className="bg-background[^"]*h-dvh/);
+  assert.match(account, /<TitleBar \/>/);
+  assert.match(account, /data-line-signin/);
+});
+
+test("the greeting draws itself and ends without waiting for the network", () => {
+  const welcome = read("src/components/line/WelcomeScreen.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+
+  // The word is written letter by letter, not faded in as one block.
+  assert.match(welcome, /const letters = Array\.from\(word\)/);
+  assert.match(welcome, /letters\.map\(/);
+  assert.match(welcome, /LETTER_STAGGER/);
+  // A fixed-length prologue: the timer is not tied to a fetch or a session.
+  assert.match(welcome, /setTimeout\(onDone, total\)/);
+  // With reduced motion there is no draw to watch, so the screen needs a floor
+  // of its own — it used to last 620ms and flashed past unread.
+  assert.match(welcome, /REDUCED_MIN_MS/);
+  assert.match(welcome, /Math\.max\(drawMs \+ holdMs, REDUCED_MIN_MS\)/);
+  // No fetch, no session check, no promise: only the timer decides.
+  assert.doesNotMatch(welcome, /\bawait\b|\bPromise\b|lineApi\./);
+
+  // It covers everything, and the shell underneath is hidden while it runs —
+  // the first frame a player saw used to be "Welcome" over a half-drawn
+  // catalogue, because the greeting was transparent.
+  assert.match(launcher, /<WelcomeScreen/);
+  assert.match(launcher, /!introDone &&/);
+  assert.match(launcher, /\(gateSignIn \|\| !introDone\) && "invisible"/);
+
+  // Reduced motion keeps the screen: it is content, not decoration.
+  assert.match(welcome, /useReducedMotion/);
 });
 
 test("the animated backdrop is decoration that cannot take the window down", () => {
@@ -301,12 +337,38 @@ test("the animated backdrop is decoration that cannot take the window down", () 
 
   // At least ten selectable themes, each with its own legibility veil — one
   // global `shade` cannot serve both a navy and a white ramp.
-  const themes = backdrops.match(/^ {2}theme\(/gm)?.length ?? 0;
+  const themes = backdrops.match(/^ {4}id: "/gm)?.length ?? 0;
   assert.ok(
     themes >= 10,
     `expected at least 10 backdrop themes, found ${themes}`,
   );
   assert.match(backdrops, /shade:/);
+
+  // The configs come from hazeglow's own randomizer, not from hand-edited
+  // ramps. That is the point of the rewrite: `randomConfig` varies the shape,
+  // the size, the warp and the grain as well as the colours, which is why the
+  // themes stopped looking like one picture in twelve tints.
+  assert.match(backdrops, /randomConfig\(/);
+  // And they must not all be the same shape either.
+  const shapes = new Set(
+    [...backdrops.matchAll(/^ {6}shape: "(\w+)"/gm)].map((m) => m[1]),
+  );
+  assert.ok(
+    shapes.size >= 4,
+    `themes should cover several shapes, found ${[...shapes].join(", ")}`,
+  );
+
+  // The compact picker: a folded list with a preview beside it, not a grid of
+  // static tiles. The preview has to be animated, and it has to paint the same
+  // field the page does — a static swatch was what made every theme look alike.
+  const picker = read("src/components/line/BackdropPicker.tsx");
+  assert.match(picker, /Popover/);
+  assert.match(picker, /role="radiogroup"/);
+  assert.match(picker, /data-backdrop-preview/);
+  assert.match(picker, /backdropField\(theme\)/);
+  assert.match(picker, /onMouseEnter/);
+  // Not the old twelve-tile grid.
+  assert.doesNotMatch(picker, /grid-cols-2 gap-2 sm:grid-cols-3/);
 
   // The shader is the only WebGL in the app: one dependency, one place.
   const pkg = JSON.parse(read("package.json")) as {

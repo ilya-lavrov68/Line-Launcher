@@ -195,10 +195,11 @@ test("every launcher-owned argument is shielded from pack overrides", () => {
 });
 
 test("the player can see what the launch is doing while files are checked", () => {
-  const controls = read("src/components/line/LaunchControls.tsx");
-  // `status.message` used to be rendered only for a failed launch, which would
-  // hide every progress note published during the scan.
-  assert.match(controls, /\{starting && status\?\.message && \(/);
+  // The dock is the only thing that shows launch progress now. `status.message`
+  // used to be rendered only for a failed launch, which would hide every note
+  // published during the file scan.
+  const controls = read("src/components/line/ServerActionPanel.tsx");
+  assert.match(controls, /phase === "starting" && status\?\.message/);
   assert.match(launch, /message: Some\("Проверка файлов сборки…"\.into\(\)\)/);
   assert.match(launch, /удалено посторонних/);
   assert.match(launch, /скачиваем заново/);

@@ -30,7 +30,6 @@ test("the upload heading has no fake plus button; section icons are unframed", (
     "ConnectingScreen.tsx",
     "ConfigUrlInput.tsx",
     "ServerCard.tsx",
-    "ServerBanner.tsx",
     "SkinPreview.tsx",
   ]) {
     const src = read(`src/components/line/${file}`);
@@ -70,7 +69,7 @@ test("PATH bin directories and explicit JDK homes resolve to the real java execu
   assert.match(launch, /runtime\.major != required_major/);
   const ui = read("src/components/line/SettingsScreen.tsx");
   assert.match(ui, /probeJavaPath\(javaPathInput\.trim\(\)\)/);
-  assert.match(ui, /Повторить поиск Java/);
+  assert.match(ui, /t\("settings\.javaResearch"\)/);
   assert.doesNotMatch(ui, /Java не найдена\. Установите JDK/);
 });
 
@@ -100,9 +99,11 @@ test("offline launch is explicit, compatible and never inferred from missing aut
   );
   assert.match(config, /launch_ticket_url\.is_some\(\)/);
   assert.match(config, /session_exchange_url\.is_some\(\)/);
-  const ui = read("src/components/line/LaunchControls.tsx");
+  // The note lives in the dock now; LaunchControls and ServerBanner were
+  // deleted with the old detail screen and nothing imported them any more.
+  const ui = read("src/components/line/ServerActionPanel.tsx");
   assert.match(ui, /server\.launch_mode === "offline"/);
-  assert.match(ui, /offline \|\|/);
+  assert.match(ui, /detail\.offlineBuild/);
   assert.match(read("src/types/line.ts"), /launch_mode\?: LaunchMode/);
   const build = read("examples/provider/build-pack.mjs");
   assert.match(

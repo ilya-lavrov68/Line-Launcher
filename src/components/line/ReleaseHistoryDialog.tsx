@@ -9,6 +9,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { InstallReceipt, ReleaseHistory } from "@/types/line";
+import { useT } from "@/lib/line/i18n";
+import { SkeletonHistoryRows } from "@/components/line/Skeleton";
 
 export interface ReleaseHistoryDialogProps {
   open: boolean;
@@ -33,6 +35,7 @@ export default function ReleaseHistoryDialog({
   onRollback,
   trigger,
 }: ReleaseHistoryDialogProps) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger render={trigger as ReactElement} />}
@@ -40,53 +43,55 @@ export default function ReleaseHistoryDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">
             <History className="h-6 w-6" />
-            История сборок
+            {t("history.title")}
           </DialogTitle>
         </DialogHeader>
         <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
-          {history?.releases.length ? (
-            history.releases.map((receipt) => {
-              const current = receipt.sha256 === currentSha;
-              return (
-                <div
-                  key={receipt.sha256}
-                  className="bg-fill-subtle flex items-center justify-between gap-3 rounded-[var(--radius-item)] p-3.5"
-                >
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <span className="text-foreground truncate text-xs font-semibold">
-                      {receipt.version}
-                    </span>
-                    <span className="text-muted-foreground font-mono text-[12px]">
-                      {receipt.sha256.slice(0, 12)}
-                    </span>
-                  </div>
-                  {current ? (
-                    <span className="text-muted-foreground text-xs">
-                      Текущая
-                    </span>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={loading}
-                      onClick={() => onRollback(receipt)}
-                      className="cursor-pointer text-xs"
-                    >
-                      {loading ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Откатить"
-                      )}
-                    </Button>
-                  )}
-                </div>
-              );
-            })
-          ) : (
+          {loading && !history && <SkeletonHistoryRows />}
+          {!loading && !history?.releases.length ? (
             <p className="text-muted-foreground text-xs">
-              Сохранённых сборок пока нет.
+              {t("history.empty")}
             </p>
-          )}
+          ) : null}
+          {history?.releases.length
+            ? history.releases.map((receipt) => {
+                const current = receipt.sha256 === currentSha;
+                return (
+                  <div
+                    key={receipt.sha256}
+                    className="bg-fill-subtle flex items-center justify-between gap-3 rounded-[var(--radius-item)] p-3.5"
+                  >
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="text-foreground truncate text-xs font-semibold">
+                        {receipt.version}
+                      </span>
+                      <span className="text-muted-foreground font-mono text-[12px]">
+                        {receipt.sha256.slice(0, 12)}
+                      </span>
+                    </div>
+                    {current ? (
+                      <span className="text-muted-foreground text-xs">
+                        {t("history.current")}
+                      </span>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={loading}
+                        onClick={() => onRollback(receipt)}
+                        className="cursor-pointer text-xs"
+                      >
+                        {loading ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          t("history.rollback")
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            : null}
         </div>
         {error && (
           <p role="alert" className="text-destructive text-xs">

@@ -7,6 +7,7 @@ import {
 } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { brand } from "@/brand/generated";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { errorMessage, lineApi } from "@/lib/line/api";
@@ -23,13 +24,13 @@ import type {
 } from "@/types/line";
 import AboutDialog from "./AboutDialog";
 import Attribution from "./Attribution";
-import AccountScreen from "./AccountScreen";
 import ConfigUrlInput from "./ConfigUrlInput";
 import ConnectingScreen from "./ConnectingScreen";
 import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import AnimatedBackdrop from "./AnimatedBackdrop";
 import ProfileScreen from "./ProfileScreen";
+import SignInScreen from "./SignInScreen";
 import ServerDetail from "./ServerDetail";
 import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
@@ -37,6 +38,7 @@ import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
 import WardrobeScreen from "./WardrobeScreen";
+import WelcomeScreen from "./WelcomeScreen";
 import {
   closeWindow,
   hideWindow,
@@ -44,6 +46,11 @@ import {
   restoreWindow,
 } from "@/lib/line/window";
 import { toLineError, type SettingsSnapshot } from "@/types/line";
+import { initialLanguage, setLanguage, useT } from "@/lib/line/i18n";
+import {
+  SkeletonServerGrid,
+  SkeletonSettings,
+} from "@/components/line/Skeleton";
 
 type Screen = "config" | "account" | "servers" | "detail";
 
@@ -52,11 +59,18 @@ const LAUNCHER_VERSION = "0.1.0";
 export default function LineLauncher() {
   const [screen, setScreen] = useState<Screen>("config");
   /**
+   * The prologue. `intro` is the drawn greeting, `ready` is everything after it.
+   * The greeting is not skippable and not tied to the network: it runs once per
+   * launch, for a fixed length, so the window always opens the same way.
+   */
+  const [introDone, setIntroDone] = useState(false);
+  /**
    * One provider per build. A configured build connects to its baked address and
    * never shows an address field; only an unconfigured template under `npm run
    * dev` lets a developer type one.
    */
   const mode = connectionMode(bakedProvider, import.meta.env.DEV);
+  const t = useT();
   const [section, setSection] = useState<LineSection>("servers");
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -93,10 +107,10 @@ export default function LineLauncher() {
   const railStatus = !railServer
     ? ""
     : railProgress
-      ? "Загрузка сборки"
+      ? t("servers.railDownloading")
       : installedIds.has(railServer.id)
-        ? "Сборка установлена"
-        : "Сборка не установлена";
+        ? t("servers.railInstalled")
+        : t("servers.railMissing");
   const gameActive =
     gameStatus?.phase === "starting" || gameStatus?.phase === "running";
   const actionsBusy = installing || authLoading || launching || gameActive;
@@ -146,7 +160,12 @@ export default function LineLauncher() {
     void lineApi
       .settings()
       .then((value) => {
-        if (!cancelled) setSettings(value);
+        if (cancelled) return;
+        // The stored language wins; with no stored choice the system language
+        // decides, and Russian is the floor. Applied before the first paint of
+        // any translated screen — the intro is still running at this point.
+        setLanguage(initialLanguage(value.settings.language));
+        setSettings(value);
       })
       .catch(() => undefined);
     return () => {
@@ -225,7 +244,7 @@ export default function LineLauncher() {
 
   async function selectServer(server: LineServer) {
     if (snapshot?.stale) {
-      setError("Обновите конфигурацию перед входом и установкой.");
+      setError(t("detail.refreshFirst"));
       return;
     }
     const generation = ++detailGeneration.current;
@@ -294,7 +313,7 @@ export default function LineLauncher() {
     setSelected(null);
     setScreen("account");
     setSection("servers");
-    setAuthError("Сессия истекла. Войдите повторно.");
+    setAuthError(t("status.authExpired"));
     void lineApi.forgetSyncedSkin().catch(() => undefined);
     return true;
   }
@@ -304,7 +323,7 @@ export default function LineLauncher() {
     if (session.expiresAt <= Date.now()) {
       setSession(null);
       setScreen("account");
-      setAuthError("Сессия истекла. Войдите повторно.");
+      setAuthError(t("status.authExpired"));
       return;
     }
     const id = crypto.randomUUID();
@@ -466,7 +485,7 @@ export default function LineLauncher() {
     setSelected(null);
     setScreen("account");
     setSection("servers");
-    setAuthError("Сессия истекла. Войдите повторно.");
+    setAuthError(t("status.authExpired"));
   }
 
   async function openHistory(open: boolean) {
@@ -516,14 +535,14 @@ export default function LineLauncher() {
 
   const titleContext =
     section === "settings"
-      ? "Настройки"
+      ? t("nav.settings")
       : section === "wardrobe"
-        ? "Гардероб"
+        ? t("nav.wardrobe")
         : section === "account"
-          ? "Аккаунт"
+          ? t("nav.account")
           : screen === "detail" && selected
             ? selected.name
-            : (snapshot?.config.provider.name ?? "Подключение");
+            : (snapshot?.config.provider.name ?? t("window.connecting"));
 
   function navigate(next: LineSection) {
     setSection(next);
@@ -561,6 +580,17 @@ export default function LineLauncher() {
     if (mode === "auto") void loadConfig(bakedProvider.configUrl, true);
   }
 
+  /**
+   * Signing in is a page, not a panel.
+   *
+   * It covers the whole window — no rail, no title bar of ours, no catalogue
+   * behind it — and it is shown until the provider has accepted the account.
+   * The dev-only address field keeps the shell, because it runs before there is
+   * a provider to sign in to: `screen` is still `"config"` at that point, so the
+   * gate simply is not reached yet.
+   */
+  const gateSignIn = introDone && !session && screen === "account";
+
   return (
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
@@ -574,9 +604,57 @@ export default function LineLauncher() {
               imageUrl={selected?.banner_url}
               themeId={settings?.settings.backdrop ?? undefined}
             />
+            {/* The gate sits on the same backdrop as the app. It is painted
+                after the shell in DOM order and given its own stacking context,
+                so it covers the rail and the panels rather than sitting beside
+                them in the layout. */}
+            <AnimatePresence mode="wait" initial={false}>
+              {gateSignIn && snapshot ? (
+                <m.div
+                  key="signin"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  className="fixed inset-0 z-40"
+                >
+                  <SignInScreen
+                    providerName={snapshot.config.provider.name}
+                    serverCount={snapshot.config.servers.length}
+                    registrationAvailable={Boolean(
+                      snapshot.config.provider.auth.register_url,
+                    )}
+                    loading={authLoading}
+                    error={authError}
+                    onSubmit={(mode, username, password) =>
+                      void authenticate(mode, username, password)
+                    }
+                  />
+                </m.div>
+              ) : null}
+            </AnimatePresence>
+            <AnimatePresence>
+              {!introDone && (
+                <WelcomeScreen
+                  key="welcome"
+                  onDone={() => setIntroDone(true)}
+                />
+              )}
+            </AnimatePresence>
             {/* Floating frame: one 6px inset around the whole window, and the
-                header shares it instead of being banded off by a hairline. */}
-            <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5">
+                header shares it instead of being banded off by a hairline.
+                Hidden, not unmounted, while the gate is up: the sign-in page is
+                the whole window, and a rail sliding under it read as a modal.
+                Keeping it mounted means the catalogue behind it is already
+                loaded when the player signs in. */}
+            <div
+              aria-hidden={gateSignIn || !introDone ? true : undefined}
+              inert={gateSignIn || !introDone ? true : undefined}
+              className={cn(
+                "relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5",
+                (gateSignIn || !introDone) && "invisible",
+              )}
+            >
               <TitleBar context={titleContext} />
               <div className="flex min-h-0 w-full flex-1 gap-1.5 overflow-hidden">
                 <SideNav
@@ -624,6 +702,13 @@ export default function LineLauncher() {
                         transition={{ duration: 0.18 }}
                         className="flex min-h-full flex-1 flex-col"
                       >
+                        {/* The snapshot arrives a moment after the shell does.
+                            Until it does, the page shows its own geometry instead
+                            of an empty panel — the row of sections is the shape
+                            a player learns on first visit. */}
+                        {section === "settings" && !settings && (
+                          <SkeletonSettings />
+                        )}
                         {section === "settings" && settings && (
                           <SettingsScreen
                             snapshot={settings}
@@ -635,7 +720,8 @@ export default function LineLauncher() {
                           <ProfileScreen
                             session={session}
                             providerName={
-                              snapshot?.config.provider.name ?? "проект"
+                              snapshot?.config.provider.name ??
+                              t("common.project")
                             }
                             canSync={canSyncSkin}
                             onLogout={() => void logout()}
@@ -647,7 +733,7 @@ export default function LineLauncher() {
                           // Signing out while this page is open must not leave a
                           // blank panel; the sign-in screen is the honest state.
                           <div className="text-muted-foreground mx-auto flex w-full max-w-3xl flex-col items-start gap-2 py-10 text-xs">
-                            <p>Вы не вошли в аккаунт.</p>
+                            <p>{t("status.noSession")}</p>
                           </div>
                         )}
                         {section === "wardrobe" && (
@@ -680,24 +766,27 @@ export default function LineLauncher() {
                             )}
                           </div>
                         )}
+                        {section === "servers" && screen === "account" && (
+                          // Unreachable in a configured build: signing in is a
+                          // page of its own now and covers this shell entirely
+                          // (see `gateSignIn`). It stays for the one state that
+                          // cannot be a page — an unconfigured dev template,
+                          // which has no provider to sign in to yet.
+                          <div className="flex min-h-full items-center justify-center py-4">
+                            <ConnectingScreen
+                              loading={loading}
+                              error={error}
+                              unconfigured={mode === "unconfigured"}
+                              onRetry={() =>
+                                void loadConfig(bakedProvider.configUrl, true)
+                              }
+                            />
+                          </div>
+                        )}
                         {section === "servers" &&
-                          screen === "account" &&
-                          snapshot && (
-                            <div className="flex min-h-full items-center justify-center py-4">
-                              <AccountScreen
-                                providerName={snapshot.config.provider.name}
-                                serverCount={snapshot.config.servers.length}
-                                registrationAvailable={Boolean(
-                                  snapshot.config.provider.auth.register_url,
-                                )}
-                                loading={authLoading}
-                                error={authError}
-                                onSubmit={(mode, username, password) =>
-                                  void authenticate(mode, username, password)
-                                }
-                              />
-                            </div>
-                          )}
+                          screen === "servers" &&
+                          !snapshot &&
+                          loading && <SkeletonServerGrid />}
                         {section === "servers" &&
                           screen === "servers" &&
                           snapshot && (
@@ -713,7 +802,7 @@ export default function LineLauncher() {
                               }
                               statusFor={(server) =>
                                 installedIds.has(server.id)
-                                  ? "Готов"
+                                  ? t("servers.ready")
                                   : undefined
                               }
                               providerName={snapshot.config.provider.name}
@@ -792,7 +881,7 @@ export default function LineLauncher() {
               </span>
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                Только авторизация провайдера
+                {t("status.offlineOnly")}
               </span>
             </footer>
           </div>

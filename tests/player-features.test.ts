@@ -229,8 +229,14 @@ test("the title bar can actually control the window", () => {
   }
   const titleBar = read("src/components/line/TitleBar.tsx");
   assert.match(titleBar, /data-tauri-drag-region/);
-  for (const label of ["Свернуть окно", "Закрыть окно"]) {
-    assert.ok(titleBar.includes(label), `caption button ${label} is unnamed`);
+  // The labels moved into the catalogue with the four-language interface; the
+  // test now checks the component really names its buttons, and the catalogue
+  // test checks the names exist in every language.
+  for (const key of ["window.minimize", "window.close", "window.maximize"]) {
+    assert.ok(
+      titleBar.includes(`t("${key}")`),
+      `caption button ${key} is unnamed`,
+    );
   }
 });
 
@@ -242,7 +248,7 @@ test("the new chrome uses semantic tokens, never hardcoded colours", () => {
     "src/components/line/SideNav.tsx",
     "src/components/line/SettingsScreen.tsx",
     "src/components/line/WardrobeScreen.tsx",
-    "src/components/line/ServerBanner.tsx",
+    "src/components/line/ServerDetail.tsx",
     "src/components/line/SkinPreview.tsx",
   ]) {
     const src = read(file);
@@ -317,7 +323,7 @@ test("submit buttons keep a reserved message slot so they cannot jump", () => {
   for (const file of [
     "src/components/line/ConfigUrlInput.tsx",
     "src/components/line/AuthForm.tsx",
-    "src/components/line/LaunchControls.tsx",
+    "src/components/line/ServerActionPanel.tsx",
     "src/components/line/LineLauncher.tsx",
   ]) {
     assert.ok(
@@ -474,9 +480,11 @@ test("there is no manual send button: the sync runs by itself", () => {
     screen,
     /if \(result\.status === "synced"\) setRemote\(result\.skin\)/,
   );
-  // The player sees a status, not an action.
-  assert.match(screen, /Отправляем активный скин/);
-  assert.match(screen, /автоматически/);
+  // The player sees a status, not an action. The status text lives in the
+  // catalogue, so the screen is checked for the key and the catalogue for the
+  // sentence — a translated interface still has to say this.
+  assert.match(screen, /t\("wardrobe\.syncing"\)/);
+  assert.match(screen, /t\("wardrobe\.syncedAuto"/);
   // Manual upload commands are gone from the whole IPC surface.
   const commands = read("src-tauri/src/lib.rs");
   assert.doesNotMatch(commands, /upload_skin|wardrobe::reset_skin/);
@@ -511,9 +519,11 @@ test("one account per project unlocks every server", () => {
     shell,
     /lineApi\.authenticate\(mode, \{ username, password \}\)/,
   );
-  // The account screen is a real screen, before the server list.
+  // The sign-in page is a real page, before the server list: it covers the
+  // whole window instead of sitting in a panel of the shell.
   assert.match(shell, /screen === "account"/);
-  assert.match(shell, /<AccountScreen/);
+  assert.match(shell, /<SignInScreen/);
+  assert.match(shell, /const gateSignIn =/);
   // Opening a server must not ask for credentials again.
   const select = shell.slice(
     shell.indexOf("function selectServer("),
@@ -652,11 +662,12 @@ test("backdrop themes ship a persisted, validated choice", () => {
     "the picker has to be reachable from settings",
   );
 
-  // Every theme carries its own swatch and its own veil.
+  // Every theme carries its own swatch and its own veil. The swatches are
+  // literals now, taken from each theme's own palette: the themes no longer
+  // come from one shared helper, they come from the generator.
   const backdrops = read("src/lib/line/backdrops.ts");
-  // Every theme's swatch is derived from its own palette in one place, so the
-  // count that matters is the number of themes, not of `swatch:` literals.
-  assert.match(backdrops, /swatch: \[warm, cool, mid\]/);
+  const swatches = backdrops.match(/swatch: \["#/g)?.length ?? 0;
+  assert.ok(swatches >= 10, `expected a swatch per theme, found ${swatches}`);
   const shades = backdrops.match(/shade: 0\./g)?.length ?? 0;
   assert.ok(shades >= 10, `expected a shade per theme, found ${shades}`);
 });

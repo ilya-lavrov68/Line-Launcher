@@ -25,6 +25,8 @@ import {
 import { errorMessage, lineApi } from "@/lib/line/api";
 import { cn } from "@/lib/utils";
 import { MAX_SKIN_BYTES, validateSkinFile } from "@/lib/line/skin";
+import { useT } from "@/lib/line/i18n";
+import { SkeletonWardrobe } from "@/components/line/Skeleton";
 import {
   toLineError,
   type SkinLibrarySnapshot,
@@ -60,6 +62,7 @@ export default function WardrobeScreen({
   onAuthRequired,
   disabled = false,
 }: WardrobeScreenProps) {
+  const t = useT();
   const [snapshot, setSnapshot] = useState<SkinLibrarySnapshot | null>(null);
   const [remote, setRemote] = useState<SkinState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,7 +176,7 @@ export default function WardrobeScreen({
     setNotice(undefined);
     if (!file) return;
     if (file.size > MAX_SKIN_BYTES) {
-      setError("Скин больше 256 КБ. Используйте текстуру 64×64 или 64×32.");
+      setError(t("wardrobe.fileTooBig"));
       return;
     }
     // Seed the name field *synchronously*, before the decode starts. Both
@@ -214,7 +217,7 @@ export default function WardrobeScreen({
       // The newest texture becomes active and uploads itself.
       const entry = next.library.skins[0];
       setSnapshot(entry ? await lineApi.setActiveSkin(entry.id) : next);
-      setNotice("Скин сохранён в истории и сделан активным.");
+      setNotice(t("wardrobe.saved"));
       URL.revokeObjectURL(pending.url);
       setPending(null);
       setName("");
@@ -233,11 +236,7 @@ export default function WardrobeScreen({
     setNotice(undefined);
     try {
       setSnapshot(await lineApi.setActiveSkin(id));
-      setNotice(
-        id
-          ? "Активный скин изменён."
-          : "Выбран стандартный скин. Прежние остались в истории.",
-      );
+      setNotice(id ? t("wardrobe.activated") : t("wardrobe.defaultSelected"));
       await autoSync();
     } catch (cause) {
       setError(errorMessage(cause));
@@ -253,7 +252,7 @@ export default function WardrobeScreen({
     try {
       const next = await lineApi.deleteSkin(id);
       setSnapshot(next);
-      setNotice("Скин удалён из локальной истории.");
+      setNotice(t("wardrobe.removed"));
       // Deleting the worn texture falls back to the standard look on the account.
       if (activeId === id || syncedId === id) await autoSync();
     } catch (cause) {
@@ -271,22 +270,20 @@ export default function WardrobeScreen({
     ? {
         icon: CloudOff,
         tone: "text-muted-foreground",
-        text: username
-          ? "Проект не настроил гардероб — скины хранятся только локально."
-          : "Войдите в аккаунт проекта, чтобы скин применился на серверах.",
+        text: username ? t("wardrobe.noProvider") : t("wardrobe.signInToSync"),
       }
     : sync === "sending"
       ? {
           icon: Loader2,
           tone: "text-muted-foreground",
-          text: "Отправляем активный скин на сервер…",
+          text: t("wardrobe.syncing"),
         }
       : sync === "failed"
         ? {
             icon: CloudOff,
             tone: "text-destructive",
             // Says what failed and what happens next, in one clause.
-            text: `Скин не отправлен. ${syncError ?? "Повторим при следующем подключении."}`,
+            text: `${t("wardrobe.syncFailed")} ${syncError ?? t("wardrobe.syncRetry")}`,
           }
         : {
             icon: Check,
@@ -294,19 +291,35 @@ export default function WardrobeScreen({
             // The panel title already says "на серверах проекта"; repeating it
             // in the status line was the third time on one screen.
             text: active
-              ? `«${active.name}» отправлен автоматически.`
-              : "На сервере стандартный скин.",
+              ? t("wardrobe.syncedAuto", { name: active.name })
+              : t("wardrobe.serverDefault"),
           };
   const SyncIcon = syncStatus.icon;
+
+  // The library, the remote state and the sync answer all arrive after mount.
+  // The upload card and the rows keep their places instead of appearing under
+  // the player's cursor once the reads land.
+  if (loading && !snapshot) {
+    return (
+      <section className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-foreground text-xl font-bold tracking-tight">
+            {t("wardrobe.title")}
+          </h2>
+        </div>
+        <SkeletonWardrobe />
+      </section>
+    );
+  }
 
   return (
     <section className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
-          Гардероб
+          {t("wardrobe.title")}
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          Активный скин отправляется на сервер сам.
+          {t("wardrobe.subtitle")}
         </p>
       </div>
 
@@ -333,10 +346,10 @@ export default function WardrobeScreen({
       <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-foreground text-sm font-semibold">
-            Добавить скин
+            {t("wardrobe.add")}
           </h3>
           <span className="text-muted-foreground shrink-0 font-mono text-[12px]">
-            PNG 64×64 · до 256 КБ
+            {t("wardrobe.pngHint")}
           </span>
         </div>
 
@@ -347,7 +360,7 @@ export default function WardrobeScreen({
                 htmlFor="skin-file"
                 className="text-muted-foreground text-xs"
               >
-                Файл текстуры
+                {t("wardrobe.fileLabel")}
               </Label>
               {/* A real <input type="file">, kept for the keyboard path and
                   for `setInputFiles` in the smoke test. It is `sr-only` rather
@@ -372,10 +385,10 @@ export default function WardrobeScreen({
                 )}
               >
                 <span className="bg-fill text-foreground flex h-[26px] shrink-0 items-center rounded-[6px] px-3 font-medium">
-                  Выбрать файл
+                  {t("wardrobe.chooseFile")}
                 </span>
                 <span className="text-muted-foreground min-w-0 flex-1 truncate">
-                  {pending?.name ?? "PNG не выбран"}
+                  {pending?.name ?? t("wardrobe.noFile")}
                 </span>
               </label>
             </div>
@@ -384,20 +397,22 @@ export default function WardrobeScreen({
                 htmlFor="skin-name"
                 className="text-muted-foreground text-xs"
               >
-                Название
+                {t("wardrobe.nameLabel")}
               </Label>
               <Input
                 id="skin-name"
                 value={name}
                 maxLength={64}
                 disabled={controlsDisabled}
-                placeholder="Например, зимний"
+                placeholder={t("wardrobe.namePlaceholder")}
                 onChange={(event) => setName(event.target.value)}
                 className="text-xs"
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label className="text-muted-foreground text-xs">Модель</Label>
+              <Label className="text-muted-foreground text-xs">
+                {t("wardrobe.modelLabel")}
+              </Label>
               <Select
                 value={model}
                 disabled={controlsDisabled}
@@ -407,16 +422,16 @@ export default function WardrobeScreen({
                   <SelectValue>
                     {(value: SkinModel | null) =>
                       value === "slim"
-                        ? "Slim — узкие руки (3 px)"
-                        : "Classic — широкие руки (4 px)"
+                        ? t("wardrobe.slim")
+                        : t("wardrobe.classic")
                     }
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="classic">
-                    Classic — широкие руки (4 px)
+                    {t("wardrobe.classic")}
                   </SelectItem>
-                  <SelectItem value="slim">Slim — узкие руки (3 px)</SelectItem>
+                  <SelectItem value="slim">{t("wardrobe.slim")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -424,7 +439,7 @@ export default function WardrobeScreen({
           {pending && (
             <div className="flex shrink-0 flex-col items-center gap-2">
               <Label className="text-muted-foreground text-xs">
-                Предпросмотр
+                {t("wardrobe.previewLabel")}
               </Label>
               <SkinPreview
                 src={pending.url}
@@ -439,7 +454,7 @@ export default function WardrobeScreen({
                 className="cursor-pointer items-center gap-1.5 text-xs"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                {busy ? "Сохраняем…" : "В историю"}
+                {busy ? t("wardrobe.saving") : t("wardrobe.toHistory")}
               </Button>
             </div>
           )}
@@ -451,10 +466,10 @@ export default function WardrobeScreen({
           <SectionIcon icon={History} />
           <div className="flex min-w-0 flex-col gap-0.5">
             <h3 className="text-foreground text-sm font-semibold">
-              Локальная история
+              {t("wardrobe.local")}
             </h3>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              {loading ? "Загрузка…" : `${skins.length} из ${limit}`}
+              {loading ? t("common.loading") : `${skins.length} / ${limit}`}
             </p>
           </div>
         </div>
@@ -463,7 +478,7 @@ export default function WardrobeScreen({
           type="button"
           disabled={controlsDisabled || !activeId}
           onClick={() => void activate(null)}
-          aria-label="Выбрать стандартный скин"
+          aria-label={t("wardrobe.pickDefault")}
           className={
             !activeId
               ? "bg-primary/10 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-default"
@@ -477,10 +492,10 @@ export default function WardrobeScreen({
           />
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <span className="text-foreground text-xs font-medium">
-              Стандартный скин
+              {t("wardrobe.standardSkin")}
             </span>
             <span className="text-muted-foreground text-[12px]">
-              {!activeId ? "активен" : "вернуть обычный вид"}
+              {!activeId ? t("wardrobe.isActive") : t("wardrobe.backToDefault")}
             </span>
           </span>
           {!activeId && (
@@ -493,7 +508,7 @@ export default function WardrobeScreen({
 
         {!loading && skins.length === 0 && (
           <p className="text-muted-foreground py-6 text-center text-xs">
-            История пуста. Добавьте PNG выше — он сохранится локально.
+            {t("wardrobe.emptyHistory")}
           </p>
         )}
 
@@ -531,18 +546,22 @@ export default function WardrobeScreen({
                       type="button"
                       disabled={controlsDisabled || isActive}
                       onClick={() => void activate(skin.id)}
-                      aria-label={`Сделать активным: ${skin.name}`}
+                      aria-label={t("wardrobe.activateNamed", {
+                        name: skin.name,
+                      })}
                       aria-pressed={isActive}
                       className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 px-1 py-0.5 text-[12px] font-medium enabled:hover:bg-transparent disabled:cursor-default disabled:opacity-60"
                     >
-                      {isActive ? "Активен" : "Выбрать"}
+                      {isActive ? t("wardrobe.active") : t("wardrobe.select")}
                     </button>
                     <Button
                       variant="ghost"
                       size="icon-xs"
                       disabled={controlsDisabled}
                       onClick={() => void remove(skin.id)}
-                      aria-label={`Удалить из истории: ${skin.name}`}
+                      aria-label={t("wardrobe.removeNamed", {
+                        name: skin.name,
+                      })}
                       className="text-muted-foreground hover:text-destructive cursor-pointer"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -559,7 +578,7 @@ export default function WardrobeScreen({
         <SectionIcon icon={Shirt} />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-foreground text-sm font-semibold">
-            Скин на серверах проекта
+            {t("wardrobe.onServersTitle")}
           </h3>
           <p
             role="status"
@@ -574,7 +593,9 @@ export default function WardrobeScreen({
           </p>
           {canSync && (
             <span className="text-muted-foreground font-mono text-[12px]">
-              {remote ? `Модель: ${remote.model}` : "Модель: стандартная"}
+              {remote
+                ? t("wardrobe.model", { model: remote.model })
+                : t("wardrobe.modelDefault")}
             </span>
           )}
         </div>

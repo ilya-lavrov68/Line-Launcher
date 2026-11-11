@@ -1,5 +1,7 @@
-import { AlertTriangle, Loader2, RefreshCw, Server } from "lucide-react";
+import { AlertTriangle, RefreshCw, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/line/i18n";
+import { SkeletonAuthCard } from "@/components/line/Skeleton";
 
 export interface ConnectingScreenProps {
   loading: boolean;
@@ -20,6 +22,7 @@ export default function ConnectingScreen({
   unconfigured = false,
   onRetry,
 }: ConnectingScreenProps) {
+  const t = useT();
   if (unconfigured) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 text-center">
@@ -29,16 +32,10 @@ export default function ConnectingScreen({
           aria-hidden="true"
         />
         <h2 className="text-foreground text-lg font-bold tracking-tight">
-          Сборка не настроена
+          {t("connect.unconfiguredTitle")}
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          В этой сборке не указан адрес провайдера. Сообщите об этом тому, кто
-          её распространяет: перед сборкой установщика нужно заполнить
-          <span className="text-foreground font-mono">
-            {" "}
-            branding/provider.json
-          </span>
-          . Вводить адрес вручную игроку не требуется.
+          {t("connect.unconfiguredBody")}
         </p>
       </div>
     );
@@ -46,12 +43,12 @@ export default function ConnectingScreen({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 text-center">
+      {/* The retry path keeps its icon — there is nothing to sketch there: the
+          player is waiting for a request they already know the shape of. The
+          skeleton belongs to the very first load, where the shell is still
+          empty and the sign-in card is what will appear (see `LineLauncher`). */}
       {loading ? (
-        <Loader2
-          data-line-icon
-          className="text-primary h-7 w-7 animate-spin"
-          aria-hidden="true"
-        />
+        <SkeletonAuthCard />
       ) : (
         <Server
           data-line-icon
@@ -60,12 +57,10 @@ export default function ConnectingScreen({
         />
       )}
       <h2 className="text-foreground text-lg font-bold tracking-tight">
-        {loading ? "Подключение к проекту" : "Нет соединения"}
+        {loading ? t("connect.title") : t("connect.titleFailed")}
       </h2>
       <p className="text-muted-foreground text-xs leading-relaxed">
-        {loading
-          ? "Загружаем список серверов. Адрес уже настроен в этой сборке — вводить ничего не нужно."
-          : "Не удалось загрузить список серверов. Проверьте интернет и попробуйте снова."}
+        {loading ? t("connect.body") : t("connect.bodyFailed")}
       </p>
 
       <div className="min-h-12 w-full" aria-live="polite">
@@ -86,7 +81,7 @@ export default function ConnectingScreen({
           className="cursor-pointer items-center gap-1.5 text-xs"
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-          Повторить
+          {t("common.retry")}
         </Button>
       )}
     </div>

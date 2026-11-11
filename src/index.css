@@ -229,6 +229,31 @@
     transform: scaleX(-1);
   }
 
+  /* ── skeletons ────────────────────────────────────────────────────────
+   *
+   * A loading placeholder that has the shape of the thing it replaces. The
+   * shimmer is a moving highlight on a fill from the same ladder every other
+   * surface uses, so a loading page looks like this design waiting, not like a
+   * different design.
+   *
+   * The highlight travels on `background-position` rather than `transform`:
+   * these blocks are small, they never overlap a canvas, and a paint-only
+   * property keeps the shader behind them from being recomposited each frame.
+   */
+
+  .line-skeleton {
+    background-color: var(--fill-subtle);
+    background-image: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in oklab, var(--foreground) 9%, transparent) 45%,
+      transparent 70%
+    );
+    background-size: 220% 100%;
+    background-repeat: no-repeat;
+    animation: line-skeleton-sweep 1.35s var(--ease-line) infinite;
+  }
+
   /* The window canvas under everything: one flat value from the palette. */
   [data-line-canvas] {
     background: var(--line-canvas);
@@ -410,10 +435,27 @@
   }
 }
 
+/* One pass of the shimmer, then a short pause: a skeleton that pulses without
+ * pause reads as activity rather than as waiting. */
+@keyframes line-skeleton-sweep {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
 /* Movement is a preference, colour is not: with reduced motion the field keeps
  * every one of its stops and simply stops travelling. */
 @media (prefers-reduced-motion: reduce) {
   [data-line-haze] {
+    animation: none;
+  }
+
+  /* A still skeleton still shows the shape, which is the information; only the
+   * sweep is decoration. */
+  .line-skeleton {
     animation: none;
   }
 }

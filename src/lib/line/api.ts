@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { t } from "./i18n-core.ts";
 import {
   LINE_GAME_EVENT,
   LINE_MC_GAME_EVENT,
@@ -32,7 +33,7 @@ import {
 
 export class DesktopRequiredError extends Error {
   constructor() {
-    super("Откройте Line Launcher в настольном приложении.");
+    super(t("connect.desktopOnly"));
     this.name = "DesktopRequiredError";
   }
 }
@@ -151,5 +152,5 @@ export const lineApi = {
 
 export function errorMessage(error: unknown): string {
   if (error instanceof DesktopRequiredError) return error.message;
-  return toLineError(error).message;
+  return toLineError(error, t("error.generic")).message;
 }

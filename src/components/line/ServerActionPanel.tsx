@@ -12,6 +12,7 @@ import {
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT, type Translator } from "@/lib/line/i18n";
 import type { GameStatus, InstallProgress, LineServer } from "@/types/line";
 
 /**
@@ -48,37 +49,54 @@ export interface ServerActionPanelProps {
   onHistory?: () => void;
 }
 
-const STATUS_LABEL: Record<ServerActionPhase, string> = {
-  "needs-install": "Сборка не скачана",
-  "needs-update": "Доступно обновление",
-  installing: "Загрузка сборки",
-  installed: "Готов к запуску",
-  starting: "Запуск",
-  running: "Игра запущена",
-  exited: "Игра завершилась",
-  failed: "Не удалось запустить",
-};
+/**
+ * Captions are built from the translator rather than from module constants:
+ * a `Record` at module scope would freeze the language at import time, and the
+ * whole point of this interface is that switching is instant.
+ */
+function statusLabel(t: Translator, phase: ServerActionPhase): string {
+  const labels: Record<ServerActionPhase, string> = {
+    "needs-install": t("detail.buildMissing"),
+    "needs-update": t("detail.updateAvailable"),
+    installing: t("detail.installing"),
+    installed: t("detail.readyToLaunch"),
+    starting: t("detail.launching"),
+    running: t("detail.running"),
+    exited: t("detail.exited"),
+    failed: t("detail.launchFailed"),
+  };
+  return labels[phase];
+}
 
-const PRIMARY_LABEL: Record<ServerActionPhase, string> = {
-  "needs-install": "Установить сборку",
-  "needs-update": "Обновить сборку",
-  installing: "Отменить загрузку",
-  installed: "Играть",
-  starting: "Отменить запуск",
-  running: "Остановить игру",
-  exited: "Играть",
-  failed: "Повторить попытку",
-};
+function primaryLabel(t: Translator, phase: ServerActionPhase): string {
+  const labels: Record<ServerActionPhase, string> = {
+    "needs-install": t("detail.install"),
+    "needs-update": t("detail.update"),
+    installing: t("detail.cancelDownload"),
+    installed: t("detail.play"),
+    starting: t("detail.cancelLaunch"),
+    running: t("detail.stopGame"),
+    exited: t("detail.play"),
+    failed: t("detail.retry"),
+  };
+  return labels[phase];
+}
 
-const INSTALL_PHASE_LABEL: Record<InstallProgress["phase"], string> = {
-  downloading: "Скачивание",
-  verifying: "Проверка архива",
-  extracting: "Распаковка",
-  committing: "Применение",
-  completed: "Готово",
-  cancelled: "Отменено",
-  failed: "Ошибка",
-};
+function installPhaseLabel(
+  t: Translator,
+  phase: InstallProgress["phase"],
+): string {
+  const labels: Record<InstallProgress["phase"], string> = {
+    downloading: t("install.step.download"),
+    verifying: t("install.step.verify"),
+    extracting: t("install.step.extract"),
+    committing: t("install.step.apply"),
+    completed: t("install.step.done"),
+    cancelled: t("install.step.cancelled"),
+    failed: t("install.failed"),
+  };
+  return labels[phase];
+}
 
 function percentOf(progress?: InstallProgress | null): number | null {
   if (!progress) return null;
@@ -109,6 +127,7 @@ export default function ServerActionPanel({
   onHistory,
 }: ServerActionPanelProps) {
   const reducedMotion = useReducedMotion();
+  const t = useT();
   const percent = percentOf(progress);
   const installing = phase === "installing";
   const active = phase === "running" || phase === "starting";
@@ -118,13 +137,13 @@ export default function ServerActionPanel({
     // While an install runs, the caption under the bar already reads
     // «Скачивание … 45%». Repeating the same two facts in the status row above
     // it was the third copy of one number on a single screen.
-    if (installing && progress) return "Загрузка сборки";
+    if (installing && progress) return t("detail.installing");
     if (phase === "starting" && status?.message) return status.message;
     if (phase === "exited" && typeof status?.exitCode === "number") {
-      return `${STATUS_LABEL.exited} · код ${status.exitCode}`;
+      return `${t("detail.exited")} · ${status.exitCode}`;
     }
-    return STATUS_LABEL[phase];
-  }, [installing, phase, progress, status]);
+    return statusLabel(t, phase);
+  }, [installing, phase, progress, status, t]);
 
   const canPress = !unavailable && (!disabled || installing || active);
 
@@ -165,7 +184,7 @@ export default function ServerActionPanel({
               )}
               {/* role=status so a screen reader hears the build progress too. */}
               <span role="status">
-                {unavailable ? "Запуск не настроен" : statusText}
+                {unavailable ? t("detail.launchUnconfigured") : statusText}
               </span>
             </span>
             {server.minecraft_version && (
@@ -182,8 +201,8 @@ export default function ServerActionPanel({
             size="icon-sm"
             onClick={onHistory}
             disabled={disabled || active}
-            title="История сборок"
-            aria-label="История сборок"
+            title={t("detail.history")}
+            aria-label={t("detail.history")}
             className="text-muted-foreground hover:text-foreground shrink-0"
           >
             <History className="size-4" aria-hidden="true" />
@@ -210,7 +229,7 @@ export default function ServerActionPanel({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={percent ?? undefined}
-                aria-label="Загрузка сборки"
+                aria-label={t("detail.installing")}
                 className="bg-fill relative h-2 w-full overflow-hidden rounded-full"
               >
                 {/* Determinate while the installer reports a percentage,
@@ -240,7 +259,7 @@ export default function ServerActionPanel({
                 )}
               </div>
               <div className="text-muted-foreground flex items-center justify-between font-mono text-[12px]">
-                <span>{INSTALL_PHASE_LABEL[progress!.phase]}</span>
+                <span>{installPhaseLabel(t, progress!.phase)}</span>
                 <span>{percent === null ? "…" : `${percent}%`}</span>
               </div>
             </div>
@@ -283,7 +302,7 @@ export default function ServerActionPanel({
             ) : (
               <Play className="size-4 fill-current" aria-hidden="true" />
             )}
-            <span>{PRIMARY_LABEL[phase]}</span>
+            <span>{primaryLabel(t, phase)}</span>
           </Button>
         </m.div>
       </div>
@@ -292,8 +311,8 @@ export default function ServerActionPanel({
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
         <span>
           {server.launch_mode === "offline"
-            ? "Офлайн-сборка: ник аккаунта проекта."
-            : "Вход через аккаунт проекта."}
+            ? t("detail.offlineBuild")
+            : t("detail.providerAccount")}
         </span>
       </div>
 

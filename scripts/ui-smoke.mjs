@@ -145,6 +145,10 @@ const page = await browser.newPage({
   viewport: { width: 1280, height: 900 },
   // Obsy's animated gradient never settles; screenshots must disable motion.
   reducedMotion: "reduce",
+  // The launcher follows the system language until a language is chosen, and
+  // this suite asserts Russian labels. Without a locale Chromium reports
+  // en-US and the first run would come up in English.
+  locale: "ru-RU",
 });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
@@ -438,7 +442,21 @@ function check(condition, message) {
 }
 
 try {
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+
+  // The greeting runs once, before anything else, and hands over on its own.
+  await page.locator("[data-line-welcome]").waitFor({ timeout: 10_000 });
+  await page
+    .locator("[data-line-welcome] [aria-label='Welcome']")
+    .waitFor({ timeout: 5_000 });
+  await page.locator("[data-line-welcome]").waitFor({
+    state: "detached",
+    timeout: 10_000,
+  });
+  check(
+    !(await page.locator("[data-line-welcome]").count()),
+    "the greeting stayed on screen after its timer",
+  );
   await page
     .getByLabel("Адрес конфигурации")
     .fill("https://provider.example.com/config.json");
@@ -480,6 +498,33 @@ try {
     !(await page.getByRole("button", { name: /^Открыть сервер/ }).count()),
     "the server list appeared before the single sign-in",
   );
+
+  // Signing in once, with no server selected at all.
+  await page
+    .getByText("Один вход — все серверы проекта.", { exact: false })
+    .waitFor();
+  await page.getByRole("tab", { name: "Регистрация" }).click();
+  await page.getByRole("tab", { name: "Вход" }).click();
+  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
+  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
+  const login = await page.evaluate(() => {
+    const call = window.__calls.find((c) => c[0] === "line_login");
+    return {
+      keys: Object.keys(call?.[1]?.request ?? {})
+        .sort()
+        .join(","),
+      restored: window.__calls.some((c) => c[0] === "line_session"),
+      forgotten: window.__calls.some((c) => c[0] === "forget_synced_skin"),
+    };
+  });
+  check(
+    login.keys === "password,username",
+    `login must not carry a server id: ${login.keys}`,
+  );
+  check(login.restored, "the shell never asked the backend for the session");
+  check(login.forgotten, "signing in must reset the uploaded-skin marker");
   await shot("account");
 
   // The mark is tinted through a CSS mask. Vite inlines the SVG as a data: URL
@@ -506,49 +551,6 @@ try {
   } else if (mark?.kind === "image") {
     check(mark.loaded, "the colour brand mark did not load");
   }
-
-  // The wardrobe must be usable BEFORE login and without any provider skin API.
-  // Round 10 only explained the lock; that still left it impossible to test.
-  const wardrobeNav = page.getByRole("button", { name: "Гардероб" });
-  check(
-    (await wardrobeNav.getAttribute("aria-disabled")) !== "true",
-    "the wardrobe is still gated behind login/provider",
-  );
-  await wardrobeNav.click();
-  await page.getByRole("heading", { name: "Гардероб" }).waitFor();
-  check(
-    await page
-      .getByRole("heading", { name: "Добавить скин", exact: true })
-      .evaluate((node) => node.parentElement.querySelector("svg") === null),
-    "the non-interactive plus icon is still beside the upload heading",
-  );
-  check(
-    await page.getByText("История пуста.", { exact: false }).isVisible(),
-    "the local library did not render while signed out",
-  );
-  await shot("wardrobe-signed-out");
-  await page.locator("#skin-file").setInputFiles({
-    name: "local.png",
-    mimeType: "image/png",
-    buffer: skinBytes,
-  });
-  await page.getByRole("button", { name: "В историю" }).click();
-  await page.getByText("активный", { exact: false }).first().waitFor();
-  const savedLocally = await page.evaluate(() => ({
-    added: window.__calls.some((c) => c[0] === "add_skin_to_library"),
-    uploaded: window.__calls.some(
-      (c) => c[0] === "upload_skin" || c[0] === "sync_active_skin",
-    ),
-    count: window.__library.skins.length,
-  }));
-  check(savedLocally.added, "the skin never reached the local library");
-  check(savedLocally.count === 1, "the skin was not kept in history");
-  check(
-    !savedLocally.uploaded,
-    "saving a skin locally must not contact the provider",
-  );
-  await shot("wardrobe-local-history");
-  await page.getByRole("button", { name: "Серверы" }).click();
 
   // Custom scrollbar: the pill must be drawn by ::-webkit-scrollbar. Setting
   // scrollbar-width in Chromium disables those pseudo-elements entirely, so
@@ -578,8 +580,13 @@ try {
   );
 
   // Custom title bar: the caption buttons must actually reach the window plugin.
-  for (const label of ["Свернуть окно", "Развернуть окно"]) {
-    const button = page.getByRole("button", { name: label });
+  // The labels come from the catalogue now, so they are the short window verbs
+  // rather than the old "…окно" phase.
+  // `exact` matters now that the window verb and the sidebar verb are both
+  // "Свернуть": the caption buttons are the short ones, the rail's are
+  // "Свернуть меню".
+  for (const label of ["Свернуть", "Развернуть"]) {
+    const button = page.getByRole("button", { name: label, exact: true });
     await button.waitFor();
     await button.click();
   }
@@ -622,9 +629,10 @@ try {
         };
       }),
     );
-  // Five sections now: memory, Java, backdrop, window behaviour and cache.
+  // Six sections now: language, memory, backdrop, Java, window behaviour and
+  // the configuration cache. Language is first, above memory.
   check(
-    sectionIcons.length === 5 &&
+    sectionIcons.length === 6 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&
@@ -680,34 +688,52 @@ try {
     !(await page.getByLabel(/JVM|аргументы/i).count()),
     "settings must not expose arbitrary JVM arguments",
   );
-  await page.getByRole("button", { name: "Серверы", exact: true }).click();
-
-  // Signing in once, with no server selected at all.
-  await page
-    .getByText("Один вход — все серверы проекта.", { exact: false })
-    .waitFor();
-  await page.getByRole("tab", { name: "Регистрация" }).click();
-  await page.getByRole("tab", { name: "Вход" }).click();
-  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
-  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
-  await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
-  const login = await page.evaluate(() => {
-    const call = window.__calls.find((c) => c[0] === "line_login");
-    return {
-      keys: Object.keys(call?.[1]?.request ?? {})
-        .sort()
-        .join(","),
-      restored: window.__calls.some((c) => c[0] === "line_session"),
-      forgotten: window.__calls.some((c) => c[0] === "forget_synced_skin"),
-    };
-  });
+  // The wardrobe is local-first. Signing in is a full-window page now, so this
+  // runs after it — but the property under test is unchanged: a local upload
+  // must reach the library without a selected server, and the automatic
+  // provider sync is a separate, signed-in-only step that the account page
+  // drives on its own (see canSync in LineLauncher).
+  await page.getByRole("button", { name: "Гардероб" }).click();
+  await page.getByRole("heading", { name: "Гардероб" }).waitFor();
   check(
-    login.keys === "password,username",
-    `login must not carry a server id: ${login.keys}`,
+    await page
+      .getByRole("heading", { name: "Добавить скин", exact: true })
+      .evaluate((node) => node.parentElement.querySelector("svg") === null),
+    "the non-interactive plus icon is still beside the upload heading",
   );
-  check(login.restored, "the shell never asked the backend for the session");
-  check(login.forgotten, "signing in must reset the uploaded-skin marker");
+  check(
+    await page.getByText("История пуста.", { exact: false }).isVisible(),
+    "the local library did not render",
+  );
+  await shot("wardrobe-empty");
+  await page.locator("#skin-file").setInputFiles({
+    name: "local.png",
+    mimeType: "image/png",
+    buffer: skinBytes,
+  });
+  await page.getByRole("button", { name: "В историю" }).click();
+  await page.getByText("активный", { exact: false }).first().waitFor();
+  const savedLocally = await page.evaluate(() => ({
+    added: window.__calls.some((c) => c[0] === "add_skin_to_library"),
+    count: window.__library.skins.length,
+  }));
+  check(savedLocally.added, "the skin never reached the local library");
+  check(savedLocally.count === 1, "the skin was not kept in history");
+  await shot("wardrobe-local-history");
+
+  // The demo project does publish wardrobe endpoints, so signing in turns the
+  // automatic sync on: the skin that was only local a moment ago goes to the
+  // account. That is the difference between "works offline" and "works signed
+  // in", and it used to be impossible to test because the wardrobe was gated.
+  const synced = await page.evaluate(() =>
+    window.__calls.some(
+      (c) => c[0] === "upload_skin" || c[0] === "sync_active_skin",
+    ),
+  );
+  check(
+    synced,
+    "signing in with wardrobe endpoints must sync the local skin to the account",
+  );
   const logoTiles = await page
     .locator("main [data-line-icon]")
     .evaluateAll((nodes) =>
@@ -747,6 +773,14 @@ try {
   // server and no second «Открыть сервер <name>» shortcut anywhere. The
   // «Текущий сервер» rail that used to sit above the catalogue was removed: on
   // a screen that already lists every server, it repeated one card and its
+  // Back to the catalogue: the wardrobe block above left the rail on its own
+  // section, and every assertion below is about the server list.
+  await page.getByRole("button", { name: "Серверы", exact: true }).click();
+  await page
+    .getByRole("button", { name: /^Открыть сервер/ })
+    .first()
+    .waitFor();
+
   // action, so it is a regression if it comes back.
   check(
     (await page.getByRole("region", { name: "Текущий сервер" }).count()) === 0,
@@ -1094,6 +1128,96 @@ try {
       `credit overflows the viewport at ${width}px`,
     );
   }
+
+  // ── Four languages, switched live ────────────────────────────────────────
+  //
+  // "Ничего не должно быть криво" is a layout claim, so it is measured: every
+  // language is applied through the real picker, and anything that clips its
+  // own content horizontally is reported with the offending text. German and
+  // French are the long ones — if a label was going to wrap out of shape, this
+  // is where it would.
+  await page.getByRole("button", { name: "Настройки" }).click();
+  await page.getByText("Память игры", { exact: true }).waitFor();
+
+  const clippings = async () =>
+    page.evaluate(() => {
+      const bad = [];
+      for (const node of document.querySelectorAll("[data-line-settings] *")) {
+        const style = getComputedStyle(node);
+        if (style.display === "none" || style.visibility === "hidden") break;
+        if (style.overflowX !== "visible") continue; // explicit scrollers are fine
+        if (node.clientWidth === 0) continue;
+        if (node.scrollWidth - node.clientWidth <= 1) continue;
+        const text = (node.textContent ?? "").trim();
+        if (!text) continue;
+        // Name the widest child too: the culprit is usually one level in.
+        let widest = null;
+        for (const child of node.children) {
+          if (child.scrollWidth - node.clientWidth > 1) {
+            widest = {
+              tag: child.tagName.toLowerCase(),
+              cls: (child.className ?? "").toString().slice(0, 70),
+              text: (child.textContent ?? "").trim().slice(0, 40),
+              sw: child.scrollWidth,
+            };
+            break;
+          }
+        }
+        bad.push({
+          tag: node.tagName.toLowerCase(),
+          cls: (node.className ?? "").toString().slice(0, 80),
+          text: text.slice(0, 40),
+          sw: node.scrollWidth,
+          cw: node.clientWidth,
+          widest,
+        });
+      }
+      return bad;
+    });
+
+  const languages = [
+    ["Deutsch", "Sprache"],
+    ["Français", "Langue"],
+    ["English", "Language"],
+    ["Русский", "Язык"],
+  ];
+  for (const [label, heading] of languages) {
+    const trigger = page.locator("#setting-language");
+    await trigger.click();
+    await page.getByRole("option", { name: label, exact: true }).click();
+    await page.getByText(heading, { exact: true }).first().waitFor();
+    // The switch is synchronous: no network, no reload, the same DOM.
+    const stillHere = await page
+      .getByText("Память игры", { exact: false })
+      .count();
+    const clipped = await clippings();
+    // One image per language, kept next to the run: the German settings screen
+    // is the widest the interface ever gets, so it is the one worth looking at.
+    await shot(`i18n-${label.toLowerCase()}`).catch(() => {});
+    check(
+      clipped.length === 0,
+      `${label}: settings text overflows its box: ${JSON.stringify(clipped).slice(0, 300)}`,
+    );
+    check(
+      label === "Русский" ? stillHere > 0 : stillHere === 0,
+      `${label}: the switch did not replace the previous language's text`,
+    );
+  }
+
+  // Back to Russian for the rest of the suite and for the stored setting.
+  await page.locator("#setting-language").click();
+  await page.getByRole("option", { name: "Русский", exact: true }).click();
+  await page.getByText("Настройки", { exact: true }).first().waitFor();
+
+  const languageCalls = await page.evaluate(() =>
+    window.__calls
+      .filter((c) => c[0] === "save_settings")
+      .map((c) => c[1]?.settings?.language ?? null),
+  );
+  check(
+    languageCalls.filter(Boolean).length >= 4,
+    `the language was not persisted on every switch: ${JSON.stringify(languageCalls)}`,
+  );
 
   const commands = await page.evaluate(() => window.__calls.map((c) => c[0]));
   for (const required of [

@@ -1,6 +1,7 @@
 import { m } from "framer-motion";
 import { Link2, RefreshCw, ShieldCheck } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
+import { useT } from "@/lib/line/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ export default function ConfigUrlInput({
   onSubmit,
 }: ConfigUrlInputProps) {
   const id = useId();
+  const t = useT();
   const [url, setUrl] = useState(initialUrl);
   const [validation, setValidation] = useState<string>();
 
@@ -43,7 +45,7 @@ export default function ConfigUrlInput({
       setValidation(undefined);
       onSubmit(parsed.toString());
     } catch {
-      setValidation("Введите HTTPS-ссылку без логина, пароля и #фрагмента.");
+      setValidation(t("connect.urlInvalid"));
     }
   }
 
@@ -63,18 +65,17 @@ export default function ConfigUrlInput({
       />
       <div>
         <h2 id={`${id}-title`} className="mb-2 text-2xl font-bold">
-          Ваш сервер. Одна ссылка.
+          {t("connect.urlTitle")}
         </h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Укажите адрес config.json от разработчика сервера. Лаунчер подготовит
-          сборку и подключит вас к игровому пространству.
+          {t("connect.urlBody")}
         </p>
       </div>
 
       <form onSubmit={submit} className="flex w-full flex-col gap-4 text-left">
         <div className="flex flex-col gap-2">
           <Label htmlFor={id} className="text-xs">
-            Адрес конфигурации
+            {t("connect.urlLabel")}
           </Label>
           <Input
             id={id}
@@ -83,7 +84,7 @@ export default function ConfigUrlInput({
             maxLength={2048}
             autoComplete="url"
             spellCheck={false}
-            placeholder="https://your-server.com/config.json"
+            placeholder={t("connect.urlPlaceholder")}
             value={url}
             disabled={loading}
             onChange={(event) => {
@@ -116,7 +117,7 @@ export default function ConfigUrlInput({
                 className="text-muted-foreground flex items-start gap-1.5"
               >
                 <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
-                Используйте ссылку только от доверенного провайдера.
+                {t("connect.urlHelp")}
               </p>
             )}
           </div>
@@ -131,9 +132,7 @@ export default function ConfigUrlInput({
           ) : (
             <Link2 className="h-4 w-4" />
           )}
-          <span>
-            {loading ? "Проверяем конфигурацию…" : "Подключить провайдера"}
-          </span>
+          <span>{loading ? t("connect.submitting") : t("connect.submit")}</span>
         </Button>
       </form>
     </m.section>

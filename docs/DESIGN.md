@@ -116,13 +116,14 @@
 ## Как устроен фон
 
 ```
-src/lib/line/backdrops.ts   двенадцать тем: палитра, скорость, swatch, shade
+src/lib/line/backdrops.ts   двенадцать тем из randomConfig(seed) библиотеки
+                            hazeglow: палитра, форма, зерно, swatch, shade
 src/components/AnimatedBackdrop.tsx
                             слой 1 — CSS-поле из палитры темы (работает всегда)
                             слой 2 — WebGL-шейдер (если есть WebGL2)
                             слой 3 — вуаль читаемости силы `shade`
 src/components/BackdropPicker.tsx
-                            сетка миниатюр в настройках; выбор → Rust
+                            строка + выпадающий список; превью рядом с курсором
 ```
 
 Смена фона — растворение, а не подмена: hazeglow перерисовывает конфиг за один

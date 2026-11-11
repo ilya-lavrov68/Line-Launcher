@@ -64,6 +64,9 @@ async function boot(cached, delay) {
   const page = await browser.newPage({
     viewport: { width: 1100, height: 800 },
     reducedMotion: "reduce",
+    // The suite asserts Russian text; the launcher follows the system language
+    // until one is chosen, so the context has to say which system that is.
+    locale: "ru-RU",
   });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));

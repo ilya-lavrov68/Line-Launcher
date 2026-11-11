@@ -2,6 +2,7 @@ import { m } from "framer-motion";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LineServer } from "@/types/line";
+import { useT } from "@/lib/line/i18n";
 import ServerCard from "./ServerCard";
 
 export interface ServerListProps {
@@ -38,6 +39,7 @@ export default function ServerList({
   rail,
   statusFor,
 }: ServerListProps) {
+  const t = useT();
   return (
     <section
       aria-labelledby="server-list-title"
@@ -64,7 +66,9 @@ export default function ServerList({
             className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
             aria-hidden="true"
           />
-          <span>{refreshing ? "Обновление…" : "Обновить"}</span>
+          <span>
+            {refreshing ? t("servers.refreshing") : t("servers.refresh")}
+          </span>
         </Button>
       </div>
 
@@ -74,10 +78,7 @@ export default function ServerList({
           className="flex items-start gap-2 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
         >
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            Показана сохранённая конфигурация. Для входа и установки требуется
-            актуальная конфигурация и доступ к провайдеру.
-          </span>
+          <span>{t("servers.staleBody")}</span>
         </p>
       )}
 

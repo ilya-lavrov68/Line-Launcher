@@ -1,6 +1,7 @@
 import { Info } from "lucide-react";
 import { brand } from "@/brand/generated";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/line/i18n";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export default function AboutDialog({
   open,
   onOpenChange,
 }: AboutDialogProps) {
+  const t = useT();
   const controlled = open !== undefined;
   return (
     <Dialog {...(controlled ? { open, onOpenChange } : {})}>
@@ -39,12 +41,12 @@ export default function AboutDialog({
               variant="ghost"
               size="icon"
               className="text-muted-foreground hover:text-foreground h-8 w-8 cursor-pointer"
-              title="О программе / About"
+              title={t("about.title")}
             />
           }
         >
           <Info data-line-icon className="h-6 w-6" />
-          <span className="sr-only">О программе / About</span>
+          <span className="sr-only">{t("about.title")}</span>
         </DialogTrigger>
       )}
       {/* A small, centred card — not a sheet. The dialog primitive caps its
@@ -68,14 +70,16 @@ export default function AboutDialog({
           </div>
           <div className="bg-fill-subtle flex flex-col gap-1.5 self-stretch rounded-[var(--radius-control)] px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground text-[11px]">Версия</span>
+              <span className="text-muted-foreground text-[11px]">
+                {t("about.versionLabel")}
+              </span>
               <span className="text-foreground font-mono text-[11px]">
                 v{version}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground text-[11px]">
-                Издатель
+                {t("about.publisher")}
               </span>
               <span className="text-foreground text-[11px]">
                 {brand.publisher}

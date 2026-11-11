@@ -10,6 +10,7 @@ import type {
   McInstalled,
 } from "@/types/line";
 import { cn } from "@/lib/utils";
+import { useT, type Translator } from "@/lib/line/i18n";
 
 /**
  * The Minecraft-mode dock for one server.
@@ -42,13 +43,16 @@ export interface MinecraftPanelProps {
 
 type Busy = "idle" | "installing" | "launching" | "stopping";
 
-const PHASE_HINT: Record<GamePhase, string> = {
-  idle: "Готов к запуску",
-  starting: "Запуск Minecraft…",
-  running: "Игра запущена",
-  exited: "Игра завершилась",
-  failed: "Запуск не удался",
-};
+function phaseHint(t: Translator, phase: GamePhase): string {
+  const hints: Record<GamePhase, string> = {
+    idle: t("minecraft.ready"),
+    starting: t("minecraft.starting"),
+    running: t("minecraft.running"),
+    exited: t("minecraft.exited"),
+    failed: t("minecraft.failed"),
+  };
+  return hints[phase];
+}
 
 export default function MinecraftPanel({
   server,
@@ -56,6 +60,7 @@ export default function MinecraftPanel({
   disabled = false,
   onAuthRequired,
 }: MinecraftPanelProps) {
+  const t = useT();
   const instanceId = server.id;
   const [status, setStatus] = useState<McGameStatus | null>(null);
   const [profiles, setProfiles] = useState<string[] | null>(null);
@@ -167,9 +172,7 @@ export default function MinecraftPanel({
         minecraftVersion: server.minecraft_version ?? "",
       });
       if (!mounted.current) return;
-      setNotice(
-        `Профиль ${installed.versionId} подготовлен. «Играть» запустит его без загрузки.`,
-      );
+      setNotice(t("mc.profilePrepared", { version: installed.versionId }));
       await refreshProfiles();
     } catch (cause) {
       if (!mounted.current) return;
@@ -219,7 +222,7 @@ export default function MinecraftPanel({
               Minecraft
             </span>
             <span className="text-muted-foreground text-[12px]">
-              {status ? PHASE_HINT[status.phase] : "Проверяем состояние…"}
+              {status ? phaseHint(t, status.phase) : t("minecraft.checking")}
               {server.minecraft_version && ` · ${server.minecraft_version}`}
             </span>
           </div>
@@ -251,7 +254,7 @@ export default function MinecraftPanel({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={percent ?? undefined}
-            aria-label="Загрузка Minecraft"
+            aria-label={t("minecraft.installing")}
             className="bg-fill h-1 w-full overflow-hidden rounded-full"
           >
             <div
@@ -279,7 +282,7 @@ export default function MinecraftPanel({
             ) : (
               <Square className="size-3.5" aria-hidden="true" />
             )}
-            Остановить игру
+            {t("detail.stopGame")}
           </Button>
         ) : (
           <Button
@@ -293,7 +296,7 @@ export default function MinecraftPanel({
             ) : (
               <Play className="size-3.5" aria-hidden="true" />
             )}
-            Играть
+            {t("detail.play")}
           </Button>
         )}
 
@@ -311,7 +314,7 @@ export default function MinecraftPanel({
             ) : (
               <Download className="size-3.5" aria-hidden="true" />
             )}
-            Подготовить заранее
+            {t("mc.prepare")}
           </Button>
         )}
       </div>
@@ -322,7 +325,7 @@ export default function MinecraftPanel({
             className="size-3 shrink-0 text-[var(--line-online)]"
             aria-hidden="true"
           />
-          Установлено профилей: {profiles.length}
+          {t("mc.profiles", { count: profiles.length })}
           {profiles.length <= 3 && ` · ${profiles.join(", ")}`}
         </p>
       )}
@@ -345,8 +348,7 @@ export default function MinecraftPanel({
       )}
 
       <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] leading-relaxed">
-        Вход под ником аккаунта проекта. Сервер должен принимать такие входы
-        (online-mode=false).
+        {t("mc.onlineMode")}
       </p>
     </div>
   );

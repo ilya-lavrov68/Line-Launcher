@@ -26,6 +26,7 @@ const SHOT_WIDTH = 1280;
 const SHOT_HEIGHT = 800;
 
 const SCREENS = [
+  "welcome",
   "connecting",
   "account",
   "profile",

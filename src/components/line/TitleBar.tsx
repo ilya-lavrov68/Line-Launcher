@@ -114,12 +114,19 @@ export default function TitleBar({ context }: TitleBarProps) {
               <Square className="h-3.5 w-3.5" aria-hidden="true" />
             )}
           </Button>
+          {/*
+            Red at rest, not only on hover. The three caption buttons used to
+            look identical — grey glyphs on the bar — so the only one that
+            destroys the window was indistinguishable from minimise until the
+            pointer was already on it. Every desktop the players come from
+            colours close differently; this one carries the colour itself.
+          */}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => void closeWindow()}
             aria-label={t("window.close")}
-            className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
+            className="text-destructive hover:bg-destructive hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>

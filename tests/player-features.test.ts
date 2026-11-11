@@ -474,7 +474,25 @@ test("there is no manual send button: the sync runs by itself", () => {
     screen.indexOf("useEffect(() => {", screen.indexOf("const autoSync =")),
   );
   assert.match(autoSyncDeps, /\}, \[canSync\]\);/);
-  assert.match(screen, /authRequired\.current\?\.\(\)/);
+  // The background sync must NOT sign the player out when it fails.
+  //
+  // It used to call `onAuthRequired()` on any AUTH_REQUIRED, and that handler
+  // clears the session — so opening the wardrobe logged the player out whenever
+  // the provider rejected the upload, taking the whole screen with it while
+  // they were in the middle of picking a skin. The failure is reported in the
+  // sync status instead; a genuine expiry is caught by the next action the
+  // player actually initiates.
+  assert.doesNotMatch(screen, /authRequired\.current\?\.\(\)/);
+  const autoSyncBody = screen
+    .slice(
+      screen.indexOf("const autoSync ="),
+      screen.indexOf("useEffect(() => {", screen.indexOf("const autoSync =")),
+    )
+    // Strip comments: the explanation of why it no longer calls the handler
+    // naturally contains the handler's name.
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+  assert.doesNotMatch(autoSyncBody, /onAuthRequired|authRequired/);
   // An idempotent sync carries no skin: it must not erase the known one.
   assert.match(
     screen,
@@ -700,4 +718,87 @@ test("the account page shows the active skin in 3D and falls back flat", () => {
 
   // Reachable from the rail, not hidden behind a menu.
   assert.match(nav, /id: "account"/);
+});
+
+test("opening the wardrobe never signs the player out", () => {
+  const screen = read("src/components/line/WardrobeScreen.tsx");
+
+  // The background sync runs by itself on mount. It used to call
+  // `onAuthRequired()` on any AUTH_REQUIRED, and that handler clears the
+  // session — so the first rejection from the provider logged the player out
+  // while they were looking at their skins, with the whole screen replaced by
+  // the sign-in page. Reproduced against the reference provider with an
+  // upload that answers 401: session lost, screen gone.
+  const sync = screen
+    .slice(
+      screen.indexOf("const autoSync ="),
+      screen.indexOf("useEffect(() => {", screen.indexOf("const autoSync =")),
+    )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+  assert.doesNotMatch(sync, /authRequired/);
+  assert.doesNotMatch(sync, /onAuthRequired/);
+  // The failure is still reported — the sync status line shows it.
+  assert.match(sync, /setSync\("failed"\)/);
+  assert.match(sync, /setSyncError\(errorMessage\(cause\)\)/);
+});
+
+test("the caption close button is red without being hovered", () => {
+  const bar = read("src/components/line/TitleBar.tsx");
+  // Minimise, maximise and close used to be three identical grey glyphs, so
+  // the only one that destroys the window looked like the others until the
+  // pointer was already on it.
+  const close = bar.slice(
+    bar.lastIndexOf(
+      "<Button",
+      bar.indexOf("onClick={() => void closeWindow()}"),
+    ),
+  );
+  const button = close.slice(0, close.indexOf("</Button>"));
+  assert.match(button, /<X /);
+  assert.match(button, /className="[^"]*text-destructive/);
+  assert.doesNotMatch(button, /text-muted-foreground/);
+  // The hover state still goes to the solid red fill.
+  assert.match(button, /hover:bg-destructive/);
+});
+
+test("backdrops are dim enough to read on, and none of them stands still", () => {
+  const source = read("src/lib/line/backdrops.ts");
+  const shades = [...source.matchAll(/^\s*shade: ([\d.]+),/gm)].map((m) =>
+    Number(m[1]),
+  );
+  const speeds = [...source.matchAll(/^\s*speed: ([\d.]+),/gm)].map((m) =>
+    Number(m[1]),
+  );
+  const motions = [...source.matchAll(/^\s*motion: "(\w+)",/gm)].map(
+    (m) => m[1],
+  );
+  assert.equal(shades.length, 12);
+  assert.equal(speeds.length, 12);
+  assert.equal(motions.length, 12);
+
+  // The panels are translucent, so the backdrop is not decoration behind
+  // glass — it is behind the text. At 0.26–0.46 the bright themes lifted the
+  // title bar and the body copy enough to make a flat interface glow.
+  for (const shade of shades) {
+    assert.ok(
+      shade >= 0.42 && shade <= 0.62,
+      `shade ${shade} outside 0.42–0.62`,
+    );
+  }
+
+  // All twelve used to run `drift` at 1.1: slow enough to read as a still
+  // image, and identical in behaviour, so twelve palettes behaved as one
+  // gradient. They now spread across hazeglow's three motions and run faster.
+  assert.equal(new Set(motions).size, 3);
+  for (const motion of motions) {
+    assert.ok(
+      ["flow", "breathe", "drift"].includes(motion),
+      `unknown motion ${motion}`,
+    );
+  }
+  for (const speed of speeds) {
+    assert.ok(speed >= 2 && speed <= 3, `speed ${speed} outside 2–3`);
+  }
+  assert.ok(new Set(speeds).size >= 6, "speeds should differ between themes");
 });

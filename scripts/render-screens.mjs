@@ -167,6 +167,18 @@ export function loadTokens() {
 
 const T = loadTokens();
 
+/** `#rrggbb` (without the hash) → the [r,g,b,a] tuple `rgba()` expects. */
+const hexRgb = (value) => {
+  const full =
+    value.length === 3 ? [...value].map((d) => d + d).join("") : value;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+    1,
+  ];
+};
+
 const rgba = ([r, g, b, a = 1], alpha = 1) =>
   `rgba(${r},${g},${b},${(a * alpha).toFixed(3)})`;
 const mix = ([r1, g1, b1, a1 = 1], [r2, g2, b2, a2 = 1], t) => [
@@ -780,6 +792,15 @@ const FOOTER_H = 28;
  * The app shell every screen shares: background, title bar, rail, footer.
  * Returns the content area so each screen only lays out its own body.
  */
+
+/** Caption buttons alone, for the frameless pages that carry no title text. */
+function captionButtons(ctx) {
+  ["minus", "square", "x"].forEach((name, index) => {
+    const cx = SHOT_WIDTH - 128 + index * 40;
+    icon(ctx, name, cx + 12, 14, 14, rgba(T.mutedForeground, 0.9), 1.5);
+  });
+}
+
 function shell(ctx, context, { active = "servers", signedIn = false } = {}) {
   background(ctx);
   const top = titleBar(ctx, context);
@@ -843,49 +864,161 @@ function screenConnecting(ctx) {
 }
 
 /**
- * Sign-in. Real structure: brand mark, provider name, one sentence, then the
- * glass card that holds AuthForm — the card the browser screenshot shows.
+ * «Welcome» — the greeting that runs before anything else.
+ *
+ * The word is drawn at display size, with a hairline under it and the product
+ * name in small caps below, on the page's own colour field. No chrome: this
+ * screen covers the window, so drawing a title bar or a rail here would show a
+ * frame the app does not have at this point.
+ */
+/**
+ * The default backdrop («Полярное сияние») as a soft radial field.
+ *
+ * Both screens without chrome stand on it: the same three pools the theme's
+ * palette produces, so the gallery shows the colour the app actually opens with
+ * rather than a black page.
+ */
+function paintField(ctx, strength = 1) {
+  const glow = (x, y, w, h, colour) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) / 2);
+    g.addColorStop(0, colour);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  };
+  glow(
+    SHOT_WIDTH * 0.45,
+    SHOT_HEIGHT * 0.36,
+    1100,
+    900,
+    rgba(hexRgb("6a3df5"), 0.5 * strength),
+  );
+  glow(
+    SHOT_WIDTH * 0.78,
+    SHOT_HEIGHT * 0.72,
+    800,
+    700,
+    rgba(hexRgb("35aef2"), 0.34 * strength),
+  );
+  glow(
+    SHOT_WIDTH * 0.2,
+    SHOT_HEIGHT * 0.8,
+    700,
+    600,
+    rgba(hexRgb("f59a22"), 0.16 * strength),
+  );
+}
+
+function screenWelcome(ctx) {
+  background(ctx);
+  const cx = SHOT_WIDTH / 2;
+  const cy = SHOT_HEIGHT / 2;
+
+  // The gradient the launcher ships with, painted as the same soft field the
+  // CSS fallback uses.
+  const glow = (x, y, w, h, colour) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) / 2);
+    g.addColorStop(0, colour);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  };
+  glow(
+    SHOT_WIDTH * 0.45,
+    SHOT_HEIGHT * 0.36,
+    1100,
+    900,
+    rgba(hexRgb("6a3df5"), 0.5),
+  );
+  glow(
+    SHOT_WIDTH * 0.78,
+    SHOT_HEIGHT * 0.72,
+    800,
+    700,
+    rgba(hexRgb("35aef2"), 0.34),
+  );
+  glow(
+    SHOT_WIDTH * 0.2,
+    SHOT_HEIGHT * 0.8,
+    700,
+    600,
+    rgba(hexRgb("f59a22"), 0.16),
+  );
+
+  // The word: the one thing on this screen.
+  ctx.save();
+  ctx.fillStyle = rgba(T.foreground);
+  ctx.font = font(104, 600);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.letterSpacing = "-5px";
+  ctx.fillText("Welcome", cx, cy + 26);
+  ctx.restore();
+
+  // Hairline, then the product name in tracked-out small caps.
+  ctx.fillStyle = rgba(T.foreground, 0.25);
+  ctx.fillRect(cx - 80, cy + 62, 160, 1);
+  ctx.save();
+  ctx.fillStyle = rgba(T.mutedForeground);
+  ctx.font = font(11, 500);
+  ctx.textAlign = "center";
+  ctx.letterSpacing = "3px";
+  ctx.fillText("LINE LAUNCHER", cx, cy + 96);
+  ctx.restore();
+}
+
+/**
+ * Sign-in — a full-window page, not a panel inside the launcher.
+ *
+ * Real structure: the window's own frame (caption buttons only), then a centred
+ * column of mark, provider name, one sentence and the glass card that holds
+ * AuthForm. There is no rail and no catalogue behind it: signing in happens
+ * before the launcher exists, and the drawing has to say so.
  */
 function screenAccount(ctx) {
-  const { centerX, top } = shell(ctx, "Plus In Plus Demo");
-  const cardW = 448;
-  const x = centerX - cardW / 2;
-  let y = top + 40;
+  background(ctx);
+  paintField(ctx);
+  const cx = SHOT_WIDTH / 2;
+  const cardW = 380;
+  const x = cx - cardW / 2;
 
-  // BrandMark, 36px tall, centred above the provider name.
-  brandMark(ctx, centerX - 17, y, 34);
-  y += 52;
-  text(ctx, "Plus In Plus Demo", centerX, y, {
+  // Caption buttons in the top right, on the window's 6px inset.
+  captionButtons(ctx);
+
+  // Vertically centred as a block: the same maths the page uses (flex centring
+  // inside the space under the frame).
+  const cardH = 24 + 44 + 2 * 60 + 22 + 48 + 40 + 24;
+  const columnH = 44 + 16 + 30 + 12 + 18 + 24 + cardH + 20 + 34;
+  let y = Math.round((SHOT_HEIGHT - columnH) / 2) + 18;
+
+  brandMark(ctx, cx - 22, y, 44);
+  y += 44 + 18;
+  text(ctx, "Plus In Plus Demo", cx, y + 18, {
     size: 24,
     weight: 600,
     align: "center",
   });
-  y += 16;
+  y += 30;
   text(
     ctx,
-    // AccountScreen builds this from `servers.length`; the demo config has two.
-    "Один вход — все серверы проекта. Серверов в проекте: 2.",
-    centerX,
-    y,
+    // The page builds this from `servers.length`; the demo config has two.
+    "Один вход — все серверы проекта. Серверов: 2.",
+    cx,
+    y + 2,
     {
       size: 12,
       color: rgba(T.mutedForeground),
       align: "center",
-      maxWidth: 448,
+      maxWidth: 420,
       lineHeight: 18,
     },
   );
-  y += 40;
+  y += 24;
 
-  // Card height is derived from its own contents (20px padding, the tab row,
-  // two 64px fields and a 40px button), not guessed: an oversized card leaves a
-  // dead strip under «Войти». The card opens with the switch — the heading and
-  // the explainer under it were the two labels that made this look busy.
-  const cardH = 20 + 28 + 16 + 2 * 64 + 6 + 4 + 40 + 20;
-  glass(ctx, x, y, cardW, cardH, 16);
-  const ix = x + 20;
-  const innerW = cardW - 40;
-  let iy = y + 20;
+  glass(ctx, x, y, cardW, cardH, 18);
+  const ix = x + 24;
+  const innerW = cardW - 48;
+  let iy = y + 24;
 
   // Tabs: a quiet trough with the active segment raised.
   fillRound(ctx, ix, iy, innerW, 28, 8, rgba(T.fill, 0.5));
@@ -903,9 +1036,7 @@ function screenAccount(ctx) {
   });
   iy += 44;
 
-  // A label over a bordered input. The wrapper that used to be drawn around
-  // both was a third frame for one field.
-  const field = (label, value, placeholder, withLock) => {
+  const field = (label, value, withEye) => {
     text(ctx, label, ix, iy + 10, {
       size: 11,
       weight: 500,
@@ -913,22 +1044,40 @@ function screenAccount(ctx) {
     });
     fillRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.background, 0.55));
     strokeRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.input, 0.7), 1);
-    if (withLock)
-      icon(ctx, "lock", ix + 12, iy + 28, 14, rgba(T.mutedForeground));
-    text(ctx, value || placeholder, ix + (withLock ? 36 : 14), iy + 40, {
+    text(ctx, value || "Player_name", ix + 14, iy + 40, {
       size: 12,
       color: value ? rgba(T.foreground) : rgba(T.mutedForeground, 0.7),
     });
-    iy += 64;
+    if (withEye)
+      icon(ctx, "eye", ix + innerW - 26, iy + 24, 14, rgba(T.mutedForeground));
+    iy += 60;
   };
   // «Player_1» typed but not submitted: the password field stays empty so the
   // shot does not imply a stored secret.
-  field("Логин", "Player_1", "Player_name", false);
-  field("Пароль", "", "", true);
+  field("Логин", "Player_1", false);
+  field("Пароль", "", true);
 
-  // The reserved slot the form keeps for a validation message, then the button.
-  iy += 2;
-  button(ctx, ix, iy + 4, innerW, 40, "Войти", { size: 12 });
+  text(ctx, "Тот же вход открывает все серверы проекта.", ix, iy + 4, {
+    size: 11,
+    color: rgba(T.mutedForeground, 0.8),
+  });
+  iy += 22;
+
+  button(ctx, ix, iy + 6, innerW, 42, "Войти", { size: 13 });
+  iy += 42 + 6;
+
+  // The promise under the button, then the footer line under the card.
+  text(ctx, "Пароль передаётся только API проекта по HTTPS.", ix, iy + 20, {
+    size: 11,
+    color: rgba(T.mutedForeground, 0.75),
+    maxWidth: innerW,
+    lineHeight: 16,
+  });
+  text(ctx, "Вход только через аккаунт проекта.", cx, y + cardH + 28, {
+    size: 10,
+    color: rgba(T.mutedForeground, 0.7),
+    align: "center",
+  });
 }
 
 /**
@@ -1749,6 +1898,7 @@ function screenProfile(ctx) {
 // ───────────────────────────── main ─────────────────────────────
 
 export const SCREENS = [
+  ["welcome", screenWelcome],
   ["connecting", screenConnecting],
   ["account", screenAccount],
   ["servers", screenServers],

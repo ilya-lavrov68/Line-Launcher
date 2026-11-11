@@ -511,9 +511,11 @@ test("one account per project unlocks every server", () => {
     shell,
     /lineApi\.authenticate\(mode, \{ username, password \}\)/,
   );
-  // The account screen is a real screen, before the server list.
+  // The sign-in page is a real page, before the server list: it covers the
+  // whole window instead of sitting in a panel of the shell.
   assert.match(shell, /screen === "account"/);
-  assert.match(shell, /<AccountScreen/);
+  assert.match(shell, /<SignInScreen/);
+  assert.match(shell, /const gateSignIn =/);
   // Opening a server must not ask for credentials again.
   const select = shell.slice(
     shell.indexOf("function selectServer("),
@@ -652,11 +654,12 @@ test("backdrop themes ship a persisted, validated choice", () => {
     "the picker has to be reachable from settings",
   );
 
-  // Every theme carries its own swatch and its own veil.
+  // Every theme carries its own swatch and its own veil. The swatches are
+  // literals now, taken from each theme's own palette: the themes no longer
+  // come from one shared helper, they come from the generator.
   const backdrops = read("src/lib/line/backdrops.ts");
-  // Every theme's swatch is derived from its own palette in one place, so the
-  // count that matters is the number of themes, not of `swatch:` literals.
-  assert.match(backdrops, /swatch: \[warm, cool, mid\]/);
+  const swatches = backdrops.match(/swatch: \["#/g)?.length ?? 0;
+  assert.ok(swatches >= 10, `expected a swatch per theme, found ${swatches}`);
   const shades = backdrops.match(/shade: 0\./g)?.length ?? 0;
   assert.ok(shades >= 10, `expected a shade per theme, found ${shades}`);
 });

@@ -438,7 +438,21 @@ function check(condition, message) {
 }
 
 try {
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+
+  // The greeting runs once, before anything else, and hands over on its own.
+  await page.locator("[data-line-welcome]").waitFor({ timeout: 10_000 });
+  await page
+    .locator("[data-line-welcome] [aria-label='Welcome']")
+    .waitFor({ timeout: 5_000 });
+  await page.locator("[data-line-welcome]").waitFor({
+    state: "detached",
+    timeout: 10_000,
+  });
+  check(
+    !(await page.locator("[data-line-welcome]").count()),
+    "the greeting stayed on screen after its timer",
+  );
   await page
     .getByLabel("Адрес конфигурации")
     .fill("https://provider.example.com/config.json");
@@ -480,6 +494,33 @@ try {
     !(await page.getByRole("button", { name: /^Открыть сервер/ }).count()),
     "the server list appeared before the single sign-in",
   );
+
+  // Signing in once, with no server selected at all.
+  await page
+    .getByText("Один вход — все серверы проекта.", { exact: false })
+    .waitFor();
+  await page.getByRole("tab", { name: "Регистрация" }).click();
+  await page.getByRole("tab", { name: "Вход" }).click();
+  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
+  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
+  const login = await page.evaluate(() => {
+    const call = window.__calls.find((c) => c[0] === "line_login");
+    return {
+      keys: Object.keys(call?.[1]?.request ?? {})
+        .sort()
+        .join(","),
+      restored: window.__calls.some((c) => c[0] === "line_session"),
+      forgotten: window.__calls.some((c) => c[0] === "forget_synced_skin"),
+    };
+  });
+  check(
+    login.keys === "password,username",
+    `login must not carry a server id: ${login.keys}`,
+  );
+  check(login.restored, "the shell never asked the backend for the session");
+  check(login.forgotten, "signing in must reset the uploaded-skin marker");
   await shot("account");
 
   // The mark is tinted through a CSS mask. Vite inlines the SVG as a data: URL
@@ -506,49 +547,6 @@ try {
   } else if (mark?.kind === "image") {
     check(mark.loaded, "the colour brand mark did not load");
   }
-
-  // The wardrobe must be usable BEFORE login and without any provider skin API.
-  // Round 10 only explained the lock; that still left it impossible to test.
-  const wardrobeNav = page.getByRole("button", { name: "Гардероб" });
-  check(
-    (await wardrobeNav.getAttribute("aria-disabled")) !== "true",
-    "the wardrobe is still gated behind login/provider",
-  );
-  await wardrobeNav.click();
-  await page.getByRole("heading", { name: "Гардероб" }).waitFor();
-  check(
-    await page
-      .getByRole("heading", { name: "Добавить скин", exact: true })
-      .evaluate((node) => node.parentElement.querySelector("svg") === null),
-    "the non-interactive plus icon is still beside the upload heading",
-  );
-  check(
-    await page.getByText("История пуста.", { exact: false }).isVisible(),
-    "the local library did not render while signed out",
-  );
-  await shot("wardrobe-signed-out");
-  await page.locator("#skin-file").setInputFiles({
-    name: "local.png",
-    mimeType: "image/png",
-    buffer: skinBytes,
-  });
-  await page.getByRole("button", { name: "В историю" }).click();
-  await page.getByText("активный", { exact: false }).first().waitFor();
-  const savedLocally = await page.evaluate(() => ({
-    added: window.__calls.some((c) => c[0] === "add_skin_to_library"),
-    uploaded: window.__calls.some(
-      (c) => c[0] === "upload_skin" || c[0] === "sync_active_skin",
-    ),
-    count: window.__library.skins.length,
-  }));
-  check(savedLocally.added, "the skin never reached the local library");
-  check(savedLocally.count === 1, "the skin was not kept in history");
-  check(
-    !savedLocally.uploaded,
-    "saving a skin locally must not contact the provider",
-  );
-  await shot("wardrobe-local-history");
-  await page.getByRole("button", { name: "Серверы" }).click();
 
   // Custom scrollbar: the pill must be drawn by ::-webkit-scrollbar. Setting
   // scrollbar-width in Chromium disables those pseudo-elements entirely, so
@@ -680,34 +678,52 @@ try {
     !(await page.getByLabel(/JVM|аргументы/i).count()),
     "settings must not expose arbitrary JVM arguments",
   );
-  await page.getByRole("button", { name: "Серверы", exact: true }).click();
-
-  // Signing in once, with no server selected at all.
-  await page
-    .getByText("Один вход — все серверы проекта.", { exact: false })
-    .waitFor();
-  await page.getByRole("tab", { name: "Регистрация" }).click();
-  await page.getByRole("tab", { name: "Вход" }).click();
-  await page.getByLabel("Логин", { exact: true }).fill("Player_1");
-  await page.getByLabel("Пароль", { exact: true }).fill("test-password");
-  await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
-  const login = await page.evaluate(() => {
-    const call = window.__calls.find((c) => c[0] === "line_login");
-    return {
-      keys: Object.keys(call?.[1]?.request ?? {})
-        .sort()
-        .join(","),
-      restored: window.__calls.some((c) => c[0] === "line_session"),
-      forgotten: window.__calls.some((c) => c[0] === "forget_synced_skin"),
-    };
-  });
+  // The wardrobe is local-first. Signing in is a full-window page now, so this
+  // runs after it — but the property under test is unchanged: a local upload
+  // must reach the library without a selected server, and the automatic
+  // provider sync is a separate, signed-in-only step that the account page
+  // drives on its own (see canSync in LineLauncher).
+  await page.getByRole("button", { name: "Гардероб" }).click();
+  await page.getByRole("heading", { name: "Гардероб" }).waitFor();
   check(
-    login.keys === "password,username",
-    `login must not carry a server id: ${login.keys}`,
+    await page
+      .getByRole("heading", { name: "Добавить скин", exact: true })
+      .evaluate((node) => node.parentElement.querySelector("svg") === null),
+    "the non-interactive plus icon is still beside the upload heading",
   );
-  check(login.restored, "the shell never asked the backend for the session");
-  check(login.forgotten, "signing in must reset the uploaded-skin marker");
+  check(
+    await page.getByText("История пуста.", { exact: false }).isVisible(),
+    "the local library did not render",
+  );
+  await shot("wardrobe-empty");
+  await page.locator("#skin-file").setInputFiles({
+    name: "local.png",
+    mimeType: "image/png",
+    buffer: skinBytes,
+  });
+  await page.getByRole("button", { name: "В историю" }).click();
+  await page.getByText("активный", { exact: false }).first().waitFor();
+  const savedLocally = await page.evaluate(() => ({
+    added: window.__calls.some((c) => c[0] === "add_skin_to_library"),
+    count: window.__library.skins.length,
+  }));
+  check(savedLocally.added, "the skin never reached the local library");
+  check(savedLocally.count === 1, "the skin was not kept in history");
+  await shot("wardrobe-local-history");
+
+  // The demo project does publish wardrobe endpoints, so signing in turns the
+  // automatic sync on: the skin that was only local a moment ago goes to the
+  // account. That is the difference between "works offline" and "works signed
+  // in", and it used to be impossible to test because the wardrobe was gated.
+  const synced = await page.evaluate(() =>
+    window.__calls.some(
+      (c) => c[0] === "upload_skin" || c[0] === "sync_active_skin",
+    ),
+  );
+  check(
+    synced,
+    "signing in with wardrobe endpoints must sync the local skin to the account",
+  );
   const logoTiles = await page
     .locator("main [data-line-icon]")
     .evaluateAll((nodes) =>
@@ -747,6 +763,14 @@ try {
   // server and no second «Открыть сервер <name>» shortcut anywhere. The
   // «Текущий сервер» rail that used to sit above the catalogue was removed: on
   // a screen that already lists every server, it repeated one card and its
+  // Back to the catalogue: the wardrobe block above left the rail on its own
+  // section, and every assertion below is about the server list.
+  await page.getByRole("button", { name: "Серверы", exact: true }).click();
+  await page
+    .getByRole("button", { name: /^Открыть сервер/ })
+    .first()
+    .waitFor();
+
   // action, so it is a regression if it comes back.
   check(
     (await page.getByRole("region", { name: "Текущий сервер" }).count()) === 0,

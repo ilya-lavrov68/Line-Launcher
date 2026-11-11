@@ -420,6 +420,18 @@ async function shot(name) {
 try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
+  // First frame of a launch: the word is still being drawn. It only exists for
+  // about 1.6s, so this is the one shot that cannot wait for its own target.
+  await page.locator("[data-line-welcome]").waitFor({ timeout: 10_000 });
+  // Wait for the word itself, not a fixed delay: the letters rise into place
+  // and a screenshot taken too early catches an empty screen.
+  await page
+    .locator("[data-line-welcome] [aria-label='Welcome']")
+    .waitFor({ timeout: 5_000 });
+  await page.waitForTimeout(420);
+  await shot("welcome");
+  await page.locator("[data-line-welcome]").waitFor({ state: "detached" });
+
   if (configured) {
     await page
       .getByRole("heading", { name: "Подключение к проекту" })
@@ -431,10 +443,9 @@ try {
     );
   }
 
-  // The single sign-in gate: one account for the whole project.
-  // The screen was redesigned: the provider's name is the heading now, and the
-  // card itself is what proves the sign-in gate is up.
-  await page.getByRole("heading", { level: 2 }).waitFor();
+  // The single sign-in gate: one account for the whole project, on a page of
+  // its own — the provider's name is the heading, the card holds the form.
+  await page.getByRole("heading", { level: 1 }).waitFor();
   await page.getByRole("button", { name: "Войти", exact: true }).waitFor();
   await shot("account");
 

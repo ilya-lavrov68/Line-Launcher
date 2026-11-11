@@ -18,8 +18,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+/**
+ * Where the vector renders go.
+ *
+ * Deliberately NOT `docs/images`: that folder is the README gallery, and it
+ * belongs to `scripts/screenshots.mjs`, which photographs the real components in
+ * a browser. The two writers used to share the path, so running the offline
+ * renderer — the fallback for machines with no browser — silently replaced every
+ * real screenshot with a token-drawn approximation: the settings page lost its
+ * language section, labels drifted, and the gallery began showing a design the
+ * app does not have. The fallback now has its own folder and overwrites nothing.
+ */
 const outDir = path.resolve(
-  process.env.SHOTS_DIR || path.join(root, "docs/images"),
+  process.env.SHOTS_DIR || path.join(root, ".offline-shots"),
 );
 const checkOnly = process.argv.includes("--check");
 

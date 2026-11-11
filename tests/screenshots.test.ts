@@ -113,3 +113,22 @@ test("the offline renderer reads tokens from the live palette block", () => {
   assert.match(renderer, /readBlock\(":root \{"\)/);
   assert.doesNotMatch(renderer, /themes\.css/);
 });
+
+test("the fallback renderer cannot overwrite the gallery", () => {
+  // The two writers used to share `docs/images`, so running the no-browser
+  // fallback replaced every real photograph with a token drawing. That is how
+  // the settings page in the gallery lost its language section while the app
+  // still had one — the picture was wrong, not the app.
+  const offline = read("scripts/render-screens.mjs").toString("utf8");
+  assert.doesNotMatch(
+    offline,
+    /path\.join\(root, "docs\/images"\)/,
+    "the fallback renderer still writes into docs/images",
+  );
+  assert.match(offline, /offline-shots/);
+
+  // And the gallery really is the browser's: every README screen exists and
+  // was produced by the Playwright writer.
+  const browser = read("scripts/screenshots.mjs").toString("utf8");
+  assert.match(browser, /path\.join\(root, "docs\/images"\)/);
+});

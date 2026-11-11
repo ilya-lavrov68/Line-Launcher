@@ -171,6 +171,19 @@ impl LineState {
             .ok_or_else(|| LineError::input("Сначала загрузите конфигурацию провайдера."))
     }
 
+    /// True when the active config is old enough that auth/install would
+    /// refuse it. The UI asks this before acting and refreshes first, so a
+    /// player who left the window open for a while does not get an error
+    /// they cannot act on.
+    pub fn config_is_stale(&self) -> LineResult<bool> {
+        let inner = self.lock()?;
+        let Some((_, config)) = inner.active.as_ref() else {
+            return Ok(false);
+        };
+        Ok(epoch_millis().saturating_sub(inner.active_fetched_at)
+            > config.ttl_seconds().saturating_mul(1000))
+    }
+
     /// Cache is for display only. Auth/install require a config within its TTL.
     pub fn fresh_config(&self) -> LineResult<(String, LineConfig)> {
         let inner = self.lock()?;

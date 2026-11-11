@@ -104,6 +104,35 @@ pub async fn get_cached_config(
     }
 }
 
+/// Make the active config fresh enough for auth/install, if it is not already.
+///
+/// The launcher refuses to sign a player in against a config older than the
+/// provider's `cache_ttl_seconds` — a deliberate rule, since the auth endpoints
+/// and server list are exactly what a TTL is for. What was missing was the other
+/// half: the UI never refreshed before acting, so a window left open for a while
+/// turned the sign-in button into "Конфигурация устарела. Обновите её…" with
+/// nothing in the panel to press. The player could not fix it from where they
+/// were.
+///
+/// This command is the missing half. It is a no-op when the config is fresh, and
+/// it re-fetches through the same path as everything else when it is not. On a
+/// network failure it returns the error, but the *cached* config stays active, so
+/// the caller can still show the catalogue.
+#[tauri::command]
+pub async fn ensure_fresh_config(
+    app: AppHandle,
+    state: State<'_, LineState>,
+) -> LineResult<Option<ConfigSnapshot>> {
+    if !state.config_is_stale()? {
+        return Ok(None);
+    }
+    let (url, _) = state.active_config()?;
+    // A stale config is exactly what `force` is for: the cache would otherwise
+    // be served back with its old timestamp and stay stale.
+    let snapshot = fetch_line_config(url, Some(true), app, state).await?;
+    Ok(Some(snapshot))
+}
+
 /// Fetch and validate a provider config. `force` bypasses TTL, not validation.
 /// On transport/5xx failures only, return the last valid cache marked stale.
 #[tauri::command]

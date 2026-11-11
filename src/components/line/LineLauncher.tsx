@@ -287,6 +287,15 @@ export default function LineLauncher() {
     setAuthLoading(true);
     setAuthError(undefined);
     try {
+      // A window left open outlives the provider's `cache_ttl_seconds`, and the
+      // backend refuses to sign anyone in against an expired config. Refresh it
+      // first so the player gets a session instead of an instruction they have
+      // no control on this screen to follow. A no-op when it is still fresh,
+      // and a failed refresh is not fatal: the attempt below reports the real
+      // reason, which is more useful than "refresh failed".
+      const refreshed = await lineApi.ensureFreshConfig().catch(() => null);
+      if (!mounted.current) return;
+      if (refreshed) setSnapshot(refreshed);
       const next = await lineApi.authenticate(mode, { username, password });
       if (!mounted.current) return;
       setSession(next);

@@ -189,7 +189,11 @@ pub fn safe_entry_path(raw: &str) -> LineResult<PathBuf> {
 pub fn extract_verified_zip(
     archive_path: &Path,
     staging: &Path,
-    expected_unpacked: u64,
+    // Optional: `None` means the provider did not pin a size, so the archive's
+    // own central directory is the reference. Whatever it is, the launcher's
+    // hard ceiling below still applies — a bare link must not remove the limit,
+    // only the requirement to state the number.
+    expected_unpacked: Option<u64>,
     cancel: &AtomicBool,
     progress: impl Fn(u64),
 ) -> LineResult<super::integrity::FileIndex> {
@@ -203,7 +207,9 @@ pub fn extract_verified_zip(
             false,
         ));
     }
-    if expected_unpacked == 0 || expected_unpacked > super::config::MAX_UNPACKED_BYTES {
+    if expected_unpacked.is_some_and(|bytes| {
+        bytes == 0 || bytes > super::config::MAX_UNPACKED_BYTES
+    }) {
         return Err(LineError::input("Некорректный распакованный размер."));
     }
     let mut names = std::collections::HashSet::new();
@@ -257,7 +263,7 @@ pub fn extract_verified_zip(
                     false,
                 )
             })?;
-            if declared_total > expected_unpacked {
+            if declared_total > expected_unpacked.unwrap_or(super::config::MAX_UNPACKED_BYTES) {
                 // Same class of failure as the equality check below: the archive
                 // disagrees with the configured size. Structural attacks keep
                 // UnsafeArchive; a size mismatch is Integrity.
@@ -297,7 +303,7 @@ pub fn extract_verified_zip(
     if has_path_conflict(&file_paths, &directory_paths) {
         return Err(conflict());
     }
-    if declared_total != expected_unpacked {
+    if expected_unpacked.is_some_and(|bytes| declared_total != bytes) {
         return Err(LineError::new(
             ErrorCode::Integrity,
             "Распакованный размер не совпадает с конфигурацией.",
@@ -336,7 +342,9 @@ pub fn extract_verified_zip(
             }
             entry_size = entry_size.saturating_add(count as u64);
             extracted = extracted.saturating_add(count as u64);
-            if extracted > expected_unpacked || entry_size > entry.size() {
+            if extracted > expected_unpacked.unwrap_or(super::config::MAX_UNPACKED_BYTES)
+                || entry_size > entry.size()
+            {
                 return Err(LineError::new(
                     ErrorCode::UnsafeArchive,
                     "Фактический размер ZIP-записи превышает лимит.",
@@ -375,7 +383,10 @@ pub fn extract_verified_zip(
                 .map_err(|e| LineError::io(&e))?;
         }
     }
-    if extracted != expected_unpacked {
+    // Every entry was written above, so `extracted` is the archive's real size.
+    // It is compared to the pinned value only when there is one; either way it
+    // is the number the progress bar has been promising.
+    if expected_unpacked.is_some_and(|bytes| extracted != bytes) {
         return Err(LineError::new(
             ErrorCode::Integrity,
             "Распаковка завершена не полностью.",
@@ -392,13 +403,25 @@ pub fn extract_verified_zip(
     Ok(index)
 }
 
+/// What a downloaded archive turned out to be.
+///
+/// The digest is the release's identity: it names the directory the build is
+/// published into and is what a later install compares against. Measuring it
+/// here, rather than requiring the provider to state it, is what makes a
+/// one-line config possible — and it is strictly more trustworthy than a value
+/// typed into a file, because it describes the bytes that actually arrived.
+struct Downloaded {
+    sha256: String,
+    bytes: u64,
+}
+
 async fn download_part(
     client: &reqwest::Client,
     distribution: &Distribution,
     part: &Path,
     cancel: &AtomicBool,
     report: impl Fn(u64),
-) -> LineResult<()> {
+) -> LineResult<Downloaded> {
     let mut response = http::success(
         http::get(
             client,
@@ -410,15 +433,16 @@ async fn download_part(
         )
         .await?,
     )?;
-    if response
-        .content_length()
-        .is_some_and(|size| size != distribution.size_bytes)
-    {
-        return Err(LineError::new(
-            ErrorCode::Integrity,
-            "Размер ответа не совпадает с конфигурацией.",
-            false,
-        ));
+    // Only meaningful against a pinned size. With a bare link the length is
+    // merely the server's claim; the stream itself is what gets measured below.
+    if let Some(pinned) = distribution.size_bytes {
+        if response.content_length().is_some_and(|size| size != pinned) {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Размер ответа не совпадает с конфигурацией.",
+                false,
+            ));
+        }
     }
     let mut file = tokio::fs::File::create(part)
         .await
@@ -444,7 +468,13 @@ async fn download_part(
         received = received.checked_add(chunk.len() as u64).ok_or_else(|| {
             LineError::new(ErrorCode::Integrity, "Некорректный размер загрузки.", false)
         })?;
-        if received > distribution.size_bytes {
+        // A pinned size is a hard ceiling; without one, the launcher's own
+        // maximum still is. Never let an endless response fill the disk.
+        if received
+            > distribution
+                .size_bytes
+                .unwrap_or(super::config::MAX_ARCHIVE_BYTES)
+        {
             return Err(LineError::new(
                 ErrorCode::Integrity,
                 "Загружено больше данных, чем заявлено.",
@@ -464,7 +494,7 @@ async fn download_part(
     file.sync_all().await.map_err(|e| LineError::io(&e))?;
     drop(file);
     check_cancelled(cancel)?;
-    if received != distribution.size_bytes {
+    if distribution.size_bytes.is_some_and(|size| received != size) {
         return Err(LineError::new(
             ErrorCode::Integrity,
             "Загрузка оборвалась до получения полного архива.",
@@ -472,17 +502,23 @@ async fn download_part(
         ));
     }
     report(received);
-    let expected = distribution.sha256.as_bytes();
     let actual = format!("{:x}", hasher.finalize());
     // Public digest, not a secret; ordinary comparison is appropriate.
-    if actual.as_bytes() != expected {
-        return Err(LineError::new(
-            ErrorCode::Integrity,
-            "SHA-256 архива не совпадает. Установка заблокирована.",
-            false,
-        ));
+    // A pinned digest must match. When it is absent, the computed one becomes
+    // the reference for this install and every later comparison of it.
+    if let Some(expected) = &distribution.sha256 {
+        if actual.as_bytes() != expected.as_bytes() {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "SHA-256 архива не совпадает. Установка заблокирована.",
+                false,
+            ));
+        }
     }
-    Ok(())
+    Ok(Downloaded {
+        sha256: actual,
+        bytes: received,
+    })
 }
 
 fn available_space(root: &Path, required: u64) -> LineResult<()> {
@@ -534,10 +570,23 @@ fn valid_release_sha(value: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// Is this server already installed at its current build?
+///
+/// A pinned digest is definitive: the receipt must carry exactly it. With a
+/// bare link there is nothing to compare against until the archive is fetched,
+/// so the installed build stands on its version alone — the check that decides
+/// whether a *new* archive is a different build happens when one is actually
+/// downloaded, and it compares digests then. Treating "no pin" as "never
+/// matches" would re-download a working install on every launch.
 pub fn installed_receipt(base: &Path, server: &Server) -> Option<InstallReceipt> {
     let receipt = current_receipt(base, &server.id)?;
-    if receipt.sha256 != server.distribution.sha256 || receipt.version != server.version {
+    if receipt.version != server.version {
         return None;
+    }
+    if let Some(pinned) = &server.distribution.sha256 {
+        if &receipt.sha256 != pinned {
+            return None;
+        }
     }
     Some(receipt)
 }
@@ -560,6 +609,13 @@ pub fn cleanup_staging(base: &Path) -> LineResult<()> {
 
 /// Low-level reusable implementation, independent of Tauri for integration tests.
 /// The caller supplies a config-derived destination, NOT an arbitrary IPC path.
+///
+/// `pack.json` is resolved here, before anything is downloaded. That file is how
+/// a provider publishes a new build without touching `config.json`: it carries
+/// the archive's digest and sizes, generated from the ZIP itself by
+/// `npm run pack:manifest`. Until this call existed, that manifest was honoured
+/// by the Minecraft mode only — a provider who configured it for a ZIP pack got
+/// a silent no-op, which looked like the feature not working at all.
 pub async fn download_and_extract(
     client: &reqwest::Client,
     server: &Server,
@@ -568,7 +624,8 @@ pub async fn download_and_extract(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
 ) -> LineResult<InstallReceipt> {
-    install_inner(client, server, base, operation_id, cancel, sink, false).await
+    let server = super::pack::effective_server(client, server, base).await?;
+    install_inner(client, &server, base, operation_id, cancel, sink, false).await
 }
 
 /// `repair` skips the "already installed" short circuit: the files on disk are
@@ -609,12 +666,17 @@ async fn install_inner(
             return Ok(receipt);
         }
     }
+    // With no pinned sizes there is nothing to reserve against up front, so the
+    // check falls back to the free-space floor rather than skipping the test.
+    // Everything that arrives is still bounded by MAX_ARCHIVE_BYTES while it
+    // streams (see `download_part`), so this cannot be used to fill a disk.
     available_space(
         base,
         server
             .distribution
             .size_bytes
-            .saturating_add(server.distribution.unpacked_size_bytes)
+            .unwrap_or(0)
+            .saturating_add(server.distribution.unpacked_size_bytes.unwrap_or(0))
             .saturating_add(64 * 1024 * 1024),
     )?;
     let staging = base.join(format!(".staging-{}", Uuid::new_v4()));
@@ -627,14 +689,20 @@ async fn install_inner(
         phase: InstallPhase::Downloading,
         percent: 0.0,
         received_bytes: 0,
-        total_bytes: server.distribution.size_bytes,
+        // A zero total is the honest value before the first byte arrives: the
+        // UI treats it as "unknown" and shows the received count, instead of
+        // dividing by a guess and showing a bar that lies.
+        total_bytes: server.distribution.size_bytes.unwrap_or(0),
         extracted_bytes: 0,
-        unpacked_bytes: server.distribution.unpacked_size_bytes,
+        unpacked_bytes: server.distribution.unpacked_size_bytes.unwrap_or(0),
     };
     let result = async {
         let mut attempt = 0u8;
         let mut high_water = 0.0f64;
-        loop {
+        // The downloaded archive's measurement leaves this loop, so the release
+        // can be named after the bytes that actually arrived. With a pinned
+        // digest the two are equal; without one this is the only identity.
+        let downloaded_archive: Downloaded = loop {
             check_cancelled(cancel.as_ref())?;
             attempt += 1;
             let dl_progress = progress.clone();
@@ -652,7 +720,14 @@ async fn install_inner(
                     // A retry starts at byte zero, but the visible overall bar must
                     // never jump backwards. Bytes still describe the current attempt.
                     if let Ok(mut maximum) = report_progress.lock() {
-                        *maximum = maximum.max(received as f64 / p.total_bytes as f64 * 70.0);
+                        // With no pinned size there is no honest percentage; the
+                        // bar stays at the phase floor and the byte counter is
+                        // what moves. Dividing by zero here would have published
+                        // NaN to the UI, which draws as an empty bar.
+                        if p.total_bytes > 0 {
+                            *maximum =
+                                maximum.max(received as f64 / p.total_bytes as f64 * 70.0);
+                        }
                         p.percent = *maximum;
                     }
                     dl_sink.emit(p);
@@ -661,7 +736,7 @@ async fn install_inner(
             .await;
             high_water = reported.lock().map(|value| *value).unwrap_or(high_water);
             match downloaded {
-                Ok(()) => break,
+                Ok(measured) => break measured,
                 Err(error) if error.retryable && attempt < 3 => {
                     tokio::time::sleep(Duration::from_millis(500 * u64::from(attempt))).await;
                     // Restart from byte zero: no unsafe Range/ETag assumptions.
@@ -689,7 +764,9 @@ async fn install_inner(
                     let mut p = extract_progress.clone();
                     p.phase = InstallPhase::Extracting;
                     p.extracted_bytes = bytes;
-                    p.percent = 70.0 + bytes as f64 / p.unpacked_bytes as f64 * 29.0;
+                    if p.unpacked_bytes > 0 {
+                        p.percent = 70.0 + bytes as f64 / p.unpacked_bytes as f64 * 29.0;
+                    }
                     extract_sink.emit(p);
                 },
             )
@@ -717,14 +794,19 @@ async fn install_inner(
         )?;
         let releases = base.join("releases");
         create_private_dir(&releases)?;
-        let release = releases.join(&server.distribution.sha256);
+        // The directory is named after the archive that was just verified, not
+        // after a claim in the config. Those are the same string whenever the
+        // provider pinned a digest; when they are not, the measured one is the
+        // only one that describes what is on disk — and it is what every later
+        // launch and rollback compares against.
+        let release = releases.join(&downloaded_archive.sha256);
         remove_dir_if_present(&release)?;
         fs::rename(&content, &release).map_err(|e| LineError::io(&e))?;
         sync_directory(&releases)?;
         let receipt = InstallReceipt {
             server_id: server.id.clone(),
             version: server.version.clone(),
-            sha256: server.distribution.sha256.clone(),
+            sha256: downloaded_archive.sha256.clone(),
             installed_at: epoch_millis(),
             already_installed: false,
         };
@@ -766,17 +848,27 @@ async fn install_inner(
 }
 
 impl Distribution {
+    /// Reject a record whose *pinned* fields are impossible.
+    ///
+    /// Nothing is required any more: a bare link is a complete distribution,
+    /// because the archive is measured as it downloads. What a provider does
+    /// state is still enforced — a zero epoch, an oversized archive or a
+    /// malformed digest is a config bug, and failing here beats downloading
+    /// four gigabytes to discover it.
     fn validate_bounds(&self) -> LineResult<()> {
-        if self.size_bytes == 0
-            || self.size_bytes > super::config::MAX_ARCHIVE_BYTES
-            || self.unpacked_size_bytes == 0
-            || self.unpacked_size_bytes > super::config::MAX_UNPACKED_BYTES
-            || self.sha256.len() != 64
-            || !self
-                .sha256
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
+        let bad_size = self
+            .size_bytes
+            .is_some_and(|bytes| bytes == 0 || bytes > super::config::MAX_ARCHIVE_BYTES);
+        let bad_unpacked = self.unpacked_size_bytes.is_some_and(|bytes| {
+            bytes == 0 || bytes > super::config::MAX_UNPACKED_BYTES
+        });
+        let bad_sha = self.sha256.as_ref().is_some_and(|sha| {
+            sha.len() != 64
+                || !sha
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        });
+        if bad_size || bad_unpacked || bad_sha {
             Err(LineError::input("Некорректные параметры дистрибутива."))
         } else {
             Ok(())

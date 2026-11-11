@@ -426,8 +426,14 @@ test("the brand mark in the gallery is the real logo file, not a drawing", () =>
   // renderer may only mention the thing it replaced to explain why.
   assert.match(renderer, /BRAND_LOGO/);
   assert.doesNotMatch(renderer, /ctx\.moveTo\(3, 3\)/);
+  // The mark itself is whatever the provider shipped — its colour is a branding
+  // choice, not a contract, and pinning one here broke the moment the logo was
+  // replaced. What must hold is that it is a real SVG with geometry in it.
   const logo = read("branding/assets/logo.svg");
-  assert.match(logo, /fill="#FFFF01"/i);
+  assert.match(logo, /^\s*<svg[\s>]/i);
+  assert.match(logo, /viewBox=/);
+  assert.match(logo, /<path[\s>]/i);
+  assert.match(logo, /fill="/);
 });
 
 test("the launcher casts no shadows", () => {

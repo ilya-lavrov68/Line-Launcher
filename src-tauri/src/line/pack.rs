@@ -105,11 +105,15 @@ impl PackManifest {
         if let Some(version) = &self.minecraft_version {
             validate_version_id(version)?;
         }
+        // pack.json always carries the full description — it is generated from
+        // the archive itself by `npm run pack:manifest` — so resolving it here
+        // produces a fully pinned distribution even when the config's own
+        // record was a bare link.
         Ok(Distribution {
             url: self.url.clone(),
-            sha256: self.sha256.clone(),
-            size_bytes: self.size_bytes,
-            unpacked_size_bytes: self.unpacked_size_bytes,
+            sha256: Some(self.sha256.clone()),
+            size_bytes: Some(self.size_bytes),
+            unpacked_size_bytes: Some(self.unpacked_size_bytes),
         })
     }
 }
@@ -157,9 +161,9 @@ fn apply(server: &Server, manifest: &PackManifest) -> Server {
     let mut updated = server.clone();
     updated.distribution = Distribution {
         url: manifest.url.clone(),
-        sha256: manifest.sha256.clone(),
-        size_bytes: manifest.size_bytes,
-        unpacked_size_bytes: manifest.unpacked_size_bytes,
+        sha256: Some(manifest.sha256.clone()),
+        size_bytes: Some(manifest.size_bytes),
+        unpacked_size_bytes: Some(manifest.unpacked_size_bytes),
     };
     if updated.minecraft_version.is_none() {
         updated.minecraft_version = manifest.minecraft_version.clone();

@@ -162,7 +162,12 @@ function main(): void {
       : null;
     if (!sameText(current, stamp)) {
       if (CHECK_ONLY)
-        fail("src-tauri/icons is out of date. Run: npm run brand");
+        fail(
+          "src-tauri/icons is out of date (the app icon changed, or the set was " +
+            "never regenerated). Run: npm run brand — then rebuild the installer, " +
+            "because an already-installed shortcut keeps the icon it was " +
+            "installed with.",
+        );
       console.log("[brand] generating OS icons via tauri icon…");
       // Never shell out to npx.cmd: Node >=18.20.2 throws EINVAL for .cmd
       // without a shell. Run the CLI entry point with this Node instead.

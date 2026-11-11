@@ -69,7 +69,15 @@ export function phaseOf(
   if (status?.phase === "running") return "running";
   if (status?.phase === "failed") return "failed";
   if (!receipt) return "needs-install";
-  if (receipt.sha256 !== server.distribution.sha256) return "needs-update";
+  // Compared only against a pin. A bare link carries no digest to compare, and
+  // the receipt's own digest came from the bytes that were installed — treating
+  // "unknown" as "different" would offer an update forever.
+  if (
+    server.distribution.sha256 &&
+    receipt.sha256 !== server.distribution.sha256
+  ) {
+    return "needs-update";
+  }
   if (status?.phase === "exited") return "exited";
   return "installed";
 }

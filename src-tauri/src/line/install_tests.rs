@@ -50,7 +50,7 @@ fn extracts_regular_files_and_checks_actual_size() {
     .unwrap();
     let target = temp.path().join("content");
     let cancel = AtomicBool::new(false);
-    let index = extract_verified_zip(&zip, &target, 10, &cancel, |_| {}).unwrap();
+    let index = extract_verified_zip(&zip, &target, Some(10), &cancel, |_| {}).unwrap();
     // The index must describe exactly what was written, with real hashes.
     index.validate().unwrap();
     assert_eq!(index.files.len(), 2);
@@ -79,7 +79,7 @@ fn rejects_declared_size_mismatch_before_writing_content() {
     fs::write(&zip, archive(&[("a.txt", b"hello")])).unwrap();
     let target = temp.path().join("content");
     let error =
-        extract_verified_zip(&zip, &target, 4, &AtomicBool::new(false), |_| {}).unwrap_err();
+        extract_verified_zip(&zip, &target, Some(4), &AtomicBool::new(false), |_| {}).unwrap_err();
     assert_eq!(error.code, ErrorCode::Integrity);
     assert!(!target.join("a.txt").exists());
 }
@@ -96,7 +96,7 @@ fn rejects_symlinks_even_inside_destination() {
     let error = extract_verified_zip(
         &zip,
         &temp.path().join("content"),
-        6,
+        Some(6),
         &AtomicBool::new(false),
         |_| {},
     )
@@ -112,7 +112,7 @@ fn rejects_duplicate_case_insensitive_paths() {
     let error = extract_verified_zip(
         &zip,
         &temp.path().join("content"),
-        2,
+        Some(2),
         &AtomicBool::new(false),
         |_| {},
     )
@@ -128,7 +128,7 @@ fn cancellation_does_not_extract() {
     let error = extract_verified_zip(
         &zip,
         &temp.path().join("content"),
-        1,
+        Some(1),
         &AtomicBool::new(true),
         |_| {},
     )
@@ -172,7 +172,7 @@ fn rejects_file_directory_conflicts_in_either_order() {
         let error = extract_verified_zip(
             &zip,
             &temp.path().join("content"),
-            2,
+            Some(2),
             &AtomicBool::new(false),
             |_| {},
         )
@@ -249,7 +249,7 @@ fn a_pack_cannot_forge_the_integrity_index_or_the_marker() {
         let zip = temp.path().join("archive.zip");
         fs::write(&zip, archive(&[(reserved, b"forged")])).unwrap();
         let target = temp.path().join(reserved.trim_start_matches('.'));
-        let error = extract_verified_zip(&zip, &target, 6, &cancel, |_| {}).unwrap_err();
+        let error = extract_verified_zip(&zip, &target, Some(6), &cancel, |_| {}).unwrap_err();
         assert_eq!(error.code, ErrorCode::UnsafeArchive, "accepted {reserved}");
         // The staging directory itself is created up front; nothing may land in it.
         assert!(!target.join(reserved).exists());

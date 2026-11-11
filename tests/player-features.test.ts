@@ -877,3 +877,23 @@ test("a missing Java runtime list does not blank the settings screen", () => {
   );
   assert.match(settings, /!list\.some\(/);
 });
+
+test("the sidebar icons are 1.5x their old 20px and the rows grew with them", () => {
+  const nav = read("src/components/line/SideNav.tsx");
+  // 30px, not `h-5 w-5` (20px). Every glyph in the rail — the sections, the
+  // reconnect, the about, the collapse chevron — scales together; a single one
+  // left at 20px read as a mistake rather than a hierarchy.
+  assert.doesNotMatch(nav, /h-5 w-5/, "an icon is still at the old 20px size");
+  assert.match(nav, /h-\[30px\] w-\[30px\]/);
+  // A 30px glyph in a 36px row touches both edges. The rows and the two
+  // secondary buttons grew so the icons keep their padding.
+  assert.match(
+    nav,
+    /"h-12 w-full items-center gap-2\.5 rounded-lg text-xs font-medium"/,
+  );
+  assert.match(nav, /h-12 w-full cursor-pointer/);
+  assert.match(nav, /h-11 w-full cursor-pointer/);
+  // The collapsed rail is 60px wide with 8px of padding each side: 44px of
+  // usable width, which the 30px glyph fits inside without clipping.
+  assert.match(nav, /collapsed \? 60 : 208/);
+});

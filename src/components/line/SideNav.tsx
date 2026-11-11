@@ -117,7 +117,7 @@ export default function SideNav({
               title={collapsed && !item.hint ? item.label : undefined}
               onClick={() => onNavigate(item.id)}
               className={cn(
-                "h-9 w-full items-center gap-2.5 rounded-lg text-xs font-medium",
+                "h-12 w-full items-center gap-2.5 rounded-lg text-xs font-medium",
                 collapsed ? "justify-center px-0" : "justify-start px-2.5",
                 // focusableWhenDisabled drops the native :disabled styling, so
                 // the muted look is restored explicitly. It stays hoverable so
@@ -130,7 +130,7 @@ export default function SideNav({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <Icon className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Button>
           );
@@ -154,11 +154,14 @@ export default function SideNav({
           title={collapsed ? t("nav.reconnect") : undefined}
           onClick={onChangeProvider}
           className={cn(
-            "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            "text-muted-foreground hover:text-foreground h-12 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
-          <RefreshCw className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <RefreshCw
+            className="h-[30px] w-[30px] shrink-0"
+            aria-hidden="true"
+          />
           {!collapsed && <span className="truncate">{t("nav.reconnect")}</span>}
         </Button>
         <Button
@@ -167,11 +170,11 @@ export default function SideNav({
           title={collapsed ? t("nav.about") : undefined}
           onClick={onAbout}
           className={cn(
-            "text-muted-foreground hover:text-foreground h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            "text-muted-foreground hover:text-foreground h-12 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
-          <Info className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <Info className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
           {!collapsed && <span className="truncate">{t("nav.about")}</span>}
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
@@ -187,13 +190,13 @@ export default function SideNav({
           aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
           title={collapsed ? t("nav.expand") : t("nav.collapse")}
           className={cn(
-            "text-muted-foreground hover:text-foreground h-8 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            "text-muted-foreground hover:text-foreground h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed ? "justify-center px-0" : "justify-start px-2.5",
           )}
         >
           <ChevronLeft
             className={cn(
-              "h-5 w-5 shrink-0 transition-transform",
+              "h-[30px] w-[30px] shrink-0 transition-transform",
               collapsed && "rotate-180",
             )}
             aria-hidden="true"

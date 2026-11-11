@@ -743,7 +743,7 @@ async fn install_inner(
                 }
                 Err(error) => return Err(error),
             }
-        }
+        };
         check_cancelled(cancel.as_ref())?;
         progress.phase = InstallPhase::Verifying;
         progress.percent = 70.0;

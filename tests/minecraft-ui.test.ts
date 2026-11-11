@@ -129,11 +129,33 @@ test("running state survives a screen change and comes from the backend", () => 
 });
 
 test("an expired session leaves the panel instead of failing silently", () => {
+  // The panel reports; the shell decides. It used to decide by clearing the
+  // session outright, on nothing more than a failed request — and since
+  // AUTH_REQUIRED was also what the backend said for a stale config, a closed
+  // IPC socket or a mod that never asked for its ticket, pressing a button on
+  // this page could sign the player out of a session with hours left on it.
   assert.match(panel, /onAuthRequired\?\.\(\)/);
-  assert.match(
-    read("src/components/line/LineLauncher.tsx"),
-    /onAuthRequired=\{requireAuth\}/,
+  const shell = read("src/components/line/LineLauncher.tsx");
+  assert.match(shell, /onAuthRequired=\{requireAuth\}/);
+
+  const requireAuth = shell.slice(
+    shell.indexOf("const requireAuth = () =>"),
+    shell.indexOf("async function confirmSignOut()"),
   );
+  // Asking the backend whether a session still exists is the whole point: it
+  // must not throw the session away on the child's word alone.
+  assert.doesNotMatch(requireAuth, /setSession\(null\)/);
+  assert.match(requireAuth, /confirmSignOut\(\)/);
+
+  const confirm = shell.slice(
+    shell.indexOf("async function confirmSignOut()"),
+    shell.indexOf("async function openHistory("),
+  );
+  assert.match(confirm, /await lineApi\.session\(\)/);
+  // A session that is still alive is restored, not discarded.
+  assert.match(confirm, /stillThere\.expiresAt > Date\.now\(\)/);
+  assert.match(confirm, /setSession\(/);
+  assert.match(confirm, /endSession\(t\("status\.authExpired"\)\)/);
 });
 
 test("the provider guide documents the opt-in, its fields and its limit", () => {

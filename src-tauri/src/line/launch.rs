@@ -834,10 +834,15 @@ pub async fn launch_game(
                                 match tokio::time::timeout(Duration::from_millis(500), &mut *task).await {
                                     Ok(Ok(Ok(()))) => {}
                                     Ok(Ok(Err(error))) => ipc_failure = Some(error),
+                                    // The game exited before the mod asked
+                                    // for its ticket. That is a mod/IPC
+                                    // problem, and reporting it as an auth
+                                    // failure signed the player out while
+                                    // their session was perfectly valid.
                                     _ => ipc_failure = Some(LineError::new(
-                                        ErrorCode::AuthRequired,
+                                        ErrorCode::Busy,
                                         "Игра завершилась до получения launch ticket. Проверьте мод авторизации провайдера.",
-                                        false,
+                                        true,
                                     )),
                                 }
                                 task.abort();

@@ -271,10 +271,30 @@ export default function LineLauncher() {
       }
     } catch (cause) {
       if (mounted.current && generation === detailGeneration.current) {
-        if (authExpired(cause)) setInstallError(undefined);
-        else setInstallError(errorMessage(cause));
+        // The error is shown first and withdrawn if it turns out to be a dead
+        // session: `authExpired` now has to confirm the session is gone before
+        // it ends it, and that is a round trip.
+        setInstallError(errorMessage(cause));
+        if (await authExpired(cause)) {
+          if (mounted.current && generation === detailGeneration.current)
+            setInstallError(undefined);
+        }
       }
     }
+  }
+
+  /**
+   * The backend refuses launch, install and wardrobe work against a provider
+   * config older than its own `cache_ttl_seconds` — five minutes by default.
+   * A launcher window is routinely open longer than that, so the first press
+   * after a pause used to fail with an auth error the player could do nothing
+   * about on that screen. Refresh before the action instead of reporting it.
+   * A failed refresh is not fatal: the action itself then reports the real
+   * reason, which is more useful than "refresh failed".
+   */
+  async function refreshConfigIfStale() {
+    const refreshed = await lineApi.ensureFreshConfig().catch(() => null);
+    if (refreshed && mounted.current) setSnapshot(refreshed);
   }
 
   /** One sign-in for the whole project: no server id is involved. */
@@ -287,15 +307,11 @@ export default function LineLauncher() {
     setAuthLoading(true);
     setAuthError(undefined);
     try {
-      // A window left open outlives the provider's `cache_ttl_seconds`, and the
-      // backend refuses to sign anyone in against an expired config. Refresh it
-      // first so the player gets a session instead of an instruction they have
-      // no control on this screen to follow. A no-op when it is still fresh,
-      // and a failed refresh is not fatal: the attempt below reports the real
-      // reason, which is more useful than "refresh failed".
-      const refreshed = await lineApi.ensureFreshConfig().catch(() => null);
+      // Sign-in is the third action with the same prerequisite, and the one
+      // where an expired config used to surface as a message the player could
+      // not act on from that screen.
+      await refreshConfigIfStale();
       if (!mounted.current) return;
-      if (refreshed) setSnapshot(refreshed);
       const next = await lineApi.authenticate(mode, { username, password });
       if (!mounted.current) return;
       setSession(next);
@@ -313,18 +329,46 @@ export default function LineLauncher() {
 
   /**
    * The backend is the source of truth about the session: when it says the
-   * account is gone (expired or invalidated), go back to the single sign-in
-   * screen instead of leaving the player on a button that cannot work.
+   * account is gone, go back to the single sign-in screen instead of leaving
+   * the player on a button that cannot work.
+   *
+   * `AUTH_REQUIRED` is a claim, not proof. Several unrelated failures used to
+   * be reported with it — a stale provider config, a launch ticket that the
+   * mod never asked for, a closed IPC socket — and every one of them logged
+   * the player out with «Сессия истекла» while their session still had hours
+   * left. Those have been given their own error codes in the backend, but a
+   * false positive here is expensive enough that the session is confirmed
+   * gone before it is thrown away: the token is only discarded when the
+   * backend no longer holds an unexpired one.
    */
-  function authExpired(cause: unknown): boolean {
+  async function authExpired(cause: unknown): Promise<boolean> {
     if (toLineError(cause).code !== "AUTH_REQUIRED") return false;
+    const stillThere = await lineApi.session().catch(() => null);
+    if (!mounted.current) return true;
+    if (stillThere && stillThere.expiresAt > Date.now()) {
+      // The provider rejected one request, but the session itself is alive.
+      // Report the failure where it happened; do not end the session.
+      setSession(
+        (previous) =>
+          previous ?? {
+            username: stillThere.username,
+            expiresAt: stillThere.expiresAt,
+          },
+      );
+      return false;
+    }
+    endSession(t("status.authExpired"));
+    return true;
+  }
+
+  /** Drop the session and land on the single sign-in screen. */
+  function endSession(message: string) {
     setSession(null);
     setSelected(null);
     setScreen("account");
     setSection("servers");
-    setAuthError(t("status.authExpired"));
+    setAuthError(message);
     void lineApi.forgetSyncedSkin().catch(() => undefined);
-    return true;
   }
 
   async function install() {
@@ -340,6 +384,7 @@ export default function LineLauncher() {
     setInstalling(true);
     setInstallError(undefined);
     setProgress(null);
+    await refreshConfigIfStale();
     let unlisten: (() => void) | undefined;
     try {
       unlisten = await lineApi.onProgress(id, (next) => {
@@ -365,7 +410,13 @@ export default function LineLauncher() {
     } catch (cause) {
       if (!mounted.current) return;
       const message = errorMessage(cause);
-      setInstallError(message);
+      // An install can fail because the session died mid-download; it can also
+      // fail for a dozen reasons that have nothing to do with the account.
+      // Show the reason, and let `authExpired` decide whether the session is
+      // actually gone before anything is thrown away.
+      const expired = await authExpired(cause);
+      if (!mounted.current) return;
+      setInstallError(expired ? undefined : message);
       setProgress((previous) =>
         previous
           ? { ...previous, phase: "failed" }
@@ -453,6 +504,7 @@ export default function LineLauncher() {
     setLaunching(true);
     setLaunchError(undefined);
     try {
+      await refreshConfigIfStale();
       const status = await lineApi.launch(selected.id);
       if (mounted.current && generation === detailGeneration.current)
         setGameStatus((previous) =>
@@ -470,8 +522,11 @@ export default function LineLauncher() {
       }
     } catch (cause) {
       if (mounted.current && generation === detailGeneration.current) {
-        if (authExpired(cause)) setLaunchError(undefined);
-        else setLaunchError(errorMessage(cause));
+        setLaunchError(errorMessage(cause));
+        if (await authExpired(cause)) {
+          if (mounted.current && generation === detailGeneration.current)
+            setLaunchError(undefined);
+        }
       }
     } finally {
       if (mounted.current && generation === detailGeneration.current)
@@ -488,13 +543,32 @@ export default function LineLauncher() {
     }
   }
 
-  /** An expired project session sends the player back to the single sign-in. */
-  function requireAuth() {
-    setSession(null);
-    setSelected(null);
-    setScreen("account");
-    setSection("servers");
-    setAuthError(t("status.authExpired"));
+  /**
+   * A child screen reporting `AUTH_REQUIRED` asks the shell to sign the player
+   * out — but only the shell can confirm that the session is actually gone.
+   * The child only knows its own request failed; that is not the same thing,
+   * and acting on it directly is how pressing a button on a server page could
+   * log the player out over a failure that had nothing to do with their
+   * account. Confirm before ending the session.
+   */
+  const requireAuth = () => {
+    void confirmSignOut();
+  };
+
+  async function confirmSignOut() {
+    const stillThere = await lineApi.session().catch(() => null);
+    if (!mounted.current) return;
+    if (stillThere && stillThere.expiresAt > Date.now()) {
+      setSession(
+        (previous) =>
+          previous ?? {
+            username: stillThere.username,
+            expiresAt: stillThere.expiresAt,
+          },
+      );
+      return;
+    }
+    endSession(t("status.authExpired"));
   }
 
   async function openHistory(open: boolean) {

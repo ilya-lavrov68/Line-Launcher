@@ -59,12 +59,15 @@
   --sidebar-accent-foreground: oklch(0.98 0.002 250);
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: var(--ring);
-  /* Near-white, not red. This token is the glyph *on* a destructive fill, and
-   * it was oklch(0.72 0.19 22) — a red a shade lighter than the fill itself
-   * (#ff696d on #f84a54, contrast 1.23), so the close button's ✕ disappeared
-   * into its own hover square and the red read as a flat, dim smear. A glyph
-   * has to contrast with what it sits on, not echo it. */
-  --destructive-foreground: oklch(0.98 0.01 22);
+  /* The glyph *on* a destructive fill — and it stays red, because the whole
+   * button is meant to read as red, not as a red square with a white cross on
+   * it. What it must not be is the same red as the fill: this token used to be
+   * oklch(0.72 0.19 22) = #ff696d against a #f84a54 fill, and at 1.23:1 the ✕
+   * vanished into its own square. The fix is distance in *lightness* while the
+   * hue holds: a saturated coral red at 0.78 against the 0.55 fill gives 2.5:1,
+   * so both read as red and the shape still has an edge. 0.86 was tried and
+   * looked pink, closer to a white cross than a red one. */
+  --destructive-foreground: oklch(0.78 0.17 22);
 
   /* ── the quiet-fill ladder and the glass surface ──
    *

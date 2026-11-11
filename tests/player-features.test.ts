@@ -766,22 +766,37 @@ test("the close button's hover glyph does not disappear into its own fill", () =
   assert.match(button, /hover:text-destructive-foreground/);
 
   // The glyph on that fill was `--destructive-foreground: oklch(0.72 0.19 22)`
-  // — #ff696d, a red a shade lighter than the #f84a54 fill, contrast 1.23.
-  // The ✕ was painted red-on-red, so the square read as one flat dim smudge
-  // instead of a red button with a symbol on it. This token has exactly one
-  // consumer — this button — so it is checked here.
+  // — #ff696d, a red a shade lighter than the #f84a54 fill under it, contrast
+  // 1.23:1. The ✕ was painted red-on-red, so the square read as one flat dim
+  // smudge instead of a red button with a symbol on it. This token has exactly
+  // one consumer — this button — so it is checked here.
+  //
+  // It must stay *red*: the button is meant to read red as a whole, and a
+  // white cross on a red square is a different design. What it needs is
+  // distance in lightness from the fill while the hue holds.
   const css = read("src/index.css");
   const token = css.match(
     /--destructive-foreground:\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/,
   );
   assert.ok(token, "--destructive-foreground must be an oklch triple");
-  const [, l, c, h] = token.map(Number);
-  assert.ok(l >= 0.9, `the hover glyph must be near-white, got lightness ${l}`);
-  assert.ok(c <= 0.04, `the hover glyph must not be red, got chroma ${c}`);
-  assert.ok(Math.abs(h - 22) <= 6, "it should still be a hair warm, not blue");
+  const glyphL = Number(token[1]);
+  const glyphC = Number(token[2]);
+  const glyphH = Number(token[3]);
+  assert.ok(
+    glyphC >= 0.14,
+    `the hover glyph must still be red, got chroma ${glyphC}`,
+  );
+  assert.ok(
+    glyphL < 0.85,
+    `a near-white glyph was rejected as pink, got lightness ${glyphL}`,
+  );
+  assert.ok(
+    Math.abs(glyphH - 25) <= 8,
+    `it must stay on the same red hue, got ${glyphH}`,
+  );
 
-  // The hover fill must be a red, not a washed-out coral: saturated, and deep
-  // enough that near-white sits on it clearly.
+  // The fill it sits on: saturated, deep, and far enough from the glyph that
+  // the ✕ never blends into its own background again.
   const fill = css.match(
     /--destructive-strong:\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/,
   );
@@ -793,7 +808,17 @@ test("the close button's hover glyph does not disappear into its own fill", () =
     `the fill must stay saturated, got chroma ${fillChroma}`,
   );
   assert.ok(fillL <= 0.58, `the fill must be deep, got lightness ${fillL}`);
-  // And it must stay a button colour, not leak into error text.
+  // Perceptually the two must be far apart: the old pair was 0.72 vs 0.66 in
+  // lightness at nearly the same chroma, which is why it disappeared.
+  assert.ok(
+    glyphL - fillL >= 0.18,
+    `glyph and fill are ${glyphL - fillL} apart in lightness`,
+  );
+  assert.ok(
+    glyphC - fillChroma <= 0.02,
+    "the glyph must not be more saturated than the fill",
+  );
+  // And the button colour must not leak into error text.
   assert.match(css, /--line-error:\s*var\(--destructive\)/);
 });
 

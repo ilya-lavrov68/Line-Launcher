@@ -130,7 +130,7 @@ impl PrivateChannel {
                 .await
                 .map_err(|_| {
                     LineError::new(
-                        ErrorCode::AuthRequired,
+                        ErrorCode::Busy,
                         "Мод не запросил launch ticket вовремя.",
                         false,
                     )
@@ -143,7 +143,7 @@ impl PrivateChannel {
                 .is_some_and(|pid| pid > 0 && pid as u32 == expected_pid);
             if cred.uid() != expected_uid || !peer_pid_ok {
                 return Err(LineError::new(
-                    ErrorCode::AuthRequired,
+                    ErrorCode::Busy,
                     "К приватному каналу обратился посторонний процесс.",
                     false,
                 ));
@@ -156,7 +156,7 @@ impl PrivateChannel {
                 .await
                 .map_err(|_| {
                     LineError::new(
-                        ErrorCode::AuthRequired,
+                        ErrorCode::Busy,
                         "Мод не запросил launch ticket вовремя.",
                         false,
                     )
@@ -171,7 +171,7 @@ impl PrivateChannel {
             };
             if ok == 0 || pid != expected_pid {
                 return Err(LineError::new(
-                    ErrorCode::AuthRequired,
+                    ErrorCode::Busy,
                     "К приватному каналу обратился посторонний процесс.",
                     false,
                 ));
@@ -195,7 +195,7 @@ impl PrivateChannel {
             let count = timeout_at(deadline, read.read(&mut buffer))
                 .await
                 .map_err(|_| {
-                    LineError::new(ErrorCode::AuthRequired, "Мод не ответил вовремя.", false)
+                    LineError::new(ErrorCode::Busy, "Мод не ответил вовремя.", false)
                 })?
                 .map_err(|e| LineError::io(&e))?;
             if count == 0 {
@@ -221,7 +221,7 @@ impl PrivateChannel {
             .map_err(|_| LineError::input("Некорректный запрос мода."))?;
         if request.kind != "line.launch-ticket.request" || request.channel != self.id {
             return Err(LineError::new(
-                ErrorCode::AuthRequired,
+                ErrorCode::Busy,
                 "Мод предъявил неверный канал.",
                 false,
             ));
@@ -241,7 +241,7 @@ impl PrivateChannel {
             .await
             .map_err(|_| {
                 LineError::new(
-                    ErrorCode::AuthRequired,
+                    ErrorCode::Busy,
                     "Не удалось передать ticket моду.",
                     false,
                 )
@@ -251,7 +251,7 @@ impl PrivateChannel {
             .await
             .map_err(|_| {
                 LineError::new(
-                    ErrorCode::AuthRequired,
+                    ErrorCode::Busy,
                     "Не удалось завершить передачу ticket.",
                     false,
                 )
@@ -457,10 +457,8 @@ mod tests {
         let _ = client
             .write_all(b"{\"type\":\"line.launch-ticket.request\",\"channel\":\"wrong\"}\n")
             .await;
-        assert_eq!(
-            server.await.unwrap().unwrap_err().code,
-            ErrorCode::AuthRequired
-        );
+        // A wrong channel is a broken mod, not an expired account.
+        assert_eq!(server.await.unwrap().unwrap_err().code, ErrorCode::Busy);
 
         let channel = PrivateChannel::create().unwrap();
         let path = channel.socket_path.clone();

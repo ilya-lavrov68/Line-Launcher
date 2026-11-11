@@ -41,6 +41,13 @@
   --accent: rgba(255, 255, 255, 0.08);
   --accent-foreground: oklch(0.98 0.002 250);
   --destructive: oklch(0.66 0.21 22);
+  /* The red behind a destructive *button*, which is not the same job as the red
+   * of an error line. An error is read as text, so it needs lightness; a button
+   * that fills its whole square on hover can be deep and saturated without
+   * costing legibility, and at 0.66 it looked washed out — a pale coral rather
+   * than a red. Kept separate from `--destructive` so fixing the button does not
+   * darken «Не удалось подключиться» along with it. */
+  --destructive-strong: oklch(0.55 0.24 27);
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
   --ring: oklch(0.92 0.004 286.32 / 45%);
@@ -52,7 +59,12 @@
   --sidebar-accent-foreground: oklch(0.98 0.002 250);
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: var(--ring);
-  --destructive-foreground: oklch(0.72 0.19 22);
+  /* Near-white, not red. This token is the glyph *on* a destructive fill, and
+   * it was oklch(0.72 0.19 22) — a red a shade lighter than the fill itself
+   * (#ff696d on #f84a54, contrast 1.23), so the close button's ✕ disappeared
+   * into its own hover square and the red read as a flat, dim smear. A glyph
+   * has to contrast with what it sits on, not echo it. */
+  --destructive-foreground: oklch(0.98 0.01 22);
 
   /* ── the quiet-fill ladder and the glass surface ──
    *
@@ -131,6 +143,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-strong: var(--destructive-strong);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);

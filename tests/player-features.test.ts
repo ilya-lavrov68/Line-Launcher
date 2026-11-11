@@ -743,11 +743,8 @@ test("opening the wardrobe never signs the player out", () => {
   assert.match(sync, /setSyncError\(errorMessage\(cause\)\)/);
 });
 
-test("the caption close button is red without being hovered", () => {
+test("the close button's hover glyph does not disappear into its own fill", () => {
   const bar = read("src/components/line/TitleBar.tsx");
-  // Minimise, maximise and close used to be three identical grey glyphs, so
-  // the only one that destroys the window looked like the others until the
-  // pointer was already on it.
   const close = bar.slice(
     bar.lastIndexOf(
       "<Button",
@@ -755,11 +752,49 @@ test("the caption close button is red without being hovered", () => {
     ),
   );
   const button = close.slice(0, close.indexOf("</Button>"));
-  assert.match(button, /<X /);
-  assert.match(button, /className="[^"]*text-destructive/);
-  assert.doesNotMatch(button, /text-muted-foreground/);
-  // The hover state still goes to the solid red fill.
-  assert.match(button, /hover:bg-destructive/);
+
+  // Rest state is the same grey as minimise and maximise — that was never the
+  // complaint.
+  const classes = (button.match(/className="([^"]*)"/)?.[1] ?? "").split(/\s+/);
+  assert.ok(classes.includes("text-muted-foreground"), "rest glyph stays grey");
+  assert.ok(!classes.includes("text-destructive"), "rest glyph is not red");
+  // Hover is the solid red fill that was reported as too dim. It fills from
+  // `destructive-strong`, not `destructive`: the latter is the error-text
+  // colour, and at 0.66 lightness it read as pale coral once it covered a
+  // whole 44×36 square.
+  assert.match(button, /hover:bg-destructive-strong/);
+  assert.match(button, /hover:text-destructive-foreground/);
+
+  // The glyph on that fill was `--destructive-foreground: oklch(0.72 0.19 22)`
+  // — #ff696d, a red a shade lighter than the #f84a54 fill, contrast 1.23.
+  // The ✕ was painted red-on-red, so the square read as one flat dim smudge
+  // instead of a red button with a symbol on it. This token has exactly one
+  // consumer — this button — so it is checked here.
+  const css = read("src/index.css");
+  const token = css.match(
+    /--destructive-foreground:\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/,
+  );
+  assert.ok(token, "--destructive-foreground must be an oklch triple");
+  const [, l, c, h] = token.map(Number);
+  assert.ok(l >= 0.9, `the hover glyph must be near-white, got lightness ${l}`);
+  assert.ok(c <= 0.04, `the hover glyph must not be red, got chroma ${c}`);
+  assert.ok(Math.abs(h - 22) <= 6, "it should still be a hair warm, not blue");
+
+  // The hover fill must be a red, not a washed-out coral: saturated, and deep
+  // enough that near-white sits on it clearly.
+  const fill = css.match(
+    /--destructive-strong:\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/,
+  );
+  assert.ok(fill, "--destructive-strong must be an oklch triple");
+  const fillL = Number(fill[1]);
+  const fillChroma = Number(fill[2]);
+  assert.ok(
+    fillChroma >= 0.22,
+    `the fill must stay saturated, got chroma ${fillChroma}`,
+  );
+  assert.ok(fillL <= 0.58, `the fill must be deep, got lightness ${fillL}`);
+  // And it must stay a button colour, not leak into error text.
+  assert.match(css, /--line-error:\s*var\(--destructive\)/);
 });
 
 test("backdrops are dim enough to read on, and none of them stands still", () => {

@@ -40,14 +40,21 @@ export interface LineLaunchAuth {
 }
 
 export interface LineDistribution {
-  /** Immutable HTTPS archive URL. Redirects are revalidated by Rust. */
+  /**
+   * HTTPS URL of the archive. Publishing a new build means putting a new ZIP
+   * here — the launcher measures what it downloads, so this is the only field
+   * a provider has to fill in.
+   */
   url: string;
-  /** Lowercase, 64-character SHA-256 of the complete ZIP. Required. */
-  sha256: string;
-  /** Exact compressed size; also used to reject oversized responses early. */
-  size_bytes: number;
-  /** Exact sum of regular-file sizes after extraction, excluding directories. */
-  unpacked_size_bytes: number;
+  /**
+   * Optional pin. When present the archive must hash to exactly this; when
+   * absent the digest computed during download becomes the build's identity.
+   */
+  sha256?: string;
+  /** Optional pin: exact compressed size, checked as the stream arrives. */
+  size_bytes?: number;
+  /** Optional pin: exact sum of file sizes after extraction. */
+  unpacked_size_bytes?: number;
 }
 
 /** Skin model. "classic" = 4px arms, "slim" = 3px arms. */

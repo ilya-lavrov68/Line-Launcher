@@ -44,12 +44,47 @@ pub struct LaunchAuth {
     pub session_exchange_url: Option<String>,
 }
 
+/// Where the server's game archive lives.
+///
+/// A provider publishes a new build by putting a new ZIP at the same address:
+/// one link, nothing else to fill in. The launcher reads what it needs while
+/// downloading — the SHA-256 it computes is the release's identity, and the
+/// sizes it measures are the ones it checks the archive against.
+///
+/// The three integrity fields stay accepted so a provider who *does* want to pin
+/// an exact archive can still say so. They are optional now, because requiring
+/// them asked the person editing the config to run a checksum tool and count
+/// bytes for a file they had just uploaded, which is exactly the "долго и
+/// муторно" this replaces. A pinned value is still enforced byte for byte —
+/// dropping it from the required set must not weaken a config that provides it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Distribution {
     pub url: String,
-    pub sha256: String,
-    pub size_bytes: u64,
-    pub unpacked_size_bytes: u64,
+    /// Optional. When present the archive must hash to exactly this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    /// Optional. When present the download must be exactly this long.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    /// Optional. When present extraction must produce exactly this many bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unpacked_size_bytes: Option<u64>,
+}
+
+impl Distribution {
+    /// The archive this record describes, once its pinned fields are known.
+    ///
+    /// Callers that need all four values (the installer) resolve them first:
+    /// either from `pack.json`, from the pinned config, or from the download
+    /// itself. Keeping that resolution in one place is what lets the config
+    /// carry a bare URL without every consumer growing a branch.
+    pub fn pinned(&self) -> (Option<&str>, Option<u64>, Option<u64>) {
+        (
+            self.sha256.as_deref(),
+            self.size_bytes,
+            self.unpacked_size_bytes,
+        )
+    }
 }
 
 /// Optional wardrobe endpoints. Both must be present together so a provider
@@ -350,23 +385,34 @@ impl LineConfig {
             }
             let dist = &server.distribution;
             validate_https(&dist.url)?;
-            if dist.sha256.len() != 64
-                || !dist
-                    .sha256
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            {
+            // A bare link is the normal case now: the archive's own contents
+            // become the reference as it downloads. Anything the provider *did*
+            // pin is held to the same rules as before, so an optional field
+            // cannot become a wrong one — a malformed digest or an absurd size
+            // is still a config error, not a hint to ignore.
+            if let Some(sha256) = &dist.sha256 {
+                if sha256.len() != 64
+                    || !sha256
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                {
+                    return Err(LineError::input(
+                        "distribution.sha256 должен содержать 64 шестнадцатеричных символа.",
+                    ));
+                }
+            }
+            if dist.size_bytes.is_some_and(|bytes| {
+                bytes == 0 || bytes > MAX_ARCHIVE_BYTES
+            }) {
                 return Err(LineError::input(
-                    "distribution.sha256 должен содержать 64 шестнадцатеричных символа.",
+                    "distribution.size_bytes должен быть больше нуля и не больше 4 ГиБ.",
                 ));
             }
-            if dist.size_bytes == 0
-                || dist.size_bytes > MAX_ARCHIVE_BYTES
-                || dist.unpacked_size_bytes == 0
-                || dist.unpacked_size_bytes > MAX_UNPACKED_BYTES
-            {
+            if dist.unpacked_size_bytes.is_some_and(|bytes| {
+                bytes == 0 || bytes > MAX_UNPACKED_BYTES
+            }) {
                 return Err(LineError::input(
-                    "Размер сборки отсутствует или превышает лимиты лаунчера.",
+                    "distribution.unpacked_size_bytes должен быть больше нуля и не больше 16 ГиБ.",
                 ));
             }
         }
@@ -457,8 +503,22 @@ mod tests {
             assert!(c.validate("0.1.0").is_err());
         }
         let mut c = config();
-        c.servers[0].distribution.sha256 = "ABC".into();
+        c.servers[0].distribution.sha256 = Some("ABC".into());
         assert!(c.validate("0.1.0").is_err());
+        // A bare link is a complete distribution now: publishing a build is
+        // "put a ZIP at a URL", and everything else is measured on download.
+        let mut bare = config();
+        bare.servers[0].distribution = Distribution {
+            url: "https://example.com/pack.zip".into(),
+            sha256: None,
+            size_bytes: None,
+            unpacked_size_bytes: None,
+        };
+        bare.validate("0.1.0").unwrap();
+        // Pinning one field is still an all-or-nothing promise for that field.
+        let mut wrong_size = config();
+        wrong_size.servers[0].distribution.size_bytes = Some(0);
+        assert!(wrong_size.validate("0.1.0").is_err());
         let mut c = config();
         let duplicate = c.servers[0].clone();
         c.servers.push(duplicate);

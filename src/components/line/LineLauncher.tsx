@@ -414,10 +414,13 @@ export default function LineLauncher() {
             serverId: selected.id,
             phase: "completed",
             percent: 100,
-            receivedBytes: selected.distribution.size_bytes,
-            totalBytes: selected.distribution.size_bytes,
-            extractedBytes: selected.distribution.unpacked_size_bytes,
-            unpackedBytes: selected.distribution.unpacked_size_bytes,
+            // A provider who did not pin sizes leaves these unknown; the
+            // finished state carries whatever the receipt measured, and `0`
+            // means "not stated" to the progress bar rather than a false total.
+            receivedBytes: selected.distribution.size_bytes ?? 0,
+            totalBytes: selected.distribution.size_bytes ?? 0,
+            extractedBytes: selected.distribution.unpacked_size_bytes ?? 0,
+            unpackedBytes: selected.distribution.unpacked_size_bytes ?? 0,
           },
       );
     } catch (cause) {
@@ -439,9 +442,9 @@ export default function LineLauncher() {
               phase: "failed",
               percent: 0,
               receivedBytes: 0,
-              totalBytes: selected.distribution.size_bytes,
+              totalBytes: selected.distribution.size_bytes ?? 0,
               extractedBytes: 0,
-              unpackedBytes: selected.distribution.unpacked_size_bytes,
+              unpackedBytes: selected.distribution.unpacked_size_bytes ?? 0,
             },
       );
     } finally {

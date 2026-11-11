@@ -69,13 +69,21 @@ function main() {
   // An installer must name its one provider (branding/provider.json). Reuses the
   // real validator instead of a second copy of the rule. Players never type an
   // address, so shipping an unconfigured template would be a dead end.
+  //
+  // Icons are NOT skipped here. `--skip-icons` assumed the packaging path had
+  // already run `npm run brand` without it, but `npm run tauri:build` is one
+  // command, not two: a provider who edits `assets/app-icon.svg` and then builds
+  // an installer got a rebuilt header mark (copied unconditionally) and a
+  // stale shortcut icon (behind a source-hash cache that nothing refreshed).
+  // That is precisely the "the logo changed but the app icon did not" report.
+  // The generator is idempotent and only shells out to `tauri icon` when the
+  // source actually changed, so doing it here costs nothing on repeat builds.
   const provider = spawnSync(
     process.execPath,
     [
       "--experimental-strip-types",
       path.join(root, "scripts/apply-brand.ts"),
       "--require-provider",
-      "--skip-icons",
     ],
     { stdio: "inherit", cwd: root },
   );

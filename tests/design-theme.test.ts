@@ -289,7 +289,10 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   // catalogue, because the greeting was transparent.
   assert.match(launcher, /<WelcomeScreen/);
   assert.match(launcher, /!introDone &&/);
-  assert.match(launcher, /\(gateSignIn \|\| !introDone\) && "invisible"/);
+  assert.match(
+    launcher,
+    /\(gateSignIn \|\| !introDone\) && "pointer-events-none opacity-0"/,
+  );
 
   // Reduced motion keeps the screen: it is content, not decoration.
   assert.match(welcome, /useReducedMotion/);
@@ -483,4 +486,120 @@ test("the greeting word is never split into per-letter boxes", () => {
   assert.match(welcome, /clipPath: "inset\(-40% 100% -40% -12%\)"/);
   assert.match(welcome, /clipPath: "inset\(-40% -12% -40% -12%\)"/);
   assert.doesNotMatch(welcome, /leading-\[0\.9\]/);
+});
+
+test("the account lives in the navigation list, not at the bottom of the rail", () => {
+  const nav = read("src/components/line/SideNav.tsx");
+  // One place for the account: the nav item that opens its page. The footer
+  // carried a second copy of the name and a logout button beside it, which made
+  // two ways to the same place and one destructive control always on screen.
+  assert.doesNotMatch(
+    nav,
+    /onLogout/,
+    "the rail must not own a logout control",
+  );
+  assert.doesNotMatch(nav, /LogOut/, "the rail must not draw a logout icon");
+  assert.match(nav, /id: "account"/);
+
+  // The shell must not pass them either, or the props come back with the block.
+  const shell = read("src/components/line/LineLauncher.tsx");
+  const navUse = shell.slice(
+    shell.indexOf("<SideNav"),
+    shell.indexOf("<SideNav") + 700,
+  );
+  assert.doesNotMatch(navUse, /onLogout/);
+  assert.doesNotMatch(navUse, /username=/);
+
+  // Logging out still has to be possible: it is the profile page's job.
+  assert.match(read("src/components/line/ProfileScreen.tsx"), /onLogout/);
+});
+
+test("the backdrop picker shows names, and only the live preview shows the art", () => {
+  const picker = read("src/components/line/BackdropPicker.tsx");
+  // Twelve 32x18 gradient thumbnails were twelve smears. The preview beside the
+  // list is an actual rendering at 208px, so it is the only picture needed.
+  assert.doesNotMatch(
+    picker,
+    /function Swatch/,
+    "the chip-size swatch must be gone",
+  );
+  assert.doesNotMatch(picker, /radial-gradient\(120% 120% at 12% 18%/);
+  // The live preview stays — this is what replaced them.
+  assert.match(picker, /data-backdrop-preview/);
+  assert.match(picker, /backdropField\(theme\)/);
+  // The options are still a full radiogroup, so removing the thumbnail did not
+  // remove the semantics.
+  assert.match(picker, /role="radiogroup"/);
+  assert.match(picker, /role="radio"/);
+});
+
+test("the 3D skin is centred, and its turn does not depend on the frame rate", () => {
+  const viewer = read("src/components/line/SkinViewer3D.tsx");
+  // The canvas was appended into an absolutely-positioned host with no layout:
+  // a 216px surface in a 288px field, hard against the left edge.
+  assert.match(viewer, /absolute inset-0 flex items-center justify-center/);
+  assert.match(viewer, /mx-auto|items-center justify-center/);
+  assert.match(viewer, /setSize\(width, height\)/);
+
+  // `autoRotate` advances a fixed angle per frame, so the model span 2.4x
+  // faster on a 144 Hz display than on a 60 Hz one.
+  assert.match(viewer, /viewer\.autoRotate = false/);
+  assert.match(viewer, /function startSpin/);
+  assert.match(viewer, /performance\.now\(\)/);
+  assert.match(viewer, /maxDeltaMs/);
+  // Reduced motion must still mean no rotation at all.
+  assert.match(viewer, /reduced \? null : startSpin/);
+});
+
+test("signing out does not flash a connection error before the gate", () => {
+  const launcher = read("src/components/line/LineLauncher.tsx");
+
+  // Measured defect: for five frames at full opacity, the panel behind the
+  // gate read "Нет соединения" with a retry button. Two independent causes,
+  // both fixed here.
+  //
+  // One: the account branch of the shell was wired to the same screens as a
+  // failed fetch, so a launcher with no session drew a connection error. It
+  // survives only for a template that has no provider to connect to — the one
+  // state the gate cannot cover.
+  // The account branch used to render the connecting screen unconditionally,
+  // so a signed-out launcher drew "Нет соединения" with a retry button. Only a
+  // template with no provider may render it now. Asserted against the source
+  // between two stable markers rather than by column, so Prettier's wrapping
+  // cannot break the test.
+  // The branch spans two lines in the source (Prettier wraps the condition), so
+  // the slice is anchored on its comment and on the next branch's start.
+  const branchStart = launcher.indexOf(
+    "// Not unreachable, and it used to be wrong",
+  );
+  const branch = launcher.slice(
+    branchStart,
+    launcher.indexOf("!snapshot &&", branchStart),
+  );
+  assert.match(
+    branch,
+    /mode === "unconfigured" \?/,
+    "the signed-out shell must not draw a connection error",
+  );
+  assert.doesNotMatch(
+    branch,
+    /loading=\{loading\}/,
+    "a signed-out shell must not render a live loading state",
+  );
+  assert.match(
+    branch,
+    /loading=\{false\}/,
+    "and it must not claim to be connecting while it waits for nothing",
+  );
+
+  // Two: `account` is what raises the gate, so a signed-out launcher keeps that
+  // name — the flash came from what the branch *drew*, not from the name.
+  assert.match(launcher, /setScreen\(current \? "servers" : "account"\)/);
+
+  // And the failure banner is not shown to a shell with no session: the player
+  // is already signed out, and the gate is covering it.
+  assert.match(
+    launcher,
+    /!\(section === "servers" && screen === "config"\) &&\n\s+session &&/,
+  );
 });

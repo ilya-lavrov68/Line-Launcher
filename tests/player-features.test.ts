@@ -862,3 +862,18 @@ test("backdrops are dim enough to read on, and none of them stands still", () =>
   }
   assert.ok(new Set(speeds).size >= 6, "speeds should differ between themes");
 });
+
+test("a missing Java runtime list does not blank the settings screen", () => {
+  // Found while auditing: `list_java_runtimes` returning null made
+  // `list.some(...)` throw, React unmounted the tree, and the settings page
+  // became a black window with no message. The command is typed as an array,
+  // which is exactly why the guard belongs at the call site — the UI must not
+  // depend on a backend version it does not control.
+  const settings = read("src/components/line/SettingsScreen.tsx");
+  assert.match(
+    settings,
+    /const list = \(await lineApi\.javaRuntimes\(\)\) \?\? \[\];/,
+    "the runtime list must be normalised before use",
+  );
+  assert.match(settings, /!list\.some\(/);
+});

@@ -139,6 +139,11 @@ export default function LineLauncher() {
       const current = await lineApi.session().catch(() => null);
       if (!mounted.current || generation !== requestGeneration.current) return;
       setSession(current);
+      // `account` is the state that raises the sign-in gate (`gateSignIn`), so
+      // a signed-out launcher has to be named that way — it is not a failure to
+      // connect. What used to happen is that the account branch drew the
+      // connecting screen for the frame before the gate mounted; that branch is
+      // now a dev-template-only state, so the name is all the gate needs.
       setScreen(current ? "servers" : "account");
       const builds = await Promise.all(
         next.config.servers.map(async (server) => {
@@ -755,13 +760,28 @@ export default function LineLauncher() {
                 Hidden, not unmounted, while the gate is up: the sign-in page is
                 the whole window, and a rail sliding under it read as a modal.
                 Keeping it mounted means the catalogue behind it is already
-                loaded when the player signs in. */}
+                loaded when the player signs in.
+
+                It fades rather than being cut. `invisible` took the whole shell
+                out of paint in a single frame, while the gate above it spent
+                300ms fading in — so for a third of a second the window showed
+                nothing but backdrop, and the brighter field left behind read as
+                a flash. It was worst on the left, where the rail and the account
+                card are the only large surfaces: they vanished first and left
+                the widest empty strip. Both sides now run the same 300ms on the
+                same curve, so the two layers cross and no bare frame is shown.
+
+                The fade is a plain CSS transition, not motion: it still runs
+                with reduced motion (where it is the only thing that hides the
+                shell), and `inert` drops input and focus on the first frame,
+                before the fade finishes. */}
             <div
               aria-hidden={gateSignIn || !introDone ? true : undefined}
               inert={gateSignIn || !introDone ? true : undefined}
               className={cn(
                 "relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5",
-                (gateSignIn || !introDone) && "invisible",
+                "transition-opacity duration-300 ease-[var(--ease-line)]",
+                (gateSignIn || !introDone) && "pointer-events-none opacity-0",
               )}
             >
               <TitleBar context={titleContext} />
@@ -770,8 +790,6 @@ export default function LineLauncher() {
                   section={section}
                   collapsed={settings?.settings.sidebarCollapsed ?? true}
                   providerName={snapshot?.config.provider.name}
-                  username={session?.username}
-                  onLogout={() => void logout()}
                   actionsDisabled={actionsBusy || loading}
                   onNavigate={navigate}
                   onToggleCollapsed={() => void toggleSidebar()}
@@ -787,8 +805,16 @@ export default function LineLauncher() {
                       scroll box's real height; a plain block wrapper collapses
                       to its content and the dock floats upwards. */}
                   <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+                    {/* Signing out closes every server at once, and the
+                        request that carried it can fail on the way back. That
+                        failure is not something the player can act on: they are
+                        already out, and the gate is coming up over this panel.
+                        Reporting it put a red line on screen for the frame
+                        before the gate mounted — the same flash as the retry
+                        card, in a smaller box. */}
                     {error &&
-                      !(section === "servers" && screen === "config") && (
+                      !(section === "servers" && screen === "config") &&
+                      session && (
                         <p
                           role="alert"
                           className="text-destructive bg-destructive/10 mb-5 rounded-[var(--radius-control)] p-3 text-xs"
@@ -875,23 +901,33 @@ export default function LineLauncher() {
                             )}
                           </div>
                         )}
-                        {section === "servers" && screen === "account" && (
-                          // Unreachable in a configured build: signing in is a
-                          // page of its own now and covers this shell entirely
-                          // (see `gateSignIn`). It stays for the one state that
-                          // cannot be a page — an unconfigured dev template,
-                          // which has no provider to sign in to yet.
-                          <div className="flex min-h-full items-center justify-center py-4">
-                            <ConnectingScreen
-                              loading={loading}
-                              error={error}
-                              unconfigured={mode === "unconfigured"}
-                              onRetry={() =>
-                                void loadConfig(bakedProvider.configUrl, true)
-                              }
-                            />
-                          </div>
-                        )}
+                        {section === "servers" &&
+                          screen === "account" &&
+                          // Not unreachable, and it used to be wrong. Signing in
+                          // is a page of its own (`gateSignIn`), but this branch
+                          // still paints for the frame in which a session ends:
+                          // the gate is an `AnimatePresence` child and mounts a
+                          // render later, so the shell is drawn once with no
+                          // session first. It showed "Нет соединения" with a
+                          // retry button — a full-opacity lie, measured at five
+                          // frames — because a signed-out launcher was wired to
+                          // the same state as a failed fetch.
+                          //
+                          // There is nothing to report here and nothing to
+                          // retry: the gate covers the window. It stays only for
+                          // a dev template with no provider at all, where it is
+                          // the honest state and the gate never comes.
+                          (mode === "unconfigured" ? (
+                            <div className="flex min-h-full items-center justify-center py-4">
+                              <ConnectingScreen
+                                loading={false}
+                                unconfigured
+                                onRetry={() =>
+                                  void loadConfig(bakedProvider.configUrl, true)
+                                }
+                              />
+                            </div>
+                          ) : null)}
                         {section === "servers" &&
                           screen === "servers" &&
                           !snapshot &&

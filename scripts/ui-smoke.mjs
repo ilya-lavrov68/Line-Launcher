@@ -1046,10 +1046,11 @@ try {
     .filter({ hasText: "отправлен автоматически" })
     .waitFor();
   const beforeLogout = await page.evaluate(() => window.__uploads || 0);
-  await page.getByRole("button", { name: "Серверы", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Выйти из аккаунта Player_1" })
-    .click();
+  // The rail no longer carries the account or a logout button: the account has
+  // its own page, and signing out lives there with the rest of the account
+  // controls. Same action, one place.
+  await page.getByRole("button", { name: "Аккаунт", exact: true }).click();
+  await page.getByRole("button", { name: "Выйти", exact: true }).click();
   await page
     .getByText("Один вход — все серверы проекта.", { exact: false })
     .waitFor();

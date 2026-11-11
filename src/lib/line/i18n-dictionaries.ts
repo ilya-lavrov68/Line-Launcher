@@ -164,6 +164,7 @@ export const ru = {
   "wardrobe.nameLabel": "Название",
   "wardrobe.previewLabel": "Предпросмотр",
   "wardrobe.modelLabel": "Модель",
+  "wardrobe.modelDetected": "Определено по файлу. Можно изменить вручную.",
   "wardrobe.standardSkin": "Стандартный скин",
   "wardrobe.isActive": "активен",
   "wardrobe.backToDefault": "вернуть обычный вид",
@@ -504,6 +505,8 @@ const en: Dictionary = {
   "wardrobe.nameLabel": "Name",
   "wardrobe.previewLabel": "Preview",
   "wardrobe.modelLabel": "Model",
+  "wardrobe.modelDetected":
+    "Detected from the file. You can change it by hand.",
   "wardrobe.standardSkin": "Default skin",
   "wardrobe.isActive": "active",
   "wardrobe.backToDefault": "back to the normal look",
@@ -842,6 +845,8 @@ const de: Dictionary = {
   "wardrobe.nameLabel": "Name",
   "wardrobe.previewLabel": "Vorschau",
   "wardrobe.modelLabel": "Modell",
+  "wardrobe.modelDetected":
+    "Aus der Datei erkannt. Kann von Hand geändert werden.",
   "wardrobe.standardSkin": "Standard-Skin",
   "wardrobe.isActive": "aktiv",
   "wardrobe.backToDefault": "zurück zum normalen Aussehen",
@@ -1181,6 +1186,7 @@ const fr: Dictionary = {
   "wardrobe.nameLabel": "Nom",
   "wardrobe.previewLabel": "Aperçu",
   "wardrobe.modelLabel": "Modèle",
+  "wardrobe.modelDetected": "Détecté d'après le fichier. Modifiable à la main.",
   "wardrobe.standardSkin": "Skin par défaut",
   "wardrobe.isActive": "actif",
   "wardrobe.backToDefault": "revenir à l'apparence normale",

@@ -14,6 +14,38 @@ export interface SkinViewer3DProps {
 }
 
 /**
+ * A slow, frame-rate independent turn.
+ *
+ * `OrbitControls` is driven directly: the library's own auto-rotate adds a
+ * constant angle per rendered frame, which makes the speed depend on the
+ * display. This advances by elapsed milliseconds with a cap, so a frame that
+ * arrives late does not jump the model.
+ *
+ * Returns the cancel function. The loop stops as soon as the viewer is disposed.
+ */
+function startSpin(player: { rotation: { y: number } }): () => void {
+  // One full turn in about 45 seconds — slow enough to read as a product shot,
+  // fast enough that the back of the skin is reachable without waiting.
+  const radiansPerMs = (Math.PI * 2) / 45_000;
+  // A tab restored after being backgrounded hands back one enormous delta;
+  // clamp it so the model does not teleport half a revolution.
+  const maxDeltaMs = 64;
+  let last = performance.now();
+  let frame = 0;
+  const tick = (now: number) => {
+    const delta = Math.min(maxDeltaMs, Math.max(0, now - last));
+    last = now;
+    // Turning the model rather than the camera: the orbit controls stay where
+    // the player put them, so a drag still means what it says, and the rotation
+    // is one continuous angle instead of a per-frame step.
+    player.rotation.y += delta * radiansPerMs;
+    frame = window.requestAnimationFrame(tick);
+  };
+  frame = window.requestAnimationFrame(tick);
+  return () => window.cancelAnimationFrame(frame);
+}
+
+/**
  * The player's active skin, in 3D.
  *
  * `skinview3d` is the library the Minecraft community uses for exactly this, and
@@ -93,7 +125,13 @@ export default function SkinViewer3D({
         }
 
         const canvas = document.createElement("canvas");
-        canvas.className = "h-full w-full";
+        // The canvas is sized in pixels by the library and the host is as wide
+        // as the profile column, so it has to be centred explicitly. As
+        // `h-full w-full` it stretched to the host but the model inside it was
+        // not centred: the whole skin sat left of centre, worst on a wide
+        // window. `block mx-auto` centres the drawing surface itself, and the
+        // host centres that in turn.
+        canvas.className = "block h-full w-auto max-w-full";
         canvas.setAttribute("aria-hidden", "true");
         host.replaceChildren(canvas);
 
@@ -114,12 +152,21 @@ export default function SkinViewer3D({
         // silhouette. `zoom` is the only knob worth touching — 0.9 frames the
         // body without clipping the feet.
         viewer.zoom = 0.9;
-        viewer.autoRotate = !reduced;
-        // A slow turn: a skin has a back, and it is worth seeing. The library
-        // rotates per frame, so this stays a shot, not a fan.
-        viewer.autoRotateSpeed = 0.6;
+        // Match the drawing buffer to the CSS box the canvas occupies, so the
+        // model is not rendered for a narrower surface and then stretched by
+        // CSS into one that is wider.
+        viewer.setSize(width, height);
+        // Turned here rather than with `autoRotate`, which advances by a fixed
+        // angle *per frame*: the same skin span at 144 Hz that looks like a
+        // product shot at 60 Hz, so on a high-refresh monitor the model spins
+        // 2.4x faster and reads as jerky. Driving the orbit by elapsed time
+        // makes it the same speed everywhere — and smooth, because the angle
+        // is continuous rather than quantised to whole frames.
+        viewer.autoRotate = false;
+        const spin = reduced ? null : startSpin(viewer.playerWrapper);
 
         dispose = () => {
+          spin?.();
           viewer.dispose();
           host.replaceChildren();
         };
@@ -159,7 +206,12 @@ export default function SkinViewer3D({
           element on `status` meant the ref was null on that commit, the effect
           returned early, and nothing ever re-ran it — the viewer sat on
           the placeholder forever. */}
-      {src && <div ref={hostRef} className="absolute inset-0" />}
+      {src && (
+        <div
+          ref={hostRef}
+          className="absolute inset-0 flex items-center justify-center"
+        />
+      )}
       {status === "loading" && (
         <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-xs">
           {t("skin.preparing3d")}

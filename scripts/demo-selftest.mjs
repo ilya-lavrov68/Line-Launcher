@@ -10,7 +10,7 @@
 // the launcher syncs automatically, one-shot tickets, and publishing a second
 // release while the provider keeps running.
 import { spawn, spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import https from "node:https";
 import path from "node:path";
@@ -68,6 +68,19 @@ function skinPng(tint = 0x40) {
     chunk("IDAT", deflateSync(raw)),
     chunk("IEND", Buffer.alloc(0)),
   ]);
+}
+
+/// Mirrors the launcher's `player_uuid` rule: sha256 of the prefixed
+/// nickname, first 16 bytes, with the RFC 4122 version/variant bits set.
+function deterministicPlayerUuid(nickname) {
+  const digest = createHash("sha256")
+    .update(`line-launcher:player:${nickname}`)
+    .digest();
+  const bytes = Buffer.from(digest.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function request(url, { method = "GET", body, token, ca, headers = {} } = {}) {
@@ -373,6 +386,99 @@ try {
     body: { ticket, ...bound },
   });
   check(exchanged.status === 200, "the game's exchange succeeds");
+
+  // ------------------------------------------------- model A session contract
+  // The demo provider must speak the same shape as docs/SESSION-MODEL-A.md, or a
+  // mod written against that document has nothing to integrate with.
+  const issued = json(exchanged);
+  check(
+    typeof issued.session_id === "string" && issued.session_id.length >= 32,
+    "the exchange mints a session_id",
+  );
+  check(
+    typeof issued.session_secret === "string" &&
+      issued.session_secret.length === 43,
+    "the exchange mints a 32-byte session_secret (43 base64url chars)",
+  );
+  // The uuid must match the launcher's `player_uuid` exactly: the
+  // client already passes that value to the game as --uuid, so a provider that
+  // mints a different one gives the player two identities.
+  const expectedUuid = deterministicPlayerUuid(issued.username);
+  check(
+    issued.uuid === expectedUuid && issued.username === username,
+    "the session carries the deterministic account uuid",
+  );
+  check(
+    issued.expires_in >= 30 && issued.expires_in <= 600,
+    "the session TTL is in the documented 30..600 s range",
+  );
+  check(
+    !("ticket" in issued) && !("access_token" in issued),
+    "the exchange response leaks neither the ticket nor the provider token",
+  );
+
+  // The game server proves possession with an HMAC over its own nonce; the
+  // secret itself never travels.
+  const nonce = randomUUID().replace(/-/g, "");
+  const proof = createHmac(
+    "sha256",
+    Buffer.from(issued.session_secret, "base64url"),
+  )
+    .update(nonce, "utf8")
+    .digest("base64url");
+  const verifyBody = {
+    session_id: issued.session_id,
+    username: issued.username,
+    server_id: "demo",
+    nonce,
+    proof,
+  };
+  const verified = await request(`${base}/v1/session/verify`, {
+    method: "POST",
+    ca,
+    body: verifyBody,
+    headers: { Authorization: "Bearer demo-verify-key" },
+  });
+  check(verified.status === 200, "a valid session verifies");
+  const verifiedBody = json(verified);
+  check(
+    verifiedBody.valid === true && verifiedBody.uuid === issued.uuid,
+    "verification returns the same account uuid",
+  );
+
+  const badProof = await request(`${base}/v1/session/verify`, {
+    method: "POST",
+    ca,
+    body: { ...verifyBody, proof: "A".repeat(43) },
+    headers: { Authorization: "Bearer demo-verify-key" },
+  });
+  check(badProof.status === 403, "a wrong proof is rejected with 403");
+
+  const noKey = await request(`${base}/v1/session/verify`, {
+    method: "POST",
+    ca,
+    body: verifyBody,
+  });
+  check(noKey.status === 403, "verification without an api key is rejected");
+
+  const wrongServer = await request(`${base}/v1/session/verify`, {
+    method: "POST",
+    ca,
+    body: { ...verifyBody, server_id: "creative" },
+    headers: { Authorization: "Bearer demo-verify-key" },
+  });
+  check(
+    wrongServer.status === 403,
+    "a session issued for another server is rejected",
+  );
+
+  const unknown = await request(`${base}/v1/session/verify`, {
+    method: "POST",
+    ca,
+    body: { ...verifyBody, session_id: randomUUID() },
+    headers: { Authorization: "Bearer demo-verify-key" },
+  });
+  check(unknown.status === 401, "an unknown session is rejected with 401");
   const replay = await request(`${base}/v1/launcher/exchange`, {
     method: "POST",
     ca,

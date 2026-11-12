@@ -7,7 +7,13 @@
 //
 // Env: LINE_PROVIDER_PORT (8443), LINE_PROVIDER_HOST (127.0.0.1),
 //      LINE_DEMO_USER (Player_1), LINE_DEMO_PASSWORD (demo-password).
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import https from "node:https";
 import path from "node:path";
@@ -80,6 +86,29 @@ function artPath(name) {
 const accounts = new Map([[demoUser, demoPassword]]);
 const sessions = new Map(); // token -> {username, expiresAt}
 const tickets = new Map(); // ticket -> {bindings, expiresAt, used}
+// Model A: an exchange mints a provider session, and the game server verifies it
+// out-of-band. See docs/SESSION-MODEL-A.md.
+const issuedSessions = new Map(); // session_id -> {secret, uuid, username, server_id, sha256, expiresAt, boundAt}
+const SESSION_TTL_SECONDS = 120;
+// The game server's credential for /v1/session/verify. Production issues one per
+// game server; the demo keeps a single constant so a plugin can be tested.
+const SESSION_VERIFY_KEY =
+  process.env.LINE_DEMO_VERIFY_KEY ?? "demo-verify-key";
+
+/// The same deterministic account UUID the launcher passes to the client as
+/// --uuid (src-tauri/src/line/launch.rs, `player_uuid`). Kept in sync so the
+/// UUID a provider mints is the one the game already knows. It is an identity,
+/// never a credential: anyone can compute it from the nickname.
+function playerUuid(username) {
+  const digest = createHash("sha256")
+    .update(`line-launcher:player:${username}`)
+    .digest();
+  const bytes = Buffer.from(digest.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 const log = (...args) => console.log(new Date().toISOString(), ...args);
 
@@ -371,17 +400,92 @@ const server = https.createServer(
           }
         }
         record.used = true;
+        const sessionId = randomUUID();
+        const sessionSecret = randomBytes(32).toString("base64url");
+        issuedSessions.set(sessionId, {
+          secret: sessionSecret,
+          uuid: playerUuid(record.username),
+          username: record.username,
+          server_id: record.server_id,
+          sha256: record.sha256,
+          expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000,
+          boundAt: null,
+        });
         log("exchange accepted", {
           server_id: record.server_id,
           username: record.username,
         });
-        // A real provider returns a Minecraft session/profile here. The shape is
-        // provider-defined; the demo returns a minimal, non-secret payload.
+        // Model A (docs/SESSION-MODEL-A.md): the exchange mints a short-lived
+        // provider session. The secret never travels to the game server — the
+        // client proves possession with HMAC over a nonce instead.
         return json(res, 200, {
-          ok: true,
+          session_id: sessionId,
+          session_secret: sessionSecret,
           username: record.username,
+          uuid: playerUuid(record.username),
           server_id: record.server_id,
-          session_id: randomUUID(),
+          expires_in: SESSION_TTL_SECONDS,
+        });
+      }
+      if (req.method === "POST" && url.pathname === "/v1/session/verify") {
+        // Server-to-server: called by the game server's auth plugin, never by a
+        // player. The demo uses one shared key; production should issue one per
+        // game server so a leak does not compromise the whole network.
+        const presented = req.headers.authorization ?? "";
+        const expected = `Bearer ${SESSION_VERIFY_KEY}`;
+        if (
+          presented.length !== expected.length ||
+          !timingSafeEqual(Buffer.from(presented), Buffer.from(expected))
+        ) {
+          log("verify rejected: bad api key");
+          return json(res, 403, { error: "bad_api_key" });
+        }
+        const body = await readBody(req);
+        const found = issuedSessions.get(body.session_id);
+        if (!found) {
+          log("verify rejected: unknown session");
+          return json(res, 401, { error: "unknown_session" });
+        }
+        if (Date.now() >= found.expiresAt) {
+          log("verify rejected: expired session");
+          return json(res, 401, { error: "session_expired" });
+        }
+        if (found.server_id !== body.server_id) {
+          log("verify rejected: server mismatch");
+          return json(res, 403, { error: "server_mismatch" });
+        }
+        if (found.username !== body.username) {
+          log("verify rejected: user mismatch");
+          return json(res, 403, { error: "user_mismatch" });
+        }
+        const proof = createHmac(
+          "sha256",
+          Buffer.from(found.secret, "base64url"),
+        )
+          .update(String(body.nonce ?? ""), "utf8")
+          .digest("base64url");
+        const given = typeof body.proof === "string" ? body.proof : "";
+        if (
+          given.length !== proof.length ||
+          !timingSafeEqual(Buffer.from(given), Buffer.from(proof))
+        ) {
+          log("verify rejected: bad proof");
+          return json(res, 403, { error: "bad_proof" });
+        }
+        if (found.boundAt === null) found.boundAt = Date.now();
+        log("verify accepted", {
+          server_id: found.server_id,
+          username: found.username,
+        });
+        return json(res, 200, {
+          valid: true,
+          username: found.username,
+          uuid: found.uuid,
+          server_id: found.server_id,
+          expires_in: Math.max(
+            0,
+            Math.floor((found.expiresAt - Date.now()) / 1000),
+          ),
         });
       }
       return json(res, 404, { error: "not_found" });

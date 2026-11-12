@@ -10,13 +10,14 @@ end to end without a production backend.
 
 ## What it implements
 
-| Endpoint                              | Contract                                                                                 |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `GET /config.json`                    | Schema 1 config with ETag/304, pointing at the generated pack                            |
-| `GET /pack.zip`                       | The immutable archive whose SHA-256 is published in the config                           |
-| `POST /v1/login`, `POST /v1/register` | `{username, password}` → `{access_token, expires_in, username}`; one account per project |
-| `POST /v1/launcher/ticket`            | Bearer session → one-shot `{ticket, expires_in}` bound to server/release/channel/user    |
-| `POST /v1/launcher/exchange`          | Consumes the ticket once; rejects replay (409), expiry (401), binding mismatch (403)     |
+| Endpoint                              | Contract                                                                                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /config.json`                    | Schema 1 config with ETag/304, pointing at the generated pack                                                                                                                                                                              |
+| `GET /pack.zip`                       | The immutable archive whose SHA-256 is published in the config                                                                                                                                                                             |
+| `POST /v1/login`, `POST /v1/register` | `{username, password}` → `{access_token, expires_in, username}`; one account per project                                                                                                                                                   |
+| `POST /v1/launcher/ticket`            | Bearer session → one-shot `{ticket, expires_in}` bound to server/release/channel/user                                                                                                                                                      |
+| `POST /v1/launcher/exchange`          | Consumes the ticket once; rejects replay (409), expiry (401), binding mismatch (403). Mints a model-A session: `{session_id, session_secret, username, uuid, server_id, expires_in}` ([SESSION-MODEL-A.md](../../docs/SESSION-MODEL-A.md)) |
+| `POST /v1/session/verify`             | Server-to-server, `Authorization: Bearer demo-verify-key`. Checks an HMAC `proof` over the caller's `nonce`; rejects bad key (403), unknown/expired session (401), server or user mismatch (403), bad proof (403)                          |
 
 Every rejected exchange is logged with a reason, which makes it usable as an
 oracle during manual desktop testing.

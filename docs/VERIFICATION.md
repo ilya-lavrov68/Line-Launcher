@@ -96,8 +96,9 @@ Checked in the implementation sandbox:
   TLS trust, and the player-feature suite — skin geometry/PNG validation, per-server
   artwork, account-wide wardrobe contract, custom-frame permissions, window-geometry
   survival through the branding overlay, and token-only styling of the new chrome),
-  the local-first wardrobe contract (reachable signed out, only the active skin
-  syncs, history is never silently pruned), the single-account contract (login and
+  the local-first wardrobe contract (local history with no provider call, only
+  the active skin syncs, history is never silently pruned), the single-account
+  contract (login and
   logout carry no server id, one `Option<ProviderSession>`, opening a server keeps
   the session, no per-server auth form) and the automatic-sync contract (no manual
   send button or upload/reset commands, every local change re-syncs, the uploaded
@@ -227,8 +228,8 @@ Checked in the implementation sandbox:
   account: the sign-in screen appears before any server, `line_login` carries only
   username/password, `line_session` is consulted, opening a server does not ask
   for credentials again, and signing out closes the whole list. Extended for the
-  automatic wardrobe: the section is reachable before login, a texture is saved to
-  local history with no provider call at all, history survives login and is then
+  automatic wardrobe: a texture is saved to local history with no provider call at
+  all, history survives login and is then
   uploaded by itself, re-opening the screen uploads nothing, re-adding identical
   bytes performs no second upload and keeps the correct remote status, choosing
   another texture and the standard look both sync without a button, deleting
@@ -241,9 +242,8 @@ Checked in the implementation sandbox:
   submit button holds its position within 1px across idle → error → loading
   (it used to jump 24px), the scrollbar thumb computes to a pill
   (`border-radius`, `background-clip: content-box`) and follows `--foreground`
-  when the token changes, and the wardrobe nav entry is no longer disabled while
-  signed out — the reason a skin is not syncing is a status line, not a disabled
-  button. Playwright's default
+  when the token changes, and the wardrobe nav entry stays enabled — the reason a
+  skin is not syncing is a status line, not a disabled button. Playwright's default
   `--hide-scrollbars` is disabled for this suite, otherwise the scrollbar under
   test would be invisible. The three new static assertions were mutation-checked:
   restoring the unconditional `scrollbar-width` or dropping

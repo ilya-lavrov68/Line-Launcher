@@ -160,8 +160,16 @@ export default function LineLauncher() {
         );
       }
     } catch (cause) {
-      if (mounted.current && generation === requestGeneration.current)
+      if (mounted.current && generation === requestGeneration.current) {
         setError(errorMessage(cause));
+        // A failed fetch used to leave whatever screen the caller had set
+        // before asking — on a cached startup that was "servers", so a launcher
+        // with no config and no session still drew an interactive catalogue.
+        // The honest state is the one that offers a retry: the cached snapshot
+        // (if there is one) stays visible with its stale badge, but nothing
+        // beyond it is reachable until a fetch succeeds.
+        setScreen("config");
+      }
     } finally {
       if (mounted.current && generation === requestGeneration.current)
         setLoading(false);
@@ -194,7 +202,7 @@ export default function LineLauncher() {
     let cancelled = false;
     lineApi
       .cachedConfig()
-      .then((cached) => {
+      .then(async (cached) => {
         if (cancelled) return;
         if (cached) {
           // A universal build's cache must not carry over into a locked branded
@@ -204,9 +212,23 @@ export default function LineLauncher() {
             return;
           }
           setSnapshot(cached);
-          setScreen("servers");
+          // A cached config says what the provider is, not who the player is.
+          // Naming "servers" here used to open the catalogue before the session
+          // had been asked about at all: the session lives in Rust memory and is
+          // always empty on a fresh process, so every launch after the first
+          // showed the shell, unlocked, until `loadConfig` got around to
+          // answering. When that fetch failed, nothing ever corrected the screen
+          // and the launcher stayed signed out but interactive, with the only way
+          // out being "Переподключиться" — which is exactly the wrong place to
+          // put a player's escape hatch. Ask first, name the screen second.
+          const current = await lineApi.session().catch(() => null);
+          if (cancelled) return;
+          setSession(current);
+          setScreen(current ? "servers" : "account");
           // Stale-while-revalidate: cached cards are visible immediately; a fresh
           // successful fetch replaces them and clears the offline/stale badge.
+          // Its own failure no longer strands anyone: the screen above is already
+          // the honest one, and a weak fetch only leaves the stale badge up.
           void loadConfig(cached.sourceUrl);
         } else {
           void connectBakedDefault();
@@ -627,7 +649,7 @@ export default function LineLauncher() {
   }
 
   /**
-   * Local-first: history works signed out. The automatic upload needs the
+   * Local-first: the history itself is local. The automatic upload needs the
    * project account and the project's wardrobe endpoints — not a selected server.
    */
   const canSyncSkin = Boolean(session && snapshot?.config.provider.wardrobe);

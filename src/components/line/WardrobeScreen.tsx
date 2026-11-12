@@ -47,8 +47,9 @@ type SyncPhase = "idle" | "sending" | "done" | "failed";
 /**
  * Local-first wardrobe with automatic upload.
  *
- * History lives on this machine and works signed out and offline. The active
- * skin belongs to the project account and is pushed to the provider by itself —
+ * History lives on this machine, so it works offline and needs no provider call
+ * of its own. The section is reached after signing in — the sign-in page covers
+ * the whole window — and the active skin is pushed to the provider by itself:
  * there is no send button. `active` vs `synced` in the index makes that
  * idempotent, so mounting this screen or signing in again does not re-upload.
  */

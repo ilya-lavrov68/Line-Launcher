@@ -139,11 +139,9 @@ export default function LineLauncher() {
       const current = await lineApi.session().catch(() => null);
       if (!mounted.current || generation !== requestGeneration.current) return;
       setSession(current);
-      // `account` is the state that raises the sign-in gate (`gateSignIn`), so
-      // a signed-out launcher has to be named that way — it is not a failure to
-      // connect. What used to happen is that the account branch drew the
-      // connecting screen for the frame before the gate mounted; that branch is
-      // now a dev-template-only state, so the name is all the gate needs.
+      // The screen is only what the shell is pointed at once the gate lifts;
+      // being signed out is what raises the gate, so this settles the landing
+      // page rather than deciding whether the player gets in.
       setScreen(current ? "servers" : "account");
       const builds = await Promise.all(
         next.config.servers.map(async (server) => {
@@ -724,11 +722,25 @@ export default function LineLauncher() {
    *
    * It covers the whole window — no rail, no title bar of ours, no catalogue
    * behind it — and it is shown until the provider has accepted the account.
-   * The dev-only address field keeps the shell, because it runs before there is
-   * a provider to sign in to: `screen` is still `"config"` at that point, so the
-   * gate simply is not reached yet.
+   *
+   * What raises it is the absence of a session, not the name of a screen. Naming
+   * a screen was the whole of the previous rule, and it left one door open: a
+   * failed config fetch sets `screen` to "config" — correctly, that screen can
+   * retry — but the shell underneath was only hidden for "account". So a player
+   * whose provider was unreachable got the rail, the wardrobe, the account entry
+   * and a "No connection" panel with no sign-in anywhere, and the account entry
+   * answered "You are not signed in." with nothing to do about it. That is the
+   * same dead end the cached-startup bug produced, through a different door.
+   *
+   * The one state that legitimately has no session *and* no sign-in page is a
+   * build with no provider at all: there is nothing to authenticate against, so
+   * the gate would be a password box that cannot work. `mode === "unconfigured"`
+   * is that state, and it is reachable only on a release with an empty
+   * branding/provider.json — never with a baked address.
    */
-  const gateSignIn = introDone && !session && screen === "account";
+  const signedOut = introDone && !session && mode !== "unconfigured";
+  /** The shell is not the player's until they are in. */
+  const shellLocked = signedOut || !introDone;
 
   return (
     <LazyMotion features={domAnimation} strict>
@@ -748,7 +760,7 @@ export default function LineLauncher() {
                 so it covers the rail and the panels rather than sitting beside
                 them in the layout. */}
             <AnimatePresence mode="wait" initial={false}>
-              {gateSignIn && snapshot ? (
+              {signedOut ? (
                 <m.div
                   key="signin"
                   initial={{ opacity: 0 }}
@@ -758,10 +770,12 @@ export default function LineLauncher() {
                   className="fixed inset-0 z-40"
                 >
                   <SignInScreen
-                    providerName={snapshot.config.provider.name}
-                    serverCount={snapshot.config.servers.length}
+                    providerName={
+                      snapshot?.config.provider.name ?? t("common.project")
+                    }
+                    serverCount={snapshot?.config.servers.length ?? 0}
                     registrationAvailable={Boolean(
-                      snapshot.config.provider.auth.register_url,
+                      snapshot?.config.provider.auth.register_url,
                     )}
                     loading={authLoading}
                     error={authError}
@@ -801,12 +815,12 @@ export default function LineLauncher() {
                 shell), and `inert` drops input and focus on the first frame,
                 before the fade finishes. */}
             <div
-              aria-hidden={gateSignIn || !introDone ? true : undefined}
-              inert={gateSignIn || !introDone ? true : undefined}
+              aria-hidden={shellLocked ? true : undefined}
+              inert={shellLocked ? true : undefined}
               className={cn(
                 "relative z-10 flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden p-1.5",
                 "transition-opacity duration-300 ease-[var(--ease-line)]",
-                (gateSignIn || !introDone) && "pointer-events-none opacity-0",
+                shellLocked && "pointer-events-none opacity-0",
               )}
             >
               <TitleBar context={titleContext} />
@@ -929,7 +943,7 @@ export default function LineLauncher() {
                         {section === "servers" &&
                           screen === "account" &&
                           // Not unreachable, and it used to be wrong. Signing in
-                          // is a page of its own (`gateSignIn`), but this branch
+                          // is a page of its own (see `signedOut`), but this branch
                           // still paints for the frame in which a session ends:
                           // the gate is an `AnimatePresence` child and mounts a
                           // render later, so the shell is drawn once with no

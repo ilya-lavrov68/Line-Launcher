@@ -66,7 +66,8 @@ export default function SideNav({
   const t = useT();
   const items: NavItem[] = [
     { id: "servers", label: t("nav.servers"), icon: Server },
-    // Never gated: the local history works signed out and offline.
+    // Not gated by feature flags: the section is a normal destination once the
+    // player is signed in (the sign-in page covers the whole window until then).
     { id: "wardrobe", label: t("nav.wardrobe"), icon: Shirt },
     // The account is a page now, not only a name in the footer: it is where the
     // player sees what they look like in game, and the only place the session

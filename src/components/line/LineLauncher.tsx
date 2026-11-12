@@ -649,7 +649,7 @@ export default function LineLauncher() {
   }
 
   /**
-   * Local-first: history works signed out. The automatic upload needs the
+   * Local-first: the history itself is local. The automatic upload needs the
    * project account and the project's wardrobe endpoints — not a selected server.
    */
   const canSyncSkin = Boolean(session && snapshot?.config.provider.wardrobe);

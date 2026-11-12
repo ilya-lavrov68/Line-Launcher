@@ -365,9 +365,45 @@ test("the scrollbar pill is token-driven and not disabled by the standard props"
   );
 });
 
-test("the wardrobe is reachable without a session, provider API or network", () => {
+/**
+ * The sign-in page covers the whole window, so nothing inside the shell is
+ * reachable until the player has an account. The wardrobe used to be documented
+ * as working "without signing in", which was true only while a startup bug left
+ * the shell unlocked with no session — the same bug that stranded players with
+ * no way to sign out. The documentation now says what the code does.
+ */
+test("docs no longer promise a signed-out route into the wardrobe", () => {
+  const places = [
+    "README.md",
+    "docs/START.md",
+    "docs/DEMO.md",
+    "docs/RUNBOOK.md",
+    "docs/ARCHITECTURE.md",
+  ];
+  // Sentence-level, not a character window: the claim is made in prose that
+  // wraps across lines, and a fixed-width regex misses it as soon as the
+  // wording moves. Any sentence that mentions the wardrobe or skins *and*
+  // promises "без входа" is the promise this test exists to keep out.
+  for (const rel of places) {
+    const text = read(rel).replace(/\s+/g, " ");
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    for (const sentence of sentences) {
+      if (!/без входа/i.test(sentence)) continue;
+      assert.doesNotMatch(
+        sentence,
+        /гардероб|скин/i,
+        `${rel} still promises a wardrobe or skins without signing in: ${sentence.trim()}`,
+      );
+    }
+  }
+});
+
+test("the wardrobe is local-first and needs no server or provider API", () => {
   const nav = read("src/components/line/SideNav.tsx");
-  // The nav entry must not be gated at all: local history works signed out.
+  // The entry is not gated by a feature flag: whether the section can be reached
+  // at all is decided by the sign-in page, which covers the whole window until
+  // the player has an account. What must not happen is a second, per-feature
+  // gate on the nav item.
   assert.doesNotMatch(nav, /disabled:\s*!wardrobeAvailable/);
   assert.doesNotMatch(nav, /wardrobeAvailable/);
 
@@ -377,7 +413,7 @@ test("the wardrobe is reachable without a session, provider API or network", () 
   assert.doesNotMatch(
     shell,
     /section === "wardrobe" && selected && session &&/,
-    "the screen must render with no server and no session",
+    "the screen must render with no selected server, and without its own session guard",
   );
   assert.match(shell, /canSync=\{canSyncSkin\}/);
 

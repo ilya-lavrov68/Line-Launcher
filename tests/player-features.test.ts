@@ -555,6 +555,78 @@ test("one account per project unlocks every server", () => {
   assert.match(shell, /onLogout=\{/);
 });
 
+/**
+ * The cached-config branch of startup must not name a screen before it knows
+ * whether there is a session.
+ *
+ * The session lives in Rust memory and is always empty on a fresh process, so
+ * the cache can only tell us what the provider is — never who the player is.
+ * Naming "servers" there opened an unlocked catalogue on every launch after the
+ * first, and when the follow-up fetch failed nothing corrected it: the launcher
+ * sat signed out but interactive, and the only way out was "Переподключиться",
+ * because the account page needs a session to draw its logout button.
+ */
+test("a cached startup asks for the session before naming a screen", () => {
+  const shell = read("src/components/line/LineLauncher.tsx");
+
+  // The effect that reads the cache, up to the end of its run.
+  const start = shell.indexOf(".cachedConfig()");
+  assert.ok(start > -1, "the cached-config effect exists");
+  const branch = shell.slice(start, shell.indexOf("}, [loadConfig])", start));
+  assert.ok(branch.length > 0, "the cached-config branch was found");
+
+  const sessionAt = branch.indexOf("await lineApi.session()");
+  assert.ok(
+    sessionAt > -1,
+    "the cache branch must ask the backend for the session",
+  );
+
+  // Every screen named in this branch has to come after that question.
+  const named: number[] = [];
+  // Any `setScreen(...)` counts, including the ternary that derives the answer.
+  const re = /setScreen\(/g;
+  for (let m = re.exec(branch); m; m = re.exec(branch)) named.push(m.index);
+  assert.ok(named.length > 0, "the branch names a screen");
+  for (const at of named) {
+    assert.ok(
+      at > sessionAt,
+      "a screen is named before the session is known — that is the bug",
+    );
+  }
+
+  // The specific shape of the fix: the screen follows the answer.
+  assert.match(
+    branch,
+    /setScreen\(current \? "servers" : "account"\)/,
+    "the screen is derived from the session answer",
+  );
+  // And the catalogue is never named unconditionally.
+  assert.doesNotMatch(
+    branch,
+    /setSnapshot\(cached\);\s*setScreen\("servers"\)/,
+    "a cached config alone must not open the catalogue",
+  );
+});
+
+test("a failed config fetch lands on a screen that can retry", () => {
+  const shell = read("src/components/line/LineLauncher.tsx");
+  const start = shell.indexOf("const loadConfig = useCallback(");
+  assert.ok(start > -1);
+  const body = shell.slice(start, shell.indexOf("}, []);", start));
+
+  const catchAt = body.indexOf("} catch (cause) {");
+  assert.ok(catchAt > -1, "loadConfig has a catch branch");
+  const catchBody = body.slice(catchAt, body.indexOf("} finally {"));
+
+  // Without this the screen stays whatever the caller set before the fetch,
+  // which on a cached startup was the unlocked catalogue.
+  assert.match(
+    catchBody,
+    /setScreen\("config"\)/,
+    "a failed fetch must fall back to the connecting screen",
+  );
+});
+
 // Regression: `Option` has no `retain`. This compiled nowhere locally (the pure
 // harness skipped it, CI was unavailable) and broke the first real `cargo run`
 // on Windows. The rule now lives in helpers the harness compiles and tests.

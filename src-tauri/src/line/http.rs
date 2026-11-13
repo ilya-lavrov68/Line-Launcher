@@ -3,6 +3,11 @@ use super::error::{ErrorCode, LineError, LineResult};
 use reqwest::{header, Response};
 use url::Url;
 
+/// A 304 is cache validation, not a redirect: it deliberately has no Location.
+fn is_followable_redirect(status: reqwest::StatusCode) -> bool {
+    status.is_redirection() && status != reqwest::StatusCode::NOT_MODIFIED
+}
+
 /// Manual redirects prevent credentials leaking to a different origin and ensure
 /// that every hop is HTTPS. Authorization is deliberately never forwarded.
 pub async fn get(
@@ -18,7 +23,7 @@ pub async fn get(
             .send()
             .await
             .map_err(|e| LineError::network(&e))?;
-        if response.status().is_redirection() {
+        if is_followable_redirect(response.status()) {
             let status = response.status().as_u16();
             let location = response
                 .headers()
@@ -162,4 +167,17 @@ pub async fn send_bearer_bytes(
         .await
         .map_err(|e| LineError::network(&e))?;
     success(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn not_modified_is_returned_to_cache_handler_not_followed() {
+        assert!(!is_followable_redirect(reqwest::StatusCode::NOT_MODIFIED));
+        assert!(is_followable_redirect(reqwest::StatusCode::FOUND));
+        assert!(is_followable_redirect(reqwest::StatusCode::TEMPORARY_REDIRECT));
+        assert!(!is_followable_redirect(reqwest::StatusCode::OK));
+    }
 }

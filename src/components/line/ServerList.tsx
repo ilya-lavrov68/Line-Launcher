@@ -106,6 +106,12 @@ export default function ServerList({
         </p>
       )}
 
+      {layout !== undefined && layout.sections.length === 0 && (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {t("sections.emptyHint")}
+        </p>
+      )}
+
       {groups.map((group) => (
         <div key={group.id || "unsorted"} className="flex flex-col">
           {/* A single flat group with no name is the pre-sections catalogue;

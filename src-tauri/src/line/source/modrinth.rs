@@ -342,3 +342,48 @@ pub fn matches_sha512(bytes: &[u8], expected: &str) -> bool {
     let actual = format!("{:x}", Sha512::digest(bytes));
     actual.eq_ignore_ascii_case(expected.trim())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pinned_battlearmory_ids_select_exact_version() {
+        assert_eq!(
+            versions_url("rQiXwLhB").unwrap(),
+            "https://api.modrinth.com/v2/project/rQiXwLhB/version"
+        );
+        let versions: Vec<McVersion> = serde_json::from_str(r#"[
+            {"id":"NEWER", "version_type":"release", "files":[]},
+            {"id":"TQIsQXtg", "version_number":"1.3.1", "version_type":"release", "files":[
+                {"filename":"BattleArmory 1.3.1.mrpack", "primary":true}
+            ]}
+        ]"#).unwrap();
+        let chosen = pick_version(&versions, Some("TQIsQXtg")).unwrap();
+        assert_eq!(chosen.id, "TQIsQXtg");
+        assert_eq!(
+            chosen.pack_file().unwrap().filename,
+            "BattleArmory 1.3.1.mrpack"
+        );
+        assert!(project_from_url(
+            "https://cdn.modrinth.com/data/rQiXwLhB/versions/TQIsQXtg/BattleArmory%201.3.1.mrpack"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn modrinth_index_preserves_neoforge_dependency() {
+        let index = parse_index(
+            br#"{"formatVersion":1,"game":"minecraft","dependencies":{"minecraft":"1.20.1","neoforge":"20.1.0"},"files":[]}"#,
+        )
+        .unwrap();
+        let pack = assemble(&index).unwrap();
+        assert_eq!(pack.minecraft_version.as_deref(), Some("1.20.1"));
+        let (loader, version) = pack.loader.unwrap();
+        assert!(matches!(
+            loader,
+            super::super::super::minecraft_core::LoaderChoice::NeoForge
+        ));
+        assert_eq!(version, "20.1.0");
+    }
+}

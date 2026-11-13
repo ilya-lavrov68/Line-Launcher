@@ -158,16 +158,21 @@ pub fn scrub(value: &str) -> String {
         "password=",
         "ticket=",
     ] {
-        while let Some(at) = text.find(marker) {
-            let start = at + marker.len();
+        // Continue after the replacement: searching from the start again would
+        // rediscover the same marker forever, including after redaction.
+        let mut cursor = 0;
+        while let Some(offset) = text[cursor..].find(marker) {
+            let start = cursor + offset + marker.len();
             let end = text[start..]
                 .find([' ', '&', '"', '\'', ',', '}'])
                 .map(|offset| start + offset)
                 .unwrap_or(text.len());
             if end == start {
-                break;
+                cursor = start;
+            } else {
+                text.replace_range(start..end, REDACTED);
+                cursor = start + REDACTED.len();
             }
-            text.replace_range(start..end, REDACTED);
         }
     }
     text
@@ -422,6 +427,17 @@ mod tests {
         let message = scrub("token=deadbeef&user=player");
         assert!(!message.contains("deadbeef"));
         assert!(message.contains("user=player"));
+    }
+
+    #[test]
+    fn scrub_handles_repeated_empty_and_previously_redacted_values() {
+        assert_eq!(
+            scrub("ж token=one&token=&token=two Bearer abc bearer xyz"),
+            "ж token=***&token=&token=*** Bearer *** bearer ***"
+        );
+        assert_eq!(scrub("token=***"), "token=***");
+        assert_eq!(scrub("access_token=secret&ticket=last"), "access_token=***&ticket=***");
+        assert_eq!(scrub("nothing to hide"), "nothing to hide");
     }
 
     #[test]

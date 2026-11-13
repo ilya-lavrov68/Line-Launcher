@@ -205,6 +205,7 @@ export default function ServerDetail(props: ServerDetailProps) {
                 aria-hidden="true"
               />
               <Select
+                disabled={actionsBusy}
                 value={props.section ?? NO_SECTION}
                 onValueChange={(value) =>
                   props.onSectionChange?.(

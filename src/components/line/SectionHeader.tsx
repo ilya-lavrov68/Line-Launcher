@@ -98,6 +98,7 @@ export default function SectionHeader({
         <button
           type="button"
           onClick={onToggle}
+          disabled={disabled}
           aria-expanded={!collapsed}
           aria-label={
             collapsed

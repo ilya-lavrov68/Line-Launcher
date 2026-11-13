@@ -210,6 +210,23 @@ export function assignServer(
   return { sections: layout.sections, assignments };
 }
 
+/** Validates a drag against the current catalogue and section layout. */
+export function moveServerToSection(
+  layout: ServerLayout,
+  servers: readonly LineServer[],
+  serverId: string,
+  target: string,
+): ServerLayout {
+  if (!servers.some((server) => server.id === serverId)) return layout;
+  if (
+    target !== NO_SECTION &&
+    !layout.sections.some((section) => section.id === target)
+  )
+    return layout;
+  if ((layout.assignments[serverId] ?? NO_SECTION) === target) return layout;
+  return assignServer(layout, serverId, target);
+}
+
 /**
  * Removes a section. Its servers do not vanish: they return to "no section",
  * because deleting a folder is not deleting what is inside it.

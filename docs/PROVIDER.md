@@ -19,12 +19,13 @@ JSON использует `snake_case`; IPC Tauri — `camelCase`.
 | `provider.logo_url`      | Необязательный HTTPS URL                                                                                                                                                          |
 | `provider.auth`          | Обязательный объект: `login_url` (HTTPS) и необязательный `register_url`. Один аккаунт на весь проект                                                                             |
 | `provider.wardrobe`      | Необязательный объект; требует **оба** поля `skin_url` и `skin_upload_url`, оба HTTPS. Гардероб общий для аккаунта                                                                |
+| `anticheat`              | Необязательный объект: `scan_resourcepacks`, `extra_keywords`, `allow`. По умолчанию проверка включена. [ANTICHEAT.md](ANTICHEAT.md)                                              |
 | `provider.support_email` | Необязательный адрес почты поддержки проекта. Показывает игроку кнопку «Связаться с провайдером» в настройках; письмо открывается черновиком с диагностикой. Только адрес, не URL |
 | `cache_ttl_seconds`      | Необязательный, 60–86400; по умолчанию 300                                                                                                                                        |
 | `required_features`      | Поддерживаются `custom-auth-v1`, `zip-sha256-v1`, `launch-manifest-v1`, `private-ipc-v1`, `skin-upload-v1`; неизвестные возможности запрещены                                     |
 | `servers`                | 1–100 записей с уникальными `id`                                                                                                                                                  |
 
-Сервер содержит `id`, `name`, `description`, `version`, необязательные `icon_url`, `banner_url`, `minecraft_version` и `auth`, обязательный объект `distribution`.
+Сервер содержит `id`, `name`, `description`, `version`, необязательные `icon_url`, `banner_url`, `minecraft_version` и `auth`. Для ZIP укажите `distribution`; экспериментальные сборки из packwiz/Modrinth описаны в [SOURCES.md](SOURCES.md).
 
 Аккаунт и гардероб живут на `provider`, а не на сервере: игрок входит один раз и
 получает доступ ко всем серверам конфига. У сервера остаётся только необязательный
@@ -300,6 +301,30 @@ provider stub и IPC peer: `npm run test:java` (требуется JDK 17+; CI �
 объявлено в `distribution`. Пользовательские файлы в каталоге релиза не
 предусмотрены — данные игрока живут в `instances/<id>/game`. Детали и примеры —
 в [GAME.md](GAME.md).
+
+## Проверка сборки перед запуском
+
+Лаунчер сверяет файлы сборки при каждом запуске и проверяет ресурс-паки в
+`game/` на ключевые слова. По умолчанию всё включено — ничего настраивать не
+нужно, а старый конфиг без блока `anticheat` ведёт себя так же, как новый с ним.
+
+```jsonc
+"anticheat": {
+  "scan_resourcepacks": true,
+  "extra_keywords": ["mymod-xray"],
+  "allow": ["<sha256 пака>"]
+}
+```
+
+- `extra_keywords` **добавляет** слова к встроенному списку. Убрать встроенное
+  слово нельзя: список меняется только через код.
+- `allow` — sha256, а не имя файла: исключение по имени обходится
+  переименованием.
+- `scan_resourcepacks: false` выключает только поиск слов. Проверка посторонних
+  файлов в `resourcepacks/` остаётся: она не про слова, а про «этого файла никто
+  не публиковал».
+
+Подробности, включая то, чего проверка не делает: [ANTICHEAT.md](ANTICHEAT.md).
 
 ## Поддержка
 

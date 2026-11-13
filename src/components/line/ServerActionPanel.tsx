@@ -33,7 +33,9 @@ export type ServerActionPhase =
   | "starting"
   | "running"
   | "exited"
-  | "failed";
+  | "failed"
+  /** Refused by the build check: the dock's action is «Повторить», not «Играть». */
+  | "blocked";
 
 export interface ServerActionPanelProps {
   server: LineServer;
@@ -64,6 +66,7 @@ function statusLabel(t: Translator, phase: ServerActionPhase): string {
     running: t("detail.running"),
     exited: t("detail.exited"),
     failed: t("detail.launchFailed"),
+    blocked: t("minecraft.blocked"),
   };
   return labels[phase];
 }
@@ -78,6 +81,7 @@ function primaryLabel(t: Translator, phase: ServerActionPhase): string {
     running: t("detail.stopGame"),
     exited: t("detail.play"),
     failed: t("detail.retry"),
+    blocked: t("detail.retry"),
   };
   return labels[phase];
 }

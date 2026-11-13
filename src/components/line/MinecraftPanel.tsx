@@ -50,6 +50,7 @@ function phaseHint(t: Translator, phase: GamePhase): string {
     running: t("minecraft.running"),
     exited: t("minecraft.exited"),
     failed: t("minecraft.failed"),
+    blocked: t("minecraft.blocked"),
   };
   return hints[phase];
 }

@@ -32,6 +32,12 @@ import AnimatedBackdrop from "./AnimatedBackdrop";
 import ProfileScreen from "./ProfileScreen";
 import SignInScreen from "./SignInScreen";
 import ServerDetail from "./ServerDetail";
+import {
+  assignServer,
+  normalizeLayout,
+  pruneLayout,
+  type ServerLayout,
+} from "@/lib/line/server-layout";
 import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
 import SettingsScreen from "./SettingsScreen";
@@ -668,6 +674,39 @@ export default function LineLauncher() {
     setError(undefined);
   }
 
+  /**
+   * Saves the player's section layout.
+   *
+   * Optimistic like the sidebar toggle — collapsing a folder must feel instant —
+   * but a failed write re-reads the confirmed snapshot instead of restoring a
+   * stale local copy: two quick edits in a row would otherwise resurrect the
+   * first one from the closure. Entries for servers the provider no longer
+   * lists are pruned on the way out, so settings.json does not accumulate ids.
+   */
+  async function changeLayout(next: ServerLayout) {
+    if (!settings) return;
+    const current = settings;
+    const cleaned = pruneLayout(
+      normalizeLayout(next),
+      snapshot?.config.servers ?? [],
+    );
+    setSettings({
+      ...current,
+      settings: { ...current.settings, serverLayout: cleaned },
+    });
+    try {
+      setSettings(
+        await lineApi.saveSettings({
+          ...current.settings,
+          serverLayout: cleaned,
+        }),
+      );
+    } catch (cause) {
+      setSettings(current);
+      setError(errorMessage(cause));
+    }
+  }
+
   async function toggleSidebar() {
     if (!settings) return;
     const next = {
@@ -978,6 +1017,10 @@ export default function LineLauncher() {
                           screen === "servers" &&
                           snapshot && (
                             <ServerList
+                              layout={normalizeLayout(
+                                settings?.settings.serverLayout,
+                              )}
+                              onLayoutChange={(next) => void changeLayout(next)}
                               rail={
                                 <ServerCatalogRail
                                   server={selected}
@@ -1006,6 +1049,36 @@ export default function LineLauncher() {
                           screen === "detail" &&
                           selected && (
                             <ServerDetail
+                              sections={
+                                normalizeLayout(settings?.settings.serverLayout)
+                                  .sections
+                              }
+                              section={
+                                normalizeLayout(settings?.settings.serverLayout)
+                                  .assignments[selected.id] ?? null
+                              }
+                              onSectionChange={(next) =>
+                                void changeLayout(
+                                  assignServer(
+                                    normalizeLayout(
+                                      settings?.settings.serverLayout,
+                                    ),
+                                    selected.id,
+                                    next,
+                                  ),
+                                )
+                              }
+                              onCheckPacks={() =>
+                                lineApi.checkPacks(selected.id)
+                              }
+                              onReportPacks={
+                                snapshot?.config.provider.support_email
+                                  ? () =>
+                                      lineApi.mailDiagnostics(
+                                        snapshot.config.provider.support_email!,
+                                      )
+                                  : undefined
+                              }
                               server={selected}
                               providerName={snapshot?.config.provider.name}
                               hasSession={Boolean(session)}

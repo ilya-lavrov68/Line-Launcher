@@ -34,7 +34,12 @@ test("LINE_OPENSSL override is honoured", () => {
       win ? "openssl.exe" : "openssl",
       "OpenSSL 9.9.9 fixture",
     );
-    const found = findOpenSsl({ LINE_OPENSSL: exe });
+    const found = findOpenSsl(
+      { LINE_OPENSSL: exe },
+      {
+        run: (cmd: string) => (cmd === exe ? "OpenSSL 9.9.9 fixture" : null),
+      },
+    );
     assert.equal(found?.path, exe);
     assert.equal(found?.via, "LINE_OPENSSL");
     assert.match(found!.version, /9\.9\.9/);
@@ -69,11 +74,18 @@ test(
         "openssl.exe",
         "OpenSSL 3.5.0 git-fixture",
       );
-      const found = findOpenSsl({
-        ProgramFiles: pf,
-        "ProgramFiles(x86)": path.join(dir, "absent"),
-        PATH: dir, // keep the real PATH openssl out of the way
-      });
+      const found = findOpenSsl(
+        {
+          ProgramFiles: pf,
+          "ProgramFiles(x86)": path.join(dir, "absent"),
+          PATH: dir, // keep the real PATH openssl out of the way
+        },
+        {
+          locateGit: () => [path.join(pf, "Git")],
+          run: (cmd: string) =>
+            cmd === exe ? "OpenSSL 3.5.0 git-fixture" : null,
+        },
+      );
       assert.equal(found?.path, exe);
       assert.equal(found?.via, "Git for Windows");
     } finally {

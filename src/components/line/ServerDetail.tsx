@@ -1,12 +1,22 @@
 import { m } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, FolderInput, ShieldCheck, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/lib/line/i18n";
+import { NO_SECTION, type ServerSection } from "@/lib/line/server-layout";
 import type {
   GameStatus,
   InstallProgress,
   InstallReceipt,
   LineServer,
+  PackCheckResult,
   ReleaseHistory,
 } from "@/types/line";
 import ReleaseHistoryDialog from "./ReleaseHistoryDialog";
@@ -19,6 +29,7 @@ import MinecraftPanel from "./MinecraftPanel";
 export interface ServerDetailProps {
   server: LineServer;
   providerName?: string;
+  onReportPacks?: () => Promise<void>;
   hasSession: boolean;
   receipt: InstallReceipt | null;
   progress: InstallProgress | null;
@@ -45,6 +56,13 @@ export interface ServerDetailProps {
   onStop: () => void;
   onHistory: (open: boolean) => void;
   onRollback: (receipt: InstallReceipt) => void;
+  /** Player-owned sections; absent when the player has not made any yet. */
+  sections?: ServerSection[];
+  /** Section this server is in, or null for "no section". */
+  section?: string | null;
+  onSectionChange?: (section: string | null) => void;
+  /** Runs the same pack check a launch runs, without launching. */
+  onCheckPacks?: () => Promise<PackCheckResult>;
 }
 
 /**
@@ -67,6 +85,7 @@ export function phaseOf(
   }
   if (status?.phase === "starting") return "starting";
   if (status?.phase === "running") return "running";
+  if (status?.phase === "blocked") return "blocked";
   if (status?.phase === "failed") return "failed";
   if (!receipt) return "needs-install";
   // Compared only against a pin. A bare link carries no digest to compare, and
@@ -174,6 +193,59 @@ export default function ServerDetail(props: ServerDetailProps) {
           <p className="text-muted-foreground max-w-prose text-[13px] leading-relaxed">
             {server.description}
           </p>
+          {props.onSectionChange && (props.sections?.length ?? 0) > 0 && (
+            /* Player-owned, so it is placed with the server's own details and
+               not with the provider's — and it says so, because a control that
+               moves a server in *your* list should not look like a provider
+               setting. */
+            <div className="mt-1 flex items-center gap-2">
+              <FolderInput
+                className="text-muted-foreground/70 h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <Select
+                value={props.section ?? NO_SECTION}
+                onValueChange={(value) =>
+                  props.onSectionChange?.(
+                    value === NO_SECTION ? null : (value as string),
+                  )
+                }
+              >
+                <SelectTrigger
+                  aria-label={t("sections.move")}
+                  className="h-7 w-auto min-w-40 cursor-pointer text-xs"
+                >
+                  {/* The trigger must show the section's name, not its id:
+                      `fav` in the closed control was a real bug the first
+                      render caught, not a cosmetic one. */}
+                  <SelectValue>
+                    {(value: string | null) => {
+                      if (!value || value === NO_SECTION) {
+                        return t("sections.none");
+                      }
+                      return (
+                        props.sections?.find((section) => section.id === value)
+                          ?.name ?? t("sections.none")
+                      );
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_SECTION}>
+                    {t("sections.none")}
+                  </SelectItem>
+                  {props.sections?.map((section) => (
+                    <SelectItem key={section.id} value={section.id}>
+                      {section.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-muted-foreground/60 text-[11px]">
+                {t("sections.moveHint")}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -239,6 +311,44 @@ export default function ServerDetail(props: ServerDetailProps) {
         </p>
       )}
 
+      {/* A source-backed build is not "a ZIP you have not downloaded yet", and
+          the dock's «Скачать» wording would be misleading: there is no archive
+          to fetch, the launcher fetches the files. One line, with the reason it
+          is different, and only for the two source kinds. */}
+      {server.source && (
+        <p
+          className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-2 text-[12px] leading-relaxed"
+          data-testid="source-line"
+        >
+          <span className="text-foreground/80 font-medium">
+            {server.source.kind === "packwiz"
+              ? t("source.packwiz")
+              : t("source.modrinth")}
+          </span>
+          {server.source.version && (
+            <span className="font-mono text-[11px]">
+              {t("source.version", { version: server.source.version })}
+            </span>
+          )}
+          <span className="basis-full">{t("source.hint")}</span>
+        </p>
+      )}
+
+      {/* The check the launch runs, offered before the launch. Two reasons it is
+          a button and not automatic: hashing a large folder on every visit is
+          wasted work, and a player who just installed a pack wants to know now,
+          not by being refused at the dock. */}
+      {hasSession && (receipt || isMinecraft) && (
+        <PackCheckPanel
+          onCheck={props.onCheckPacks}
+          onReport={props.onReportPacks}
+          blocked={
+            phase === "blocked" ? (props.launchError ?? undefined) : undefined
+          }
+          disabled={actionsBusy}
+        />
+      )}
+
       {/* Minecraft mode replaces the ZIP dock, not the whole page: the banner,
           the status line and the history dialog above are the same controls for
           both, and the buttons that cannot work for this server (install from a
@@ -253,5 +363,129 @@ export default function ServerDetail(props: ServerDetailProps) {
         />
       )}
     </section>
+  );
+}
+
+export interface PackCheckPanelProps {
+  onCheck?: () => Promise<PackCheckResult>;
+  onReport?: () => Promise<void>;
+  /** Set when a launch was already refused, so the reason survives a reload. */
+  blocked?: string;
+  disabled?: boolean;
+}
+
+/**
+ * «Проверить сборку» and the explanation of a blocked launch.
+ *
+ * The panel never deletes anything and never offers a "launch anyway" button.
+ * Deletion is the player's, done in the folder — the launcher tells them which
+ * file and why, which is the part they cannot work out alone.
+ */
+export function PackCheckPanel({
+  onCheck,
+  onReport,
+  blocked,
+  disabled = false,
+}: PackCheckPanelProps) {
+  const t = useT();
+  const [state, setState] = useState<"idle" | "running">("idle");
+  const [result, setResult] = useState<PackCheckResult | null>(null);
+  const [error, setError] = useState<string>();
+
+  async function run() {
+    if (!onCheck || state === "running") return;
+    setState("running");
+    setError(undefined);
+    setResult(null);
+    try {
+      setResult(await onCheck());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setState("idle");
+    }
+  }
+
+  const suspicious = (result?.findings.length ?? 0) > 0;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={disabled || state === "running" || !onCheck}
+          onClick={() => void run()}
+          className="cursor-pointer text-xs"
+        >
+          {suspicious || blocked ? (
+            <ShieldX
+              className="h-4 w-4 shrink-0 text-amber-400"
+              aria-hidden="true"
+            />
+          ) : (
+            <ShieldCheck
+              className="text-line-online h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
+          )}
+          {state === "running" ? t("packs.checking") : t("packs.check")}
+        </Button>
+        {result && !suspicious && (
+          <span
+            role="status"
+            data-testid="pack-check-result"
+            className="text-muted-foreground text-[11px]"
+          >
+            {t("packs.clean")}
+            {result.foreign.length > 0
+              ? ` ${t("packs.foreign", { count: result.foreign.length })}`
+              : ""}
+          </span>
+        )}
+      </div>
+
+      {(blocked || suspicious) && (
+        <div
+          role="alert"
+          className="flex flex-col gap-1 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
+        >
+          <span className="font-medium">
+            {blocked ? t("packs.blocked") : t("packs.found", { list: "" })}
+          </span>
+          {blocked && <span>{blocked}</span>}
+          {suspicious && (
+            <span className="font-mono text-[11px] break-all">
+              {t("packs.found", {
+                list: (result?.findings ?? []).slice(0, 5).join("; "),
+              })}
+            </span>
+          )}
+          <span>{t("packs.blockedHint")}</span>
+          {onReport && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              disabled={disabled || state === "running"}
+              onClick={() => {
+                void onReport().catch((cause: unknown) =>
+                  setError(
+                    cause instanceof Error ? cause.message : String(cause),
+                  ),
+                );
+              }}
+            >
+              {t("packs.reportProvider")}
+            </Button>
+          )}
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="text-destructive text-[11px]">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

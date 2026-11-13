@@ -1,0 +1,21 @@
+hash-format = "sha256"
+
+[[files]]
+file = "mods/sodium.pw.toml"
+metafile = true
+
+[[files]]
+file = "mods/sodium-extra.pw.toml"
+metafile = true
+
+[[files]]
+file = "mods/server-only.pw.toml"
+metafile = true
+
+[[files]]
+file = "mods/optional.pw.toml"
+metafile = true
+
+[[files]]
+file = "resourcepacks/line-ui.pw.toml"
+metafile = true

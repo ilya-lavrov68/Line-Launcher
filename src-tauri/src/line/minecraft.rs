@@ -567,7 +567,11 @@ pub async fn mc_play(
 
     // 1. What is published right now. The pinned distribution is the fallback
     //    for providers that do not host a pack.json.
-    let effective = pack::effective_server(&line.http, &server, &base).await?;
+    let effective = if server.source.is_some() {
+        server.clone()
+    } else {
+        pack::effective_server(&line.http, &server, &base).await?
+    };
     emit_mc_progress(
         &app,
         &instance_id,
@@ -639,6 +643,10 @@ pub async fn mc_play(
         tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
             let release = pack::release_dir(&release_base, &sha256)?;
             let index = integrity::read_index(&release)?;
+            let report = integrity::scan(&release)?;
+            if !report.is_clean() {
+                return Err(LineError::new(ErrorCode::Integrity, "Сборка изменилась после установки. Повторите установку перед запуском.", false));
+            }
             let detected = pack::inspect(&release, &index, hint.as_deref())?;
             emit_mc_progress(
                 &inspect_app,
@@ -650,31 +658,59 @@ pub async fn mc_play(
                 false,
             );
             pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
+            // A release can be intact while its live mod copy was replaced.
+            // Never follow a planted mods directory or file symlink.
+            let game = instance_dir.join("game");
+            let mods = game.join("mods");
+            if mods.exists() && !super::storage::is_real_dir(&mods) {
+                return Err(LineError::new(ErrorCode::Integrity, "Папка mods не является обычным каталогом.", false));
+            }
+            for entry in &index.files {
+                let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else { continue };
+                let Some(name) = relative.strip_prefix("mods/") else { continue };
+                if name.contains('/') { return Err(LineError::input("Вложенные файлы mods не поддерживаются.")); }
+                let target = mods.join(name);
+                if !super::storage::is_real_file(&target) {
+                    return Err(LineError::new(ErrorCode::Integrity, format!("Файл {relative} отсутствует или заменён ссылкой."), false));
+                }
+                let (actual, size) = integrity::hash_file(&target)?;
+                if actual != entry.sha256 || size != entry.size {
+                    return Err(LineError::new(ErrorCode::Integrity, format!("Файл {relative} изменён. Восстановите сборку."), false));
+                }
+            }
             Ok(detected)
         })
         .await
         .map_err(|_| join_error())??;
 
+    // Check the directory actually used by Minecraft, not the archive server's
+    // separate game/ directory. Never start Java when a keyword was found.
+    let instance_dir = instance_root(&app, &instance_id)?;
+    let scan = super::launch::scan_packs(&instance_dir, &server, &detected.files)?;
+    if let Some(message) = scan.blocked {
+        return Err(LineError::new(ErrorCode::Integrity, message, false));
+    }
+
     // 4. Fill only the gaps. A loader found inside the instance is used as is;
     //    one requested by the provider is installed only when none is there.
     let requested_loader = parse_loader(request.loader.as_ref())?;
     let mut launch_version = detected.version_id.clone();
-    let loader_inside = detected.loader.is_some();
-    if !detected.missing.is_empty() || (!loader_inside && requested_loader.is_some()) {
-        let loader = if loader_inside {
-            None
-        } else {
-            requested_loader
-        };
+    // A generated profile identifies the requested loader, but contains no real
+    // loader libraries; install it from the official host before launching.
+    let loader = if detected.generated_profile {
+        requested_loader.or_else(|| detected.loader.clone().map(|(kind, version)| {
+            loader_spec(kind, if version.is_empty() { None } else { Some(version) })
+        }))
+    } else if detected.loader.is_none() {
+        requested_loader
+    } else {
+        None
+    };
+    if !detected.missing.is_empty() || loader.is_some() || detected.generated_profile {
         let filled = install_profile(
-            &app,
-            &state,
-            instance_id.clone(),
-            detected.minecraft_version.clone(),
-            loader,
-        )
-        .await?;
-        if !loader_inside && request.loader.is_some() {
+            &app, &state, instance_id.clone(), detected.minecraft_version.clone(), loader,
+        ).await?;
+        if detected.generated_profile || detected.loader.is_none() {
             launch_version = filled.version_id;
         }
     }
@@ -767,7 +803,6 @@ async fn launch_profile(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_arguments)]
 async fn start_game(
     app: &AppHandle,

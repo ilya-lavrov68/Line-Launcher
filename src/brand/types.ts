@@ -4,7 +4,7 @@
  * `generated.ts` is annotated with this interface instead of `as const` so that
  * `attribution.placement` / `attribution.language` keep their full union types.
  * Otherwise a build using placement "footer" would make comparisons against
- * "header" a type error, and switching presets would not compile.
+ * "header" a type error.
  */
 
 export type AttributionPlacement = "footer" | "header";
@@ -30,7 +30,7 @@ export interface Brand {
   logo: string | null;
   /**
    * True when the SVG paints with `currentColor`. Such a mark is rendered as a
-   * CSS mask so it inherits the palette (works under every preset and in the
+   * CSS mask so it inherits the accent colour (works in both themes and in the
    * title bar). Colour artwork keeps its own fills and is rendered as an image.
    */
   logoTinted: boolean;

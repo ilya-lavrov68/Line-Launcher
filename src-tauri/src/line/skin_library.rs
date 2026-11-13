@@ -354,7 +354,7 @@ fn plan_sync(dir: &Path) -> LineResult<SyncPlan> {
         .find(|s| s.id == id)
         .cloned()
         .ok_or_else(|| LineError::input("Активный скин не найден в истории."))?;
-    let bytes = std::fs::read(texture_path(&dir, &entry.id)?)
+    let bytes = std::fs::read(texture_path(dir, &entry.id)?)
         .map_err(|_| LineError::input("Файл активного скина отсутствует."))?;
     validate_skin_png(&bytes)?;
     Ok(SyncPlan::Upload(entry, bytes))

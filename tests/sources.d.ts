@@ -1,0 +1,55 @@
+// The converter is a `.mjs` script, not part of the TypeScript build; the test
+// imports it to compare its rules against the resolver's. Declaring the shape it
+// actually exports keeps the comparison type-checked rather than `any`-typed, so
+// a renamed export breaks the test instead of the build.
+declare module "*pack-from-packwiz.mjs" {
+  import type { PackwizMeta } from "../src/lib/line/sources.ts";
+
+  export interface ConvertedFile {
+    path: string;
+    sha256: string;
+    size_bytes: number;
+  }
+  export interface ConvertedManifest {
+    name: string;
+    revision: string;
+    files: ConvertedFile[];
+    minecraft_version: string | null;
+    loader?: string;
+    loaderVersion?: string;
+  }
+  export interface ConvertResult {
+    zip: Buffer;
+    manifest: ConvertedManifest;
+    entries: number;
+    skipped: number;
+  }
+  export interface Reader {
+    text(name: string): Promise<string>;
+    bytes(name: string): Promise<Buffer>;
+  }
+  export function convert(options: {
+    source: string;
+    output?: string;
+    dryRun?: boolean;
+    log?: (line: string) => void;
+    reader?: Reader;
+  }): Promise<ConvertResult>;
+  export function entryFromMetafile(
+    path: string,
+    meta: PackwizMeta,
+  ): { ok: boolean; skip?: string; error?: string; entry?: { path: string } };
+  export function parseArgs(argv: string[]): Record<string, unknown>;
+  export function createReader(
+    source: string,
+  ): Reader & { remote: boolean; root: string };
+  export function sha256(bytes: Buffer): string;
+  export function strongHash(format: unknown): boolean;
+  export function loaderFromVersions(versions?: Record<string, string>): {
+    loader?: string;
+    loaderVersion?: string;
+  };
+  export function crc32(bytes: Buffer): number;
+  export function writeZip(entries: { name: string; data: Buffer }[]): Buffer;
+  export function readZipEntry(zip: Buffer, name: string): Buffer | null;
+}

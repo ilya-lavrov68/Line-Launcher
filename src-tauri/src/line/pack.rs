@@ -188,6 +188,8 @@ pub struct DetectedInstance {
     /// Vanilla version behind it, used to fill in anything the ZIP lacks.
     pub minecraft_version: String,
     pub loader: Option<(LoaderChoice, String)>,
+    /// Minimal source profile is a hint, not an installed loader profile.
+    pub generated_profile: bool,
     /// Parts that must come from the official hosts (`instance::missing_parts`).
     pub missing: Vec<&'static str>,
     /// Game-relative files the pack owns.
@@ -322,6 +324,7 @@ pub fn inspect(
         version_id,
         minecraft_version,
         loader,
+        generated_profile: profile.get("line").and_then(|v| v.get("generated")).and_then(Value::as_bool) == Some(true),
         missing,
         files,
     })
@@ -332,6 +335,14 @@ pub fn inspect(
 pub struct PackState {
     pub sha256: String,
     pub files: Vec<String>,
+}
+
+/// Files the current revision owns, as recorded when the game directory was
+/// last synced. Empty when nothing was recorded (an instance installed by an
+/// older launcher): the caller then treats every pack as foreign, which is the
+/// honest reading of "we have no list".
+pub fn owned_files(instance_root: &Path) -> Vec<String> {
+    read_state(&instance_root.join(PACK_STATE_FILE)).files
 }
 
 fn read_state(path: &Path) -> PackState {

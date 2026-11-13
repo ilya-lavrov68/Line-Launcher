@@ -44,6 +44,7 @@ pub fn run() {
             line::launch::launch_game,
             line::launch::stop_game,
             line::launch::get_game_status,
+            line::launch::check_resource_packs,
             line::rollback::list_release_history,
             line::rollback::rollback_release,
             line::settings::get_settings,

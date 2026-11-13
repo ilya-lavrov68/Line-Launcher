@@ -5,15 +5,15 @@
  *   npm run brand:check      # verify generated files are up to date (CI)
  *
  * Outputs (deterministic, committed):
- *   src/brand/generated.css         — palette overrides only, never geometry
+ *   src/brand/generated.css         — always empty: the palette is fixed
  *   src/brand/generated.ts          — typed product/attribution constants
  *   src/brand/logo.svg|png          — copied header mark (if configured)
  *   src-tauri/tauri.brand.conf.json — Tauri overlay for `tauri build -c`
  *   src-tauri/icons/*               — regenerated OS icons via `tauri icon`
  *   src-tauri/LICENSE.rtf           — ASCII-only RTF of LICENSE for the MSI dialog
  *
- * The DEFAULT preset ("obsy") produces zero palette overrides, so the shipped
- * build inherits upstream Obsy's tokens and radii unchanged.
+ * The palette is not configurable: the build uses upstream Obsy's tokens and
+ * radii unchanged, and a config that tries to set colours fails here.
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -29,7 +29,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { licenseToRtf } from "./lib/license-rtf.mjs";
 import { tauriCliCommand } from "./lib/tauri-cli.mjs";
 import { sameText } from "./lib/text-eol.mjs";
-import type { BrandConfig, BrandPalette } from "../branding/brand.types.ts";
+import type { BrandConfig } from "../branding/brand.types.ts";
 import {
   renderCss,
   renderOwnerTs,
@@ -47,7 +47,6 @@ import {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BRANDING = join(ROOT, "branding");
 const CONFIG_PATH = join(BRANDING, "line.brand.json");
-const PRESETS_PATH = join(BRANDING, "presets.json");
 const OUT_CSS = join(ROOT, "src/brand/generated.css");
 const OUT_TS = join(ROOT, "src/brand/generated.ts");
 const OUT_TAURI = join(ROOT, "src-tauri/tauri.brand.conf.json");
@@ -93,10 +92,17 @@ function writeIfChanged(path: string, content: string): boolean {
 
 async function main(): Promise<void> {
   const config = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as BrandConfig;
-  const { presets } = JSON.parse(readFileSync(PRESETS_PATH, "utf8")) as {
-    presets: Record<string, BrandPalette>;
-  };
-  const { palette, logoPath, appIconPath } = validateBrand(config, presets);
+  // `presets.json` was an input of the removed palette feature. Its absence is
+  // the normal state now; its presence means the checkout still expects colours
+  // to be configurable, so say that plainly instead of ignoring the file.
+  if (existsSync(join(BRANDING, "presets.json"))) {
+    fail(
+      "branding/presets.json is no longer used: the launcher palette is fixed. " +
+        "Delete the file and remove preset/palette from branding/line.brand.json. " +
+        "See docs/BRANDING.md.",
+    );
+  }
+  const { logoPath, appIconPath } = validateBrand(config);
   const changed: string[] = [];
 
   // Provider address: baked at build time so players never type a URL.
@@ -148,7 +154,7 @@ async function main(): Promise<void> {
       : "[owner] support_email пуст — кнопки «Отправить по почте» не будет",
   );
 
-  if (writeIfChanged(OUT_CSS, renderCss(palette))) {
+  if (writeIfChanged(OUT_CSS, renderCss())) {
     changed.push("src/brand/generated.css");
   }
 
@@ -245,7 +251,7 @@ async function main(): Promise<void> {
       : `[brand] updated: ${changed.join(", ")}`,
   );
   console.log(
-    `[brand] preset="${config.preset}", palette overrides=${Object.keys(palette).length}, ` +
+    `[brand] palette=fixed (Obsy), ` +
       `attribution="${config.attribution.placement}/${config.attribution.language}" (mandatory)`,
   );
 }

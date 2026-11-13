@@ -171,7 +171,7 @@ pub fn read_index(release: &Path) -> LineResult<FileIndex> {
     Ok(index)
 }
 
-fn hash_file(path: &Path) -> LineResult<(String, u64)> {
+pub fn hash_file(path: &Path) -> LineResult<(String, u64)> {
     let mut file = File::open(path).map_err(|e| LineError::io(&e))?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; 128 * 1024];

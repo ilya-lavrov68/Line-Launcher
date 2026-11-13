@@ -194,9 +194,7 @@ impl PrivateChannel {
         loop {
             let count = timeout_at(deadline, read.read(&mut buffer))
                 .await
-                .map_err(|_| {
-                    LineError::new(ErrorCode::Busy, "Мод не ответил вовремя.", false)
-                })?
+                .map_err(|_| LineError::new(ErrorCode::Busy, "Мод не ответил вовремя.", false))?
                 .map_err(|e| LineError::io(&e))?;
             if count == 0 {
                 break;
@@ -240,11 +238,7 @@ impl PrivateChannel {
         timeout_at(deadline, write.write_all(&response_bytes))
             .await
             .map_err(|_| {
-                LineError::new(
-                    ErrorCode::Busy,
-                    "Не удалось передать ticket моду.",
-                    false,
-                )
+                LineError::new(ErrorCode::Busy, "Не удалось передать ticket моду.", false)
             })?
             .map_err(|e| LineError::io(&e))?;
         timeout_at(deadline, write.shutdown())

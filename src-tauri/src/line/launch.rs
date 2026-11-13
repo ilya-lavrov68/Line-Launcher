@@ -597,7 +597,9 @@ pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
     let owned: std::collections::BTreeSet<&str> = owned.iter().map(String::as_str).collect();
     for entry in entries {
         let entry = entry.map_err(|e| LineError::io(&e))?;
-        let kind = std::fs::symlink_metadata(entry.path()).map_err(|e| LineError::io(&e))?.file_type();
+        let kind = std::fs::symlink_metadata(entry.path())
+            .map_err(|e| LineError::io(&e))?
+            .file_type();
         let name = entry.file_name().to_string_lossy().into_owned();
         let path = format!("mods/{name}");
         if !kind.is_file() || !owned.contains(path.as_str()) {
@@ -639,19 +641,14 @@ pub fn scan_packs(
     if !settings.scan_resourcepacks {
         // The hard half still runs: "nobody published this file" is not an
         // opinion about words and cannot be switched off.
-        let (_, foreign) =
-            super::resourcepack::scan_all(&game, owned, &settings.allow, &[])?;
+        let (_, foreign) = super::resourcepack::scan_all(&game, owned, &settings.allow, &[])?;
         return Ok(PackScan {
             blocked: None,
             foreign: foreign.len(),
         });
     }
-    let (findings, foreign) = super::resourcepack::scan_all(
-        &game,
-        owned,
-        &settings.allow,
-        &settings.extra_keywords,
-    )?;
+    let (findings, foreign) =
+        super::resourcepack::scan_all(&game, owned, &settings.allow, &settings.extra_keywords)?;
     for hit in &findings.hits {
         super::logger::warn(
             super::logger::Area::Launch,
@@ -1094,7 +1091,8 @@ pub async fn check_resource_packs(
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
     let base = if server.launch_mode == super::config::LaunchMode::Minecraft {
-        root.join("minecraft").join(super::minecraft_core::validate_instance_id(&server_id)?)
+        root.join("minecraft")
+            .join(super::minecraft_core::validate_instance_id(&server_id)?)
     } else {
         server_dir(&root, &server_id)?
     };

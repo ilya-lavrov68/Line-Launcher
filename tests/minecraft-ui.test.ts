@@ -48,7 +48,7 @@ test("a minecraft server is validated at parse time, not at button time", () => 
   // No ticket endpoints: the identity is the project account, not a session.
   assert.match(
     config,
-    /matches!\(server\.launch_mode, LaunchMode::Offline \| LaunchMode::Minecraft\)/,
+    /matches!\(\s*server\.launch_mode,\s*LaunchMode::Offline \| LaunchMode::Minecraft\s*\)/,
   );
 });
 

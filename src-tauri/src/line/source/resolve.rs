@@ -51,10 +51,7 @@ impl Fetch for HttpFetch {
 }
 
 /// Resolves any source to a file list. The one entry point the installer uses.
-pub async fn resolve(
-    fetch: &dyn Fetch,
-    kind: &SourceKind,
-) -> LineResult<ResolvedPack> {
+pub async fn resolve(fetch: &dyn Fetch, kind: &SourceKind) -> LineResult<ResolvedPack> {
     match kind {
         SourceKind::Archive => Ok(ResolvedPack::default()),
         SourceKind::Packwiz { pack_toml_url } => resolve_packwiz(fetch, pack_toml_url).await,
@@ -77,7 +74,9 @@ fn parent_of(url: &str) -> LineResult<String> {
 /// listed `.pw.toml`.
 pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResult<ResolvedPack> {
     let base = parent_of(pack_toml_url)?;
-    let pack_bytes = fetch.get(pack_toml_url, packwiz::MAX_MANIFEST_BYTES).await?;
+    let pack_bytes = fetch
+        .get(pack_toml_url, packwiz::MAX_MANIFEST_BYTES)
+        .await?;
     let pack = packwiz::parse_pack(&pack_bytes)?;
 
     // 1. The index the pack author wrote, identified by its own hash.
@@ -101,7 +100,9 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
         )));
     }
     if pack.index.file.contains("..") || pack.index.file.starts_with('/') {
-        return Err(LineError::input("index.file не может выходить за папку сборки."));
+        return Err(LineError::input(
+            "index.file не может выходить за папку сборки.",
+        ));
     }
     let index_url = super::super::config::validate_https(&format!(
         "{base}{}",
@@ -134,8 +135,16 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
         if path.contains('\\') || super::super::integrity::is_reserved(path) {
             return Err(LineError::input("Некорректный путь файла packwiz."));
         }
-        let hash = entry.hash.as_deref().ok_or_else(|| LineError::input("В index.toml отсутствует хеш файла."))?.to_ascii_lowercase();
-        let expected_len = if format.eq_ignore_ascii_case("sha512") { 128 } else { 64 };
+        let hash = entry
+            .hash
+            .as_deref()
+            .ok_or_else(|| LineError::input("В index.toml отсутствует хеш файла."))?
+            .to_ascii_lowercase();
+        let expected_len = if format.eq_ignore_ascii_case("sha512") {
+            128
+        } else {
+            64
+        };
         if hash.len() != expected_len || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(LineError::input("Некорректный хеш файла в index.toml."));
         }
@@ -143,14 +152,27 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
         if entry.metafile.unwrap_or(false) {
             let bytes = fetch.get(&url, packwiz::MAX_MANIFEST_BYTES).await?;
             if !packwiz::digest(format, &bytes).eq_ignore_ascii_case(&hash) {
-                return Err(LineError::new(ErrorCode::Integrity, "Хеш метафайла packwiz не совпадает с index.toml.", false));
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    "Хеш метафайла packwiz не совпадает с index.toml.",
+                    false,
+                ));
             }
             metafiles.push((path.to_owned(), packwiz::parse_metafile(&bytes, path)?));
         } else {
             ordinary.push(super::PackFile {
-                path: path.to_owned(), url,
-                sha256: if format.eq_ignore_ascii_case("sha256") { hash.clone() } else { String::new() },
-                sha512: if format.eq_ignore_ascii_case("sha512") { Some(hash) } else { None },
+                path: path.to_owned(),
+                url,
+                sha256: if format.eq_ignore_ascii_case("sha256") {
+                    hash.clone()
+                } else {
+                    String::new()
+                },
+                sha512: if format.eq_ignore_ascii_case("sha512") {
+                    Some(hash)
+                } else {
+                    None
+                },
                 inline: None,
                 size: 0,
             });
@@ -172,12 +194,13 @@ pub async fn resolve_modrinth(
 ) -> LineResult<ResolvedPack> {
     let url = modrinth::versions_url(project)?;
     let bytes = fetch.get(&url, 4 * 1024 * 1024).await?;
-    let versions: Vec<modrinth::McVersion> = serde_json::from_slice(&bytes).map_err(|_| {
-        LineError::input("Modrinth вернул неожиданный ответ вместо списка версий.")
-    })?;
+    let versions: Vec<modrinth::McVersion> = serde_json::from_slice(&bytes)
+        .map_err(|_| LineError::input("Modrinth вернул неожиданный ответ вместо списка версий."))?;
     let picked = modrinth::pick_version(&versions, version)?.clone();
     let file = picked.pack_file()?.clone();
-    let pack_url = super::super::config::validate_https(&file.url)?.as_str().to_owned();
+    let pack_url = super::super::config::validate_https(&file.url)?
+        .as_str()
+        .to_owned();
     let expected = file
         .hashes
         .get("sha512")
@@ -212,7 +235,11 @@ pub async fn resolve_modrinth(
     apply_overrides(&mut zip, &mut resolved.files)?;
     // The version id, not the project name: two versions of one project must not
     // look like the same build to the installer.
-    resolved.revision = format!("{}-{}", picked.id, picked.version_number.unwrap_or_default());
+    resolved.revision = format!(
+        "{}-{}",
+        picked.id,
+        picked.version_number.unwrap_or_default()
+    );
     Ok(resolved)
 }
 
@@ -220,7 +247,8 @@ pub async fn resolve_modrinth(
 /// The containing archive was authenticated before this is called. Keep bounded
 /// uncompressed bytes in memory until the installer's normal staging/index path.
 fn apply_overrides<R: std::io::Read + std::io::Seek>(
-    zip: &mut zip::ZipArchive<R>, files: &mut Vec<super::PackFile>,
+    zip: &mut zip::ZipArchive<R>,
+    files: &mut Vec<super::PackFile>,
 ) -> LineResult<()> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
@@ -232,33 +260,59 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
     for prefix in ["overrides/", "client-overrides/"] {
         let mut seen = std::collections::HashSet::new();
         for position in 0..zip.len() {
-            let mut entry = zip.by_index(position)
+            let mut entry = zip
+                .by_index(position)
                 .map_err(|_| LineError::input("Не удалось прочитать .mrpack."))?;
-            if entry.is_dir() { continue; }
-            let Some(path) = entry.name().strip_prefix(prefix).map(str::to_owned) else { continue };
+            if entry.is_dir() {
+                continue;
+            }
+            let Some(path) = entry.name().strip_prefix(prefix).map(str::to_owned) else {
+                continue;
+            };
             super::super::install::safe_entry_path(&path)?;
-            if super::super::integrity::is_reserved(&path) || !seen.insert(path.to_ascii_lowercase()) {
-                return Err(LineError::input("Повторяющийся или зарезервированный путь в overrides."));
+            if super::super::integrity::is_reserved(&path)
+                || !seen.insert(path.to_ascii_lowercase())
+            {
+                return Err(LineError::input(
+                    "Повторяющийся или зарезервированный путь в overrides.",
+                ));
             }
             // Symlinks and special ZIP entries are not files to install.
-            if entry.unix_mode().is_some_and(|mode| mode & 0o170000 != 0 && mode & 0o170000 != 0o100000) {
+            if entry
+                .unix_mode()
+                .is_some_and(|mode| mode & 0o170000 != 0 && mode & 0o170000 != 0o100000)
+            {
                 return Err(LineError::input("Недопустимый тип файла в overrides."));
             }
-            total = total.checked_add(entry.size()).ok_or_else(|| LineError::input("Overrides слишком велики."))?;
-            if total > MAX_OVERRIDES { return Err(LineError::input("Overrides превышают 128 МиБ.")); }
+            total = total
+                .checked_add(entry.size())
+                .ok_or_else(|| LineError::input("Overrides слишком велики."))?;
+            if total > MAX_OVERRIDES {
+                return Err(LineError::input("Overrides превышают 128 МиБ."));
+            }
             let declared = entry.size();
             let mut bytes = Vec::new();
-            (&mut entry).take(declared + 1).read_to_end(&mut bytes)
+            (&mut entry)
+                .take(declared + 1)
+                .read_to_end(&mut bytes)
                 .map_err(|_| LineError::input("Не удалось распаковать overrides."))?;
-            if bytes.len() as u64 != declared { return Err(LineError::input("Некорректный размер файла overrides.")); }
+            if bytes.len() as u64 != declared {
+                return Err(LineError::input("Некорректный размер файла overrides."));
+            }
             let sha256 = format!("{:x}", Sha256::digest(&bytes));
             // A later client override replaces the common override or download.
             files.retain(|file| file.path != path);
             files.push(super::PackFile {
-                path, url: String::new(), sha256, sha512: None,
-                size: bytes.len() as u64, inline: Some(Arc::new(bytes)),
+                path,
+                url: String::new(),
+                sha256,
+                sha512: None,
+                size: bytes.len() as u64,
+                inline: Some(Arc::new(bytes)),
             });
-            if files.len() > super::MAX_FILES { return Err(LineError::input("Слишком много файлов в .mrpack.")); }
+            if files.len() > super::MAX_FILES {
+                return Err(LineError::input("Слишком много файлов в .mrpack."));
+            }
         }
     }
     Ok(())
@@ -273,7 +327,9 @@ mod tests {
     fn archive(entries: &[(&str, &[u8])]) -> zip::ZipArchive<Cursor<Vec<u8>>> {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         for (name, bytes) in entries {
-            writer.start_file(*name, SimpleFileOptions::default()).unwrap();
+            writer
+                .start_file(*name, SimpleFileOptions::default())
+                .unwrap();
             writer.write_all(bytes).unwrap();
         }
         zip::ZipArchive::new(Cursor::new(writer.finish().unwrap().into_inner())).unwrap()
@@ -300,7 +356,10 @@ mod tests {
         for entries in [
             vec![("overrides/../outside", b"x".as_slice())],
             vec![("overrides/.line-complete", b"x".as_slice())],
-            vec![("overrides/config/A", b"x".as_slice()), ("overrides/config/a", b"y".as_slice())],
+            vec![
+                ("overrides/config/A", b"x".as_slice()),
+                ("overrides/config/a", b"y".as_slice()),
+            ],
         ] {
             assert!(apply_overrides(&mut archive(&entries), &mut vec![]).is_err());
         }

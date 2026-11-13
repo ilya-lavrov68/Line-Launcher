@@ -324,7 +324,11 @@ pub fn inspect(
         version_id,
         minecraft_version,
         loader,
-        generated_profile: profile.get("line").and_then(|v| v.get("generated")).and_then(Value::as_bool) == Some(true),
+        generated_profile: profile
+            .get("line")
+            .and_then(|v| v.get("generated"))
+            .and_then(Value::as_bool)
+            == Some(true),
         missing,
         files,
     })

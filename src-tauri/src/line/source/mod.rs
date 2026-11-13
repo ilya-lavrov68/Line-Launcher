@@ -122,8 +122,13 @@ impl ResolvedPack {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceKind {
     Archive,
-    Packwiz { pack_toml_url: String },
-    Modrinth { project: String, version: Option<String> },
+    Packwiz {
+        pack_toml_url: String,
+    },
+    Modrinth {
+        project: String,
+        version: Option<String>,
+    },
 }
 
 /// Reads the server's `source` block, if any. Older configs have none.
@@ -157,7 +162,10 @@ pub fn kind_of(server: &Server) -> LineResult<SourceKind> {
             if url_version.is_some() && source.version.is_some() {
                 return Err(LineError::input("Версия Modrinth указана дважды."));
             }
-            Ok(SourceKind::Modrinth { project, version: source.version.clone().or(url_version) })
+            Ok(SourceKind::Modrinth {
+                project,
+                version: source.version.clone().or(url_version),
+            })
         }
         other => Err(LineError::new(
             ErrorCode::UnsupportedVersion,

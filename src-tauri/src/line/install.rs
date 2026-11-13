@@ -207,9 +207,9 @@ pub fn extract_verified_zip(
             false,
         ));
     }
-    if expected_unpacked.is_some_and(|bytes| {
-        bytes == 0 || bytes > super::config::MAX_UNPACKED_BYTES
-    }) {
+    if expected_unpacked
+        .is_some_and(|bytes| bytes == 0 || bytes > super::config::MAX_UNPACKED_BYTES)
+    {
         return Err(LineError::input("Некорректный распакованный размер."));
     }
     let mut names = std::collections::HashSet::new();
@@ -628,7 +628,10 @@ pub async fn download_and_extract(
     // `pack.json` is not applied here: it describes an archive, and a source
     // server has none. Applying it would let a stale manifest override the pack
     // the provider just pointed `source` at.
-    if !matches!(super::source::kind_of(server)?, super::source::SourceKind::Archive) {
+    if !matches!(
+        super::source::kind_of(server)?,
+        super::source::SourceKind::Archive
+    ) {
         return super::source::install::install_source(
             client,
             server,
@@ -653,8 +656,19 @@ pub async fn repair(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
 ) -> LineResult<InstallReceipt> {
-    if !matches!(super::source::kind_of(server)?, super::source::SourceKind::Archive) {
-        return super::source::install::install_source(client, server, base, operation_id, cancel, sink).await;
+    if !matches!(
+        super::source::kind_of(server)?,
+        super::source::SourceKind::Archive
+    ) {
+        return super::source::install::install_source(
+            client,
+            server,
+            base,
+            operation_id,
+            cancel,
+            sink,
+        )
+        .await;
     }
     install_inner(client, server, base, operation_id, cancel, sink, true).await
 }
@@ -743,8 +757,7 @@ async fn install_inner(
                         // what moves. Dividing by zero here would have published
                         // NaN to the UI, which draws as an empty bar.
                         if p.total_bytes > 0 {
-                            *maximum =
-                                maximum.max(received as f64 / p.total_bytes as f64 * 70.0);
+                            *maximum = maximum.max(received as f64 / p.total_bytes as f64 * 70.0);
                         }
                         p.percent = *maximum;
                     }
@@ -877,9 +890,9 @@ impl Distribution {
         let bad_size = self
             .size_bytes
             .is_some_and(|bytes| bytes == 0 || bytes > super::config::MAX_ARCHIVE_BYTES);
-        let bad_unpacked = self.unpacked_size_bytes.is_some_and(|bytes| {
-            bytes == 0 || bytes > super::config::MAX_UNPACKED_BYTES
-        });
+        let bad_unpacked = self
+            .unpacked_size_bytes
+            .is_some_and(|bytes| bytes == 0 || bytes > super::config::MAX_UNPACKED_BYTES);
         let bad_sha = self.sha256.as_ref().is_some_and(|sha| {
             sha.len() != 64
                 || !sha

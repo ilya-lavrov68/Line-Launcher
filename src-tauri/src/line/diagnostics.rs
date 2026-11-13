@@ -257,12 +257,20 @@ mod tests {
         assert_eq!(kept.len(), MAX_LINES);
         assert!(!kept.iter().any(|line| line.contains("abcdef")));
         // The newest survive; the oldest are dropped.
-        assert!(kept.last().unwrap().contains(&format!("record {}", MAX_LINES + 49)));
+        assert!(kept
+            .last()
+            .unwrap()
+            .contains(&format!("record {}", MAX_LINES + 49)));
     }
 
     #[test]
     fn a_mailto_body_cannot_break_the_url() {
-        let url = mailto(Some("help@example.com"), "Диагностика Line", "line1\nline2 & more").unwrap();
+        let url = mailto(
+            Some("help@example.com"),
+            "Диагностика Line",
+            "line1\nline2 & more",
+        )
+        .unwrap();
         assert!(url.starts_with("mailto:help@example.com?subject="));
         assert!(!url.contains('\n'));
         assert!(!url.contains(' '));

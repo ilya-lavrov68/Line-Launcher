@@ -133,7 +133,9 @@ pub fn valid_project_id(value: &str) -> bool {
 /// need a second code path and a second error message for the same outcome.
 pub fn versions_url(project: &str) -> LineResult<String> {
     if !valid_project_id(project) {
-        return Err(LineError::input("Некорректный идентификатор проекта Modrinth."));
+        return Err(LineError::input(
+            "Некорректный идентификатор проекта Modrinth.",
+        ));
     }
     Ok(format!(
         "https://api.modrinth.com/v2/project/{project}/version"
@@ -254,7 +256,11 @@ pub fn parse_index(bytes: &[u8]) -> LineResult<McIndex> {
             false,
         ));
     }
-    if index.game.as_deref().is_some_and(|game| game != "minecraft") {
+    if index
+        .game
+        .as_deref()
+        .is_some_and(|game| game != "minecraft")
+    {
         return Err(LineError::input("Этот .mrpack не для Minecraft."));
     }
     Ok(index)
@@ -264,7 +270,11 @@ pub fn parse_index(bytes: &[u8]) -> LineResult<McIndex> {
 pub fn assemble(index: &McIndex) -> LineResult<ResolvedPack> {
     let mut files = Vec::with_capacity(index.files.len());
     for file in &index.files {
-        if file.env.get("client").is_some_and(|value| value == "unsupported") {
+        if file
+            .env
+            .get("client")
+            .is_some_and(|value| value == "unsupported")
+        {
             continue;
         }
         let url = file
@@ -315,7 +325,10 @@ pub fn assemble(index: &McIndex) -> LineResult<ResolvedPack> {
         })
         .or_else(|| {
             index.dependencies.get("forge").map(|version| {
-                (super::super::minecraft_core::LoaderChoice::Forge, version.clone())
+                (
+                    super::super::minecraft_core::LoaderChoice::Forge,
+                    version.clone(),
+                )
             })
         });
     Ok(ResolvedPack {
@@ -353,12 +366,15 @@ mod tests {
             versions_url("rQiXwLhB").unwrap(),
             "https://api.modrinth.com/v2/project/rQiXwLhB/version"
         );
-        let versions: Vec<McVersion> = serde_json::from_str(r#"[
+        let versions: Vec<McVersion> = serde_json::from_str(
+            r#"[
             {"id":"NEWER", "version_type":"release", "files":[]},
             {"id":"TQIsQXtg", "version_number":"1.3.1", "version_type":"release", "files":[
                 {"filename":"BattleArmory 1.3.1.mrpack", "primary":true}
             ]}
-        ]"#).unwrap();
+        ]"#,
+        )
+        .unwrap();
         let chosen = pick_version(&versions, Some("TQIsQXtg")).unwrap();
         assert_eq!(chosen.id, "TQIsQXtg");
         assert_eq!(

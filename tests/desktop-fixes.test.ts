@@ -95,7 +95,7 @@ test("offline launch is explicit, compatible and never inferred from missing aut
   // Offline and Minecraft share one rule: neither may carry a ticket pair.
   assert.match(
     config,
-    /matches!\(server\.launch_mode, LaunchMode::Offline \| LaunchMode::Minecraft\)/,
+    /matches!\(\s*server\.launch_mode,\s*LaunchMode::Offline \| LaunchMode::Minecraft\s*\)/,
   );
   assert.match(config, /launch_ticket_url\.is_some\(\)/);
   assert.match(config, /session_exchange_url\.is_some\(\)/);

@@ -327,7 +327,9 @@ fn file_sha256(path: &Path) -> LineResult<String> {
     use sha2::{Digest, Sha256};
     let metadata = fs::symlink_metadata(path).map_err(|e| LineError::io(&e))?;
     if !metadata.file_type().is_file() {
-        return Err(LineError::input("Ресурс-пак является ссылкой или не является обычным файлом."));
+        return Err(LineError::input(
+            "Ресурс-пак является ссылкой или не является обычным файлом.",
+        ));
     }
     if metadata.len() > MAX_PACK_BYTES {
         return Err(LineError::input("Ресурс-пак превышает допустимый размер."));

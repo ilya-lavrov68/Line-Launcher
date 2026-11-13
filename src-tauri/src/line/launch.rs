@@ -1073,6 +1073,16 @@ pub struct PackCheck {
     pub foreign: Vec<String>,
 }
 
+/// A resource-pack check is meaningful only for a completed provider release.
+fn require_pack_check_install(base: &Path, server_id: &str) -> LineResult<()> {
+    if super::install::current_receipt(base, server_id).is_none() {
+        return Err(LineError::input(
+            "Сборка отсутствует или установлена не полностью. Сначала установите сборку.",
+        ));
+    }
+    Ok(())
+}
+
 /// Runs the same check `launch_game` runs, without launching.
 ///
 /// Exists because the answer is useful *before* pressing «Играть»: a player who
@@ -1090,14 +1100,18 @@ pub async fn check_resource_packs(
         .path()
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
+    // Both modes store the installed provider release under instances; Minecraft
+    // keeps the writable game directory separately under minecraft/.
+    let release_base = server_dir(&root, &server_id)?;
     let base = if server.launch_mode == super::config::LaunchMode::Minecraft {
         root.join("minecraft")
             .join(super::minecraft_core::validate_instance_id(&server_id)?)
     } else {
-        server_dir(&root, &server_id)?
+        release_base.clone()
     };
-    let owned = super::pack::owned_files(&base);
     tauri::async_runtime::spawn_blocking(move || -> LineResult<PackCheck> {
+        require_pack_check_install(&release_base, &server_id)?;
+        let owned = super::pack::owned_files(&base);
         let settings = server.anticheat.clone().unwrap_or_default();
         // Keywords are the provider's switch; the foreign-file list is not.
         let extra: &[String] = if settings.scan_resourcepacks {
@@ -1131,6 +1145,30 @@ pub async fn check_resource_packs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pack_check_requires_a_complete_installed_release() {
+        let temp = tempfile::tempdir().unwrap();
+        assert!(require_pack_check_install(temp.path(), "demo").is_err());
+        let receipt = super::super::install::InstallReceipt {
+            server_id: "demo".into(),
+            version: "1".into(),
+            sha256: "a".repeat(64),
+            installed_at: 1,
+            already_installed: false,
+        };
+        std::fs::write(
+            temp.path().join("current.json"),
+            serde_json::to_vec(&receipt).unwrap(),
+        )
+        .unwrap();
+        assert!(require_pack_check_install(temp.path(), "demo").is_err());
+        let release = temp.path().join("releases").join("a".repeat(64));
+        std::fs::create_dir_all(&release).unwrap();
+        std::fs::write(release.join(".line-complete"), b"line-release-v1\n").unwrap();
+        assert!(require_pack_check_install(temp.path(), "demo").is_ok());
+        assert!(require_pack_check_install(temp.path(), "other").is_err());
+    }
 
     /// Absolute paths differ per platform: "/game" is relative on Windows.
     fn abs(relative: &str) -> PathBuf {

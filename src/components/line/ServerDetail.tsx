@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/line/i18n";
+import { errorMessage } from "@/lib/line/api";
 import { NO_SECTION, type ServerSection } from "@/lib/line/server-layout";
 import type {
   GameStatus,
@@ -338,7 +339,7 @@ export default function ServerDetail(props: ServerDetailProps) {
           a button and not automatic: hashing a large folder on every visit is
           wasted work, and a player who just installed a pack wants to know now,
           not by being refused at the dock. */}
-      {hasSession && (receipt || isMinecraft) && (
+      {hasSession && (
         <PackCheckPanel
           onCheck={props.onCheckPacks}
           onReport={props.onReportPacks}
@@ -400,7 +401,7 @@ export function PackCheckPanel({
     try {
       setResult(await onCheck());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       setState("idle");
     }
@@ -470,9 +471,7 @@ export function PackCheckPanel({
               disabled={disabled || state === "running"}
               onClick={() => {
                 void onReport().catch((cause: unknown) =>
-                  setError(
-                    cause instanceof Error ? cause.message : String(cause),
-                  ),
+                  setError(errorMessage(cause)),
                 );
               }}
             >

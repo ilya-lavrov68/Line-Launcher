@@ -224,3 +224,36 @@ test("default settings enable keyword checks and owned packs are scanned", () =>
   assert.match(scan, /foreign_paths\.contains\(&relative\)/);
   assert.match(scan, /scan_pack\(&relative, &path, &words\)/);
 });
+
+test("pack check reports missing installs and renders structured errors", async () => {
+  const { toLineError } = await import("../src/types/line.ts");
+  const error = {
+    code: "INVALID_INPUT",
+    message: "Сборка отсутствует",
+    retryable: false,
+  };
+  assert.equal(toLineError(error).message, "Сборка отсутствует");
+  assert.notEqual(
+    toLineError({ unexpected: true }, "Ошибка").message,
+    "[object Object]",
+  );
+  const detail = readFileSync(
+    path.join(ROOT, "src/components/line/ServerDetail.tsx"),
+    "utf8",
+  );
+  const panel = detail.slice(detail.indexOf("export function PackCheckPanel"));
+  assert.match(panel, /setError\(errorMessage\(cause\)\)/);
+  assert.doesNotMatch(panel, /String\(cause\)/);
+  const launch = readFileSync(
+    path.join(ROOT, "src-tauri/src/line/launch.rs"),
+    "utf8",
+  );
+  const command = launch.slice(
+    launch.indexOf("pub async fn check_resource_packs"),
+    launch.indexOf("#[cfg(test)]"),
+  );
+  assert.ok(
+    command.indexOf("require_pack_check_install") <
+      command.indexOf("instance_game_dir"),
+  );
+});

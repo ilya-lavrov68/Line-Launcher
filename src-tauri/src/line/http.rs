@@ -177,7 +177,9 @@ mod tests {
     fn not_modified_is_returned_to_cache_handler_not_followed() {
         assert!(!is_followable_redirect(reqwest::StatusCode::NOT_MODIFIED));
         assert!(is_followable_redirect(reqwest::StatusCode::FOUND));
-        assert!(is_followable_redirect(reqwest::StatusCode::TEMPORARY_REDIRECT));
+        assert!(is_followable_redirect(
+            reqwest::StatusCode::TEMPORARY_REDIRECT
+        ));
         assert!(!is_followable_redirect(reqwest::StatusCode::OK));
     }
 }

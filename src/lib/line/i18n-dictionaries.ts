@@ -315,6 +315,8 @@ export const ru = {
   "sections.untitled": "Без секции",
   "sections.new": "Новая секция",
   "sections.add": "Добавить секцию",
+  "sections.emptyHint":
+    "Создайте секцию ниже, затем откройте сервер и выберите её в поле «Секция». Настройка видна только вам.",
   "sections.defaultName": "Секция {n}",
   "sections.rename": "Переименовать",
   "sections.renamePrompt": "Название секции",
@@ -338,7 +340,7 @@ export const ru = {
   "source.version": "Версия {version}",
 
   "packs.reportProvider": "Отправить провайдеру",
-  "packs.check": "Проверить сборку",
+  "packs.check": "Проверить ресурс-паки",
   "packs.checking": "Проверяем ресурс-паки…",
   "packs.clean": "Проверка пройдена: подозрительных ресурс-паков нет.",
   "packs.foreign":
@@ -715,6 +717,8 @@ const en: Dictionary = {
   "sections.untitled": "No section",
   "sections.new": "New section",
   "sections.add": "Add section",
+  "sections.emptyHint":
+    "Create a section below, then open a server and choose it under “Section”. Only you can see this layout.",
   "sections.defaultName": "Section {n}",
   "sections.rename": "Rename",
   "sections.renamePrompt": "Section name",
@@ -739,7 +743,7 @@ const en: Dictionary = {
   "source.version": "Version {version}",
 
   "packs.reportProvider": "Send to provider",
-  "packs.check": "Check build",
+  "packs.check": "Check resource packs",
   "packs.checking": "Checking resource packs…",
   "packs.clean": "Check passed: no suspicious resource packs.",
   "packs.foreign":
@@ -1115,6 +1119,8 @@ const de: Dictionary = {
   "sections.untitled": "Ohne Abschnitt",
   "sections.new": "Neuer Abschnitt",
   "sections.add": "Abschnitt hinzufügen",
+  "sections.emptyHint":
+    "Erstellen Sie unten einen Abschnitt und wählen Sie ihn anschließend beim Server unter „Abschnitt“ aus. Nur Sie sehen diese Einteilung.",
   "sections.defaultName": "Abschnitt {n}",
   "sections.rename": "Umbenennen",
   "sections.renamePrompt": "Name des Abschnitts",
@@ -1139,7 +1145,7 @@ const de: Dictionary = {
   "source.version": "Version {version}",
 
   "packs.reportProvider": "An Anbieter senden",
-  "packs.check": "Build prüfen",
+  "packs.check": "Ressourcenpakete prüfen",
   "packs.checking": "Ressourcenpakete werden geprüft…",
   "packs.clean": "Prüfung bestanden: keine verdächtigen Ressourcenpakete.",
   "packs.foreign":
@@ -1514,6 +1520,8 @@ const fr: Dictionary = {
   "sections.untitled": "Sans section",
   "sections.new": "Nouvelle section",
   "sections.add": "Ajouter une section",
+  "sections.emptyHint":
+    "Créez une section ci-dessous, puis ouvrez un serveur et choisissez-la dans « Section ». Cette organisation est personnelle.",
   "sections.defaultName": "Section {n}",
   "sections.rename": "Renommer",
   "sections.renamePrompt": "Nom de la section",
@@ -1539,7 +1547,7 @@ const fr: Dictionary = {
   "source.version": "Version {version}",
 
   "packs.reportProvider": "Envoyer au fournisseur",
-  "packs.check": "Vérifier la compilation",
+  "packs.check": "Vérifier les packs de ressources",
   "packs.checking": "Vérification des packs de ressources…",
   "packs.clean": "Vérification réussie : aucun pack de ressources suspect.",
   "packs.foreign":

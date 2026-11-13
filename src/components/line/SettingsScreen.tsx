@@ -124,7 +124,7 @@ function Section({
 
 /**
  * Player settings. Reuses Obsy's card surface, Slider, Select and Button rather
- * than introducing new controls, so the palette presets restyle it for free.
+ * than introducing new controls, so it needs no colour of its own.
  *
  * Every change is persisted through Rust, which revalidates the heap against
  * this machine's memory and the Java path against the runtimes it can discover.

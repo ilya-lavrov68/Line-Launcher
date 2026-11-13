@@ -12,7 +12,7 @@ export interface BrandMarkProps {
  * `branding/assets.logo`.
  *
  * A monochrome SVG authored with `currentColor` is painted through a CSS mask so
- * it inherits `text-primary` and therefore follows every branding preset — the
+ * it inherits `text-primary` and therefore follows the fixed palette — the
  * same tint Obsy applies to its own header logo. Colour artwork keeps its own
  * fills and is rendered as a plain image. Neither path introduces a background.
  */

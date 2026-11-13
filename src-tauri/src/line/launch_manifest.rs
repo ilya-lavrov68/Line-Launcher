@@ -36,7 +36,7 @@ pub const LAUNCHER_OWNED_ARGS: &[&str] = &[
 /// could be read as another flag. This is what lets a modded pack pass
 /// `--launchTarget`/`--fml.*` without opening a hole for `-javaagent`.
 pub fn game_args_are_safe(args: &[String]) -> bool {
-    if args.len() > MAX_GAME_ARGS || args.len() % 2 != 0 {
+    if args.len() > MAX_GAME_ARGS || !args.len().is_multiple_of(2) {
         return false;
     }
     let mut seen = std::collections::HashSet::new();

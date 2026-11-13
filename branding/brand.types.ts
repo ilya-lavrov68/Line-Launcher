@@ -5,33 +5,19 @@
  * has no runtime dependency: the generator (scripts/apply-brand.ts) imports the
  * types only, and the app consumes the generated `src/brand/generated.ts`.
  *
- * Design rule: the DEFAULT preset ("obsy") must leave the upstream Obsy palette
- * and radii untouched. Presets exist so downstream projects can re-brand fast,
- * not to redesign the launcher.
+ * Design rule: the palette is FIXED. Re-branding changes the product name,
+ * the logo and the icon — never the colours. The interface is built around this
+ * exact palette (deep surfaces, one bright accent, status colours tuned against
+ * them), and a swapped accent does not "re-brand" it, it breaks it: contrast
+ * ratios that make the sidebar readable stop holding, and the animated
+ * backdrops are generated against these hues.
+ *
+ * The old `preset`/`palette` keys were removed in 0.12.0 rather than kept with
+ * a single "obsy" value: a setting with one legal value is an invitation to add
+ * a second one in the next release. A config that still carries them fails
+ * `npm run brand` with an explanation instead of silently building an
+ * unpredictable interface.
  */
-
-/** Semantic colour slots. Values are CSS colours (hex/oklch/rgb/hsl). */
-export interface BrandPalette {
-  /** Page background base. Obsy also animates a gradient on top of it. */
-  background?: string;
-  foreground?: string;
-  card?: string;
-  card_foreground?: string;
-  popover?: string;
-  popover_foreground?: string;
-  primary?: string;
-  primary_foreground?: string;
-  secondary?: string;
-  secondary_foreground?: string;
-  muted?: string;
-  muted_foreground?: string;
-  accent?: string;
-  accent_foreground?: string;
-  destructive?: string;
-  border?: string;
-  input?: string;
-  ring?: string;
-}
 
 export interface BrandProduct {
   /** Full product name shown in the header and About dialog. */
@@ -74,35 +60,17 @@ export interface BrandAttribution {
 }
 
 export interface BrandConfig {
-  /** Named preset applied first; `palette` overrides it slot by slot. */
-  preset: string;
   product: BrandProduct;
   assets: BrandAssets;
-  palette: BrandPalette;
   attribution: BrandAttribution;
 }
 
-/** Palette slots the generator is allowed to emit, in stable order. */
-export const PALETTE_SLOTS = [
-  "background",
-  "foreground",
-  "card",
-  "card_foreground",
-  "popover",
-  "popover_foreground",
-  "primary",
-  "primary_foreground",
-  "secondary",
-  "secondary_foreground",
-  "muted",
-  "muted_foreground",
-  "accent",
-  "accent_foreground",
-  "destructive",
-  "border",
-  "input",
-  "ring",
-] as const satisfies readonly (keyof BrandPalette)[];
+/**
+ * Keys that used to configure colours. They are rejected by name so an older
+ * config gets "the palette is fixed" instead of a generic unknown-key error,
+ * which would suggest the key moved somewhere.
+ */
+export const REMOVED_PALETTE_KEYS = ["preset", "palette"] as const;
 
 export const ATTRIBUTION_PLACEMENTS = [
   "footer",

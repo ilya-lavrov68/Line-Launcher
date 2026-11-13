@@ -3,7 +3,17 @@ import { RefreshCw, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LineServer } from "@/types/line";
 import { useT } from "@/lib/line/i18n";
+import {
+  EMPTY_LAYOUT,
+  groupServers,
+  newSection,
+  removeSection,
+  renameSection,
+  setCollapsed,
+  type ServerLayout,
+} from "@/lib/line/server-layout";
 import ServerCard from "./ServerCard";
+import SectionHeader, { AddSectionButton } from "./SectionHeader";
 
 export interface ServerListProps {
   providerName: string;
@@ -21,6 +31,12 @@ export interface ServerListProps {
    * id alone: a newer published revision means the server needs an update.
    */
   statusFor?: (server: LineServer) => string | undefined;
+  /**
+   * The player's grouping. Absent = one flat grid, which is what a fresh
+   * install has and what the provider's contract describes.
+   */
+  layout?: ServerLayout;
+  onLayoutChange?: (next: ServerLayout) => void;
 }
 
 /**
@@ -38,8 +54,16 @@ export default function ServerList({
   onRefresh,
   rail,
   statusFor,
+  layout,
+  onLayoutChange,
 }: ServerListProps) {
   const t = useT();
+  // One call decides the shape; the component only renders it. `layout`
+  // undefined means the flat catalogue, so grouping is opt-in by the caller.
+  const groups =
+    layout === undefined
+      ? groupServers(servers, EMPTY_LAYOUT)
+      : groupServers(servers, layout);
   return (
     <section
       aria-labelledby="server-list-title"
@@ -82,30 +106,85 @@ export default function ServerList({
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {servers.map((server, index) => (
-          <m.div
-            key={server.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, delay: Math.min(index * 0.035, 0.2) }}
-          >
-            <ServerCard
-              name={server.name}
-              description={server.description}
-              iconUrl={server.icon_url ?? server.logo_url}
-              bannerUrl={server.banner_url}
-              version={server.version}
-              minecraftVersion={server.minecraft_version}
-              installed={installedIds.has(server.id)}
-              statusLabel={statusFor?.(server)}
-              hasPack={Boolean(server.pack_manifest_url)}
+      {groups.map((group) => (
+        <div key={group.id || "unsorted"} className="flex flex-col">
+          {/* A single flat group with no name is the pre-sections catalogue;
+              a heading saying "No section" over every server would be noise. */}
+          {(layout !== undefined || group.id !== "") && (
+            <SectionHeader
+              name={group.name}
+              count={group.servers.length}
+              collapsed={group.collapsed}
+              implicit={group.id === ""}
               disabled={refreshing || actionsDisabled}
-              onClick={() => onSelect(server)}
+              onToggle={() =>
+                onLayoutChange?.(
+                  setCollapsed(
+                    layout ?? EMPTY_LAYOUT,
+                    group.id,
+                    !group.collapsed,
+                  ),
+                )
+              }
+              onRename={(name) =>
+                onLayoutChange?.(
+                  renameSection(layout ?? EMPTY_LAYOUT, group.id, name),
+                )
+              }
+              onRemove={() =>
+                onLayoutChange?.(
+                  removeSection(layout ?? EMPTY_LAYOUT, group.id),
+                )
+              }
             />
-          </m.div>
-        ))}
-      </div>
+          )}
+          {!group.collapsed && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {group.servers.map((server, index) => (
+                <m.div
+                  key={server.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    delay: Math.min(index * 0.035, 0.2),
+                  }}
+                >
+                  <ServerCard
+                    name={server.name}
+                    description={server.description}
+                    iconUrl={server.icon_url ?? server.logo_url}
+                    bannerUrl={server.banner_url}
+                    version={server.version}
+                    minecraftVersion={server.minecraft_version}
+                    installed={installedIds.has(server.id)}
+                    statusLabel={statusFor?.(server)}
+                    hasPack={Boolean(server.pack_manifest_url)}
+                    disabled={refreshing || actionsDisabled}
+                    onClick={() => onSelect(server)}
+                  />
+                </m.div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {layout !== undefined && !refreshing && (
+        <AddSectionButton
+          layout={layout}
+          disabled={actionsDisabled}
+          onAdd={(name) =>
+            onLayoutChange?.({
+              sections: [
+                ...layout.sections,
+                newSection(name, `sec-${crypto.randomUUID()}`),
+              ],
+              assignments: layout.assignments,
+            })
+          }
+        />
+      )}
     </section>
   );
 }

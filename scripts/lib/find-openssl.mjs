@@ -59,23 +59,26 @@ function gitRoots(env) {
 /**
  * @returns {{ path: string, version: string, via: string } | null}
  */
-export function findOpenSsl(env = process.env) {
+export function findOpenSsl(
+  env = process.env,
+  { run = runs, locateGit = gitRoots } = {},
+) {
   // Explicit override wins.
   for (const key of ["LINE_OPENSSL", "OPENSSL"]) {
     const value = env[key];
     if (value && existsSync(value)) {
-      const version = runs(value);
+      const version = run(value);
       if (version) return { path: value, version, via: key };
     }
   }
 
-  const onPath = runs("openssl");
+  const onPath = run("openssl");
   if (onPath) return { path: "openssl", version: onPath, via: "PATH" };
 
   if (!isWin) return null;
 
   const candidates = [];
-  for (const root of gitRoots(env)) {
+  for (const root of locateGit(env)) {
     candidates.push({
       file: path.join(root, "usr", "bin", "openssl.exe"),
       via: "Git for Windows",
@@ -111,7 +114,7 @@ export function findOpenSsl(env = process.env) {
 
   for (const { file, via } of candidates) {
     if (!existsSync(file)) continue;
-    const version = runs(file);
+    const version = run(file);
     if (version) return { path: file, version, via };
   }
   return null;

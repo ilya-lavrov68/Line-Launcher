@@ -70,6 +70,10 @@ pub enum GamePhase {
     Running,
     Exited,
     Failed,
+    /// The launch was refused on purpose — the release failed its integrity
+    /// scan, or the resource-pack check found a cheat. Distinct from `Failed`
+    /// because nothing crashed: the player has to decide something.
+    Blocked,
 }
 
 pub const MIN_HEAP_MB: u32 = 1024;
@@ -581,6 +585,98 @@ async fn prepare_release(
     Ok(lease)
 }
 
+/// Block foreign files in the live mods directory without deleting player data.
+/// Nested paths and links cannot be authenticated from the pack's flat file list.
+pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
+    let dir = game.join("mods");
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(LineError::io(&error)),
+    };
+    let owned: std::collections::BTreeSet<&str> = owned.iter().map(String::as_str).collect();
+    for entry in entries {
+        let entry = entry.map_err(|e| LineError::io(&e))?;
+        let kind = std::fs::symlink_metadata(entry.path()).map_err(|e| LineError::io(&e))?.file_type();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = format!("mods/{name}");
+        if !kind.is_file() || !owned.contains(path.as_str()) {
+            return Err(LineError::new(ErrorCode::Integrity,
+                format!("В папке mods найден посторонний файл или каталог: {name}. Уберите его и повторите запуск."), false));
+        }
+    }
+    Ok(())
+}
+
+/// Result of the resource-pack check. `blocked` is fatal; `foreign` alone is
+/// reported and the player decides (see `docs/ANTICHEAT.md`).
+pub struct PackScan {
+    pub blocked: Option<String>,
+    pub foreign: usize,
+}
+
+/// Checks what the game will actually load from `game/resourcepacks`.
+///
+/// Runs on the **live** directory, not the immutable release: a pack dropped
+/// into `game/` is exactly what the release scan cannot see, and it is what the
+/// game reads. Two questions, in order:
+///
+/// 1. Is every file in that folder one the provider published? (`pack-state.json`)
+/// 2. Does any of them contain a cheat keyword — in its name, its entries or the
+///    text of its models?
+///
+/// A keyword hit stops the launch. A foreign file that scans clean is reported
+/// and left alone: a player is allowed to install a HUD pack, and deleting it
+/// would be the launcher deciding it knows better about a file it did not ship.
+pub fn scan_packs(
+    base: &Path,
+    server: &super::config::Server,
+    owned: &[String],
+) -> LineResult<PackScan> {
+    let game = instance_game_dir(base)?;
+    check_live_mods(&game, owned)?;
+    let settings = server.anticheat.clone().unwrap_or_default();
+    if !settings.scan_resourcepacks {
+        // The hard half still runs: "nobody published this file" is not an
+        // opinion about words and cannot be switched off.
+        let (_, foreign) =
+            super::resourcepack::scan_all(&game, owned, &settings.allow, &[])?;
+        return Ok(PackScan {
+            blocked: None,
+            foreign: foreign.len(),
+        });
+    }
+    let (findings, foreign) = super::resourcepack::scan_all(
+        &game,
+        owned,
+        &settings.allow,
+        &settings.extra_keywords,
+    )?;
+    for hit in &findings.hits {
+        super::logger::warn(
+            super::logger::Area::Launch,
+            "resourcepack blocked",
+            &[
+                super::logger::Field::text("pack", &hit.pack),
+                super::logger::Field::text("entry", &hit.entry),
+                super::logger::Field::text("keyword", &hit.keyword),
+            ],
+        );
+    }
+    let blocked = if findings.is_clean() {
+        None
+    } else {
+        Some(format!(
+            "В ресурс-паках найдено запрещённое содержимое: {}. Удалите этот пак в «Открыть папку игры» → resourcepacks и попробуйте снова.",
+            findings.summary(3)
+        ))
+    };
+    Ok(PackScan {
+        blocked,
+        foreign: foreign.len(),
+    })
+}
+
 #[tauri::command]
 pub async fn launch_game(
     server_id: String,
@@ -660,6 +756,54 @@ pub async fn launch_game(
             result = io => result.map_err(|_| LineError::storage())??,
             _ = wait_stop(&stop) => return Err(cancelled()),
         };
+        // What the game will load from `game/resourcepacks`, checked against what
+        // the provider actually published. Runs after the release scan (so the
+        // published side is known good) and before Java exists, so a blocked
+        // launch costs nothing but a message.
+        let owned = super::pack::owned_files(&base);
+        let scan_base = base.clone();
+        let scan_server = server.clone();
+        let scan = tauri::async_runtime::spawn_blocking(move || {
+            scan_packs(&scan_base, &scan_server, &owned)
+        });
+        let scan = tokio::select! {
+            result = scan => result.map_err(|_| LineError::storage())??,
+            _ = wait_stop(&stop) => return Err(cancelled()),
+        };
+        if let Some(message) = scan.blocked {
+            publish(
+                &app,
+                &state,
+                GameStatus {
+                    server_id: server_id.clone(),
+                    revision: 0,
+                    phase: GamePhase::Blocked,
+                    sha256: Some(receipt.sha256.clone()),
+                    started_at: None,
+                    exit_code: None,
+                    message: Some(message.clone()),
+                },
+            );
+            return Err(LineError::new(ErrorCode::Integrity, message, false));
+        }
+        if scan.foreign > 0 {
+            publish(
+                &app,
+                &state,
+                GameStatus {
+                    server_id: server_id.clone(),
+                    revision: 0,
+                    phase: GamePhase::Starting,
+                    sha256: Some(receipt.sha256.clone()),
+                    started_at: None,
+                    exit_code: None,
+                    message: Some(format!(
+                        "Посторонних ресурс-паков: {}. Запуск продолжается — это ваши файлы.",
+                        scan.foreign
+                    )),
+                },
+            );
+        }
         if stop.load(Ordering::Acquire) {
             return Err(cancelled());
         }
@@ -920,6 +1064,70 @@ pub async fn get_game_status(
     // Returns the last published transition (including exited/failed), never a
     // synthesized phase that could undo a terminal event in the UI.
     state.game_status(&server_id)
+}
+
+/// What a pack check found, for the «Проверить сейчас» button.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackCheck {
+    /// Empty when nothing suspicious was found.
+    pub findings: Vec<String>,
+    /// Files in `game/resourcepacks` the provider did not publish.
+    pub foreign: Vec<String>,
+}
+
+/// Runs the same check `launch_game` runs, without launching.
+///
+/// Exists because the answer is useful *before* pressing «Играть»: a player who
+/// just installed a pack can find out now, instead of being blocked at the worst
+/// possible moment. Same code path, so the two can never disagree.
+#[tauri::command]
+pub async fn check_resource_packs(
+    server_id: String,
+    app: AppHandle,
+    state: State<'_, LineState>,
+) -> LineResult<PackCheck> {
+    let (_, config) = state.fresh_config()?;
+    let server = config.server(&server_id)?.clone();
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| LineError::storage())?;
+    let base = if server.launch_mode == super::config::LaunchMode::Minecraft {
+        root.join("minecraft").join(super::minecraft_core::validate_instance_id(&server_id)?)
+    } else {
+        server_dir(&root, &server_id)?
+    };
+    let owned = super::pack::owned_files(&base);
+    tauri::async_runtime::spawn_blocking(move || -> LineResult<PackCheck> {
+        let settings = server.anticheat.clone().unwrap_or_default();
+        // Keywords are the provider's switch; the foreign-file list is not.
+        let extra: &[String] = if settings.scan_resourcepacks {
+            &settings.extra_keywords
+        } else {
+            &[]
+        };
+        let game = instance_game_dir(&base)?;
+        let (findings, foreign) =
+            super::resourcepack::scan_all(&game, &owned, &settings.allow, extra)?;
+        Ok(PackCheck {
+            findings: findings
+                .hits
+                .iter()
+                .filter(|_| settings.scan_resourcepacks)
+                .map(|hit| {
+                    if hit.entry.is_empty() {
+                        format!("{} ({})", hit.pack, hit.keyword)
+                    } else {
+                        format!("{}: {} ({})", hit.pack, hit.entry, hit.keyword)
+                    }
+                })
+                .collect(),
+            foreign: foreign.into_iter().map(|pack| pack.path).collect(),
+        })
+    })
+    .await
+    .map_err(|_| LineError::storage())?
 }
 
 #[cfg(test)]

@@ -1,0 +1,45 @@
+# Keywords that mark a resource pack as suspicious.
+#
+# Read by `resourcepack.rs` at compile time (`include_str!`), so editing this file
+# is a code change: it goes through review and tests. Providers can add words
+# through `anticheat.extra_keywords`, and they can exempt a specific pack by
+# sha256 through `anticheat.allow` — but they cannot remove anything below.
+#
+# Matching is by word, case-insensitive, on the pack's file name, the entry names
+# inside it and the text of its JSON/mcmeta/lang files. `xray_ultimate` and
+# `XRay` match `xray`; `pixray` and `xrayed` do not. Keep that in mind: short or
+# generic words fire on legitimate packs. `fly`, `esp`-adjacent words like `night`
+# and anything a normal pack name could contain are deliberately absent — a list
+# that cries wolf is a list players learn to dismiss.
+#
+# Reported, not deleted: the player is told which pack and which file, and can
+# delete it or write to the provider. See docs/ANTICHEAT.md.
+
+# Seeing through blocks
+xray
+x-ray
+wallhack
+esp
+tracers
+
+# Moving or acting through blocks
+noclip
+freecam
+free-cam
+speedhack
+bhop
+
+# Seeing in the dark and at range
+fullbright
+full-bright
+nightvision
+night-vision
+
+# Combat assistance
+killaura
+aimbot
+aim-assist
+autoclicker
+auto-clicker
+reach
+hitbox

@@ -62,7 +62,7 @@ impl ProgressSink {
     pub fn new(f: impl Fn(InstallProgress) + Send + Sync + 'static) -> Self {
         Self(Arc::new(f))
     }
-    fn emit(&self, p: InstallProgress) {
+    pub fn emit(&self, p: InstallProgress) {
         (self.0)(p);
     }
 }
@@ -624,6 +624,25 @@ pub async fn download_and_extract(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
 ) -> LineResult<InstallReceipt> {
+    // Two shapes of build, one entry point. A `source` server resolves to a file
+    // list; everything after the bytes are on disk — release directory, index,
+    // marker, current.json, history — is shared, so launch, repair, rollback and
+    // the anticheat scan do not need to know which one they are looking at.
+    //
+    // `pack.json` is not applied here: it describes an archive, and a source
+    // server has none. Applying it would let a stale manifest override the pack
+    // the provider just pointed `source` at.
+    if !matches!(super::source::kind_of(server)?, super::source::SourceKind::Archive) {
+        return super::source::install::install_source(
+            client,
+            server,
+            base,
+            operation_id,
+            cancel,
+            sink,
+        )
+        .await;
+    }
     let server = super::pack::effective_server(client, server, base).await?;
     install_inner(client, &server, base, operation_id, cancel, sink, false).await
 }
@@ -638,6 +657,9 @@ pub async fn repair(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
 ) -> LineResult<InstallReceipt> {
+    if !matches!(super::source::kind_of(server)?, super::source::SourceKind::Archive) {
+        return super::source::install::install_source(client, server, base, operation_id, cancel, sink).await;
+    }
     install_inner(client, server, base, operation_id, cancel, sink, true).await
 }
 

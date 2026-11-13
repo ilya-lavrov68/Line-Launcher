@@ -190,6 +190,7 @@ endpoint и интеграция мода с сессией Minecraft остаю
 | [PROVIDER.md](docs/PROVIDER.md)         | Контракт API и формат `config.json`            |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Устройство, решения безопасности, roadmap      |
 | [LOGGING.md](docs/LOGGING.md)           | Логи лаунчера, диагностика, письмо в поддержку |
+| [ANTICHEAT.md](docs/ANTICHEAT.md)       | Проверка сборки и ресурс-паков перед запуском  |
 | [RUNBOOK.md](docs/RUNBOOK.md)           | Подробные инструкции и ручные проверки         |
 | [VERIFICATION.md](docs/VERIFICATION.md) | Что проверено и с какими ограничениями         |
 

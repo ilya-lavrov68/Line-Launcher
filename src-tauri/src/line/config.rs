@@ -66,7 +66,7 @@ pub struct LaunchAuth {
 /// bytes for a file they had just uploaded, which is exactly the "долго и
 /// муторно" this replaces. A pinned value is still enforced byte for byte —
 /// dropping it from the required set must not weaken a config that provides it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Distribution {
     pub url: String,
     /// Optional. When present the archive must hash to exactly this.
@@ -94,6 +94,37 @@ impl Distribution {
             self.unpacked_size_bytes,
         )
     }
+}
+
+/// Server-side resource-pack checking.
+///
+/// Two knobs, both additive. `scan_resourcepacks: false` turns off the *keyword*
+/// scan, for a project whose packs legitimately contain those words (an animated
+/// "xray" block in a magic mod, say). What it cannot turn off is the check for
+/// files the provider never published: that is not an opinion about names, it is
+/// "nobody shipped this", and a switch for it would make the whole feature
+/// decorative.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
+pub struct Anticheat {
+    #[serde(default = "default_true")]
+    pub scan_resourcepacks: bool,
+    /// Extra keywords, unioned with the built-in list. Cannot remove any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_keywords: Vec<String>,
+    /// sha256 of packs the provider vouches for, even if a keyword matches.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allow: Vec<String>,
+}
+
+impl Default for Anticheat {
+    fn default() -> Self {
+        Self { scan_resourcepacks: true, extra_keywords: Vec::new(), allow: Vec::new() }
+    }
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Optional wardrobe endpoints. Both must be present together so a provider
@@ -145,6 +176,12 @@ pub struct Server {
     pub server_address: Option<String>,
     #[serde(default)]
     pub auth: LaunchAuth,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anticheat: Option<Anticheat>,
+    /// Where the build comes from. Absent = the archive above, which is what
+    /// every config written before 0.15 means.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
     /// `pack.json` beside the archive: { schema_version, url, sha256,
     /// size_bytes, unpacked_size_bytes }. When present it, not the pinned
     /// distribution below, decides whether the pack changed.
@@ -152,7 +189,28 @@ pub struct Server {
     pub pack_manifest_url: Option<String>,
     /// Fallback/bootstrap description of the same archive. Still required so
     /// older configs and the ticket flow keep working unchanged.
+    #[serde(default)]
     pub distribution: Distribution,
+}
+
+/// `source` on a server: which build system publishes it.
+///
+/// The fields are flat and validated per `kind` rather than an enum with
+/// `#[serde(tag)]`, because a typo in `kind` must produce the launcher's own
+/// message ("источник не поддерживается этой версией") instead of a serde error
+/// that a provider cannot act on.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Source {
+    pub kind: String,
+    /// `packwiz`: raw `pack.toml` (github.com/…/raw/…, raw.githubusercontent.com).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pack_toml_url: Option<String>,
+    /// `modrinth`: project slug or id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+    /// `modrinth`: exact version id or number. Absent = newest release.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -276,6 +334,30 @@ fn text(value: &str, max: usize) -> bool {
 impl LineConfig {
     /// Additive unknown JSON fields are allowed. Unknown REQUIRED features are not.
     /// Version/schema errors must never trigger an unsafe compatibility fallback.
+    /// Feature names a config must declare for the sources it uses.
+    ///
+    /// Declaring `packwiz-v1` is what makes an older launcher refuse the config
+    /// outright. Without it, that launcher would ignore `source` and install the
+    /// fallback archive — a different build than the provider published, which
+    /// is exactly the surprise the feature list exists to prevent.
+    pub fn required_source_features(&self) -> Vec<&'static str> {
+        let mut found = Vec::new();
+        for server in &self.servers {
+            let Some(source) = &server.source else {
+                continue;
+            };
+            let feature = match source.kind.as_str() {
+                "packwiz" => "packwiz-v1",
+                "modrinth" => "modrinth-v1",
+                _ => continue,
+            };
+            if !found.contains(&feature) {
+                found.push(feature);
+            }
+        }
+        found
+    }
+
     pub fn validate(&self, launcher_version: &str) -> LineResult<()> {
         if self.schema_version != SCHEMA_VERSION {
             return Err(LineError::new(
@@ -305,6 +387,8 @@ impl LineConfig {
                     | "private-ipc-v1"
                     | "offline-launch-v1"
                     | "skin-upload-v1"
+                    | "packwiz-v1"
+                    | "modrinth-v1"
             )
         }) {
             return Err(LineError::new(
@@ -352,6 +436,15 @@ impl LineConfig {
                 ));
             }
         }
+        // A source that needs a feature must declare it. The reverse is allowed:
+        // a config may declare `packwiz-v1` before its servers use it.
+        for feature in self.required_source_features() {
+            if !self.required_features.iter().any(|f| f == feature) {
+                return Err(LineError::input(format!(
+                    "Сервер использует source, который требует записать «{feature}» в required_features: иначе старый лаунчер молча установит запасной архив вместо сборки."
+                )));
+            }
+        }
         let mut ids = HashSet::new();
         for server in &self.servers {
             if !validate_slug(&server.id) || !ids.insert(&server.id) {
@@ -382,6 +475,90 @@ impl LineConfig {
             }
             if let Some(url) = &server.pack_manifest_url {
                 validate_https(url)?;
+            }
+            if let Some(anticheat) = &server.anticheat {
+                if anticheat.extra_keywords.len() > 64
+                    || anticheat.allow.len() > 256
+                    || anticheat.extra_keywords.iter().any(|word| {
+                        word.trim() != word
+                            || word.len() < 3
+                            || word.len() > 40
+                            || word.chars().any(char::is_control)
+                    })
+                    || anticheat
+                        .allow
+                        .iter()
+                        .any(|hash| !super::integrity::valid_sha256(hash))
+                {
+                    return Err(LineError::input(
+                        "anticheat: до 64 дополнительных слов (3–40 символов) и до 256 исключений — каждое sha256 сборки.",
+                    ));
+                }
+            }
+            // A source names its own fields and nothing else: a `pack_toml_url`
+            // on a modrinth server is a provider's typo, and ignoring it would
+            // leave them wondering why the pack did not change.
+            if let Some(source) = &server.source {
+                if !server.distribution.url.is_empty() || server.distribution.sha256.is_some()
+                    || server.distribution.size_bytes.is_some() || server.distribution.unpacked_size_bytes.is_some()
+                    || server.pack_manifest_url.is_some() {
+                    return Err(LineError::input("source нельзя объединять с distribution или pack_manifest_url."));
+                }
+                let kind = source.kind.trim();
+                if kind != source.kind {
+                    return Err(LineError::input("source.kind не должен содержать пробелов."));
+                }
+                match kind {
+                    "packwiz" => {
+                        if source.project.is_some() || source.version.is_some() {
+                            return Err(LineError::input(
+                                "source.kind=packwiz принимает только pack_toml_url.",
+                            ));
+                        }
+                        let url = source.pack_toml_url.as_deref().ok_or_else(|| {
+                            LineError::input("source.kind=packwiz требует pack_toml_url.")
+                        })?;
+                        validate_https(url)?;
+                    }
+                    "modrinth" => {
+                        if source.pack_toml_url.is_some() {
+                            return Err(LineError::input(
+                                "source.kind=modrinth принимает project и version, без pack_toml_url.",
+                            ));
+                        }
+                        let project = source.project.as_deref().ok_or_else(|| {
+                            LineError::input("source.kind=modrinth требует project.")
+                        })?;
+                        if project.starts_with("https://") {
+                            let (_, url_version) = super::source::modrinth::project_from_url(project)?;
+                            if url_version.is_some() && source.version.is_some() {
+                                return Err(LineError::input("Версия Modrinth указана одновременно в URL и source.version."));
+                            }
+                        } else if !super::source::modrinth::valid_project_id(project) {
+                            return Err(LineError::input("source.project: slug, id или официальная ссылка Modrinth."));
+                        }
+                        if let Some(version) = &source.version {
+                            if version.is_empty()
+                                || version.len() > 64
+                                || version.chars().any(char::is_control)
+                            {
+                                return Err(LineError::input("source.version: до 64 символов."));
+                            }
+                        }
+                    }
+                    other => {
+                        return Err(LineError::new(
+                            ErrorCode::UnsupportedVersion,
+                            format!(
+                                "Источник сборки «{other}» не поддерживается этой версией лаунчера. Доступны: archive (без source), packwiz, modrinth."
+                            ),
+                            false,
+                        ))
+                    }
+                }
+            }
+            if server.source.is_some() && server.launch_mode != LaunchMode::Minecraft {
+                return Err(LineError::input("Сборка source требует launch_mode=minecraft и server_address."));
             }
             if matches!(server.launch_mode, LaunchMode::Offline | LaunchMode::Minecraft)
                 && (server.auth.launch_ticket_url.is_some()

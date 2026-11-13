@@ -94,7 +94,8 @@ test("findMsvc trusts vswhere output reached through a spaced path", () => {
         args.includes("-requires"),
         "vswhere must be queried for the C++ component",
       );
-      return probe(cmd, []);
+      assert.equal(cmd, exe);
+      return "C:\\BuildTools";
     };
     const found = findMsvc(env, run);
     assert.equal(found?.path, "C:\\BuildTools");
@@ -198,7 +199,13 @@ test("findWebView2 picks the newest version directory, not the first", () => {
       mkdirSync(path.join(app, version), { recursive: true });
       writeFileSync(path.join(app, version, "msedgewebview2.exe"), "");
     }
-    const found = findWebView2({ LOCALAPPDATA: dir }, () => null);
+    const empty = path.join(dir, "no-program-files");
+    const roots = {
+      ProgramFiles: empty,
+      "ProgramFiles(x86)": empty,
+      ProgramW6432: empty,
+    };
+    const found = findWebView2({ ...roots, LOCALAPPDATA: dir }, () => null);
     assert.equal(found?.version, "147.0.3912.98");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -212,7 +219,13 @@ test("findWebView2 still accepts a flat layout", () => {
     mkdirSync(app, { recursive: true });
     const exe = path.join(app, "msedgewebview2.exe");
     writeFileSync(exe, "");
-    const found = findWebView2({ LOCALAPPDATA: dir }, () => null);
+    const empty = path.join(dir, "no-program-files");
+    const roots = {
+      ProgramFiles: empty,
+      "ProgramFiles(x86)": empty,
+      ProgramW6432: empty,
+    };
+    const found = findWebView2({ ...roots, LOCALAPPDATA: dir }, () => null);
     assert.equal(found?.path, exe);
     assert.equal(found?.via, "files");
   } finally {
@@ -243,8 +256,18 @@ test("findWebView2 trusts the registry pv value without touching the disk", () =
 
 test("a registry key with pv = 0.0.0.0 does not count as installed", () => {
   // Microsoft documents this exact state: the key exists, no runtime does.
-  const found = findWebView2({}, () => "    pv    REG_SZ    0.0.0.0\r\n");
-  assert.equal(found, null);
+  const dir = mkdtempSync(path.join(tmpdir(), "line-no-webview-"));
+  try {
+    const roots = {
+      ProgramFiles: dir,
+      "ProgramFiles(x86)": dir,
+      ProgramW6432: dir,
+    };
+    const found = findWebView2(roots, () => "    pv    REG_SZ    0.0.0.0\r\n");
+    assert.equal(found, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("parseWebView2Version handles real reg output and rejects non-installs", () => {

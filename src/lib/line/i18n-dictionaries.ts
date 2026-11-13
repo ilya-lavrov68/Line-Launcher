@@ -17,6 +17,7 @@ export const ru = {
   "common.back": "Назад",
   "common.loading": "Загрузка…",
   "common.save": "Сохранить",
+  "common.more": "Ещё",
   "common.project": "проект",
   "error.generic": "Не удалось выполнить операцию. Повторить попытку.",
 
@@ -311,6 +312,43 @@ export const ru = {
   "settings.cacheCleared":
     "Кэш конфигурации очищен. Установленные сборки не затронуты.",
   "settings.cacheEmpty": "Кэш конфигурации уже пуст.",
+  "sections.untitled": "Без секции",
+  "sections.new": "Новая секция",
+  "sections.add": "Добавить секцию",
+  "sections.defaultName": "Секция {n}",
+  "sections.rename": "Переименовать",
+  "sections.renamePrompt": "Название секции",
+  "sections.remove": "Удалить секцию",
+  "sections.removeHint":
+    "Серверы из неё вернутся в «Без секции». Сами серверы не удаляются.",
+  "sections.collapse": "Свернуть секцию {name}",
+  "sections.expand": "Развернуть секцию {name}",
+  "sections.countOne": "{count} сервер",
+  "sections.countFew": "{count} сервера",
+  "sections.countMany": "{count} серверов",
+  "sections.move": "Секция",
+  "sections.moveHint": "Куда поместить этот сервер в списке. Видно только вам.",
+  "sections.none": "Без секции",
+
+  "minecraft.blocked": "Запуск остановлен проверкой сборки.",
+  "source.packwiz": "Сборка packwiz",
+  "source.modrinth": "Сборка Modrinth",
+  "source.hint":
+    "Лаунчер скачивает файлы по списку провайдера и проверяет каждый по хешу. Обновления приходят из того же места, без загрузки нового архива.",
+  "source.version": "Версия {version}",
+
+  "packs.reportProvider": "Отправить провайдеру",
+  "packs.check": "Проверить сборку",
+  "packs.checking": "Проверяем ресурс-паки…",
+  "packs.clean": "Проверка пройдена: подозрительных ресурс-паков нет.",
+  "packs.foreign":
+    "Ваших ресурс-паков: {count}. Они не из сборки — это нормально.",
+  "packs.blocked":
+    "Запуск остановлен: в ресурс-паках найдено запрещённое содержимое.",
+  "packs.blockedHint":
+    "Удалите пак из папки игры → resourcepacks или напишите провайдеру, если считаете это ошибкой. Лаунчер ничего не удаляет сам.",
+  "packs.found": "Найдено: {list}",
+
   "settings.logs": "Логи и поддержка",
   "settings.logsHint":
     "Папка с логами лаунчера и готовый отчёт для поддержки. Пароли и токены в отчёт не попадают.",
@@ -376,6 +414,7 @@ const en: Dictionary = {
   "common.back": "Back",
   "common.loading": "Loading…",
   "common.save": "Save",
+  "common.more": "More",
   "common.project": "the project",
   "error.generic": "The operation failed. Try again.",
 
@@ -673,6 +712,43 @@ const en: Dictionary = {
   "settings.cacheCleared":
     "Configuration cache cleared. Installed builds are untouched.",
   "settings.cacheEmpty": "The configuration cache is already empty.",
+  "sections.untitled": "No section",
+  "sections.new": "New section",
+  "sections.add": "Add section",
+  "sections.defaultName": "Section {n}",
+  "sections.rename": "Rename",
+  "sections.renamePrompt": "Section name",
+  "sections.remove": "Delete section",
+  "sections.removeHint":
+    "Its servers go back to «No section». The servers themselves are not deleted.",
+  "sections.collapse": "Collapse section {name}",
+  "sections.expand": "Expand section {name}",
+  "sections.countOne": "{count} server",
+  "sections.countFew": "{count} servers",
+  "sections.countMany": "{count} servers",
+  "sections.move": "Section",
+  "sections.moveHint":
+    "Where this server sits in your list. Only you see this.",
+  "sections.none": "No section",
+
+  "minecraft.blocked": "Launch stopped by the build check.",
+  "source.packwiz": "packwiz build",
+  "source.modrinth": "Modrinth build",
+  "source.hint":
+    "The launcher downloads the files from the provider's list and verifies each one by hash. Updates come from the same place, without a new archive upload.",
+  "source.version": "Version {version}",
+
+  "packs.reportProvider": "Send to provider",
+  "packs.check": "Check build",
+  "packs.checking": "Checking resource packs…",
+  "packs.clean": "Check passed: no suspicious resource packs.",
+  "packs.foreign":
+    "Your own resource packs: {count}. They are not from the build, which is fine.",
+  "packs.blocked": "Launch stopped: a resource pack contains blocked content.",
+  "packs.blockedHint":
+    "Delete the pack from the game folder → resourcepacks, or write to the provider if you think this is wrong. The launcher never deletes it for you.",
+  "packs.found": "Found: {list}",
+
   "settings.logs": "Logs and support",
   "settings.logsHint":
     "The launcher log folder and a ready-made support report. Passwords and tokens are never included.",
@@ -733,6 +809,7 @@ const de: Dictionary = {
   "common.back": "Zurück",
   "common.loading": "Wird geladen…",
   "common.save": "Speichern",
+  "common.more": "Mehr",
   "common.project": "das Projekt",
   "error.generic": "Die Aktion ist fehlgeschlagen. Bitte erneut versuchen.",
 
@@ -1035,6 +1112,44 @@ const de: Dictionary = {
   "settings.cacheCleared":
     "Konfigurations-Cache geleert. Installierte Builds bleiben unberührt.",
   "settings.cacheEmpty": "Der Konfigurations-Cache ist bereits leer.",
+  "sections.untitled": "Ohne Abschnitt",
+  "sections.new": "Neuer Abschnitt",
+  "sections.add": "Abschnitt hinzufügen",
+  "sections.defaultName": "Abschnitt {n}",
+  "sections.rename": "Umbenennen",
+  "sections.renamePrompt": "Name des Abschnitts",
+  "sections.remove": "Abschnitt löschen",
+  "sections.removeHint":
+    "Die Server darin landen wieder unter «Ohne Abschnitt». Die Server selbst werden nicht gelöscht.",
+  "sections.collapse": "Abschnitt {name} einklappen",
+  "sections.expand": "Abschnitt {name} ausklappen",
+  "sections.countOne": "{count} Server",
+  "sections.countFew": "{count} Server",
+  "sections.countMany": "{count} Server",
+  "sections.move": "Abschnitt",
+  "sections.moveHint":
+    "Wo dieser Server in deiner Liste steht. Nur du siehst das.",
+  "sections.none": "Ohne Abschnitt",
+
+  "minecraft.blocked": "Start durch die Build-Prüfung gestoppt.",
+  "source.packwiz": "packwiz-Build",
+  "source.modrinth": "Modrinth-Build",
+  "source.hint":
+    "Der Launcher lädt die Dateien aus der Liste des Anbieters und prüft jede per Hash. Updates kommen von derselben Stelle, ohne ein neues Archiv hochzuladen.",
+  "source.version": "Version {version}",
+
+  "packs.reportProvider": "An Anbieter senden",
+  "packs.check": "Build prüfen",
+  "packs.checking": "Ressourcenpakete werden geprüft…",
+  "packs.clean": "Prüfung bestanden: keine verdächtigen Ressourcenpakete.",
+  "packs.foreign":
+    "Eigene Ressourcenpakete: {count}. Sie gehören nicht zum Build — das ist in Ordnung.",
+  "packs.blocked":
+    "Start gestoppt: Ein Ressourcenpaket enthält gesperrte Inhalte.",
+  "packs.blockedHint":
+    "Lösche das Paket im Spielordner → resourcepacks oder schreibe dem Anbieter, wenn du das für einen Fehler hältst. Der Launcher löscht es nicht selbst.",
+  "packs.found": "Gefunden: {list}",
+
   "settings.logs": "Logs und Support",
   "settings.logsHint":
     "Der Log-Ordner des Launchers und ein fertiger Support-Bericht. Passwörter und Tokens sind nie enthalten.",
@@ -1096,6 +1211,7 @@ const fr: Dictionary = {
   "common.back": "Retour",
   "common.loading": "Chargement…",
   "common.save": "Enregistrer",
+  "common.more": "Plus",
   "common.project": "le projet",
   "error.generic": "L'opération a échoué. Réessayez.",
 
@@ -1395,6 +1511,45 @@ const fr: Dictionary = {
   "settings.cacheCleared":
     "Cache de configuration vidé. Les versions installées sont intactes.",
   "settings.cacheEmpty": "Le cache de configuration est déjà vide.",
+  "sections.untitled": "Sans section",
+  "sections.new": "Nouvelle section",
+  "sections.add": "Ajouter une section",
+  "sections.defaultName": "Section {n}",
+  "sections.rename": "Renommer",
+  "sections.renamePrompt": "Nom de la section",
+  "sections.remove": "Supprimer la section",
+  "sections.removeHint":
+    "Ses serveurs reviennent dans «Sans section». Les serveurs eux-mêmes ne sont pas supprimés.",
+  "sections.collapse": "Replier la section {name}",
+  "sections.expand": "Déplier la section {name}",
+  "sections.countOne": "{count} serveur",
+  "sections.countFew": "{count} serveurs",
+  "sections.countMany": "{count} serveurs",
+  "sections.move": "Section",
+  "sections.moveHint":
+    "Où ce serveur se trouve dans votre liste. Vous seul le voyez.",
+  "sections.none": "Sans section",
+
+  "minecraft.blocked":
+    "Lancement arrêté par la vérification de la compilation.",
+  "source.packwiz": "Compilation packwiz",
+  "source.modrinth": "Compilation Modrinth",
+  "source.hint":
+    "Le launcher télécharge les fichiers de la liste du fournisseur et vérifie chacun par empreinte. Les mises à jour viennent du même endroit, sans nouvel envoi d'archive.",
+  "source.version": "Version {version}",
+
+  "packs.reportProvider": "Envoyer au fournisseur",
+  "packs.check": "Vérifier la compilation",
+  "packs.checking": "Vérification des packs de ressources…",
+  "packs.clean": "Vérification réussie : aucun pack de ressources suspect.",
+  "packs.foreign":
+    "Vos propres packs de ressources : {count}. Ils ne viennent pas de la compilation, c'est normal.",
+  "packs.blocked":
+    "Lancement arrêté : un pack de ressources contient du contenu bloqué.",
+  "packs.blockedHint":
+    "Supprimez le pack dans le dossier du jeu → resourcepacks, ou écrivez au fournisseur si vous pensez qu'il s'agit d'une erreur. Le launcher ne le supprime jamais lui-même.",
+  "packs.found": "Trouvé : {list}",
+
   "settings.logs": "Journaux et support",
   "settings.logsHint":
     "Le dossier des journaux du launcher et un rapport de support prêt. Les mots de passe et jetons n'y figurent jamais.",

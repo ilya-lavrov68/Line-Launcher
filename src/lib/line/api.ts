@@ -24,6 +24,7 @@ import {
   type McInstalled,
   type McLaunchRequest,
   type McPlayRequest,
+  type PackCheckResult,
   type SettingsSnapshot,
   type SkinModel,
   type SkinState,
@@ -76,6 +77,12 @@ export const lineApi = {
   cancel: (operationId: string) =>
     call<boolean>("cancel_install", { operationId }),
   launch: (serverId: string) => call<GameStatus>("launch_game", { serverId }),
+  /**
+   * The same resource-pack check a launch runs, without launching. Same Rust
+   * path, so the button and the gate cannot disagree.
+   */
+  checkPacks: (serverId: string) =>
+    call<PackCheckResult>("check_resource_packs", { serverId }),
   stopGame: (serverId: string) => call<boolean>("stop_game", { serverId }),
   gameStatus: (serverId: string) =>
     call<GameStatus>("get_game_status", { serverId }),

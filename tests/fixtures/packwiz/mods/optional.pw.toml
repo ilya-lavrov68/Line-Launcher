@@ -1,0 +1,11 @@
+name = "Optional Shader"
+filename = "shader.jar"
+side = "client"
+
+[option]
+optional = true
+
+[download]
+url = "https://cdn.modrinth.com/data/ghi/shader.jar"
+hash-format = "sha512"
+hash = "PLACEHOLDER_OPTIONAL_SHA512"

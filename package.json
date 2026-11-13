@@ -2,7 +2,7 @@
   "name": "line-launcher",
   "private": true,
   "description": "Line Launcher by Plus In Plus — provider-configured Minecraft launcher",
-  "version": "0.11.0",
+  "version": "0.14.0",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {

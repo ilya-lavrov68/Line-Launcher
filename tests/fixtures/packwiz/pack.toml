@@ -1,0 +1,11 @@
+name = "Line Test Pack"
+pack-format = "packwiz:1.1.0"
+
+[index]
+file = "index.toml"
+hash-format = "sha256"
+hash = "PLACEHOLDER_INDEX_HASH"
+
+[versions]
+minecraft = "1.21.1"
+fabric = "0.16.9"

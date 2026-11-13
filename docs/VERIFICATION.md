@@ -294,8 +294,9 @@ Checked in the implementation sandbox:
 - Chromium smoke test of the browser fallback screen
 - Chromium screenshots of the config, server list, auth, installed, server detail
   (banner + icon), settings and wardrobe states, reviewed visually
-- Branding switch verified in the browser: a non-default preset changed the
-  accent, product name and attribution placement while `--radius` stayed 14px
+- Branding switch verified in the browser: product name, logo and attribution
+  placement changed while the palette and `--radius` stayed untouched (0.12.0
+  removed the palette switch itself, so there is nothing left to drift)
 - Mandatory credit visibility smoke: footer and header placements checked at
   375, 800 and 1280 px; the main-interface credit and the additional About copy
   remained visible with both names and `|`, with no page errors

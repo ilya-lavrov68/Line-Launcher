@@ -23,7 +23,9 @@ test("Line is source-available with a mandatory visible credit, not MIT", () => 
 test("upstream MIT notice is preserved verbatim", () => {
   const upstream = readFileSync(new URL("LICENSES/Obsy-MIT.txt", root));
   assert.equal(
-    createHash("sha256").update(upstream).digest("hex"),
+    createHash("sha256")
+      .update(upstream.toString("utf8").replace(/\r\n/g, "\n"))
+      .digest("hex"),
     "691ea4ebe69879968574569951bffd0e39834c8e84b4e134ecd295668c77d2c3",
   );
   assert.match(upstream.toString(), /Copyright \(c\) 2026 obsy-official/);

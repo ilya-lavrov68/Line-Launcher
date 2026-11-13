@@ -46,7 +46,7 @@ interface NavItem {
  *
  * Colours come from the shared semantic tokens (`bg-card/50`, `bg-primary/10`,
  * `text-muted-foreground`, `border-border/50`) rather than a bespoke palette, so
- * every branding preset restyles it with no extra CSS. Geometry reuses Obsy's
+ * it needs no colour of its own. Geometry reuses Obsy's
  * radii and the shared Button primitive keeps keyboard/focus semantics.
  *
  * Collapsed mode keeps the same targets as icon buttons with accessible names

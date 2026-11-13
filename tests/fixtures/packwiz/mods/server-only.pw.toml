@@ -1,0 +1,8 @@
+name = "Server Only"
+filename = "server-only.jar"
+side = "server"
+
+[download]
+url = "https://cdn.modrinth.com/data/def/server-only.jar"
+hash-format = "sha512"
+hash = "PLACEHOLDER_SERVER_SHA512"

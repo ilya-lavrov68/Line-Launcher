@@ -1,3 +1,5 @@
+import type { ServerLayout } from "@/lib/line/server-layout";
+
 /** Line Launcher public config contract, schema 1. JSON uses snake_case. */
 export const LINE_SCHEMA_VERSION = 1 as const;
 export const LINE_SUPPORTED_FEATURES = [
@@ -135,8 +137,45 @@ export interface LineServer {
   server_address?: string;
   /** `pack.json` beside the instance ZIP; it decides whether the pack changed. */
   pack_manifest_url?: string;
+  /** Optional resource-pack checking; the defaults are on. */
+  anticheat?: LineAnticheat;
+  /** Where the build comes from; absent = the archive in `distribution`. */
+  source?: LineSource;
   auth?: LineLaunchAuth;
   distribution: LineDistribution;
+}
+
+/**
+ * Where a server's build comes from. Absent = `distribution`, which is what
+ * every config written before 0.15 means.
+ *
+ * The launcher installs all three into the same kind of release, so nothing
+ * downstream — launch, repair, rollback, the pack check — sees a difference.
+ */
+export interface LineSource {
+  kind: "packwiz" | "modrinth";
+  /** `packwiz`: raw `pack.toml` (github.com/.../raw/..., raw.githubusercontent.com). */
+  pack_toml_url?: string;
+  /** `modrinth`: project slug or id. */
+  project?: string;
+  /** `modrinth`: exact version id or number; absent = newest release. */
+  version?: string;
+}
+
+/** Provider-side resource-pack checking. Absent = the defaults. */
+export interface LineAnticheat {
+  /** Keyword scan on packs; the foreign-file list is not optional. */
+  scan_resourcepacks?: boolean;
+  /** Unioned with the built-in list; cannot remove a built-in word. */
+  extra_keywords?: string[];
+  /** sha256 of packs the provider vouches for, even if a keyword matches. */
+  allow?: string[];
+}
+
+/** What «Проверить сборку» found. Empty lists = clean. */
+export interface PackCheckResult {
+  findings: string[];
+  foreign: string[];
 }
 
 export interface LineConfig {
@@ -182,6 +221,12 @@ export interface LauncherSettings {
   windowWidth: number;
   windowHeight: number;
   windowMaximized: boolean;
+  /**
+   * How the player grouped the catalogue. Player-owned: the provider does not
+   * know about sections, because renaming a folder it did not create would be
+   * reordering someone else's list. Absent = one flat list, as before 0.13.
+   */
+  serverLayout?: ServerLayout | null;
 }
 
 export interface SettingsSnapshot {
@@ -295,7 +340,14 @@ export interface LaunchManifest {
   user_type?: "mojang" | "msa" | "legacy";
 }
 
-export type GamePhase = "idle" | "starting" | "running" | "exited" | "failed";
+export type GamePhase =
+  | "idle"
+  | "starting"
+  | "running"
+  | "exited"
+  | "failed"
+  /** Refused on purpose: the integrity or resource-pack check said no. */
+  | "blocked";
 export interface GameStatus {
   serverId: string;
   /** Monotonic backend counter; older revisions must never overwrite newer ones. */

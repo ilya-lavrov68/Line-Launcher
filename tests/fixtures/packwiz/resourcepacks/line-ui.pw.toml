@@ -1,0 +1,8 @@
+name = "Line UI"
+filename = "line-ui.zip"
+side = "client"
+
+[download]
+url = "https://github.com/ilya-lavrov68/Line-Launcher/releases/download/0.1/line-ui.zip"
+hash-format = "sha256"
+hash = "PLACEHOLDER_LINE_UI_SHA256"

@@ -365,8 +365,9 @@ test("the loader inside the instance wins over the provider's request", () => {
     rust.indexOf("pub async fn mc_play("),
     rust.indexOf("fn emit_mc_progress("),
   );
-  assert.match(play, /let loader_inside = detected\.loader\.is_some\(\);/);
-  assert.match(play, /let loader = if loader_inside \{/);
+  assert.match(play, /if detected\.generated_profile \{/);
+  assert.match(play, /else if detected\.loader\.is_none\(\)/);
+  assert.match(play, /loader_spec\(kind,/);
   // Only the gaps are fetched, and the pack's own profile is what launches.
   assert.match(play, /if !detected\.missing\.is_empty\(\)/);
   assert.match(

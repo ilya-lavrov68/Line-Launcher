@@ -289,10 +289,11 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   // catalogue, because the greeting was transparent.
   assert.match(launcher, /<WelcomeScreen/);
   assert.match(launcher, /!introDone &&/);
-  assert.match(
-    launcher,
-    /\(gateSignIn \|\| !introDone\) && "pointer-events-none opacity-0"/,
-  );
+  // The shell is hidden during the greeting because it is locked, and the same
+  // lock now also covers a signed-out player on any screen — not just the
+  // account one, which was the door a failed config fetch walked through.
+  assert.match(launcher, /shellLocked && "pointer-events-none opacity-0"/);
+  assert.match(launcher, /const shellLocked = signedOut \|\| !introDone/);
 
   // Reduced motion keeps the screen: it is content, not decoration.
   assert.match(welcome, /useReducedMotion/);

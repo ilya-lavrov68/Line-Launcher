@@ -577,7 +577,7 @@ test("one account per project unlocks every server", () => {
   // whole window instead of sitting in a panel of the shell.
   assert.match(shell, /screen === "account"/);
   assert.match(shell, /<SignInScreen/);
-  assert.match(shell, /const gateSignIn =/);
+  assert.match(shell, /const signedOut =/);
   // Opening a server must not ask for credentials again.
   const select = shell.slice(
     shell.indexOf("function selectServer("),
@@ -589,6 +589,83 @@ test("one account per project unlocks every server", () => {
   // Signing out is available and account-wide.
   assert.match(shell, /await lineApi\.logout\(\)/);
   assert.match(shell, /onLogout=\{/);
+});
+
+/**
+ * Being signed out must lock the shell, whatever screen the launcher is on.
+ *
+ * The gate used to be raised by `screen === "account"` alone. Every path that
+ * named another screen while signed out therefore left the shell live: the
+ * cached startup did it (fixed in the previous change), and a failed config
+ * fetch still did — `loadConfig` correctly falls back to "config" so the player
+ * can retry, but the rail, the wardrobe and the account entry stayed clickable
+ * next to it. The account entry answered "You are not signed in." and offered
+ * nothing to do about it.
+ *
+ * The rule is now the session, not the screen. The one exemption is a build
+ * with no provider at all, which has nothing to authenticate against.
+ */
+test("a signed-out launcher locks the shell on every screen", () => {
+  const shell = read("src/components/line/LineLauncher.tsx");
+
+  assert.match(
+    shell,
+    /const signedOut = introDone && !session && mode !== "unconfigured"/,
+    "the lock must be derived from the session",
+  );
+  // The page is raised by the session, not by the screen name; see the test
+  // below for the door that the screen-shaped rule left open.
+  assert.match(
+    shell,
+    /const signedOut = introDone && !session && mode !== "unconfigured"/,
+    "the sign-in page is raised by the absence of a session",
+  );
+  // The page itself: shown whenever the player is signed out, with the shell
+  // behind it hidden. It must not wait for a snapshot — a failed fetch is
+  // exactly when a player needs the sign-in page most.
+  const page = shell.slice(
+    shell.indexOf('<AnimatePresence mode="wait" initial={false}>'),
+    shell.indexOf("<AnimatePresence>"),
+  );
+  assert.match(page, /{signedOut \? \(/, "the page is keyed to the session");
+  assert.match(page, /<SignInScreen/, "the page is the sign-in screen");
+  assert.doesNotMatch(
+    page,
+    /signedOut && snapshot/,
+    "the page must not require a config snapshot",
+  );
+  // Every shell visibility decision follows the lock, not the screen.
+  for (const prop of ["aria-hidden", "inert"]) {
+    assert.match(
+      shell,
+      // Formatted JSX may wrap between `{prop}=` and the expression.
+      new RegExp(`${prop}=\\s*{shellLocked \\? true : undefined}`),
+      `the shell's ${prop} must follow the lock`,
+    );
+  }
+  assert.match(shell, /shellLocked && "pointer-events-none opacity-0"/);
+  assert.match(
+    shell,
+    /const shellLocked = signedOut \|\| !introDone/,
+    "the shell stays hidden during the greeting too",
+  );
+  // Nothing may re-introduce a screen-shaped gate.
+  assert.doesNotMatch(
+    shell,
+    /gateSignIn \|\| !introDone/,
+    "the shell must not be shown or hidden by the screen name",
+  );
+});
+
+test("a build with no provider keeps its own screen instead of a sign-in box", () => {
+  const shell = read("src/components/line/LineLauncher.tsx");
+  // Unconfigured is the one state with no provider to sign in to; gating it
+  // would show a password field that can never succeed.
+  assert.match(
+    shell,
+    /const signedOut = introDone && !session && mode !== "unconfigured"/,
+  );
+  assert.match(shell, /mode === "unconfigured" \? \(/);
 });
 
 /**

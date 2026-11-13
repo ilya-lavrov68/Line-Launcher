@@ -160,9 +160,7 @@ pub fn foreign_packs(game: &Path, owned: &[String]) -> LineResult<Vec<String>> {
         // would let a link decide what we read.
         let name = entry.file_name().to_string_lossy().into_owned();
         let relative = format!("resourcepacks/{name}");
-        if kind.is_file() && !owned.contains(relative.as_str()) {
-            foreign.push(relative);
-        } else if kind.is_symlink() {
+        if kind.is_symlink() || (kind.is_file() && !owned.contains(relative.as_str())) {
             foreign.push(relative);
         }
     }
@@ -352,6 +350,31 @@ mod tests {
     use super::*;
     use std::io::Write;
     use zip::write::SimpleFileOptions;
+
+    #[test]
+    fn foreign_packs_excludes_owned_files_and_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let packs = dir.path().join("resourcepacks");
+        fs::create_dir(&packs).unwrap();
+        fs::write(packs.join("owned.zip"), b"owned").unwrap();
+        fs::write(packs.join("foreign.zip"), b"foreign").unwrap();
+        fs::create_dir(packs.join("folder")).unwrap();
+        let found = foreign_packs(dir.path(), &["resourcepacks/owned.zip".into()]).unwrap();
+        assert_eq!(found, vec!["resourcepacks/foreign.zip"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn foreign_packs_never_trusts_a_symlink_even_when_owned() {
+        let dir = tempfile::tempdir().unwrap();
+        let packs = dir.path().join("resourcepacks");
+        fs::create_dir(&packs).unwrap();
+        let external = dir.path().join("external.zip");
+        fs::write(&external, b"outside").unwrap();
+        std::os::unix::fs::symlink(external, packs.join("owned.zip")).unwrap();
+        let found = foreign_packs(dir.path(), &["resourcepacks/owned.zip".into()]).unwrap();
+        assert_eq!(found, vec!["resourcepacks/owned.zip"]);
+    }
 
     #[test]
     fn zip_entries_are_scanned_for_keywords() {

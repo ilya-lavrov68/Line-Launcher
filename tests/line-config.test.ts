@@ -114,8 +114,8 @@ test("a distribution can be one link, and a pin is still honoured", () => {
   // the installer still enforces it. Otherwise removing the requirement would
   // have quietly removed the check.
   assert.match(rust, /if let Some\(sha256\) = &dist\.sha256/);
-  assert.match(rust, /dist\.size_bytes\.is_some_and/);
-  assert.match(rust, /dist\.unpacked_size_bytes\.is_some_and/);
+  assert.match(rust, /dist\s*\.size_bytes\s*\.is_some_and/);
+  assert.match(rust, /dist\s*\.unpacked_size_bytes\s*\.is_some_and/);
 
   const install = readFileSync(
     new URL("../src-tauri/src/line/install.rs", import.meta.url),

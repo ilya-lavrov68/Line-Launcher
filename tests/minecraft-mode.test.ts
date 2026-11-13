@@ -367,7 +367,7 @@ test("the loader inside the instance wins over the provider's request", () => {
   );
   assert.match(play, /if detected\.generated_profile \{/);
   assert.match(play, /else if detected\.loader\.is_none\(\)/);
-  assert.match(play, /loader_spec\(kind,/);
+  assert.match(play, /loader_spec\(\s*kind,/);
   // Only the gaps are fetched, and the pack's own profile is what launches.
   assert.match(play, /if !detected\.missing\.is_empty\(\)/);
   assert.match(

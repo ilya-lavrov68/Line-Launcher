@@ -1,9 +1,9 @@
 pub mod auth;
 pub mod config;
 pub mod config_commands;
-pub mod diagnostics;
 #[cfg(feature = "dev-provider-ca")]
 pub mod dev_ca;
+pub mod diagnostics;
 pub mod error;
 pub mod http;
 pub mod install;

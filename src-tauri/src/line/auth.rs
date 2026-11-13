@@ -1,6 +1,6 @@
 use super::error::{ErrorCode, LineError, LineResult};
-use super::logger::{self, Area, Field};
 use super::http;
+use super::logger::{self, Area, Field};
 use super::state::{AuthSessionInfo, LineState, ProviderSession};
 use serde::{Deserialize, Serialize};
 use tauri::State;

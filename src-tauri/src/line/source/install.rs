@@ -95,11 +95,19 @@ async fn fetch_one(
         ));
     }
     if let Some(bytes) = &file.inline {
-        if budget.fetch_add(bytes.len() as u64, Ordering::Relaxed).saturating_add(bytes.len() as u64) > super::super::config::MAX_UNPACKED_BYTES {
+        if budget
+            .fetch_add(bytes.len() as u64, Ordering::Relaxed)
+            .saturating_add(bytes.len() as u64)
+            > super::super::config::MAX_UNPACKED_BYTES
+        {
             return Err(LineError::input("Сборка превышает допустимый размер."));
         }
-        if let Some(parent) = target.parent() { create_private_dir(parent)?; }
-        tokio::fs::write(target, bytes.as_slice()).await.map_err(|e| LineError::io(&e))?;
+        if let Some(parent) = target.parent() {
+            create_private_dir(parent)?;
+        }
+        tokio::fs::write(target, bytes.as_slice())
+            .await
+            .map_err(|e| LineError::io(&e))?;
         return Ok(format!("{:x}", Sha256::digest(bytes.as_slice())));
     }
     let response = http::get(
@@ -112,7 +120,11 @@ async fn fetch_one(
     )
     .await?;
     let mut response = http::success(response)?;
-    if file.size > 0 && response.content_length().is_some_and(|len| len != file.size) {
+    if file.size > 0
+        && response
+            .content_length()
+            .is_some_and(|len| len != file.size)
+    {
         return Err(LineError::new(
             ErrorCode::Integrity,
             format!("Размер {} не совпадает с заявленным в сборке.", file.path),
@@ -150,7 +162,11 @@ async fn fetch_one(
             .map_err(|e| LineError::network(&e))?;
         let Some(chunk) = chunk else { break };
         received = received.saturating_add(chunk.len() as u64);
-        if budget.fetch_add(chunk.len() as u64, Ordering::Relaxed).saturating_add(chunk.len() as u64) > super::super::config::MAX_UNPACKED_BYTES {
+        if budget
+            .fetch_add(chunk.len() as u64, Ordering::Relaxed)
+            .saturating_add(chunk.len() as u64)
+            > super::super::config::MAX_UNPACKED_BYTES
+        {
             return Err(LineError::input("Сборка превышает допустимый размер."));
         }
         if received > super::MAX_FILE_BYTES || (file.size > 0 && received > file.size) {
@@ -227,10 +243,16 @@ pub async fn fetch_files(
     let mut paths = std::collections::BTreeSet::new();
     for file in &pack_files.files {
         install::safe_entry_path(&file.path)?;
-        if file.path.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+        if file
+            .path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
             || super::super::integrity::is_reserved(&file.path.to_ascii_lowercase())
-            || !paths.insert(file.path.to_ascii_lowercase()) {
-            return Err(LineError::input("Повторяющийся или некорректный путь файла сборки."));
+            || !paths.insert(file.path.to_ascii_lowercase())
+        {
+            return Err(LineError::input(
+                "Повторяющийся или некорректный путь файла сборки.",
+            ));
         }
         if file.inline.is_none() && file.sha256.is_none() && file.sha512.is_none() {
             return Err(LineError::input("Для файла сборки не указан хеш."));
@@ -244,7 +266,9 @@ pub async fn fetch_files(
         }
     }
     if paths.is_empty() || paths.len() > super::MAX_FILES {
-        return Err(LineError::input("Список файлов сборки пуст или слишком велик."));
+        return Err(LineError::input(
+            "Список файлов сборки пуст или слишком велик.",
+        ));
     }
     let total = pack_files.files.len() as u64;
     let budget = Arc::new(AtomicU64::new(0));
@@ -294,7 +318,8 @@ pub async fn fetch_files(
                     update.received_bytes = received;
                     sink.emit(update);
                 };
-                let digest = fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?;
+                let digest =
+                    fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?;
                 Ok::<(usize, String), LineError>((position, digest))
             }));
         }
@@ -308,18 +333,24 @@ pub async fn fetch_files(
                         pack_files.settle(position, digest.clone());
                     }
                     let file = &pack_files.files[position];
-                    let size = std::fs::symlink_metadata(staging.join(
-                        install::safe_entry_path(&file.path)?,
-                    ))
+                    let size = std::fs::symlink_metadata(
+                        staging.join(install::safe_entry_path(&file.path)?),
+                    )
                     .map(|metadata| metadata.len())
                     .unwrap_or(0);
                     let path = file.path.clone();
                     pack_files.files[position].size = size;
-                    index.files.push(FileEntry { path, sha256: digest, size });
+                    index.files.push(FileEntry {
+                        path,
+                        sha256: digest,
+                        size,
+                    });
                     done += 1;
                 }
                 Ok(Err(error)) => {
-                    if batch_error.is_none() { batch_error = Some(error); }
+                    if batch_error.is_none() {
+                        batch_error = Some(error);
+                    }
                 }
                 Err(_) => {
                     if batch_error.is_none() {
@@ -332,7 +363,9 @@ pub async fn fetch_files(
                 }
             }
         }
-        if let Some(error) = batch_error { return Err(error); }
+        if let Some(error) = batch_error {
+            return Err(error);
+        }
         next = batch_end;
         let mut update = base_progress.clone();
         update.phase = InstallPhase::Downloading;
@@ -343,7 +376,9 @@ pub async fn fetch_files(
         };
         sink.emit(update);
     }
-    index.files.sort_by(|left, right| left.path.cmp(&right.path));
+    index
+        .files
+        .sort_by(|left, right| left.path.cmp(&right.path));
     Ok(index)
 }
 
@@ -584,7 +619,9 @@ fn ensure_version_profile(
                 super::super::minecraft_core::LoaderChoice::Quilt => {
                     ("quilt-loader", "org.quiltmc")
                 }
-                super::super::minecraft_core::LoaderChoice::Forge => ("forge", "net.minecraftforge"),
+                super::super::minecraft_core::LoaderChoice::Forge => {
+                    ("forge", "net.minecraftforge")
+                }
                 super::super::minecraft_core::LoaderChoice::NeoForge => {
                     ("neoforge", "net.neoforged")
                 }

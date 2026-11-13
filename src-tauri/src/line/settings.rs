@@ -82,9 +82,7 @@ impl ServerLayout {
             .values()
             .any(|section| !known.contains(section.as_str()))
         {
-            return Err(LineError::input(
-                "Сервер назначен в несуществующую секцию.",
-            ));
+            return Err(LineError::input("Сервер назначен в несуществующую секцию."));
         }
         Ok(())
     }

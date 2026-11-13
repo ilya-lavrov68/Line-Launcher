@@ -119,7 +119,11 @@ pub struct Anticheat {
 
 impl Default for Anticheat {
     fn default() -> Self {
-        Self { scan_resourcepacks: true, extra_keywords: Vec::new(), allow: Vec::new() }
+        Self {
+            scan_resourcepacks: true,
+            extra_keywords: Vec::new(),
+            allow: Vec::new(),
+        }
     }
 }
 
@@ -498,14 +502,21 @@ impl LineConfig {
             // on a modrinth server is a provider's typo, and ignoring it would
             // leave them wondering why the pack did not change.
             if let Some(source) = &server.source {
-                if !server.distribution.url.is_empty() || server.distribution.sha256.is_some()
-                    || server.distribution.size_bytes.is_some() || server.distribution.unpacked_size_bytes.is_some()
-                    || server.pack_manifest_url.is_some() {
-                    return Err(LineError::input("source нельзя объединять с distribution или pack_manifest_url."));
+                if !server.distribution.url.is_empty()
+                    || server.distribution.sha256.is_some()
+                    || server.distribution.size_bytes.is_some()
+                    || server.distribution.unpacked_size_bytes.is_some()
+                    || server.pack_manifest_url.is_some()
+                {
+                    return Err(LineError::input(
+                        "source нельзя объединять с distribution или pack_manifest_url.",
+                    ));
                 }
                 let kind = source.kind.trim();
                 if kind != source.kind {
-                    return Err(LineError::input("source.kind не должен содержать пробелов."));
+                    return Err(LineError::input(
+                        "source.kind не должен содержать пробелов.",
+                    ));
                 }
                 match kind {
                     "packwiz" => {
@@ -557,11 +568,15 @@ impl LineConfig {
                 }
             }
             if server.source.is_some() && server.launch_mode != LaunchMode::Minecraft {
-                return Err(LineError::input("Сборка source требует launch_mode=minecraft и server_address."));
+                return Err(LineError::input(
+                    "Сборка source требует launch_mode=minecraft и server_address.",
+                ));
             }
-            if matches!(server.launch_mode, LaunchMode::Offline | LaunchMode::Minecraft)
-                && (server.auth.launch_ticket_url.is_some()
-                    || server.auth.session_exchange_url.is_some())
+            if matches!(
+                server.launch_mode,
+                LaunchMode::Offline | LaunchMode::Minecraft
+            ) && (server.auth.launch_ticket_url.is_some()
+                || server.auth.session_exchange_url.is_some())
             {
                 return Err(LineError::input(
                     "launch_mode=offline/minecraft несовместим с launch_ticket_url/session_exchange_url.",
@@ -624,16 +639,18 @@ impl LineConfig {
                     ));
                 }
             }
-            if dist.size_bytes.is_some_and(|bytes| {
-                bytes == 0 || bytes > MAX_ARCHIVE_BYTES
-            }) {
+            if dist
+                .size_bytes
+                .is_some_and(|bytes| bytes == 0 || bytes > MAX_ARCHIVE_BYTES)
+            {
                 return Err(LineError::input(
                     "distribution.size_bytes должен быть больше нуля и не больше 4 ГиБ.",
                 ));
             }
-            if dist.unpacked_size_bytes.is_some_and(|bytes| {
-                bytes == 0 || bytes > MAX_UNPACKED_BYTES
-            }) {
+            if dist
+                .unpacked_size_bytes
+                .is_some_and(|bytes| bytes == 0 || bytes > MAX_UNPACKED_BYTES)
+            {
                 return Err(LineError::input(
                     "distribution.unpacked_size_bytes должен быть больше нуля и не больше 16 ГиБ.",
                 ));
@@ -695,8 +712,14 @@ mod tests {
             assert!(!valid_support_email(bad), "{bad} should be rejected");
         }
         // 64 local chars is the SMTP limit; 65 is not an address.
-        assert!(valid_support_email(&format!("{}@example.com", "x".repeat(64))));
-        assert!(!valid_support_email(&format!("{}@example.com", "x".repeat(65))));
+        assert!(valid_support_email(&format!(
+            "{}@example.com",
+            "x".repeat(64)
+        )));
+        assert!(!valid_support_email(&format!(
+            "{}@example.com",
+            "x".repeat(65)
+        )));
     }
 
     #[test]

@@ -645,7 +645,11 @@ pub async fn mc_play(
             let index = integrity::read_index(&release)?;
             let report = integrity::scan(&release)?;
             if !report.is_clean() {
-                return Err(LineError::new(ErrorCode::Integrity, "Сборка изменилась после установки. Повторите установку перед запуском.", false));
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    "Сборка изменилась после установки. Повторите установку перед запуском.",
+                    false,
+                ));
             }
             let detected = pack::inspect(&release, &index, hint.as_deref())?;
             emit_mc_progress(
@@ -663,19 +667,37 @@ pub async fn mc_play(
             let game = instance_dir.join("game");
             let mods = game.join("mods");
             if mods.exists() && !super::storage::is_real_dir(&mods) {
-                return Err(LineError::new(ErrorCode::Integrity, "Папка mods не является обычным каталогом.", false));
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    "Папка mods не является обычным каталогом.",
+                    false,
+                ));
             }
             for entry in &index.files {
-                let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else { continue };
-                let Some(name) = relative.strip_prefix("mods/") else { continue };
-                if name.contains('/') { return Err(LineError::input("Вложенные файлы mods не поддерживаются.")); }
+                let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
+                    continue;
+                };
+                let Some(name) = relative.strip_prefix("mods/") else {
+                    continue;
+                };
+                if name.contains('/') {
+                    return Err(LineError::input("Вложенные файлы mods не поддерживаются."));
+                }
                 let target = mods.join(name);
                 if !super::storage::is_real_file(&target) {
-                    return Err(LineError::new(ErrorCode::Integrity, format!("Файл {relative} отсутствует или заменён ссылкой."), false));
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        format!("Файл {relative} отсутствует или заменён ссылкой."),
+                        false,
+                    ));
                 }
                 let (actual, size) = integrity::hash_file(&target)?;
                 if actual != entry.sha256 || size != entry.size {
-                    return Err(LineError::new(ErrorCode::Integrity, format!("Файл {relative} изменён. Восстановите сборку."), false));
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        format!("Файл {relative} изменён. Восстановите сборку."),
+                        false,
+                    ));
                 }
             }
             Ok(detected)
@@ -698,9 +720,18 @@ pub async fn mc_play(
     // A generated profile identifies the requested loader, but contains no real
     // loader libraries; install it from the official host before launching.
     let loader = if detected.generated_profile {
-        requested_loader.or_else(|| detected.loader.clone().map(|(kind, version)| {
-            loader_spec(kind, if version.is_empty() { None } else { Some(version) })
-        }))
+        requested_loader.or_else(|| {
+            detected.loader.clone().map(|(kind, version)| {
+                loader_spec(
+                    kind,
+                    if version.is_empty() {
+                        None
+                    } else {
+                        Some(version)
+                    },
+                )
+            })
+        })
     } else if detected.loader.is_none() {
         requested_loader
     } else {
@@ -708,8 +739,13 @@ pub async fn mc_play(
     };
     if !detected.missing.is_empty() || loader.is_some() || detected.generated_profile {
         let filled = install_profile(
-            &app, &state, instance_id.clone(), detected.minecraft_version.clone(), loader,
-        ).await?;
+            &app,
+            &state,
+            instance_id.clone(),
+            detected.minecraft_version.clone(),
+            loader,
+        )
+        .await?;
         if detected.generated_profile || detected.loader.is_none() {
             launch_version = filled.version_id;
         }

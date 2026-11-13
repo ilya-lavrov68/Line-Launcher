@@ -436,7 +436,10 @@ mod tests {
             "ж token=***&token=&token=*** Bearer *** bearer ***"
         );
         assert_eq!(scrub("token=***"), "token=***");
-        assert_eq!(scrub("access_token=secret&ticket=last"), "access_token=***&ticket=***");
+        assert_eq!(
+            scrub("access_token=secret&ticket=last"),
+            "access_token=***&ticket=***"
+        );
         assert_eq!(scrub("nothing to hide"), "nothing to hide");
     }
 

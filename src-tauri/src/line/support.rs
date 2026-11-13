@@ -54,7 +54,11 @@ fn build(app: &AppHandle, state: &LineState) -> LineResult<String> {
         Ok((url, config)) => (Some(config.provider.id), Some(url)),
         Err(_) => (None, None),
     };
-    let user = state.session_info().ok().flatten().map(|info| info.username);
+    let user = state
+        .session_info()
+        .ok()
+        .flatten()
+        .map(|info| info.username);
     let instances = instance_ids(&root);
     let lines = read_tail(&dir);
     let summary = Summary {

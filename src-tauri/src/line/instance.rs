@@ -385,7 +385,10 @@ mod tests {
             choose_version(&candidates, None).unwrap(),
             "fabric-loader-0.16.9"
         );
-        assert_eq!(choose_version(std::slice::from_ref(&vanilla), None).unwrap(), "1.21.1");
+        assert_eq!(
+            choose_version(std::slice::from_ref(&vanilla), None).unwrap(),
+            "1.21.1"
+        );
         // Two loaders and no hint: refuse rather than launch the wrong mods.
         let second = ("quilt-0.26".to_string(), true);
         let error = choose_version(&[fabric, second], None).unwrap_err();

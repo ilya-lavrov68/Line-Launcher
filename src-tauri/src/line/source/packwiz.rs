@@ -192,7 +192,11 @@ pub fn expected_hash(download: &Download) -> LineResult<(String, String)> {
         .as_deref()
         .ok_or_else(|| LineError::input("У файла в .pw.toml нет hash."))?
         .to_ascii_lowercase();
-    let expected_len = if format.eq_ignore_ascii_case("sha512") { 128 } else { 64 };
+    let expected_len = if format.eq_ignore_ascii_case("sha512") {
+        128
+    } else {
+        64
+    };
     if hash.len() != expected_len || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(LineError::input("Некорректный хеш файла в .pw.toml."));
     }
@@ -231,7 +235,11 @@ pub fn file_from_metafile(path: &str, meta: &Metafile) -> LineResult<Option<Pack
         }
     }
     let (format, hash) = expected_hash(&meta.download)?;
-    let sha512 = if format == "sha512" { Some(hash.clone()) } else { None };
+    let sha512 = if format == "sha512" {
+        Some(hash.clone())
+    } else {
+        None
+    };
     let sha256 = if format == "sha256" {
         hash
     } else {

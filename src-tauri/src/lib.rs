@@ -8,6 +8,20 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             app.manage(LineState::new()?);
+            // The log has to exist before any command can fail, so it is set up
+            // first — right after the state it will describe.
+            if let Ok(root) = app.path().app_data_dir() {
+                line::logger::init(root);
+            }
+            line::logger::info(
+                line::logger::Area::App,
+                "launcher started",
+                &[
+                    line::logger::Field::text("version", line::LAUNCHER_VERSION),
+                    line::logger::Field::text("os", std::env::consts::OS),
+                    line::logger::Field::text("arch", std::env::consts::ARCH),
+                ],
+            );
             app.manage(line::minecraft::MinecraftState::default());
             // "Скрыть в трей" needs somewhere to go. A failed tray is not
             // fatal (see tray.rs): the setting then behaves like "minimise".
@@ -52,6 +66,9 @@ pub fn run() {
             line::skin_library::set_active_skin,
             line::skin_library::sync_active_skin,
             line::skin_library::forget_synced_skin,
+            line::support::open_logs_folder,
+            line::support::copy_diagnostics,
+            line::support::open_mail_draft,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Line Launcher");

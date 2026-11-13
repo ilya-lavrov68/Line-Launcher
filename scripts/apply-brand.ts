@@ -25,16 +25,18 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { licenseToRtf } from "./lib/license-rtf.mjs";
 import { tauriCliCommand } from "./lib/tauri-cli.mjs";
 import { sameText } from "./lib/text-eol.mjs";
 import type { BrandConfig, BrandPalette } from "../branding/brand.types.ts";
 import {
   renderCss,
+  renderOwnerTs,
   renderTauriOverlay,
   renderTs,
   validateBrand,
+  validateSupportEmail,
 } from "./brand-config.ts";
 import {
   renderProviderTs,
@@ -50,6 +52,10 @@ const OUT_CSS = join(ROOT, "src/brand/generated.css");
 const OUT_TS = join(ROOT, "src/brand/generated.ts");
 const OUT_TAURI = join(ROOT, "src-tauri/tauri.brand.conf.json");
 const PROVIDER_PATH = join(BRANDING, "provider.json");
+// The publisher's file, deliberately outside the brand schema: re-branding a
+// build must not be able to redirect a player's diagnostics.
+const OWNER_PATH = join(BRANDING, "owner.ts");
+const OUT_OWNER = join(ROOT, "src/brand/owner.generated.ts");
 const OUT_PROVIDER = join(ROOT, "src/brand/provider.generated.ts");
 const ICONS_DIR = join(ROOT, "src-tauri/icons");
 
@@ -85,7 +91,7 @@ function writeIfChanged(path: string, content: string): boolean {
   return true;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const config = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as BrandConfig;
   const { presets } = JSON.parse(readFileSync(PRESETS_PATH, "utf8")) as {
     presets: Record<string, BrandPalette>;
@@ -111,6 +117,36 @@ function main(): void {
         : "[provider] config_url пуст — шаблон не настроен (для установщика заполните его)",
     );
   }
+
+  // Publisher support address. `branding/owner.ts` is a plain module, so it is
+  // imported rather than parsed: one source of truth, checked by `tsc` as well.
+  if (!existsSync(OWNER_PATH)) {
+    fail(
+      "branding/owner.ts is missing. It holds the publisher's support address " +
+        "and is not part of the brand config. Restore it from the template.",
+    );
+  }
+  const owner = (await import(pathToFileURL(OWNER_PATH).href)) as {
+    OWNER?: { support_email?: unknown; support_name?: unknown };
+  };
+  if (!owner.OWNER) fail("branding/owner.ts must export OWNER");
+  const supportEmail = validateSupportEmail(
+    "owner.support_email",
+    owner.OWNER.support_email ?? null,
+  );
+  const supportName =
+    typeof owner.OWNER.support_name === "string" &&
+    owner.OWNER.support_name.trim()
+      ? owner.OWNER.support_name.trim()
+      : "Line Launcher";
+  if (writeIfChanged(OUT_OWNER, renderOwnerTs(supportEmail, supportName))) {
+    changed.push("src/brand/owner.generated.ts");
+  }
+  console.log(
+    supportEmail
+      ? `[owner] support mail: ${supportEmail}`
+      : "[owner] support_email пуст — кнопки «Отправить по почте» не будет",
+  );
 
   if (writeIfChanged(OUT_CSS, renderCss(palette))) {
     changed.push("src/brand/generated.css");
@@ -215,7 +251,7 @@ function main(): void {
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

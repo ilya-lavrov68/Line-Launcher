@@ -32,6 +32,15 @@ pub struct Provider {
     /// stay local-only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wardrobe: Option<WardrobeConfig>,
+    /// Where this project's players write when something is wrong.
+    ///
+    /// Optional on purpose. A provider without a support desk still gets the
+    /// publisher's «Отправить по Email»; a provider *with* one gets an extra
+    /// «Связаться с провайдером» that opens a draft to this address. It is a
+    /// plain mail address, not a URL: the launcher builds the `mailto:` itself,
+    /// so a config cannot hand it a different protocol to launch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_email: Option<String>,
 }
 
 /// Per-server game-join endpoints. These stay on the server because a launch
@@ -212,6 +221,35 @@ pub fn validate_slug(value: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
+/// A plain mail address, deliberately stricter than RFC 5322.
+///
+/// The value ends up in a `mailto:` the launcher opens, so it must not be able
+/// to smuggle a scheme, a query or a path: no spaces, no `?`, no `#`, no `&`,
+/// exactly one `@`, and a dot in the domain. Anything fancier than that is not
+/// a support address a launcher should dial.
+pub fn valid_support_email(raw: &str) -> bool {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.len() > 254 || raw.trim() != raw {
+        return false;
+    }
+    if raw
+        .chars()
+        .any(|c| c.is_control() || c.is_whitespace() || "?#&=%<>()[];:,\\\"'`".contains(c))
+    {
+        return false;
+    }
+    let mut parts = raw.split('@');
+    let (Some(local), Some(domain), None) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    !local.is_empty()
+        && local.len() <= 64
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && domain.split('.').all(|label| !label.is_empty())
+}
+
 pub fn validate_https(raw: &str) -> LineResult<Url> {
     let invalid =
         || LineError::input("Разрешены только HTTPS-ссылки без встроенных учётных данных.");
@@ -292,6 +330,15 @@ impl LineConfig {
         if let Some(wardrobe) = &self.provider.wardrobe {
             validate_https(&wardrobe.skin_url)?;
             validate_https(&wardrobe.skin_upload_url)?;
+        }
+        // Optional, but if present it has to be a mail address and not a URL:
+        // the launcher turns it into `mailto:` itself.
+        if let Some(address) = &self.provider.support_email {
+            if !valid_support_email(address) {
+                return Err(LineError::input(
+                    "provider.support_email должен быть адресом электронной почты.",
+                ));
+            }
         }
         if self.servers.is_empty() || self.servers.len() > MAX_SERVERS {
             return Err(LineError::input(
@@ -444,6 +491,48 @@ pub fn parse_config(bytes: &[u8], launcher_version: &str) -> LineResult<LineConf
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_support_address_cannot_smuggle_a_scheme() {
+        for good in [
+            "help@example.com",
+            "Help@Example.COM",
+            "a.b+tag@sub.example.co.uk",
+        ] {
+            assert!(valid_support_email(good), "{good} should be accepted");
+        }
+        for bad in [
+            "",
+            "help@example",
+            "@example.com",
+            "help@@example.com",
+            "help@exam ple.com",
+            " user@example.com",
+            "user@example.com ",
+            "user@.com",
+            "user@example..com",
+            "help@example.com?subject=x",
+            "help@example.com&bcc=evil@x.com",
+            "javascript:alert(1)@x.com",
+            "help@example.com#frag",
+        ] {
+            assert!(!valid_support_email(bad), "{bad} should be rejected");
+        }
+        // 64 local chars is the SMTP limit; 65 is not an address.
+        assert!(valid_support_email(&format!("{}@example.com", "x".repeat(64))));
+        assert!(!valid_support_email(&format!("{}@example.com", "x".repeat(65))));
+    }
+
+    #[test]
+    fn an_optional_support_address_is_validated_when_present() {
+        let mut cfg = config();
+        cfg.provider.support_email = None;
+        assert!(cfg.validate("0.10.0").is_ok());
+        cfg.provider.support_email = Some("help@example.com".into());
+        assert!(cfg.validate("0.10.0").is_ok());
+        cfg.provider.support_email = Some("not an address".into());
+        assert!(cfg.validate("0.10.0").is_err());
+    }
 
     fn config() -> LineConfig {
         serde_json::from_str(include_str!("../../../examples/config.json")).unwrap()

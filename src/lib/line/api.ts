@@ -90,6 +90,16 @@ export const lineApi = {
   probeJavaPath: (path: string) =>
     call<JavaRuntimeInfo>("probe_java_path", { path }),
   clearConfigCache: () => call<boolean>("clear_config_cache"),
+  /** Reveal `launcher_logs/` in the OS file manager; returns the path. */
+  openLogsFolder: () => call<string>("open_logs_folder"),
+  /**
+   * The diagnostic bundle as text — the same string both support buttons use,
+   * so what a player pastes is exactly what a mail draft would carry.
+   */
+  diagnostics: () => call<string>("copy_diagnostics"),
+  /** Open a `mailto:` draft with the bundle as its body. */
+  mailDiagnostics: (address: string) =>
+    call<void>("open_mail_draft", { address }),
   skin: () => call<SkinState | null>("get_skin"),
   skinLibrary: () => call<SkinLibrarySnapshot>("list_skin_library"),
   addSkin: (name: string, model: SkinModel, png: number[]) =>

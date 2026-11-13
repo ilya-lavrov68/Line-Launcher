@@ -29,6 +29,11 @@ export interface LineProvider {
   auth: LineAccountAuth;
   /** Account-wide wardrobe. Absent = skins stay local-only. */
   wardrobe?: LineWardrobeConfig;
+  /**
+   * Where this project's players write for support. Absent = the provider runs
+   * no desk, and «Связаться с провайдером» is not offered.
+   */
+  support_email?: string;
 }
 
 /** Per-server game-join endpoints; a ticket authorises one specific server. */

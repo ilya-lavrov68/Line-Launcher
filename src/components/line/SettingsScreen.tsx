@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   Coffee,
+  FileText,
   Languages,
   MemoryStick,
   Palette,
@@ -31,6 +32,7 @@ import type {
 } from "@/types/line";
 import { cn } from "@/lib/utils";
 import BackdropPicker from "@/components/line/BackdropPicker";
+import SupportSection from "@/components/line/SupportSection";
 import SectionIcon from "@/components/line/SectionIcon";
 import { LANGUAGES, LANGUAGE_NAMES, isLanguage } from "@/lib/line/languages";
 import { setLanguage, useT, type Translator } from "@/lib/line/i18n";
@@ -40,6 +42,8 @@ export interface SettingsScreenProps {
   onChange: (snapshot: SettingsSnapshot) => void;
   /** Signing out / installing must not race a settings write. */
   disabled?: boolean;
+  /** The provider's own support address, from its config; absent = no button. */
+  providerEmail?: string;
 }
 
 /**
@@ -130,6 +134,7 @@ export default function SettingsScreen({
   snapshot,
   onChange,
   disabled = false,
+  providerEmail,
 }: SettingsScreenProps) {
   const t = useT();
   const afterLaunch = afterLaunchOptions(t);
@@ -665,6 +670,28 @@ export default function SettingsScreen({
           >
             {t("settings.cacheClear")}
           </Button>
+        </Section>
+
+        {/* Support last, and after the cache: it is what a player reaches for
+            when something above did not work, and it is the only section whose
+            buttons leave the app (the two mails). */}
+        <Section
+          icon={FileText}
+          title={t("settings.logs")}
+          description={t("settings.logsHint")}
+        >
+          <SupportSection
+            providerEmail={providerEmail}
+            disabled={busy}
+            onNotice={(message) => {
+              setNotice(message);
+              setError(undefined);
+            }}
+            onError={(message) => {
+              setError(message);
+              setNotice(undefined);
+            }}
+          />
         </Section>
       </div>
     </section>

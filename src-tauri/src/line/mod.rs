@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod config;
 pub mod config_commands;
+pub mod diagnostics;
 #[cfg(feature = "dev-provider-ca")]
 pub mod dev_ca;
 pub mod error;
@@ -12,6 +13,7 @@ pub mod ipc;
 pub mod java;
 pub mod launch;
 pub mod launch_manifest;
+pub mod logger;
 pub mod minecraft;
 pub mod minecraft_core;
 pub mod pack;
@@ -20,6 +22,7 @@ pub mod settings;
 pub mod skin_library;
 pub mod state;
 pub mod storage;
+pub mod support;
 pub mod tray;
 pub mod wardrobe;
 

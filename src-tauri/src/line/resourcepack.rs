@@ -23,7 +23,7 @@
 //! - **No unbounded reading.** Entry count, per-entry and total budgets match
 //!   the extractor's limits, so a crafted pack cannot turn "check the pack"
 //!   into a memory exhaustion.
-use super::error::{LineError, LineResult};
+use super::error::{ErrorCode, LineError, LineResult};
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::Read;
@@ -215,7 +215,15 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
     let mut texts: Vec<(String, Vec<u8>)> = Vec::new();
     let mut total: u64 = 0;
     for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(|e| LineError::io(&e))?;
+        // `by_index` returns ZipError, not std::io::Error. Treat an unreadable
+        // entry as an integrity failure instead of leaking archive internals.
+        let mut entry = archive.by_index(index).map_err(|_| {
+            LineError::new(
+                ErrorCode::Integrity,
+                "Не удалось проверить содержимое ресурс-пака.",
+                false,
+            )
+        })?;
         let entry_name = entry.name().to_owned();
         for word in words {
             if contains_word(&entry_name, word) {
@@ -337,4 +345,28 @@ fn file_sha256(path: &Path) -> LineResult<String> {
         hasher.update(&buffer[..read]);
     }
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    #[test]
+    fn zip_entries_are_scanned_for_keywords() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pack.zip");
+        let file = fs::File::create(&path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file(
+            "assets/example/models/block.json",
+            SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(br#"{ "name": "xray" }"#).unwrap();
+        zip.finish().unwrap();
+        let findings = scan_pack("resourcepacks/pack.zip", &path, &["xray".into()]).unwrap();
+        assert!(findings.hits.iter().any(|hit| hit.keyword == "xray"));
+    }
 }

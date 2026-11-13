@@ -412,7 +412,6 @@ pub fn extract_verified_zip(
 /// typed into a file, because it describes the bytes that actually arrived.
 struct Downloaded {
     sha256: String,
-    bytes: u64,
 }
 
 async fn download_part(
@@ -515,10 +514,7 @@ async fn download_part(
             ));
         }
     }
-    Ok(Downloaded {
-        sha256: actual,
-        bytes: received,
-    })
+    Ok(Downloaded { sha256: actual })
 }
 
 fn available_space(root: &Path, required: u64) -> LineResult<()> {

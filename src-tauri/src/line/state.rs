@@ -506,8 +506,10 @@ mod tests {
             )
             .unwrap();
         let session = ProviderSession::new("secret".into(), "player".into(), 60);
-        let result = state.save_session(session, generation);
-        assert_eq!(result.unwrap_err().code, ErrorCode::AuthRequired);
+        let error = state.save_session(session, generation).unwrap_err();
+        // The config changed during login, not an expired player session.
+        assert_eq!(error.code, ErrorCode::Busy);
+        assert!(error.retryable);
         assert_eq!(state.session().unwrap_err().code, ErrorCode::AuthRequired);
     }
 

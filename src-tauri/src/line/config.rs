@@ -286,7 +286,6 @@ pub fn validate_slug(value: &str) -> bool {
 /// exactly one `@`, and a dot in the domain. Anything fancier than that is not
 /// a support address a launcher should dial.
 pub fn valid_support_email(raw: &str) -> bool {
-    let raw = raw.trim();
     if raw.is_empty() || raw.len() > 254 || raw.trim() != raw {
         return false;
     }

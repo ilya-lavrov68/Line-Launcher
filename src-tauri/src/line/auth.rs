@@ -1,4 +1,5 @@
 use super::error::{ErrorCode, LineError, LineResult};
+use super::logger::{self, Area, Field};
 use super::http;
 use super::state::{AuthSessionInfo, LineState, ProviderSession};
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,7 @@ struct ProviderResponse {
     username: Option<String>,
 }
 
-async fn authenticate(
+async fn authenticate_inner(
     state: &LineState,
     request: AuthRequest,
     register: bool,
@@ -103,6 +104,67 @@ async fn authenticate(
     }
     let session = ProviderSession::new((*token).clone(), username, provider.expires_in);
     state.save_session(session, generation)
+}
+
+/// Sign-in, with every failure recorded.
+///
+/// `authenticate_inner` is the real function: it returns on the first `?`, which
+/// is exactly right for the caller and exactly wrong for support, because a `?`
+/// leaves no trace. This wrapper is the trace — one record per call, either the
+/// outcome or the stage that stopped it.
+///
+/// The message is the launcher's own fixed sentence, never a provider body, and
+/// the password is not in scope here at all: it was zeroized inside the inner
+/// call.
+async fn authenticate(
+    state: &LineState,
+    request: AuthRequest,
+    register: bool,
+) -> LineResult<AuthSessionInfo> {
+    let user = request.username.clone();
+    let result = authenticate_inner(state, request, register).await;
+    match &result {
+        Ok(info) => logger::info(
+            Area::Auth,
+            if register { "register ok" } else { "login ok" },
+            &[Field::text("user", &info.username)],
+        ),
+        Err(error) => logger::error(
+            Area::Auth,
+            if register {
+                "register failed"
+            } else {
+                "login failed"
+            },
+            &[
+                Field::text("user", &user),
+                Field::text("stage", stage_of(error)),
+                Field::text("code", format!("{:?}", error.code)),
+                Field::flag("retryable", error.retryable),
+                Field::text("msg", error.message.clone()),
+            ],
+        ),
+    }
+    result
+}
+
+/// Which part of the sign-in gave up.
+///
+/// Derived from the error itself rather than threaded through as an argument,
+/// so a new `?` cannot forget to name its stage: anything that is not one of the
+/// known shapes is reported as `provider`, which is where every network, TLS
+/// and HTTP-status failure comes from.
+fn stage_of(error: &LineError) -> &'static str {
+    match error.code {
+        ErrorCode::InvalidInput => "input",
+        ErrorCode::Network | ErrorCode::TlsUntrusted | ErrorCode::HttpStatus => "provider",
+        ErrorCode::InvalidCredentials | ErrorCode::AccountExists | ErrorCode::RateLimited => {
+            "provider"
+        }
+        ErrorCode::AuthRequired => "session",
+        ErrorCode::Busy => "store",
+        _ => "response",
+    }
 }
 
 #[tauri::command]

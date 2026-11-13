@@ -888,6 +888,9 @@ export default function LineLauncher() {
                             snapshot={settings}
                             onChange={setSettings}
                             disabled={actionsBusy}
+                            providerEmail={
+                              snapshot?.config.provider.support_email
+                            }
                           />
                         )}
                         {section === "account" && session && (

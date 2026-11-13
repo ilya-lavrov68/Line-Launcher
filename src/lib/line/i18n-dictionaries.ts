@@ -311,6 +311,22 @@ export const ru = {
   "settings.cacheCleared":
     "Кэш конфигурации очищен. Установленные сборки не затронуты.",
   "settings.cacheEmpty": "Кэш конфигурации уже пуст.",
+  "settings.logs": "Логи и поддержка",
+  "settings.logsHint":
+    "Папка с логами лаунчера и готовый отчёт для поддержки. Пароли и токены в отчёт не попадают.",
+  "support.openFolder": "Открыть папку с логами",
+  "support.copy": "Скопировать диагностику",
+  "support.copiedShort": "Скопировано",
+  "support.copied": "Диагностика скопирована ({bytes} символов).",
+  "support.copyFailed":
+    "Не удалось скопировать автоматически. Откройте папку с логами и приложите файлы вручную.",
+  "support.opened": "Открыта папка: {path}",
+  "support.mailOwner": "Отправить в {name}",
+  "support.mailProvider": "Связаться с провайдером",
+  "support.mailOpened":
+    "Открыт черновик письма на адрес {address}. Проверьте текст и отправьте.",
+  "support.hint":
+    "«Скопировать» кладёт отчёт в буфер обмена — его можно вставить в любое сообщение. Письмо открывается в вашем почтовом клиенте с уже готовым текстом.",
 
   "about.title": "О программе",
   "about.versionLabel": "Версия",
@@ -657,6 +673,22 @@ const en: Dictionary = {
   "settings.cacheCleared":
     "Configuration cache cleared. Installed builds are untouched.",
   "settings.cacheEmpty": "The configuration cache is already empty.",
+  "settings.logs": "Logs and support",
+  "settings.logsHint":
+    "The launcher log folder and a ready-made support report. Passwords and tokens are never included.",
+  "support.openFolder": "Open logs folder",
+  "support.copy": "Copy diagnostics",
+  "support.copiedShort": "Copied",
+  "support.copied": "Diagnostics copied ({bytes} characters).",
+  "support.copyFailed":
+    "Could not copy automatically. Open the logs folder and attach the files instead.",
+  "support.opened": "Opened: {path}",
+  "support.mailOwner": "Email {name}",
+  "support.mailProvider": "Contact the provider",
+  "support.mailOpened":
+    "A draft to {address} is open. Review the text and send it.",
+  "support.hint":
+    "Copy puts the report on the clipboard so it can be pasted anywhere. Email opens a draft in your mail client with the text already filled in.",
 
   "about.title": "About",
   "about.versionLabel": "Version",
@@ -1003,6 +1035,22 @@ const de: Dictionary = {
   "settings.cacheCleared":
     "Konfigurations-Cache geleert. Installierte Builds bleiben unberührt.",
   "settings.cacheEmpty": "Der Konfigurations-Cache ist bereits leer.",
+  "settings.logs": "Logs und Support",
+  "settings.logsHint":
+    "Der Log-Ordner des Launchers und ein fertiger Support-Bericht. Passwörter und Tokens sind nie enthalten.",
+  "support.openFolder": "Log-Ordner öffnen",
+  "support.copy": "Diagnose kopieren",
+  "support.copiedShort": "Kopiert",
+  "support.copied": "Diagnose kopiert ({bytes} Zeichen).",
+  "support.copyFailed":
+    "Automatisches Kopieren fehlgeschlagen. Öffne den Log-Ordner und hänge die Dateien an.",
+  "support.opened": "Geöffnet: {path}",
+  "support.mailOwner": "E-Mail an {name}",
+  "support.mailProvider": "Provider kontaktieren",
+  "support.mailOpened":
+    "Ein Entwurf an {address} ist offen. Prüfe den Text und sende ihn.",
+  "support.hint":
+    "„Kopieren“ legt den Bericht in die Zwischenablage. „E-Mail“ öffnet einen Entwurf im Mailprogramm mit bereits eingefügtem Text.",
 
   "about.title": "Über die App",
   "about.versionLabel": "Version",
@@ -1347,6 +1395,22 @@ const fr: Dictionary = {
   "settings.cacheCleared":
     "Cache de configuration vidé. Les versions installées sont intactes.",
   "settings.cacheEmpty": "Le cache de configuration est déjà vide.",
+  "settings.logs": "Journaux et support",
+  "settings.logsHint":
+    "Le dossier des journaux du launcher et un rapport de support prêt. Les mots de passe et jetons n'y figurent jamais.",
+  "support.openFolder": "Ouvrir le dossier des journaux",
+  "support.copy": "Copier le diagnostic",
+  "support.copiedShort": "Copié",
+  "support.copied": "Diagnostic copié ({bytes} caractères).",
+  "support.copyFailed":
+    "Copie automatique impossible. Ouvrez le dossier des journaux et joignez les fichiers.",
+  "support.opened": "Ouvert : {path}",
+  "support.mailOwner": "Écrire à {name}",
+  "support.mailProvider": "Contacter le fournisseur",
+  "support.mailOpened":
+    "Un brouillon vers {address} est ouvert. Vérifiez le texte et envoyez-le.",
+  "support.hint":
+    "« Copier » place le rapport dans le presse-papiers. « E-mail » ouvre un brouillon dans votre client mail avec le texte déjà rempli.",
 
   "about.title": "À propos",
   "about.versionLabel": "Version",

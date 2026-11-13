@@ -387,6 +387,9 @@ try {
         skin_url: `${base}/v1/launcher/skin`,
         skin_upload_url: `${base}/v1/launcher/skin`,
       },
+      // Optional, and the demo sets it so the «Связаться с провайдером» button
+      // has something to dial. A real provider puts their own desk here.
+      support_email: "support@line-demo.example",
     },
     cache_ttl_seconds: 60,
     required_features: [

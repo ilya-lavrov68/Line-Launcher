@@ -23,7 +23,7 @@
 //! player can read it before sending and see there is nothing personal in it.
 
 use super::logger::{self, Field, MAX_LINE_BYTES};
-use super::{LAUNCHER_VERSION, state::LineState};
+use super::state::LineState;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -212,6 +212,7 @@ fn civil(days: i64) -> (i64, u32, u32) {
 
 #[cfg(test)]
 mod tests {
+    use super::super::LAUNCHER_VERSION;
     use super::*;
     use std::path::PathBuf;
 

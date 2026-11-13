@@ -547,7 +547,7 @@ fn ensure_version_profile(
     // `versions/`, `libraries/` and `assets/` described their own loader, and
     // that beats anything the launcher could infer from a version string.
     let paths: Vec<String> = index.files.iter().map(|file| file.path.clone()).collect();
-    if super::super::instance::version_profile_ids(&paths, "").len() > 0 {
+    if !super::super::instance::version_profile_ids(&paths, "").is_empty() {
         return Ok(());
     }
 

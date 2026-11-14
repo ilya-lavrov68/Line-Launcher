@@ -213,7 +213,7 @@ export async function inspectModrinth(
     archiveLimit,
     fetcher,
     "Архив .mrpack",
-    15 * 60_000,
+    2 * 60 * 60_000,
     onProgress,
   );
   const hash = createHash("sha512").update(bytes).digest("hex");

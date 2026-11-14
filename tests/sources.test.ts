@@ -961,9 +961,9 @@ test("Modrinth diagnostic applies longer archive timeout and reports the stage",
     };
     await assert.rejects(
       inspectModrinth("project", "version", fetcher as typeof fetch),
-      /Архив .mrpack: истекло время ожидания \(900 секунд\), получено 3 байт/,
+      /Архив .mrpack: истекло время ожидания \(7200 секунд\), получено 3 байт/,
     );
-    assert.deepEqual(timeouts, [60_000, 900_000]);
+    assert.deepEqual(timeouts, [60_000, 7_200_000]);
   } finally {
     AbortSignal.timeout = originalTimeout;
   }

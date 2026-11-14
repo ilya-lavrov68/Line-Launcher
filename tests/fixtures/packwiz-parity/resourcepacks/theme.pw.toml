@@ -1,0 +1,6 @@
+filename = "theme.zip"
+side = "client"
+[download]
+url = "https://files.example.test/theme.zip"
+hash-format = "sha256"
+hash = "3854504bc7926014502f5f42ea6d0c7f763b90dc6e9a39ff4d568df15ac816cb"

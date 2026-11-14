@@ -1,0 +1,30 @@
+hash-format = "sha256"
+
+[[files]]
+file = "mods/alpha.pw.toml"
+metafile = true
+hash = "0c5923ead7d1fc5b3201868c965ead0868833e33af014ffc4d8251b8811a5e49"
+
+[[files]]
+file = "mods/beta.pw.toml"
+metafile = true
+hash = "6be0d61f7e834a7cbc5c8795511e653367b9325dd47c832856546c0348c1109a"
+
+[[files]]
+file = "mods/optional.pw.toml"
+metafile = true
+hash = "33d1a4db11d410409f6c47b9e3ec32b539dc62df5fae9cbcda3fa4eaa17c45c8"
+
+[[files]]
+file = "mods/server.pw.toml"
+metafile = true
+hash = "30a8867f50058a8d461b5fec7405652febe67aa7f6373a86bce550d8359817e5"
+
+[[files]]
+file = "resourcepacks/theme.pw.toml"
+metafile = true
+hash = "e327f55dfd0e76f9aff932eeedd6db5d3a89ff3316d122050ac2efbf8469c7bc"
+
+[[files]]
+file = "config/example.txt"
+hash = "7dde41f843fb867c469784177ed75b1d35da6aa3634872974e3dd28dad8738b2"

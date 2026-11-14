@@ -1,0 +1,9 @@
+name = "Parity Fixture"
+pack-format = "packwiz:1.1.0"
+[index]
+file = "index.toml"
+hash-format = "sha256"
+hash = "c838f1569a2e84ca7ab612928570b89d256ea7ea29864537cd3cf56dc47c3e66"
+[versions]
+minecraft = "1.20.1"
+fabric = "0.15.11"

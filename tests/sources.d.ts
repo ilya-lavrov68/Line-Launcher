@@ -54,3 +54,20 @@ declare module "*pack-from-packwiz.mjs" {
   export function writeZip(entries: { name: string; data: Buffer }[]): Buffer;
   export function readZipEntry(zip: Buffer, name: string): Buffer | null;
 }
+
+declare module "*check-modrinth.mjs" {
+  export function readMrpackIndex(buffer: Buffer): {
+    files: unknown[];
+    dependencies?: Record<string, string>;
+  };
+  export function inspectModrinth(
+    project: string,
+    version: string,
+    fetcher?: typeof fetch,
+  ): Promise<{
+    files: number;
+    clientFiles: number;
+    missingSha512: number;
+    dependencies: Record<string, string>;
+  }>;
+}

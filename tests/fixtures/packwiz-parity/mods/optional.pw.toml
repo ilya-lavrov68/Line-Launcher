@@ -1,0 +1,8 @@
+filename = "optional.jar"
+side = "client"
+[option]
+optional = true
+[download]
+url = "https://files.example.test/optional.jar"
+hash-format = "sha256"
+hash = "df6455ead4c7ca612f93c5f9074d3a956b9474848f542f6e90d2638ee06dfeed"

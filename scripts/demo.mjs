@@ -29,6 +29,10 @@ import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { findOpenSsl, openSslHelp } from "./lib/find-openssl.mjs";
+import {
+  missingFrontendDependencies,
+  frontendDependenciesHelp,
+} from "./lib/frontend-deps.mjs";
 import { inspectCertificate } from "./lib/demo-cert.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -151,6 +155,12 @@ async function runApp(state) {
 }
 
 if (appOnly) {
+  const missing = missingFrontendDependencies(root);
+  if (missing.length)
+    fail(
+      `Не найдены frontend-зависимости: ${missing.join(", ")}.`,
+      frontendDependenciesHelp,
+    );
   const state = readDemoState();
   if (!state) {
     fail(
@@ -191,7 +201,15 @@ if (nodeMajor < 22) fail(`Нужен Node.js 22+, сейчас ${process.version
 info(`node ${process.versions.node}`);
 
 if (!existsSync(path.join(root, "node_modules", "vite"))) {
-  fail("Зависимости не установлены.", "Выполните: npm ci");
+  fail("Зависимости не установлены.", frontendDependenciesHelp);
+}
+if (!providerOnly) {
+  const missing = missingFrontendDependencies(root);
+  if (missing.length)
+    fail(
+      `Не найдены frontend-зависимости: ${missing.join(", ")}.`,
+      frontendDependenciesHelp,
+    );
 }
 const openssl = findOpenSsl();
 if (!openssl)

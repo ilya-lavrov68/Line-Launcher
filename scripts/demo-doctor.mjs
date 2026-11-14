@@ -10,6 +10,10 @@ import { existsSync, readFileSync, statfsSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { findOpenSsl } from "./lib/find-openssl.mjs";
+import {
+  missingFrontendDependencies,
+  frontendDependenciesHelp,
+} from "./lib/frontend-deps.mjs";
 import { inspectCertificate } from "./lib/demo-cert.mjs";
 import { findMsvc, findWebView2, probe } from "./lib/env-probe.mjs";
 
@@ -56,11 +60,20 @@ if (nodeMajor < 22)
 else ok("Node.js", process.versions.node);
 
 if (!existsSync(path.join(root, "node_modules", "vite")))
-  bad("node_modules", "зависимости не установлены", "npm ci");
+  bad("node_modules", "зависимости не установлены", "npm ci --include=dev");
 else ok("node_modules", "установлены");
 
+const missingFrontend = missingFrontendDependencies(root);
+if (missingFrontend.length)
+  bad(
+    "Frontend-зависимости",
+    missingFrontend.join(", "),
+    frontendDependenciesHelp,
+  );
+else ok("Frontend-зависимости", "Vite и стили доступны");
+
 if (!existsSync(path.join(root, "node_modules", "@tauri-apps", "cli")))
-  bad("@tauri-apps/cli", "не найден", "npm ci");
+  bad("@tauri-apps/cli", "не найден", "npm ci --include=dev");
 else ok("@tauri-apps/cli", "есть");
 
 // 2. openssl — issues the local certificate --------------------------------

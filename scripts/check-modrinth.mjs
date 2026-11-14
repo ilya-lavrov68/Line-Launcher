@@ -8,7 +8,11 @@ const MAX_API = 4 * 1024 * 1024;
 const MAX_ARCHIVE = 64 * 1024 * 1024;
 const MAX_INDEX = 16 * 1024 * 1024;
 
-async function getBytes(raw, limit, fetcher) {
+async function getBytes(raw, limit, fetcher, stage) {
+  const tooLarge = (observed, declared = false) =>
+    new Error(
+      `${stage}: ${declared ? "Content-Length" : "Получено более"} ${observed} байт; лимит ${limit} байт.`,
+    );
   let url = new URL(raw);
   for (let hops = 0; hops <= 5; hops++) {
     if (url.protocol !== "https:" || url.username || url.password)
@@ -26,15 +30,16 @@ async function getBytes(raw, limit, fetcher) {
       continue;
     }
     if (!response.ok) throw new Error(`Ошибка HTTP ${response.status}.`);
-    if (Number(response.headers.get("content-length") || 0) > limit) {
+    const declared = Number(response.headers.get("content-length") || 0);
+    if (declared > limit) {
       await response.body?.cancel();
-      throw new Error("Ответ превышает лимит размера.");
+      throw tooLarge(declared, true);
     }
     let total = 0;
     const chunks = [];
     for await (const chunk of response.body ?? []) {
       total += chunk.byteLength;
-      if (total > limit) throw new Error("Ответ превышает лимит размера.");
+      if (total > limit) throw tooLarge(total);
       chunks.push(Buffer.from(chunk));
     }
     return Buffer.concat(chunks, total);
@@ -133,7 +138,18 @@ export function readMrpackIndex(buffer) {
   return index;
 }
 
-export async function inspectModrinth(project, version, fetcher = fetch) {
+export async function inspectModrinth(
+  project,
+  version,
+  fetcher = fetch,
+  archiveLimit = MAX_ARCHIVE,
+) {
+  if (
+    !Number.isSafeInteger(archiveLimit) ||
+    archiveLimit < MAX_ARCHIVE ||
+    archiveLimit > 512 * 1024 * 1024
+  )
+    throw new Error("Лимит архива должен быть от 64 до 512 МиБ.");
   if (
     !/^[a-zA-Z0-9_-]{1,64}$/.test(project) ||
     !/^[a-zA-Z0-9_-]{1,64}$/.test(version)
@@ -145,6 +161,7 @@ export async function inspectModrinth(project, version, fetcher = fetch) {
         `https://api.modrinth.com/v2/project/${project}/version`,
         MAX_API,
         fetcher,
+        "Список версий Modrinth",
       )
     ).toString("utf8"),
   );
@@ -159,7 +176,12 @@ export async function inspectModrinth(project, version, fetcher = fetch) {
   const pack = packs.find((f) => f.primary) || packs[0];
   if (!pack || !/^[a-fA-F0-9]{128}$/.test(pack.hashes?.sha512 || ""))
     throw new Error("У версии нет .mrpack с SHA-512.");
-  const bytes = await getBytes(pack.url, MAX_ARCHIVE, fetcher);
+  const bytes = await getBytes(
+    pack.url,
+    archiveLimit,
+    fetcher,
+    "Архив .mrpack",
+  );
   const hash = createHash("sha512").update(bytes).digest("hex");
   if (hash !== pack.hashes.sha512.toLowerCase())
     throw new Error("SHA-512 .mrpack не совпадает с API Modrinth.");
@@ -167,6 +189,9 @@ export async function inspectModrinth(project, version, fetcher = fetch) {
   return {
     project,
     version: selected.id,
+    archiveBytes: bytes.length,
+    launcherArchiveLimitBytes: MAX_ARCHIVE,
+    exceedsLauncherArchiveLimit: bytes.length > MAX_ARCHIVE,
     versionNumber: selected.version_number ?? null,
     name: index.name ?? null,
     dependencies: index.dependencies ?? {},
@@ -185,14 +210,27 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  const [project, version] = process.argv.slice(2);
-  inspectModrinth(project || "", version || "")
+  const [project, version, limitArg, ...extra] = process.argv.slice(2);
+  const archiveLimit =
+    limitArg === undefined ? MAX_ARCHIVE : Number(limitArg) * 1024 * 1024;
+  if (extra.length || (limitArg !== undefined && !/^[0-9]+$/.test(limitArg))) {
+    console.error(
+      "Использование: npm run source:check-modrinth -- <project> <version> [лимит_архива_МиБ]",
+    );
+    process.exit(1);
+  }
+  inspectModrinth(project || "", version || "", fetch, archiveLimit)
     .then((report) => {
       console.log(JSON.stringify(report, null, 2));
       console.log(
         "Архив и SHA-512 проверены; установка и запуск игры этой командой не проверяются.",
       );
-      if (report.missingSha512) process.exitCode = 1;
+      if (report.exceedsLauncherArchiveLimit)
+        console.log(
+          "Внимание: архив превышает текущий лимит лаунчера 64 МиБ; диагностика не означает, что установка возможна.",
+        );
+      if (report.missingSha512 || report.exceedsLauncherArchiveLimit)
+        process.exitCode = 1;
     })
     .catch((error) => {
       console.error(`Ошибка проверки Modrinth: ${error.message}`);

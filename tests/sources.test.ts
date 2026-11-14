@@ -877,3 +877,36 @@ test("read-only Modrinth check verifies the selected archive and index", async (
   ]);
   assert.throws(() => readMrpackIndex(duplicate));
 });
+
+test("Modrinth diagnostic identifies which bounded response is too large", async () => {
+  const oversizedApi = async () =>
+    new Response(null, {
+      headers: { "content-length": String(4 * 1024 * 1024 + 1) },
+    });
+  await assert.rejects(
+    inspectModrinth("project", "version", oversizedApi as typeof fetch),
+    /Список версий Modrinth: Content-Length 4194305 байт; лимит 4194304/,
+  );
+  const versions = [
+    {
+      id: "version",
+      files: [
+        {
+          filename: "test.mrpack",
+          url: "https://cdn.example.test/test",
+          hashes: { sha512: "a".repeat(128) },
+        },
+      ],
+    },
+  ];
+  const oversizedArchive = async (input: string | URL | Request) =>
+    String(input).includes("api.modrinth.com")
+      ? new Response(JSON.stringify(versions))
+      : new Response(null, {
+          headers: { "content-length": String(64 * 1024 * 1024 + 1) },
+        });
+  await assert.rejects(
+    inspectModrinth("project", "version", oversizedArchive as typeof fetch),
+    /Архив .mrpack: Content-Length 67108865 байт; лимит 67108864/,
+  );
+});

@@ -118,13 +118,19 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   ]) {
     assert.ok(panel.includes(piece), `missing ${piece}`);
   }
-  assert.match(panel, /data-line-glass="dock"/);
-  // A region with the server's name, so the smoke test (and a screen reader)
-  // can address this dock instead of the whole page.
-  assert.match(panel, /role="region"/);
-  assert.match(panel, /aria-labelledby="server-action-title"/);
-  assert.match(panel, /useReducedMotion\(\)/);
-  assert.match(panel, /ease: \[0\.22, 1, 0\.36, 1\]/);
+  const dock = read("src/components/line/ServerDock.tsx");
+  const minecraft = read("src/components/line/MinecraftPanel.tsx");
+  // Both launch modes use the same named region and primary action styling.
+  for (const mode of [panel, minecraft]) {
+    assert.match(mode, /<ServerDock name=\{server\.name\}>/);
+    assert.match(mode, /<ServerDockPrimary/);
+  }
+  assert.match(dock, /data-line-glass="dock"/);
+  assert.match(dock, /role="region"/);
+  assert.match(dock, /aria-labelledby="server-action-title"/);
+  assert.match(dock, /h-11 w-full/);
+  assert.match(dock, /useReducedMotion\(\)/);
+  assert.match(dock, /ease: \[0\.22, 1, 0\.36, 1\]/);
   // No music-player leftovers: no seek/volume, no canvas visualiser, no
   // window chrome. Electron-era controls are exactly what is being removed.
   for (const banned of [
@@ -144,13 +150,11 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
 
 test("a minecraft-mode server swaps the dock, never renders two of them", () => {
   const detail = read("src/components/line/ServerDetail.tsx");
-  // The two looks used to be two branches here. With one design there is one
-  // page and one dock; the Minecraft panel is a separate branch *below* it, not
-  // a second copy of the page, so «Играть» exists exactly once for assistive
-  // tech and for the smoke test.
+  // Minecraft and ZIP modes use mutually exclusive panels in the same dock.
   assert.doesNotMatch(detail, /theme === /);
   assert.doesNotMatch(detail, /LegacyDetail/);
-  assert.match(detail, /\{isMinecraft && \(/);
+  assert.match(detail, /\{isMinecraft \? \(/);
+  assert.equal((detail.match(/<MinecraftPanel\b/g) ?? []).length, 1);
   assert.match(detail, /function phaseOf\(/);
   for (const phase of [
     '"needs-install"',

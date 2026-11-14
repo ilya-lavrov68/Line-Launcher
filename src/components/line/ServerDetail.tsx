@@ -350,20 +350,6 @@ export default function ServerDetail(props: ServerDetailProps) {
           disabled={actionsBusy}
         />
       )}
-
-      {/* Minecraft mode replaces the ZIP dock, not the whole page: the banner,
-          the status line and the history dialog above are the same controls for
-          both, and the buttons that cannot work for this server (install from a
-          distribution archive, rollback to a previous release) are the ones left
-          out. */}
-      {isMinecraft && (
-        <MinecraftPanel
-          server={server}
-          username={props.username}
-          disabled={actionsBusy}
-          onAuthRequired={props.onAuthRequired}
-        />
-      )}
     </section>
   );
 }

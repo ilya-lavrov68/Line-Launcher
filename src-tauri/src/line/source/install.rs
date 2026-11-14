@@ -28,10 +28,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// How many files are fetched at once. Sequential downloads of a few hundred
-/// mods are dominated by round trips; more than a handful just queues requests
-/// behind each other at the CDN and makes cancellations slower to notice.
-const PARALLEL_DOWNLOADS: usize = 4;
+/// Keep a modest number of transfers in flight to hide CDN latency without
+/// flooding hosts or overwhelming disks when the pack has many small files.
+const PARALLEL_DOWNLOADS: usize = 8;
 
 /// A digest the launcher may have to fill in after download.
 ///
@@ -368,44 +367,36 @@ pub async fn fetch_files(
     initial.total_bytes = 0;
     sink.emit(initial);
 
-    while next < pack_files.files.len() {
-        let batch_end = (next + concurrency).min(pack_files.files.len());
-        let batch: Vec<(usize, PendingFile)> = (next..batch_end)
-            .map(|position| (position, pack_files.files[position].clone()))
-            .collect();
-        let client_ref = client.clone();
-        let staging_ref = staging.to_path_buf();
-        let cancel_ref = cancel.clone();
-        let progress_template = base_progress.clone();
-        let progress_sink = sink.clone();
-        let batch_total = total;
-        let mut tasks = Vec::new();
-        for (position, file) in batch {
-            let client = client_ref.clone();
-            let root = staging_ref.clone();
-            let cancel = cancel_ref.clone();
-            let sink = progress_sink.clone();
-            let template = progress_template.clone();
+    // Refill each slot as soon as it finishes. Waiting for a whole batch made
+    // seven fast transfers idle behind one large or slow file.
+    let completed = Arc::new(AtomicU64::new(0));
+    let mut tasks = tokio::task::JoinSet::new();
+    let mut first_error = None;
+    loop {
+        while first_error.is_none() && next < pack_files.files.len() && tasks.len() < concurrency {
+            let position = next;
+            next += 1;
+            let file = pack_files.files[position].clone();
+            let client = client.clone();
+            let root = staging.to_path_buf();
+            let cancel = cancel.clone();
+            let sink = sink.clone();
+            let template = base_progress.clone();
             let budget = budget.clone();
-            tasks.push(tauri::async_runtime::spawn(async move {
+            let completed = completed.clone();
+            tasks.spawn(async move {
                 let target = root.join(
                     install::safe_entry_path(&file.path)
                         .map_err(|_| LineError::input("Некорректный путь файла в сборке."))?,
                 );
                 let progress = move |_total: u64, _received: u64| {
+                    let done = completed.load(Ordering::Relaxed);
                     let mut update = template.clone();
                     update.phase = InstallPhase::Downloading;
-                    // Concurrent per-file bytes are not a percentage of the pack;
-                    // report completed files instead.
-                    update.percent = if batch_total > 0 {
-                        template.percent
-                            + (done as f64 / batch_total as f64) * (60.0 - template.percent)
-                    } else {
-                        0.0
-                    };
+                    update.percent =
+                        template.percent + (done as f64 / total as f64) * (60.0 - template.percent);
                     update.files_done = Some(done);
-                    update.files_total = Some(batch_total);
-                    // Bytes from concurrent files are not comparable to the pack total.
+                    update.files_total = Some(total);
                     update.received_bytes = 0;
                     update.total_bytes = 0;
                     sink.emit(update);
@@ -413,66 +404,62 @@ pub async fn fetch_files(
                 let digest =
                     fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?;
                 Ok::<(usize, String), LineError>((position, digest))
-            }));
+            });
         }
-        // Await every spawned task even after a failure. Dropping a join handle
-        // detaches it, allowing it to write into staging after cleanup starts.
-        let mut batch_error = None;
-        for task in tasks {
-            match task.await {
-                Ok(Ok((position, digest))) => {
-                    if pack_files.files[position].sha256.is_none() {
-                        pack_files.settle(position, digest.clone());
-                    }
-                    let file = &pack_files.files[position];
-                    let size = std::fs::symlink_metadata(
-                        staging.join(install::safe_entry_path(&file.path)?),
-                    )
-                    .map(|metadata| metadata.len())
-                    .unwrap_or(0);
-                    let path = file.path.clone();
-                    pack_files.files[position].size = size;
-                    index.files.push(FileEntry {
-                        path,
-                        sha256: digest,
-                        size,
-                    });
-                    done += 1;
+        let Some(result) = tasks.join_next().await else {
+            break;
+        };
+        match result {
+            Ok(Ok((position, digest))) => {
+                if pack_files.files[position].sha256.is_none() {
+                    pack_files.settle(position, digest.clone());
                 }
-                Ok(Err(error)) => {
-                    if batch_error.is_none() {
-                        batch_error = Some(error);
-                    }
+                let file = &pack_files.files[position];
+                let size =
+                    std::fs::symlink_metadata(staging.join(install::safe_entry_path(&file.path)?))
+                        .map(|metadata| metadata.len())
+                        .unwrap_or(0);
+                let path = file.path.clone();
+                pack_files.files[position].size = size;
+                index.files.push(FileEntry {
+                    path,
+                    sha256: digest,
+                    size,
+                });
+                done += 1;
+                completed.store(done, Ordering::Relaxed);
+                if done % 32 == 0 || done == total {
+                    let mut update = base_progress.clone();
+                    update.phase = InstallPhase::Downloading;
+                    update.percent = base_progress.percent
+                        + (done as f64 / total as f64) * (60.0 - base_progress.percent);
+                    update.files_done = Some(done);
+                    update.files_total = Some(total);
+                    update.received_bytes = 0;
+                    update.total_bytes = 0;
+                    sink.emit(update);
                 }
-                Err(_) => {
-                    if batch_error.is_none() {
-                        batch_error = Some(LineError::new(
-                            ErrorCode::Internal,
-                            "Задача загрузки завершилась аварийно.",
-                            false,
-                        ));
-                    }
+            }
+            Ok(Err(error)) => {
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+            Err(_) => {
+                if first_error.is_none() {
+                    first_error = Some(LineError::new(
+                        ErrorCode::Internal,
+                        "Задача загрузки завершилась аварийно.",
+                        false,
+                    ));
                 }
             }
         }
-        if let Some(error) = batch_error {
-            return Err(error);
-        }
-        next = batch_end;
-        let mut update = base_progress.clone();
-        update.phase = InstallPhase::Downloading;
-        update.percent = if total > 0 {
-            done as f64 / total as f64 * 60.0
-        } else {
-            60.0
-        };
-        update.files_done = Some(done);
-        update.files_total = Some(total);
-        update.received_bytes = 0;
-        update.total_bytes = 0;
-        if done % 32 == 0 || done == total {
-            sink.emit(update);
-        }
+        // On failure, do not start more tasks, but drain all active tasks before
+        // staging can be cleaned up. JoinSet must never detach writers.
+    }
+    if let Some(error) = first_error {
+        return Err(error);
     }
     index
         .files
@@ -1119,6 +1106,62 @@ mod tests {
         assert_eq!(last.files_done, Some(2));
         assert_eq!(last.files_total, Some(2));
         assert_eq!(last.total_bytes, 0);
+    }
+
+    #[tokio::test]
+    async fn rolling_workers_process_more_than_one_window_and_drain_on_failure() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut pending = PendingPack {
+            files: (0..40)
+                .map(|i| inline_file(&format!("mods/{i}.jar")))
+                .collect(),
+            ..Default::default()
+        };
+        let result = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.files.len(), 40);
+        assert!(result
+            .files
+            .windows(2)
+            .all(|pair| pair[0].path <= pair[1].path));
+        for file in &result.files {
+            assert_eq!(
+                std::fs::read(temp.path().join(&file.path)).unwrap(),
+                b"data"
+            );
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let mut broken = inline_file("broken.jar");
+        broken.inline = Some(Arc::new(b"bad!".to_vec()));
+        let mut pending = PendingPack {
+            files: std::iter::once(broken)
+                .chain((0..40).map(|i| inline_file(&format!("mods/{i}.jar"))))
+                .collect(),
+            ..Default::default()
+        };
+        let result = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+        )
+        .await;
+        assert_eq!(result.unwrap_err().code, ErrorCode::Integrity);
+        // Once an error is returned there must be no detached tasks still writing.
+        let before = std::fs::read_dir(temp.path()).unwrap().count();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), before);
     }
 
     #[tokio::test]

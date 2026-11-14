@@ -213,14 +213,66 @@ fn total_memory() -> u64 {
     system.total_memory()
 }
 
+/// Report only a small allowlist of public service names. Reqwest URLs may
+/// contain access tokens, signed paths, queries, custom hosts or usernames.
+fn minecraft_service(host: Option<&str>) -> &'static str {
+    match host {
+        Some("maven.neoforged.net") => "NeoForge (maven.neoforged.net)",
+        Some("maven.minecraftforge.net") => "Forge (maven.minecraftforge.net)",
+        Some("meta.fabricmc.net") | Some("maven.fabricmc.net") => "Fabric",
+        Some("meta.quiltmc.org") | Some("maven.quiltmc.org") => "Quilt",
+        Some("piston-meta.mojang.com")
+        | Some("launchermeta.mojang.com")
+        | Some("piston-data.mojang.com")
+        | Some("resources.download.minecraft.net")
+        | Some("libraries.minecraft.net")
+        | Some("assets.minecraft.net") => "Mojang / Minecraft",
+        _ => "сервер загрузки Minecraft",
+    }
+}
+
+fn minecraft_network_error(
+    host: Option<&str>,
+    status: Option<u16>,
+    timeout: bool,
+    connect: bool,
+) -> LineError {
+    let service = minecraft_service(host);
+    let message = if let Some(code) = status {
+        match code {
+            404 | 410 => format!("{service}: файл или версия не найдены (HTTP {code}). Проверьте версию загрузчика и сообщите разработчику лаунчера."),
+            401 | 403 => format!("{service}: доступ к файлу отклонён (HTTP {code}). Проверьте доступность сервера и настройки сети."),
+            429 => format!("{service}: слишком много запросов (HTTP {code}). Подождите и повторите."),
+            500..=599 => format!("{service}: временная ошибка сервера (HTTP {code}). Попробуйте позже."),
+            _ => format!("{service}: сервер отклонил запрос (HTTP {code})."),
+        }
+    } else if timeout {
+        format!("{service}: истекло время ожидания. Проверьте сеть и попробуйте снова.")
+    } else if connect {
+        format!("Не удалось подключиться: {service}. Проверьте интернет, proxy и VPN.")
+    } else {
+        format!("Не удалось скачать файлы: {service}. Проверьте подключение и попробуйте снова.")
+    };
+    let code = if status.is_some() {
+        ErrorCode::HttpStatus
+    } else {
+        ErrorCode::Network
+    };
+    let retryable = !matches!(status, Some(401 | 403 | 404 | 410));
+    let mut result = LineError::new(code, message, retryable);
+    result.http_status = status;
+    result
+}
+
 /// Actionable, non-sensitive translation. Raw crate errors can carry URLs and
 /// local paths, so they are never serialized to the WebView verbatim.
 fn mc_error(error: LauncherError) -> LineError {
     match error {
-        LauncherError::Network { .. } => LineError::new(
-            ErrorCode::Network,
-            "Не удалось скачать файлы Minecraft. Проверьте интернет, proxy и VPN.",
-            true,
+        LauncherError::Network { source } => minecraft_network_error(
+            source.url().and_then(|url| url.host_str()),
+            source.status().map(|status| status.as_u16()),
+            source.is_timeout(),
+            source.is_connect(),
         ),
         LauncherError::Io { source } => LineError::io(&source),
         LauncherError::ChecksumMismatch { .. } => LineError::new(
@@ -1155,4 +1207,59 @@ pub async fn mc_status(
             message: None,
         },
     })
+}
+
+#[cfg(test)]
+mod network_diagnostics_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn http_failure_is_mapped_without_exposing_url_or_query() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request).await.unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+        });
+        let source = reqwest::get(format!("http://{addr}/private-path?token=secret"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap_err();
+        server.await.unwrap();
+        let error = mc_error(LauncherError::Network { source });
+        assert_eq!(error.http_status, Some(404));
+        assert!(error.message.contains("HTTP 404"));
+        assert!(!error.message.contains("secret"));
+        assert!(!error.message.contains("private-path"));
+        assert!(!error.message.contains(&addr.to_string()));
+    }
+
+    #[test]
+    fn minecraft_network_diagnostics_reveal_only_fixed_safe_details() {
+        let missing = minecraft_network_error(Some("maven.neoforged.net"), Some(404), false, false);
+        assert_eq!(missing.code, ErrorCode::HttpStatus);
+        assert_eq!(missing.http_status, Some(404));
+        assert!(!missing.retryable);
+        assert!(missing.message.contains("NeoForge"));
+        assert!(missing.message.contains("HTTP 404"));
+        let unknown =
+            minecraft_network_error(Some("private.example.test"), Some(403), false, false);
+        assert!(!unknown.message.contains("private.example.test"));
+        assert!(unknown.message.contains("HTTP 403"));
+        let timeout = minecraft_network_error(None, None, true, false);
+        assert_eq!(timeout.code, ErrorCode::Network);
+        assert!(timeout.message.contains("время ожидания"));
+        let connect = minecraft_network_error(Some("libraries.minecraft.net"), None, false, true);
+        assert!(connect.message.contains("Mojang"));
+        assert!(connect.retryable);
+    }
 }

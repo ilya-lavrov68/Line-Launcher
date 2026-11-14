@@ -29,5 +29,12 @@ fn main() {
     // The overlay carries the branded product name and icon list.
     println!("cargo:rerun-if-changed=tauri.brand.conf.json");
 
+    // Vite writes hashed filenames, so watching only previously embedded files
+    // is insufficient when an asset is added or renamed. The stamp hashes the
+    // complete production tree and is written only after a successful Vite build.
+    // Watching dist also covers direct builds and additions outside that script.
+    println!("cargo:rerun-if-changed=../dist");
+    println!("cargo:rerun-if-changed=.frontend-build.sha256");
+
     tauri_build::build()
 }

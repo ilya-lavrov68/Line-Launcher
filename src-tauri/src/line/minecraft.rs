@@ -421,6 +421,100 @@ fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpe
     }
 }
 
+// NeoForge 47.x was published as net.neoforged:forge with the Minecraft
+// version in the artifact version. Later NeoForge releases use :neoforge.
+fn legacy_neoforge_version(
+    minecraft: &str,
+    loader: &Option<LoaderSpec>,
+) -> LineResult<Option<String>> {
+    if minecraft != "1.20.1" {
+        return Ok(None);
+    }
+    match loader {
+        Some(LoaderSpec::NeoForge {
+            version: LoaderVersion::Exact(version),
+        }) => {
+            let version = version.strip_prefix("1.20.1-").unwrap_or(version);
+            if !version.starts_with("47.")
+                || !version.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+                || version.contains("..")
+                || version.ends_with('.')
+            {
+                return Err(LineError::input(
+                    "Для NeoForge на Minecraft 1.20.1 укажите версию 47.x.",
+                ));
+            }
+            Ok(Some(version.to_string()))
+        }
+        Some(LoaderSpec::NeoForge { .. }) => Err(LineError::input(
+            "Для NeoForge на Minecraft 1.20.1 укажите точную версию 47.x.",
+        )),
+        _ => Ok(None),
+    }
+}
+
+async fn install_legacy_neoforge(
+    app: &AppHandle,
+    dir: PathBuf,
+    version: String,
+    app_emit: AppHandle,
+    instance: String,
+) -> LineResult<String> {
+    let vanilla_dir = dir.clone();
+    let emit = app_emit.clone();
+    let emit_instance = instance.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut report = move |event: ProgressEvent| {
+            let _ = emit.emit(
+                MC_INSTALL_EVENT,
+                progress_dto(&emit_instance, &event, false),
+            );
+        };
+        Launcher::new(vanilla_dir)
+            .install_with_progress(InstallRequest::vanilla("1.20.1"), &mut report)
+            .map_err(mc_error)?;
+        Ok::<(), LineError>(())
+    })
+    .await
+    .map_err(|_| join_error())??;
+    let preferences = settings::load(app, total_memory());
+    let java = resolve_java(
+        &dir,
+        Some("java-runtime-gamma".to_string()),
+        17,
+        &preferences,
+    )
+    .await?;
+    tokio::task::spawn_blocking(move || -> LineResult<String> {
+        use mc_launcher_core::net::download::{execute_plan, DownloadPlan, DownloadTask};
+        use mc_launcher_core::install::loader::{run_loader_installer, InstallerInvocation};
+        use mc_launcher_core::loader::LoaderKind;
+        use std::io::Read;
+        let temp = tempfile::tempdir().map_err(|e| LineError::io(&e))?;
+        let installer = temp.path().join("installer.jar");
+        let artifact = format!("1.20.1-{version}");
+        let url = format!("https://maven.neoforged.net/releases/net/neoforged/forge/{artifact}/forge-{artifact}-installer.jar");
+        let mut report = move |event: ProgressEvent| { let _ = app_emit.emit(MC_INSTALL_EVENT, progress_dto(&instance, &event, false)); };
+        execute_plan(&DownloadPlan { tasks: vec![DownloadTask { url, destination: installer.clone(), checksum: None, label: "NeoForge installer".to_string() }] }, &mut report).map_err(mc_error)?;
+        // Read the profile id from the installer rather than assuming Forge's ID convention.
+        let file = std::fs::File::open(&installer).map_err(|e| LineError::io(&e))?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|_| LineError::new(ErrorCode::Integrity, "Установщик NeoForge повреждён.", false))?;
+        let entry = archive.by_name("version.json").map_err(|_| LineError::new(ErrorCode::Integrity, "В установщике NeoForge нет профиля версии.", false))?;
+        if entry.size() > 4 * 1024 * 1024 { return Err(LineError::new(ErrorCode::Integrity, "Профиль NeoForge слишком большой.", false)); }
+        let mut json = String::new();
+        entry.take(4 * 1024 * 1024 + 1).read_to_string(&mut json).map_err(|e| LineError::io(&e))?;
+        let profile: serde_json::Value = serde_json::from_str(&json).map_err(|_| LineError::new(ErrorCode::Integrity, "Некорректный профиль установщика NeoForge.", false))?;
+        let id = profile.get("id").and_then(|v| v.as_str()).ok_or_else(|| LineError::new(ErrorCode::Integrity, "В профиле установщика NeoForge нет идентификатора.", false))?;
+        let id = validate_version_id(id)?;
+        drop(archive);
+        run_loader_installer(&InstallerInvocation { loader: LoaderKind::NeoForge, java_executable: java, installer_path: installer, minecraft_dir: dir.clone() }).map_err(mc_error)?;
+        let launcher = Launcher::new(&dir);
+        let merged = launcher.load_version(&id).map_err(mc_error)?;
+        mc_launcher_core::install::client::install_version_files(&merged, &dir, &mut report).map_err(mc_error)?;
+        Ok(id)
+    }).await.map_err(|_| join_error())?
+}
+
 /// Idempotent: the crate skips files whose checksum already matches, so this is
 /// both "download" and "verify what is on disk".
 async fn install_profile(
@@ -441,31 +535,38 @@ async fn install_profile(
     }
 
     let dir = game_root(app, &instance_id)?;
+    let legacy = legacy_neoforge_version(&version, &loader);
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
-    let installed = tokio::task::spawn_blocking(move || -> LineResult<String> {
-        let launcher = Launcher::new(dir);
-        let request = InstallRequest {
-            minecraft_version: version,
-            loader,
-            // The facade does not bundle Java; the runtime is resolved below
-            // through `LaunchOptions::java_executable`.
-            java: JavaInstallPolicy::Auto,
-        };
-        let mut reporter = move |event: ProgressEvent| {
-            let _ = emit_app.emit(
-                MC_INSTALL_EVENT,
-                progress_dto(&emit_instance, &event, false),
-            );
-        };
-        let result = launcher
-            .install_with_progress(request, &mut reporter)
-            .map_err(mc_error)?;
-        Ok(result.version_id)
-    })
-    .await
-    .map_err(|_| join_error())
-    .and_then(|result| result);
+    let installed = match legacy {
+        Err(error) => Err(error),
+        Ok(Some(legacy_version)) => {
+            install_legacy_neoforge(app, dir, legacy_version, emit_app, emit_instance).await
+        }
+        Ok(None) => tokio::task::spawn_blocking(move || -> LineResult<String> {
+            let launcher = Launcher::new(dir);
+            let request = InstallRequest {
+                minecraft_version: version,
+                loader,
+                // The facade does not bundle Java; the runtime is resolved below
+                // through `LaunchOptions::java_executable`.
+                java: JavaInstallPolicy::Auto,
+            };
+            let mut reporter = move |event: ProgressEvent| {
+                let _ = emit_app.emit(
+                    MC_INSTALL_EVENT,
+                    progress_dto(&emit_instance, &event, false),
+                );
+            };
+            let result = launcher
+                .install_with_progress(request, &mut reporter)
+                .map_err(mc_error)?;
+            Ok(result.version_id)
+        })
+        .await
+        .map_err(|_| join_error())
+        .and_then(|result| result),
+    };
 
     if let Ok(mut inner) = state.lock() {
         inner.installing.remove(&instance_id);
@@ -1241,6 +1342,39 @@ mod network_diagnostics_tests {
         assert!(!error.message.contains("secret"));
         assert!(!error.message.contains("private-path"));
         assert!(!error.message.contains(&addr.to_string()));
+    }
+
+    #[test]
+    fn legacy_neoforge_coordinates_are_selected_only_for_1201() {
+        let exact = |v: &str| {
+            Some(LoaderSpec::NeoForge {
+                version: LoaderVersion::Exact(v.to_string()),
+            })
+        };
+        assert_eq!(
+            legacy_neoforge_version("1.20.1", &exact("47.1.106"))
+                .unwrap()
+                .as_deref(),
+            Some("47.1.106")
+        );
+        assert_eq!(
+            legacy_neoforge_version("1.20.1", &exact("1.20.1-47.1.106"))
+                .unwrap()
+                .as_deref(),
+            Some("47.1.106")
+        );
+        assert!(legacy_neoforge_version("1.20.1", &exact("47.1/evil")).is_err());
+        assert!(legacy_neoforge_version(
+            "1.20.1",
+            &Some(LoaderSpec::NeoForge {
+                version: LoaderVersion::LatestStable
+            })
+        )
+        .is_err());
+        assert_eq!(
+            legacy_neoforge_version("1.21.1", &exact("21.1.65")).unwrap(),
+            None
+        );
     }
 
     #[test]

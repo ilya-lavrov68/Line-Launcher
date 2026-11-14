@@ -211,7 +211,7 @@ pub fn loader_from_libraries(coords: &[String]) -> Option<(LoaderChoice, String)
         };
         let kind = match (group, artifact) {
             ("org.quiltmc", "quilt-loader") => LoaderChoice::Quilt,
-            ("net.neoforged", "neoforge") => LoaderChoice::NeoForge,
+            ("net.neoforged", "neoforge" | "forge") => LoaderChoice::NeoForge,
             ("net.minecraftforge", "forge" | "fmlloader") => LoaderChoice::Forge,
             ("net.fabricmc", "fabric-loader") => LoaderChoice::Fabric,
             _ => continue,
@@ -423,6 +423,10 @@ mod tests {
                 "org.quiltmc:quilt-loader:0.26.4",
             ])),
             Some((LoaderChoice::Quilt, "0.26.4".to_string()))
+        );
+        assert_eq!(
+            loader_from_libraries(&paths(&["net.neoforged:forge:1.20.1-47.1.106:universal"])),
+            Some((LoaderChoice::NeoForge, "1.20.1-47.1.106".into()))
         );
         assert_eq!(loader_from_libraries(&paths(&["bad", "a:b", "a:b:"])), None);
         assert_eq!(

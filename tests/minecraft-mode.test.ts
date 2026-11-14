@@ -249,7 +249,10 @@ test("Играть verifies-or-downloads and then joins the server in one comman
   }
   // The existing installer is reused, not a second downloader.
   assert.match(rust, /receipt\.already_installed/);
-  assert.doesNotMatch(rust, /reqwest::blocking::Client|ZipArchive::new/);
+  assert.doesNotMatch(rust, /reqwest::blocking::Client/);
+  // Only the downloaded official NeoForge installer is opened to read its bounded profile.
+  assert.match(rust, /archive\.by_name\("version\.json"\)/);
+  assert.match(rust, /entry\.size\(\) > 4 \* 1024 \* 1024/);
   assert.match(read("src/types/line.ts"), /serverAddress\?: string;/);
 });
 

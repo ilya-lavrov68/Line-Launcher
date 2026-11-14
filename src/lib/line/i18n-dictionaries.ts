@@ -316,7 +316,7 @@ export const ru = {
   "sections.new": "Новая секция",
   "sections.add": "Добавить секцию",
   "sections.dragHint":
-    "Перетащите значок над карточкой на заголовок секции. Можно также выбрать секцию на странице сервера.",
+    "Зажмите карточку сервера и перетащите её в нужную секцию. Также секцию можно выбрать на странице сервера.",
   "sections.dragHandle": "Перетащить сервер {name}",
   "sections.emptyHint":
     "Создайте секцию ниже, затем откройте сервер и выберите её в поле «Секция». Настройка видна только вам.",
@@ -721,7 +721,7 @@ const en: Dictionary = {
   "sections.new": "New section",
   "sections.add": "Add section",
   "sections.dragHint":
-    "Drag the handle above a card onto a section heading. You can also choose a section on the server page.",
+    "Drag a server card into a section, or choose its section on the server page.",
   "sections.dragHandle": "Drag server {name}",
   "sections.emptyHint":
     "Create a section below, then open a server and choose it under “Section”. Only you can see this layout.",
@@ -1126,7 +1126,7 @@ const de: Dictionary = {
   "sections.new": "Neuer Abschnitt",
   "sections.add": "Abschnitt hinzufügen",
   "sections.dragHint":
-    "Ziehen Sie den Griff über einer Karte auf eine Abschnittsüberschrift. Alternativ wählen Sie den Abschnitt auf der Serverseite.",
+    "Ziehen Sie eine Serverkarte in einen Abschnitt oder wählen Sie den Abschnitt auf der Serverseite.",
   "sections.dragHandle": "Server {name} ziehen",
   "sections.emptyHint":
     "Erstellen Sie unten einen Abschnitt und wählen Sie ihn anschließend beim Server unter „Abschnitt“ aus. Nur Sie sehen diese Einteilung.",
@@ -1530,7 +1530,7 @@ const fr: Dictionary = {
   "sections.new": "Nouvelle section",
   "sections.add": "Ajouter une section",
   "sections.dragHint":
-    "Faites glisser la poignée au-dessus d’une carte sur le titre d’une section. Vous pouvez aussi choisir la section sur la page du serveur.",
+    "Faites glisser une carte de serveur dans une section, ou choisissez la section sur la page du serveur.",
   "sections.dragHandle": "Déplacer le serveur {name}",
   "sections.emptyHint":
     "Créez une section ci-dessous, puis ouvrez un serveur et choisissez-la dans « Section ». Cette organisation est personnelle.",

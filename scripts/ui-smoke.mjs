@@ -799,7 +799,25 @@ try {
     .locator("[data-section-drop]")
     .filter({ hasText: "Секция 1" });
   await group.getByRole("button", { name: "Свернуть секцию Секция 1" }).click();
-  await page.locator('[data-server-drag="survival"]').dragTo(group);
+  const sourceCard = page.locator(
+    '[data-server-drag="survival"] [data-line-card]',
+  );
+  const from = await sourceCard.boundingBox();
+  const to = await group.boundingBox();
+  if (!from || !to) throw new Error("drag targets have no bounds");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + 30, to.y + to.height / 2, { steps: 12 });
+  await page.locator("[data-drag-preview]").waitFor();
+  check(
+    await group.evaluate((node) => node.className.includes("ring-2")),
+    "drag target is not highlighted",
+  );
+  await page.mouse.up();
+  check(
+    (await page.locator("[data-drag-preview]").count()) === 0,
+    "drag preview stayed after dropping",
+  );
   await page.waitForFunction(() =>
     window.__calls.some(
       ([cmd, args]) =>
@@ -810,9 +828,21 @@ try {
   await group
     .getByRole("button", { name: "Развернуть секцию Секция 1" })
     .click();
-  await page
-    .locator('[data-server-drag="survival"]')
-    .dragTo(page.locator('[data-section-drop="unassigned"]'));
+  const moving = await page
+    .locator('[data-server-drag="survival"] [data-line-card]')
+    .boundingBox();
+  const unassigned = await page
+    .locator('[data-section-drop="unassigned"]')
+    .boundingBox();
+  if (!moving || !unassigned)
+    throw new Error("return drag targets have no bounds");
+  await page.mouse.move(
+    moving.x + moving.width / 2,
+    moving.y + moving.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(unassigned.x + 30, unassigned.y + 10, { steps: 12 });
+  await page.mouse.up();
   await page.waitForFunction(() => {
     const saves = window.__calls.filter(([cmd]) => cmd === "save_settings");
     return (

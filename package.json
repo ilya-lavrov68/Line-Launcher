@@ -36,7 +36,8 @@
     "demo:update": "node examples/provider/publish-release.mjs",
     "demo:check": "node scripts/demo-selftest.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "check:tauri": "node scripts/check-tauri-versions.mjs"
+    "check:tauri": "node scripts/check-tauri-versions.mjs",
+    "test:drag": "node scripts/test-server-drag.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

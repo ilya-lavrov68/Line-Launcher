@@ -49,6 +49,7 @@
       "../LICENSE": "LICENSE",
       "../NOTICE.md": "NOTICE.md",
       "../LICENSES/Obsy-MIT.txt": "LICENSES/Obsy-MIT.txt",
+      "../LICENSES/Shadcn-MIT.txt": "LICENSES/Shadcn-MIT.txt",
       "../LICENSES/Lucide-LICENSE.txt": "LICENSES/Lucide-LICENSE.txt"
     }
   }

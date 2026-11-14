@@ -11,7 +11,6 @@ export function missingFrontendDependencies(root) {
     "@vitejs/plugin-react",
     "@tailwindcss/vite",
     "tailwindcss/index.css",
-    "shadcn/tailwind.css",
     "typescript",
   ];
   const missing = modules.filter((name) => {
@@ -21,6 +20,9 @@ export function missingFrontendDependencies(root) {
       return true;
     }
   });
+  // The shadcn stylesheet is vendored, not resolved through node_modules.
+  if (!existsSync(path.join(root, "src/vendor/shadcn/tailwind.css")))
+    missing.push("src/vendor/shadcn/tailwind.css");
   // This package exposes only a CSS `style` condition, not a Node entrypoint.
   if (
     !existsSync(

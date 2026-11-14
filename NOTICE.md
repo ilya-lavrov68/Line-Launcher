@@ -37,6 +37,12 @@ same text is shipped inside the installer. The Line license does not relicense
 that code or withdraw permissions already granted by MIT. Nothing here implies
 endorsement by the upstream project.
 
+## Vendored shadcn stylesheet
+
+`src/vendor/shadcn/tailwind.css` is the stylesheet from the `shadcn` npm
+package version 4.13.0, preserved byte-for-byte. Its MIT license and copyright
+notice are in `LICENSES/Shadcn-MIT.txt` and are included in desktop bundles.
+
 ## Icons
 
 The default Line application mark uses the Lucide `Layers2` glyph. Lucide's

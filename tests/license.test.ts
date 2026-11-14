@@ -57,6 +57,7 @@ test("desktop bundle includes the license and upstream notices", () => {
     "../LICENSE",
     "../NOTICE.md",
     "../LICENSES/Obsy-MIT.txt",
+    "../LICENSES/Shadcn-MIT.txt",
     "../LICENSES/Lucide-LICENSE.txt",
   ]) {
     assert.ok(resources[source], `missing bundle resource ${source}`);

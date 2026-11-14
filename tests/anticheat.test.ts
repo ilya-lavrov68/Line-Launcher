@@ -120,7 +120,10 @@ test("a provider may add words but cannot remove the built-in ones", () => {
 });
 
 test("the scan reads text entries and skips images", () => {
-  const body = rust.slice(rust.indexOf("pub fn reads_text"));
+  const body = rust.slice(
+    rust.indexOf("pub fn reads_text"),
+    rust.indexOf("/// Every pack under"),
+  );
   for (const ext of [".json", ".mcmeta", ".txt", ".lang"]) {
     assert.ok(body.includes(ext), `reads_text misses ${ext}`);
   }
@@ -255,5 +258,17 @@ test("pack check reports missing installs and renders structured errors", async 
   assert.ok(
     command.indexOf("require_pack_check_install") <
       command.indexOf("instance_game_dir"),
+  );
+});
+
+test("language resources are exempted narrowly without disabling model scanning", () => {
+  assert.match(
+    rust,
+    /entry\.is_dir\(\) \|\| is_language_resource\(&entry_name\)/,
+  );
+  assert.match(rust, /parts\.len\(\) != 4/);
+  assert.match(
+    rust,
+    /translations_do_not_trigger_but_other_pack_content_still_does/,
   );
 });

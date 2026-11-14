@@ -1086,6 +1086,14 @@ mod tests {
         let game = instance.join("game");
         super::super::super::launch::check_live_mods(&game, &detected.files)
             .expect("Проверка mods в игровом каталоге не пройдена");
+        let (findings, _) =
+            super::super::super::resourcepack::scan_all(&game, &detected.files, &[], &[])
+                .expect("Не удалось проверить ресурс-паки");
+        assert!(
+            findings.is_clean(),
+            "Ресурс-паки BattleArmory: {}",
+            findings.summary(50)
+        );
         let mut nested = 0;
         for entry in &index.files {
             let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {

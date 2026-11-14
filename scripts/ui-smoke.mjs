@@ -893,6 +893,25 @@ try {
   await page.getByRole("button", { name: "Все серверы", exact: true }).click();
   const downloadWidget = page.getByTestId("download-widget");
   await downloadWidget.waitFor();
+  const assertWidgetInsidePane = async () => {
+    const widget = await downloadWidget.boundingBox();
+    const pane = await page.getByTestId("main-pane").boundingBox();
+    check(
+      Boolean(
+        widget &&
+        pane &&
+        widget.x >= pane.x &&
+        widget.y >= pane.y &&
+        widget.x + widget.width <= pane.x + pane.width &&
+        widget.y + widget.height <= pane.y + pane.height,
+      ),
+      "download widget escaped the main pane",
+    );
+  };
+  await assertWidgetInsidePane();
+  await page.setViewportSize({ width: 640, height: 720 });
+  await assertWidgetInsidePane();
+  await page.setViewportSize({ width: 1280, height: 900 });
   check(
     (await downloadWidget
       .getByRole("progressbar")

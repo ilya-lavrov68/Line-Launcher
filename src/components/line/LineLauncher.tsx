@@ -917,306 +917,313 @@ export default function LineLauncher() {
                   onChangeProvider={reconnect}
                   onAbout={() => setAboutOpen(true)}
                 />
-                <main
-                  data-line-glass
-                  className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] p-6"
+                <div
+                  data-testid="main-pane"
+                  className="relative flex min-h-0 min-w-0 flex-1 flex-col"
                 >
-                  {/* A stretched column all the way down. Pages that pin a
+                  <main
+                    data-line-glass
+                    className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] p-6"
+                  >
+                    {/* A stretched column all the way down. Pages that pin a
                       control to the bottom edge (the server dock) need the
                       scroll box's real height; a plain block wrapper collapses
                       to its content and the dock floats upwards. */}
-                  <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
-                    {/* Signing out closes every server at once, and the
+                    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+                      {/* Signing out closes every server at once, and the
                         request that carried it can fail on the way back. That
                         failure is not something the player can act on: they are
                         already out, and the gate is coming up over this panel.
                         Reporting it put a red line on screen for the frame
                         before the gate mounted — the same flash as the retry
                         card, in a smaller box. */}
-                    {error &&
-                      !(section === "servers" && screen === "config") &&
-                      session && (
-                        <p
-                          role="alert"
-                          className="text-destructive bg-destructive/10 mb-5 rounded-[var(--radius-control)] p-3 text-xs"
-                        >
-                          {error}
-                        </p>
-                      )}
-                    <AnimatePresence mode="wait" initial={false}>
-                      {!(section === "servers" && screen === "detail") && (
-                        <m.div
-                          key={
-                            section === "servers"
-                              ? screen === "detail"
-                                ? `detail-${selected?.id}`
-                                : screen
-                              : section
-                          }
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.18 }}
-                          className="flex min-h-full flex-1 flex-col"
-                        >
-                          {/* The snapshot arrives a moment after the shell does.
+                      {error &&
+                        !(section === "servers" && screen === "config") &&
+                        session && (
+                          <p
+                            role="alert"
+                            className="text-destructive bg-destructive/10 mb-5 rounded-[var(--radius-control)] p-3 text-xs"
+                          >
+                            {error}
+                          </p>
+                        )}
+                      <AnimatePresence mode="wait" initial={false}>
+                        {!(section === "servers" && screen === "detail") && (
+                          <m.div
+                            key={
+                              section === "servers"
+                                ? screen === "detail"
+                                  ? `detail-${selected?.id}`
+                                  : screen
+                                : section
+                            }
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.18 }}
+                            className="flex min-h-full flex-1 flex-col"
+                          >
+                            {/* The snapshot arrives a moment after the shell does.
                             Until it does, the page shows its own geometry instead
                             of an empty panel — the row of sections is the shape
                             a player learns on first visit. */}
-                          {section === "settings" && !settings && (
-                            <SkeletonSettings />
-                          )}
-                          {section === "settings" && settings && (
-                            <SettingsScreen
-                              snapshot={settings}
-                              onChange={setSettings}
-                              disabled={actionsBusy}
-                              providerEmail={
-                                snapshot?.config.provider.support_email
-                              }
-                            />
-                          )}
-                          {section === "account" && session && (
-                            <ProfileScreen
-                              session={session}
-                              providerName={
-                                snapshot?.config.provider.name ??
-                                t("common.project")
-                              }
-                              canSync={canSyncSkin}
-                              onLogout={() => void logout()}
-                              onOpenWardrobe={() => navigate("wardrobe")}
-                              disabled={actionsBusy}
-                            />
-                          )}
-                          {section === "account" && !session && (
-                            // Signing out while this page is open must not leave a
-                            // blank panel; the sign-in screen is the honest state.
-                            <div className="text-muted-foreground mx-auto flex w-full max-w-3xl flex-col items-start gap-2 py-10 text-xs">
-                              <p>{t("status.noSession")}</p>
-                            </div>
-                          )}
-                          {section === "wardrobe" && (
-                            <WardrobeScreen
-                              username={session?.username}
-                              canSync={canSyncSkin}
-                              accountKey={session?.username ?? "signed-out"}
-                              onAuthRequired={requireAuth}
-                              disabled={actionsBusy}
-                            />
-                          )}
-                          {section === "servers" && screen === "config" && (
-                            <div className="flex min-h-full items-center justify-center py-4">
-                              {mode === "dev-url" ? (
-                                <ConfigUrlInput
-                                  initialUrl={snapshot?.sourceUrl}
-                                  loading={loading}
-                                  error={error}
-                                  onSubmit={(url) => void loadConfig(url)}
-                                />
-                              ) : (
-                                <ConnectingScreen
-                                  loading={loading}
-                                  error={error}
-                                  unconfigured={mode === "unconfigured"}
-                                  onRetry={() =>
-                                    void loadConfig(
-                                      bakedProvider.configUrl,
-                                      true,
-                                    )
-                                  }
-                                />
-                              )}
-                            </div>
-                          )}
-                          {section === "servers" &&
-                            screen === "account" &&
-                            // Not unreachable, and it used to be wrong. Signing in
-                            // is a page of its own (see `signedOut`), but this branch
-                            // still paints for the frame in which a session ends:
-                            // the gate is an `AnimatePresence` child and mounts a
-                            // render later, so the shell is drawn once with no
-                            // session first. It showed "Нет соединения" with a
-                            // retry button — a full-opacity lie, measured at five
-                            // frames — because a signed-out launcher was wired to
-                            // the same state as a failed fetch.
-                            //
-                            // There is nothing to report here and nothing to
-                            // retry: the gate covers the window. It stays only for
-                            // a dev template with no provider at all, where it is
-                            // the honest state and the gate never comes.
-                            (mode === "unconfigured" ? (
-                              <div className="flex min-h-full items-center justify-center py-4">
-                                <ConnectingScreen
-                                  loading={false}
-                                  unconfigured
-                                  onRetry={() =>
-                                    void loadConfig(
-                                      bakedProvider.configUrl,
-                                      true,
-                                    )
-                                  }
-                                />
-                              </div>
-                            ) : null)}
-                          {section === "servers" &&
-                            screen === "servers" &&
-                            !snapshot &&
-                            loading && <SkeletonServerGrid />}
-                          {section === "servers" &&
-                            screen === "servers" &&
-                            snapshot && (
-                              <ServerList
-                                layout={normalizeLayout(
-                                  settings?.settings.serverLayout,
-                                )}
-                                onLayoutChange={(next) =>
-                                  void changeLayout(next)
+                            {section === "settings" && !settings && (
+                              <SkeletonSettings />
+                            )}
+                            {section === "settings" && settings && (
+                              <SettingsScreen
+                                snapshot={settings}
+                                onChange={setSettings}
+                                disabled={actionsBusy}
+                                providerEmail={
+                                  snapshot?.config.provider.support_email
                                 }
-                                rail={
-                                  <ServerCatalogRail
-                                    server={selected}
-                                    status={railStatus}
-                                    progress={railProgress}
-                                    busy={actionsBusy}
-                                    onOpen={(server) =>
-                                      void selectServer(server)
-                                    }
-                                  />
-                                }
-                                statusFor={(server) =>
-                                  installedIds.has(server.id)
-                                    ? t("servers.ready")
-                                    : undefined
-                                }
-                                providerName={snapshot.config.provider.name}
-                                servers={snapshot.config.servers}
-                                installedIds={installedIds}
-                                stale={snapshot.stale}
-                                refreshing={refreshing}
-                                actionsDisabled={actionsBusy || layoutSaving}
-                                onSelect={(server) => void selectServer(server)}
-                                onRefresh={() => void refresh()}
                               />
                             )}
-                        </m.div>
-                      )}
-                    </AnimatePresence>
-                    {selected && session && (
-                      <div
-                        hidden={section !== "servers" || screen !== "detail"}
-                      >
-                        <ServerDetail
-                          key={selected.id}
-                          sections={
-                            normalizeLayout(settings?.settings.serverLayout)
-                              .sections
-                          }
-                          section={
-                            normalizeLayout(settings?.settings.serverLayout)
-                              .assignments[selected.id] ?? null
-                          }
-                          onSectionChange={(next) =>
-                            void changeLayout(
-                              assignServer(
-                                normalizeLayout(
-                                  settings?.settings.serverLayout,
+                            {section === "account" && session && (
+                              <ProfileScreen
+                                session={session}
+                                providerName={
+                                  snapshot?.config.provider.name ??
+                                  t("common.project")
+                                }
+                                canSync={canSyncSkin}
+                                onLogout={() => void logout()}
+                                onOpenWardrobe={() => navigate("wardrobe")}
+                                disabled={actionsBusy}
+                              />
+                            )}
+                            {section === "account" && !session && (
+                              // Signing out while this page is open must not leave a
+                              // blank panel; the sign-in screen is the honest state.
+                              <div className="text-muted-foreground mx-auto flex w-full max-w-3xl flex-col items-start gap-2 py-10 text-xs">
+                                <p>{t("status.noSession")}</p>
+                              </div>
+                            )}
+                            {section === "wardrobe" && (
+                              <WardrobeScreen
+                                username={session?.username}
+                                canSync={canSyncSkin}
+                                accountKey={session?.username ?? "signed-out"}
+                                onAuthRequired={requireAuth}
+                                disabled={actionsBusy}
+                              />
+                            )}
+                            {section === "servers" && screen === "config" && (
+                              <div className="flex min-h-full items-center justify-center py-4">
+                                {mode === "dev-url" ? (
+                                  <ConfigUrlInput
+                                    initialUrl={snapshot?.sourceUrl}
+                                    loading={loading}
+                                    error={error}
+                                    onSubmit={(url) => void loadConfig(url)}
+                                  />
+                                ) : (
+                                  <ConnectingScreen
+                                    loading={loading}
+                                    error={error}
+                                    unconfigured={mode === "unconfigured"}
+                                    onRetry={() =>
+                                      void loadConfig(
+                                        bakedProvider.configUrl,
+                                        true,
+                                      )
+                                    }
+                                  />
+                                )}
+                              </div>
+                            )}
+                            {section === "servers" &&
+                              screen === "account" &&
+                              // Not unreachable, and it used to be wrong. Signing in
+                              // is a page of its own (see `signedOut`), but this branch
+                              // still paints for the frame in which a session ends:
+                              // the gate is an `AnimatePresence` child and mounts a
+                              // render later, so the shell is drawn once with no
+                              // session first. It showed "Нет соединения" with a
+                              // retry button — a full-opacity lie, measured at five
+                              // frames — because a signed-out launcher was wired to
+                              // the same state as a failed fetch.
+                              //
+                              // There is nothing to report here and nothing to
+                              // retry: the gate covers the window. It stays only for
+                              // a dev template with no provider at all, where it is
+                              // the honest state and the gate never comes.
+                              (mode === "unconfigured" ? (
+                                <div className="flex min-h-full items-center justify-center py-4">
+                                  <ConnectingScreen
+                                    loading={false}
+                                    unconfigured
+                                    onRetry={() =>
+                                      void loadConfig(
+                                        bakedProvider.configUrl,
+                                        true,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ) : null)}
+                            {section === "servers" &&
+                              screen === "servers" &&
+                              !snapshot &&
+                              loading && <SkeletonServerGrid />}
+                            {section === "servers" &&
+                              screen === "servers" &&
+                              snapshot && (
+                                <ServerList
+                                  layout={normalizeLayout(
+                                    settings?.settings.serverLayout,
+                                  )}
+                                  onLayoutChange={(next) =>
+                                    void changeLayout(next)
+                                  }
+                                  rail={
+                                    <ServerCatalogRail
+                                      server={selected}
+                                      status={railStatus}
+                                      progress={railProgress}
+                                      busy={actionsBusy}
+                                      onOpen={(server) =>
+                                        void selectServer(server)
+                                      }
+                                    />
+                                  }
+                                  statusFor={(server) =>
+                                    installedIds.has(server.id)
+                                      ? t("servers.ready")
+                                      : undefined
+                                  }
+                                  providerName={snapshot.config.provider.name}
+                                  servers={snapshot.config.servers}
+                                  installedIds={installedIds}
+                                  stale={snapshot.stale}
+                                  refreshing={refreshing}
+                                  actionsDisabled={actionsBusy || layoutSaving}
+                                  onSelect={(server) =>
+                                    void selectServer(server)
+                                  }
+                                  onRefresh={() => void refresh()}
+                                />
+                              )}
+                          </m.div>
+                        )}
+                      </AnimatePresence>
+                      {selected && session && (
+                        <div
+                          hidden={section !== "servers" || screen !== "detail"}
+                        >
+                          <ServerDetail
+                            key={selected.id}
+                            sections={
+                              normalizeLayout(settings?.settings.serverLayout)
+                                .sections
+                            }
+                            section={
+                              normalizeLayout(settings?.settings.serverLayout)
+                                .assignments[selected.id] ?? null
+                            }
+                            onSectionChange={(next) =>
+                              void changeLayout(
+                                assignServer(
+                                  normalizeLayout(
+                                    settings?.settings.serverLayout,
+                                  ),
+                                  selected.id,
+                                  next,
                                 ),
-                                selected.id,
-                                next,
-                              ),
-                            )
-                          }
-                          onCheckPacks={async () => {
-                            await refreshConfigForMinecraft();
-                            return lineApi.checkPacks(selected.id);
-                          }}
-                          onReportPacks={
-                            snapshot?.config.provider.support_email
-                              ? () =>
-                                  lineApi.mailDiagnostics(
-                                    snapshot.config.provider.support_email!,
-                                  )
-                              : undefined
-                          }
-                          server={selected}
-                          providerName={snapshot?.config.provider.name}
-                          hasSession={Boolean(session)}
-                          receipt={receipt}
-                          progress={progress}
-                          status={gameStatus}
-                          installing={installing}
-                          launching={launching}
-                          actionsBusy={actionsBusy || layoutSaving}
-                          installError={installError}
-                          launchError={launchError}
-                          availability={
-                            selected.launch_mode === "offline" ||
-                            selected.launch_mode === "minecraft" ||
-                            Boolean(
-                              selected.auth?.launch_ticket_url &&
-                              selected.auth?.session_exchange_url,
-                            )
-                              ? "ready"
-                              : "unconfigured"
-                          }
-                          onBack={() => {
-                            if (installing || minecraftBusy)
-                              setBackgrounded(true);
-                            setScreen("servers");
-                          }}
-                          onInstall={() => void install()}
-                          onCancel={() => void cancel()}
-                          onLaunch={() => void launch()}
-                          onStop={() => void stopGame()}
-                          onHistory={(open) => void openHistory(open)}
-                          onRollback={(target) => void rollback(target)}
-                          username={session?.username}
-                          onRefreshConfig={refreshConfigForMinecraft}
-                          onMinecraftBusyChange={setMinecraftBusy}
-                          onMinecraftProgressChange={setMinecraftProgress}
-                          onMinecraftFeedbackChange={setMinecraftFeedback}
-                          allowBackground={installing || minecraftBusy}
-                          onAuthRequired={requireAuth}
-                          historyOpen={historyOpen}
-                          history={history}
-                          historyLoading={historyLoading}
-                          historyError={historyError}
-                        />
-                      </div>
+                              )
+                            }
+                            onCheckPacks={async () => {
+                              await refreshConfigForMinecraft();
+                              return lineApi.checkPacks(selected.id);
+                            }}
+                            onReportPacks={
+                              snapshot?.config.provider.support_email
+                                ? () =>
+                                    lineApi.mailDiagnostics(
+                                      snapshot.config.provider.support_email!,
+                                    )
+                                : undefined
+                            }
+                            server={selected}
+                            providerName={snapshot?.config.provider.name}
+                            hasSession={Boolean(session)}
+                            receipt={receipt}
+                            progress={progress}
+                            status={gameStatus}
+                            installing={installing}
+                            launching={launching}
+                            actionsBusy={actionsBusy || layoutSaving}
+                            installError={installError}
+                            launchError={launchError}
+                            availability={
+                              selected.launch_mode === "offline" ||
+                              selected.launch_mode === "minecraft" ||
+                              Boolean(
+                                selected.auth?.launch_ticket_url &&
+                                selected.auth?.session_exchange_url,
+                              )
+                                ? "ready"
+                                : "unconfigured"
+                            }
+                            onBack={() => {
+                              if (installing || minecraftBusy)
+                                setBackgrounded(true);
+                              setScreen("servers");
+                            }}
+                            onInstall={() => void install()}
+                            onCancel={() => void cancel()}
+                            onLaunch={() => void launch()}
+                            onStop={() => void stopGame()}
+                            onHistory={(open) => void openHistory(open)}
+                            onRollback={(target) => void rollback(target)}
+                            username={session?.username}
+                            onRefreshConfig={refreshConfigForMinecraft}
+                            onMinecraftBusyChange={setMinecraftBusy}
+                            onMinecraftProgressChange={setMinecraftProgress}
+                            onMinecraftFeedbackChange={setMinecraftFeedback}
+                            allowBackground={installing || minecraftBusy}
+                            onAuthRequired={requireAuth}
+                            historyOpen={historyOpen}
+                            history={history}
+                            historyLoading={historyLoading}
+                            historyError={historyError}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </main>
+                  {backgrounded &&
+                    selected &&
+                    session &&
+                    !(section === "servers" && screen === "detail") && (
+                      <DownloadWidget
+                        serverName={selected.name}
+                        active={minecraftBusy || installing}
+                        minecraft={
+                          selected.launch_mode === "minecraft"
+                            ? minecraftProgress
+                            : null
+                        }
+                        progress={
+                          selected.launch_mode === "minecraft" ? null : progress
+                        }
+                        error={
+                          selected.launch_mode === "minecraft"
+                            ? minecraftFeedback
+                            : (installError ?? null)
+                        }
+                        onOpen={() => {
+                          setSection("servers");
+                          setScreen("detail");
+                          setBackgrounded(false);
+                        }}
+                        onDismiss={() => setBackgrounded(false)}
+                        onCancel={installing ? () => void cancel() : undefined}
+                      />
                     )}
-                  </div>
-                </main>
+                </div>
               </div>
-              {backgrounded &&
-                selected &&
-                session &&
-                !(section === "servers" && screen === "detail") && (
-                  <DownloadWidget
-                    serverName={selected.name}
-                    active={minecraftBusy || installing}
-                    minecraft={
-                      selected.launch_mode === "minecraft"
-                        ? minecraftProgress
-                        : null
-                    }
-                    progress={
-                      selected.launch_mode === "minecraft" ? null : progress
-                    }
-                    error={
-                      selected.launch_mode === "minecraft"
-                        ? minecraftFeedback
-                        : (installError ?? null)
-                    }
-                    onOpen={() => {
-                      setSection("servers");
-                      setScreen("detail");
-                      setBackgrounded(false);
-                    }}
-                    onDismiss={() => setBackgrounded(false)}
-                    onCancel={installing ? () => void cancel() : undefined}
-                  />
-                )}
               <AboutDialog
                 version={LAUNCHER_VERSION}
                 open={aboutOpen}
@@ -1245,7 +1252,7 @@ export default function LineLauncher() {
               </span>
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("status.offlineOnly")}
+                {t("status.projectAccount")}
               </span>
             </footer>
           </div>

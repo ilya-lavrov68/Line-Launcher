@@ -6,7 +6,7 @@
 # sha256 through `anticheat.allow` — but they cannot remove anything below.
 #
 # Matching is by word, case-insensitive, on the pack's file name, the entry names
-# inside it and the text of its JSON/mcmeta/lang files. `xray_ultimate` and
+# inside it and the text of its JSON/mcmeta files, except canonical language files. `xray_ultimate` and
 # `XRay` match `xray`; `pixray` and `xrayed` do not. Keep that in mind: short or
 # generic words fire on legitimate packs. `fly`, `esp`-adjacent words like `night`
 # and anything a normal pack name could contain are deliberately absent — a list

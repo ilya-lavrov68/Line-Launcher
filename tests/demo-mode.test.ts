@@ -281,3 +281,14 @@ test("certificate inspection accepts a good PEM and rejects a dying one", () => 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("BattleArmory demo is opt-in and provides a test-only loopback placeholder", () => {
+  const demo = read("scripts/demo.mjs");
+  assert.match(demo, /flags\.has\("--battlearmory"\)/);
+  assert.match(demo, /id: "battlearmory-test"/);
+  assert.match(demo, /server_address: "127\.0\.0\.1:25565"/);
+  assert.match(demo, /test_mode_enabled: true/);
+  assert.match(demo, /project: "rQiXwLhB"/);
+  assert.match(demo, /version: "TQIsQXtg"/);
+  assert.match(read("docs/DEMO.md"), /npm run demo -- --battlearmory/);
+});

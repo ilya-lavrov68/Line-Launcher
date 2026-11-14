@@ -240,9 +240,83 @@ pub fn ensure_server_join(args: &mut Vec<String>, quick_play: bool, host: &str, 
     args.extend(server_join_args(quick_play, host, port));
 }
 
+/// The server configuration, not the frontend, authorizes the test launch.
+pub fn validate_test_mode(requested: bool, enabled: bool, minecraft_mode: bool) -> LineResult<()> {
+    if requested && (!enabled || !minecraft_mode) {
+        return Err(LineError::input(
+            "Тестовый одиночный режим отключён провайдером.",
+        ));
+    }
+    Ok(())
+}
+
+/// The test launch opens the normal main menu, without automatic joins or a
+/// preset world. Preserve every unrelated JVM and game argument.
+pub fn remove_automatic_joins(args: &mut Vec<String>) {
+    const JOIN_FLAGS: &[&str] = &[
+        "--server",
+        "--port",
+        "--quickPlayMultiplayer",
+        "--quickPlaySingleplayer",
+        "--quickPlayRealms",
+    ];
+    let mut filtered = Vec::with_capacity(args.len());
+    let mut iter = args.drain(..).peekable();
+    while let Some(arg) = iter.next() {
+        if JOIN_FLAGS.contains(&arg.as_str()) {
+            if iter.peek().is_some_and(|next| !next.starts_with('-')) {
+                iter.next();
+            }
+            continue;
+        }
+        if JOIN_FLAGS.iter().any(|flag| {
+            arg.strip_prefix(flag)
+                .is_some_and(|suffix| suffix.starts_with('='))
+        }) {
+            continue;
+        }
+        filtered.push(arg);
+    }
+    *args = filtered;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_launch_requires_provider_permission_and_minecraft_mode() {
+        assert!(validate_test_mode(true, true, true).is_ok());
+        assert!(validate_test_mode(true, false, true).is_err());
+        assert!(validate_test_mode(true, true, false).is_err());
+        assert!(validate_test_mode(false, false, false).is_ok());
+    }
+
+    #[test]
+    fn test_menu_removes_join_targets_without_touching_other_flags() {
+        let mut args: Vec<String> = [
+            "-Xmx2G",
+            "Main",
+            "--server",
+            "example.test",
+            "--port=25565",
+            "--quickPlayMultiplayer",
+            "host:25565",
+            "--quickPlaySingleplayer=world",
+            "--quickPlayRealms",
+            "123",
+            "--username",
+            "Player",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        remove_automatic_joins(&mut args);
+        assert_eq!(args, vec!["-Xmx2G", "Main", "--username", "Player"]);
+        let mut missing = vec!["--server".into(), "--username".into(), "Player".into()];
+        remove_automatic_joins(&mut missing);
+        assert_eq!(missing, vec!["--username", "Player"]);
+    }
 
     #[test]
     fn server_addresses_parse_host_port_and_ipv6() {

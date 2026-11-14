@@ -507,7 +507,7 @@ server.listen(port, host, () => {
     for (const server of config.servers) {
       log(
         `  ${server.id.padEnd(10)} ${server.name} v${server.version}` +
-          `${server.auth?.launch_ticket_url ? "" : "  (без запуска)"}`,
+          `${server.auth?.launch_ticket_url || server.launch_mode === "minecraft" || server.launch_mode === "offline" ? "" : "  (без запуска)"}`,
       );
     }
   } catch {

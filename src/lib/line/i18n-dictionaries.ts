@@ -155,6 +155,9 @@ export const ru = {
   "minecraft.checking": "Проверяем состояние…",
   "minecraft.installing": "Загрузка Minecraft",
   "mc.prepare": "Подготовить заранее",
+  "mc.testMode": "Тестовый режим",
+  "mc.testModeHint":
+    "Откроется меню Minecraft: создайте или выберите одиночный мир. Автоматического подключения к серверу не будет.",
   "mc.profilePrepared":
     "Профиль {version} подготовлен. «Играть» запустит его без загрузки.",
   "mc.profiles": "Установлено профилей: {count}",
@@ -559,6 +562,9 @@ const en: Dictionary = {
   "minecraft.checking": "Checking the state…",
   "minecraft.installing": "Downloading Minecraft",
   "mc.prepare": "Prepare in advance",
+  "mc.testMode": "Test mode",
+  "mc.testModeHint":
+    "Minecraft opens at the menu: create or select a singleplayer world. It will not automatically join the server.",
   "mc.profilePrepared":
     'Profile {version} is ready. "Play" starts it without downloading.',
   "mc.profiles": "Profiles installed: {count}",
@@ -961,6 +967,9 @@ const de: Dictionary = {
   "minecraft.checking": "Status wird geprüft…",
   "minecraft.installing": "Minecraft wird geladen",
   "mc.prepare": "Vorab vorbereiten",
+  "mc.testMode": "Testmodus",
+  "mc.testModeHint":
+    "Minecraft öffnet das Menü: Erstelle oder wähle eine Einzelspielerwelt. Es wird nicht automatisch verbunden.",
   "mc.profilePrepared":
     'Profil {version} ist vorbereitet. "Spielen" startet es ohne Download.',
   "mc.profiles": "Installierte Profile: {count}",
@@ -1367,6 +1376,9 @@ const fr: Dictionary = {
   "minecraft.checking": "Vérification de l'état…",
   "minecraft.installing": "Téléchargement de Minecraft",
   "mc.prepare": "Préparer à l'avance",
+  "mc.testMode": "Mode test",
+  "mc.testModeHint":
+    "Minecraft ouvre le menu : créez ou choisissez un monde solo. La connexion au serveur ne sera pas automatique.",
   "mc.profilePrepared":
     "Le profil {version} est prêt. « Jouer » le lance sans téléchargement.",
   "mc.profiles": "Profils installés : {count}",

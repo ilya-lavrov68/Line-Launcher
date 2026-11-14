@@ -148,10 +148,7 @@ test("commands, state and the additive boundary are wired", () => {
   // The pack flow reads the provider's verified release through the existing
   // installer. It must never open the private ticket channel or write into the
   // release itself: the live copy lives under minecraft/<instance>/game.
-  assert.doesNotMatch(
-    rust,
-    /PrivateChannel|current_receipt|remove_dir_if_present/,
-  );
+  assert.doesNotMatch(rust, /PrivateChannel|remove_dir_if_present/);
   assert.match(rust, /install::download_and_extract\(/);
   assert.doesNotMatch(
     pack,
@@ -286,15 +283,13 @@ test("auto-join uses Quick Play on 1.20+ and the legacy pair only on older clien
   assert.match(rust, /load_version` already merged inheritsFrom/);
 });
 
-test("multiplayer stays enabled and no singleplayer path is offered", () => {
+test("multiplayer stays enabled and test mode avoids automatic joins", () => {
   assert.match(rust, /disable_multiplayer: false,/);
   assert.match(rust, /disable_chat: false,/);
   assert.match(rust, /demo: false,/);
-  // The production half of the module must never offer a singleplayer or
-  // Realms path; the test module may name them as impostors to reject.
-  const coreProduction = core.slice(0, core.indexOf("#[cfg(test)]"));
-  assert.doesNotMatch(rust, /quickPlaySingleplayer|quickPlayRealms/);
-  assert.doesNotMatch(coreProduction, /quickPlaySingleplayer|quickPlayRealms/);
+  assert.match(rust, /remove_automatic_joins\(&mut args\)/);
+  assert.match(rust, /validate_test_mode/);
+  assert.match(core, /pub fn remove_automatic_joins/);
   assert.match(
     read("src-tauri/src/line/config.rs"),
     /validate_server_address\(address\)\?/,
@@ -375,4 +370,22 @@ test("the loader inside the instance wins over the provider's request", () => {
     /let mut launch_version = detected\.version_id\.clone\(\);/,
   );
   assert.match(instance, /pub fn missing_parts/);
+});
+
+test("test mode is provider-controlled and reuses the normal verified launch path", () => {
+  const panel = read("src/components/line/MinecraftPanel.tsx");
+  const config = read("src-tauri/src/line/config.rs");
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  assert.match(panel, /server\.test_mode_enabled !== false/);
+  assert.match(panel, /play\(true\)/);
+  assert.match(config, /pub test_mode_enabled: bool/);
+  assert.match(play, /validate_test_mode\(/);
+  assert.match(play, /server\.test_mode_enabled/);
+  assert.match(play, /integrity::scan\(&release\)/);
+  assert.match(play, /scan_packs\(/);
+  assert.match(play, /current_receipt\(&base, &server\.id\)/);
+  assert.match(rust, /if test_mode \{\s*remove_automatic_joins/);
 });

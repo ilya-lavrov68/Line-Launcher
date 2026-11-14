@@ -135,6 +135,8 @@ export interface LineServer {
   launch_mode?: LaunchMode;
   /** Host or host:port the client joins right after launch (Minecraft mode). */
   server_address?: string;
+  /** When false, the provider disables the test-world button. Defaults to true. */
+  test_mode_enabled?: boolean;
   /** `pack.json` beside the instance ZIP; it decides whether the pack changed. */
   pack_manifest_url?: string;
   /** Optional resource-pack checking; the defaults are on. */
@@ -480,6 +482,7 @@ export interface McPlayRequest {
   minecraftVersion?: string;
   loader?: McLoaderRequest;
   serverAddress?: string;
+  testMode?: boolean;
 }
 
 /** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */

@@ -601,6 +601,26 @@ pub async fn install_source(
                 false,
             ));
         }
+        // A source is resolved on every normal launch, but identical verified
+        // content must keep its release ID: otherwise syncing a new ID would
+        // overwrite pack-owned configuration after a test-world session.
+        let prior_base = base.to_path_buf();
+        let prior_server = server.clone();
+        let prior_index = index.clone();
+        let existing = tokio::task::spawn_blocking(move || {
+            equivalent_current_release(&prior_base, &prior_server, &prior_index)
+        })
+        .await
+        .map_err(|_| {
+            LineError::new(
+                ErrorCode::Internal,
+                "Не удалось проверить прежнюю сборку.",
+                false,
+            )
+        })?;
+        if let Some(receipt) = existing {
+            return Ok(receipt);
+        }
         let releases = base.join("releases");
         create_private_dir(&releases)?;
         // Never remove an existing release before publishing: current.json can
@@ -661,6 +681,28 @@ fn revision_sha(index: &FileIndex) -> String {
         hasher.update(file.size.to_le_bytes());
     }
     format!("{:x}", hasher.finalize())
+}
+
+/// Reuse only the current, complete, independently scanned release with the
+/// same server version and exact indexed content; a damaged tree is never reused.
+fn equivalent_current_release(
+    base: &Path,
+    server: &Server,
+    index: &FileIndex,
+) -> Option<super::super::install::InstallReceipt> {
+    let mut receipt = super::super::install::current_receipt(base, &server.id)?;
+    if receipt.version != server.version {
+        return None;
+    }
+    let release = base.join("releases").join(&receipt.sha256);
+    let current = super::super::integrity::read_index(&release).ok()?;
+    if revision_sha(&current) != revision_sha(index)
+        || !super::super::integrity::scan(&release).ok()?.is_clean()
+    {
+        return None;
+    }
+    receipt.already_installed = true;
+    Some(receipt)
 }
 
 /// Allocate a new immutable release when a content id is already occupied. The
@@ -882,6 +924,48 @@ mod tests {
             sha256: format!("{:x}", Sha256::digest(bytes)),
             size: bytes.len() as u64,
         }
+    }
+
+    #[test]
+    fn identical_current_release_is_reused_only_when_intact() {
+        let temp = tempfile::tempdir().unwrap();
+        let server: Server = serde_json::from_value(serde_json::json!({
+            "id": "demo", "name": "Demo", "description": "test", "version": "1"
+        }))
+        .unwrap();
+        let digest = "a".repeat(64);
+        let root = temp.path().join("releases").join(&digest);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("file.txt"), b"original").unwrap();
+        let index = FileIndex {
+            schema_version: super::super::super::integrity::INDEX_SCHEMA,
+            files: vec![entry("file.txt", b"original")],
+        };
+        super::super::super::integrity::write_index(&root, &index).unwrap();
+        std::fs::write(
+            root.join(super::super::super::integrity::COMPLETE_MARKER),
+            b"complete",
+        )
+        .unwrap();
+        let receipt = super::super::super::install::InstallReceipt {
+            server_id: server.id.clone(),
+            version: server.version.clone(),
+            sha256: digest,
+            installed_at: 1,
+            already_installed: false,
+        };
+        std::fs::write(
+            temp.path().join("current.json"),
+            serde_json::to_vec(&receipt).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            equivalent_current_release(temp.path(), &server, &index)
+                .unwrap()
+                .already_installed
+        );
+        std::fs::write(root.join("file.txt"), b"tampered").unwrap();
+        assert!(equivalent_current_release(temp.path(), &server, &index).is_none());
     }
 
     #[test]

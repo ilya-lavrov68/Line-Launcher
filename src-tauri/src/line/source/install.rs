@@ -796,6 +796,86 @@ fn ensure_version_profile(
 mod tests {
     use super::*;
 
+    /// Explicit online acceptance check; never runs as part of ordinary cargo test.
+    /// It downloads third-party data into an isolated temporary directory and
+    /// validates the installed file index, but does not start Minecraft.
+    #[tokio::test]
+    #[ignore = "online: downloads BattleArmory and its files into a temporary directory"]
+    async fn online_battlearmory_install_and_verify() {
+        use std::sync::atomic::AtomicU64;
+        use std::time::Duration;
+
+        let temp = tempfile::Builder::new()
+            .prefix("line-battlearmory-check-")
+            .tempdir()
+            .unwrap();
+        let server: Server = serde_json::from_value(serde_json::json!({
+            "id": "battlearmory-test", "name": "BattleArmory test",
+            "description": "Isolated online installation check", "version": "1.3.1",
+            "minecraft_version": "1.20.1",
+            "source": {"kind": "modrinth", "project": "rQiXwLhB", "version": "TQIsQXtg"}
+        }))
+        .unwrap();
+        let client = reqwest::Client::builder()
+            .user_agent(concat!("LineLauncher/", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let last_bytes = Arc::new(AtomicU64::new(0));
+        let progress = ProgressSink::new(move |p| {
+            let previous = last_bytes.load(Ordering::Relaxed);
+            if p.received_bytes >= previous.saturating_add(32 * 1024 * 1024) {
+                last_bytes.store(p.received_bytes, Ordering::Relaxed);
+                eprintln!("Загрузка: {} байт из {}", p.received_bytes, p.total_bytes);
+            }
+        });
+        eprintln!(
+            "Проверка установки BattleArmory 1.3.1 во временный каталог; игра не запускается."
+        );
+        let receipt = install_source(
+            &client,
+            &server,
+            temp.path(),
+            "online-battlearmory-test",
+            Arc::new(AtomicBool::new(false)),
+            &progress,
+        )
+        .await
+        .expect("Установка BattleArmory не завершилась");
+        let current = super::super::super::install::current_receipt(temp.path(), &server.id)
+            .expect("Нет опубликованной записи установки");
+        assert_eq!(receipt.sha256, current.sha256);
+        let release = temp.path().join("releases").join(&receipt.sha256);
+        let index = super::super::super::integrity::read_index(&release)
+            .expect("Не удалось прочитать индекс");
+        assert!(!index.files.is_empty(), "Установлен пустой релиз");
+        eprintln!(
+            "Установлено файлов: {}. Проверяем все хеши на диске...",
+            index.files.len()
+        );
+        let report =
+            super::super::super::integrity::scan(&release).expect("Ошибка сканирования релиза");
+        assert!(
+            report.is_clean(),
+            "Проверка файлов не прошла: отсутствует {}, изменено {}, лишних {}",
+            report.missing.len(),
+            report.changed.len(),
+            report.foreign.len()
+        );
+        assert_eq!(report.checked, index.files.len());
+        assert!(
+            std::fs::read_dir(temp.path()).unwrap().all(|item| !item
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".staging-")),
+            "Временный staging не очищен"
+        );
+        eprintln!("Установка и проверка хешей завершены. Minecraft и загрузчик не запускались.");
+    }
+
     fn entry(path: &str, bytes: &[u8]) -> FileEntry {
         FileEntry {
             path: path.into(),

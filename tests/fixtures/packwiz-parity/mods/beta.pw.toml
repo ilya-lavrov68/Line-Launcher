@@ -1,0 +1,6 @@
+filename = "beta.jar"
+side = "both"
+[download]
+url = "https://files.example.test/beta.jar"
+hash-format = "sha256"
+hash = "0fbbb2c0471cc402ee480b3ac7002a2f72b366bc7a7dab865ed0d8f7dd1d38dd"

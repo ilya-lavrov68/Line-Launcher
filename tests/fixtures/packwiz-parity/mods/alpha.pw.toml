@@ -1,0 +1,6 @@
+filename = "alpha.jar"
+side = "client"
+[download]
+url = "https://files.example.test/alpha.jar"
+hash-format = "sha512"
+hash = "a65cdaf8226e01da9e5843b6e1d56de161286d41e01f5c021d06784a1cbd5839672366a6a2d61bfa0b9eb030daceed31cf7eab3e356e16104b6e5dde48430ea6"

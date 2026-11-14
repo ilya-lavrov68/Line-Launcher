@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "Parity Fixture",
+  "revision": "369df0a84aa55e1c9dce901f1c4d54c1552dfbdea6091981d4522feba642a21e",
+  "minecraft_version": "1.20.1",
+  "loader": "fabric",
+  "loaderVersion": "0.15.11",
+  "files": [
+    {
+      "path": "mods/alpha.jar",
+      "sha256": "5f480d4f6564ff46e6bcfd8c567c24a67edeec9ed87b46fef646df7ba4637216",
+      "size_bytes": 20
+    },
+    {
+      "path": "mods/beta.jar",
+      "sha256": "0fbbb2c0471cc402ee480b3ac7002a2f72b366bc7a7dab865ed0d8f7dd1d38dd",
+      "size_bytes": 19
+    },
+    {
+      "path": "resourcepacks/theme.zip",
+      "sha256": "3854504bc7926014502f5f42ea6d0c7f763b90dc6e9a39ff4d568df15ac816cb",
+      "size_bytes": 19
+    },
+    {
+      "path": "config/example.txt",
+      "sha256": "7dde41f843fb867c469784177ed75b1d35da6aa3634872974e3dd28dad8738b2",
+      "size_bytes": 21
+    }
+  ]
+}

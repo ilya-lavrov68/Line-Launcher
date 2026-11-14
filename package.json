@@ -37,7 +37,8 @@
     "demo:check": "node scripts/demo-selftest.mjs",
     "doctor": "node scripts/doctor.mjs",
     "check:tauri": "node scripts/check-tauri-versions.mjs",
-    "test:drag": "node scripts/test-server-drag.mjs"
+    "test:drag": "node scripts/test-server-drag.mjs",
+    "source:check-modrinth": "node scripts/check-modrinth.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

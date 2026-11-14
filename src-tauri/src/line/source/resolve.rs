@@ -426,6 +426,142 @@ mod tests {
         );
     }
 
+    /// This fixture is also converted by the Node test. Both sides compare the
+    /// real file paths, measured hashes and sizes with that converter manifest.
+    #[tokio::test]
+    async fn packwiz_resolver_and_installer_match_converter_fixture() {
+        use crate::line::install::{InstallPhase, InstallProgress, ProgressSink};
+        use crate::line::source::install::{fetch_files, PendingFile, PendingPack};
+        use std::sync::atomic::AtomicBool;
+
+        macro_rules! fixture {
+            ($path:literal) => {
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../tests/fixtures/packwiz-parity/",
+                    $path
+                ))
+                .to_vec()
+            };
+        }
+        let fetch = FixtureFetch(std::collections::HashMap::from([
+            (
+                "https://example.test/pack.toml".into(),
+                fixture!("pack.toml"),
+            ),
+            (
+                "https://example.test/index.toml".into(),
+                fixture!("index.toml"),
+            ),
+            (
+                "https://example.test/mods/alpha.pw.toml".into(),
+                fixture!("mods/alpha.pw.toml"),
+            ),
+            (
+                "https://example.test/mods/beta.pw.toml".into(),
+                fixture!("mods/beta.pw.toml"),
+            ),
+            (
+                "https://example.test/mods/optional.pw.toml".into(),
+                fixture!("mods/optional.pw.toml"),
+            ),
+            (
+                "https://example.test/mods/server.pw.toml".into(),
+                fixture!("mods/server.pw.toml"),
+            ),
+            (
+                "https://example.test/resourcepacks/theme.pw.toml".into(),
+                fixture!("resourcepacks/theme.pw.toml"),
+            ),
+            (
+                "https://example.test/config/example.txt".into(),
+                fixture!("config/example.txt"),
+            ),
+            (
+                "https://files.example.test/alpha.jar".into(),
+                fixture!("payloads/alpha.jar"),
+            ),
+            (
+                "https://files.example.test/beta.jar".into(),
+                fixture!("payloads/beta.jar"),
+            ),
+            (
+                "https://files.example.test/theme.zip".into(),
+                fixture!("payloads/theme.zip"),
+            ),
+        ]));
+        let result = resolve_packwiz(&fetch, "https://example.test/pack.toml")
+            .await
+            .unwrap();
+        assert_eq!(result.minecraft_version.as_deref(), Some("1.20.1"));
+        assert!(
+            matches!(result.loader, Some((crate::line::minecraft_core::LoaderChoice::Fabric, ref version)) if version == "0.15.11")
+        );
+        let files = result
+            .files
+            .iter()
+            .map(|file| PendingFile {
+                path: file.path.clone(),
+                url: file.url.clone(),
+                sha256: (!file.sha256.is_empty()).then(|| file.sha256.clone()),
+                sha512: file.sha512.clone(),
+                inline: Some(Arc::new(
+                    fetch.0.get(&file.url).expect("fixture payload").clone(),
+                )),
+                size: file.size,
+            })
+            .collect();
+        let mut pending = PendingPack {
+            files,
+            ..Default::default()
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let progress = InstallProgress {
+            operation_id: "parity".into(),
+            server_id: "fixture".into(),
+            phase: InstallPhase::Downloading,
+            percent: 0.0,
+            received_bytes: 0,
+            total_bytes: 0,
+            extracted_bytes: 0,
+            unpacked_bytes: 0,
+        };
+        let index = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress,
+        )
+        .await
+        .unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fixture!("expected.json")).unwrap();
+        let expected: std::collections::BTreeMap<String, (String, u64)> = manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|file| {
+                (
+                    file["path"].as_str().unwrap().to_owned(),
+                    (
+                        file["sha256"].as_str().unwrap().to_owned(),
+                        file["size_bytes"].as_u64().unwrap(),
+                    ),
+                )
+            })
+            .collect();
+        let actual: std::collections::BTreeMap<String, (String, u64)> = index
+            .files
+            .iter()
+            .map(|file| (file.path.clone(), (file.sha256.clone(), file.size)))
+            .collect();
+        assert_eq!(actual, expected);
+        assert!(!actual.contains_key("mods/optional.jar"));
+        assert!(!actual.contains_key("mods/server.jar"));
+    }
+
     #[tokio::test]
     async fn modrinth_resolves_pinned_archive_and_rejects_tampering() {
         use sha2::{Digest, Sha512};

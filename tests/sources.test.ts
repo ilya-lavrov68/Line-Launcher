@@ -14,6 +14,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  inspectModrinth,
+  readMrpackIndex,
+} from "../scripts/check-modrinth.mjs";
 import type { PackwizMeta } from "../src/lib/line/sources.ts";
 import {
   computeRevision,
@@ -776,4 +780,100 @@ test("converter rejects URL query and encoded traversal in indexed paths", async
       /путь/i,
     );
   }
+});
+
+test("converter matches the shared packwiz fixture used by Rust", async () => {
+  const root = path.join(ROOT, "tests/fixtures/packwiz-parity");
+  const reader = {
+    async bytes(name: string) {
+      const relative = name.startsWith("https://files.example.test/")
+        ? `payloads/${name.slice("https://files.example.test/".length)}`
+        : name;
+      return readFileSync(path.join(root, relative));
+    },
+    async text(name: string) {
+      return (await this.bytes(name)).toString("utf8");
+    },
+  };
+  const result = await convert({
+    source: "https://example.test/pack.toml",
+    reader,
+    dryRun: true,
+  });
+  const expected = JSON.parse(
+    readFileSync(path.join(root, "expected.json"), "utf8"),
+  );
+  assert.deepEqual(result.manifest, expected);
+  for (const file of expected.files) {
+    const content = readZipEntry(result.zip, `install/${file.path}`);
+    assert.ok(content, file.path);
+    assert.equal(content.length, file.size_bytes);
+    assert.equal(digest("sha256", content), file.sha256);
+  }
+  assert.equal(readZipEntry(result.zip, "install/mods/server.jar"), null);
+  assert.equal(readZipEntry(result.zip, "install/mods/optional.jar"), null);
+});
+
+test("read-only Modrinth check verifies the selected archive and index", async () => {
+  const index = {
+    formatVersion: 1,
+    game: "minecraft",
+    dependencies: { minecraft: "1.20.1", neoforge: "20.1.0" },
+    files: [
+      { path: "mods/example.jar", hashes: { sha512: "a".repeat(128) } },
+      { path: "mods/server.jar", env: { client: "unsupported" } },
+    ],
+  };
+  const zip = writeZip([
+    { name: "modrinth.index.json", data: Buffer.from(JSON.stringify(index)) },
+  ]);
+  const versions = [
+    {
+      id: "TQIsQXtg",
+      files: [
+        {
+          filename: "fixture.mrpack",
+          primary: true,
+          url: "https://cdn.example.test/fixture",
+          hashes: { sha512: digest("sha512", zip) },
+        },
+      ],
+    },
+  ];
+  const fetcher = async (input: string | URL | Request) =>
+    new Response(
+      String(input).includes("api.modrinth.com")
+        ? JSON.stringify(versions)
+        : new Uint8Array(zip),
+    );
+  const report = await inspectModrinth(
+    "rQiXwLhB",
+    "TQIsQXtg",
+    fetcher as typeof fetch,
+  );
+  assert.equal(report.dependencies.neoforge, "20.1.0");
+  assert.equal(report.files, 2);
+  assert.equal(report.clientFiles, 1);
+  assert.equal(report.missingSha512, 0);
+  const corrupt = Buffer.concat([zip, Buffer.from("tampered")]);
+  const badFetch = async (input: string | URL | Request) =>
+    new Response(
+      String(input).includes("api.modrinth.com")
+        ? JSON.stringify(versions)
+        : new Uint8Array(corrupt),
+    );
+  await assert.rejects(
+    inspectModrinth("rQiXwLhB", "TQIsQxTG", fetcher as typeof fetch),
+    /не найдена/,
+  );
+  await assert.rejects(
+    inspectModrinth("rQiXwLhB", "TQIsQXtg", badFetch as typeof fetch),
+    /SHA-512/,
+  );
+  assert.throws(() => readMrpackIndex(Buffer.from("not a zip")));
+  const duplicate = writeZip([
+    { name: "modrinth.index.json", data: Buffer.from(JSON.stringify(index)) },
+    { name: "modrinth.index.json", data: Buffer.from(JSON.stringify(index)) },
+  ]);
+  assert.throws(() => readMrpackIndex(duplicate));
 });

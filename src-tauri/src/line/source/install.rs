@@ -771,6 +771,71 @@ mod tests {
         assert_eq!(std::fs::read(target).unwrap(), b"valid");
     }
 
+    fn progress_fixture() -> InstallProgress {
+        InstallProgress {
+            operation_id: "test".into(),
+            server_id: "test".into(),
+            phase: InstallPhase::Downloading,
+            percent: 0.0,
+            received_bytes: 0,
+            total_bytes: 0,
+            extracted_bytes: 0,
+            unpacked_bytes: 0,
+        }
+    }
+
+    fn inline_file(path: &str) -> PendingFile {
+        PendingFile {
+            path: path.into(),
+            url: String::new(),
+            sha256: Some(format!("{:x}", Sha256::digest(b"data"))),
+            sha512: None,
+            inline: Some(Arc::new(b"data".to_vec())),
+            size: 4,
+        }
+    }
+
+    #[tokio::test]
+    async fn conflicting_paths_are_rejected_before_staging_writes() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut pending = PendingPack {
+            files: vec![inline_file("mods"), inline_file("mods/file.jar")],
+            ..Default::default()
+        };
+        let result = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+        )
+        .await;
+        assert!(result.is_err());
+        assert!(std::fs::read_dir(temp.path()).unwrap().next().is_none());
+    }
+
+    #[tokio::test]
+    async fn cancelled_batch_does_not_write_inline_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut pending = PendingPack {
+            files: vec![inline_file("mods/file.jar")],
+            ..Default::default()
+        };
+        let error = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(true)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::Cancelled);
+        assert!(std::fs::read_dir(temp.path()).unwrap().next().is_none());
+    }
+
     #[test]
     fn unrelated_versions_directory_does_not_suppress_generated_profile() {
         let temp = tempfile::tempdir().unwrap();

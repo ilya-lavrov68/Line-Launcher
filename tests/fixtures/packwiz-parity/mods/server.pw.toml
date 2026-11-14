@@ -1,0 +1,6 @@
+filename = "server.jar"
+side = "server"
+[download]
+url = "https://files.example.test/server.jar"
+hash-format = "sha256"
+hash = "3f559e7aa25b533cfc51d1a4146c6bdc1604eedc6c6a7041b6a1359fcd2a6a0f"

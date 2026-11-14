@@ -8,6 +8,8 @@
 use super::super::error::{ErrorCode, LineError, LineResult};
 use super::super::http;
 use super::{modrinth, packwiz, ResolvedPack, SourceKind};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// The launcher's HTTP client, handed in rather than created: one client per
@@ -18,6 +20,22 @@ pub type HttpClient = Arc<reqwest::Client>;
 pub type FetchFuture<'a> =
     std::pin::Pin<Box<dyn std::future::Future<Output = LineResult<Vec<u8>>> + Send + 'a>>;
 
+pub type ArchiveFuture<'a> = std::pin::Pin<
+    Box<dyn std::future::Future<Output = LineResult<(std::fs::File, String)>> + Send + 'a>,
+>;
+
+fn check_cancel(cancel: &AtomicBool) -> LineResult<()> {
+    if cancel.load(Ordering::SeqCst) {
+        Err(LineError::new(
+            ErrorCode::Cancelled,
+            "Установка отменена.",
+            false,
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// What a resolver needs from the network. One method, so a test can implement it
 /// with a map of URL → bytes and prove the rules without a server.
 ///
@@ -27,10 +45,36 @@ pub type FetchFuture<'a> =
 pub trait Fetch: Send + Sync {
     /// Bytes of a document that must be small (manifests, JSON).
     fn get<'a>(&'a self, url: &'a str, limit: usize) -> FetchFuture<'a>;
+    // Default is only used by small in-memory test fixtures.
+    fn archive<'a>(&'a self, url: &'a str, limit: usize) -> ArchiveFuture<'a> {
+        Box::pin(async move {
+            use sha2::{Digest, Sha512};
+            use std::io::{Seek, Write};
+            let bytes = self.get(url, limit).await?;
+            let hash = format!("{:x}", Sha512::digest(&bytes));
+            let mut file = tempfile::tempfile().map_err(|e| LineError::io(&e))?;
+            file.write_all(&bytes).map_err(|e| LineError::io(&e))?;
+            file.rewind().map_err(|e| LineError::io(&e))?;
+            Ok((file, hash))
+        })
+    }
+    fn work_dir(&self) -> Option<&Path> {
+        None
+    }
+    fn cancelled(&self) -> bool {
+        false
+    }
+    fn cancel_flag(&self) -> Option<Arc<AtomicBool>> {
+        None
+    }
 }
 
 pub struct HttpFetch {
     pub client: HttpClient,
+    pub cancel: Arc<AtomicBool>,
+    pub work_dir: PathBuf,
+    pub sink: super::super::install::ProgressSink,
+    pub progress: super::super::install::InstallProgress,
 }
 
 impl Fetch for HttpFetch {
@@ -47,6 +91,99 @@ impl Fetch for HttpFetch {
             let mut response = http::success(response)?;
             http::read_limited(&mut response, limit).await
         })
+    }
+    fn archive<'a>(&'a self, url: &'a str, limit: usize) -> ArchiveFuture<'a> {
+        Box::pin(async move {
+            use reqwest::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING};
+            use sha2::{Digest, Sha512};
+            use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+            check_cancel(&self.cancel)?;
+            let mut response = http::success(
+                http::get(
+                    &self.client,
+                    url,
+                    HeaderMap::from_iter([(ACCEPT_ENCODING, HeaderValue::from_static("identity"))]),
+                )
+                .await?,
+            )?;
+            if response.content_length().is_some_and(|n| n > limit as u64) {
+                return Err(LineError::input(
+                    "Архив .mrpack превышает допустимый размер.",
+                ));
+            }
+            let expected_size = response.content_length().unwrap_or(0);
+            super::super::install::available_space(
+                &self.work_dir,
+                expected_size.saturating_add(64 * 1024 * 1024),
+            )?;
+            let tmp = tempfile::tempfile_in(&self.work_dir).map_err(|e| LineError::io(&e))?;
+            let mut output = tokio::fs::File::from_std(tmp);
+            let mut received = 0u64;
+            let mut hasher = Sha512::new();
+            let mut last_space_check = 0u64;
+            let mut last_report = std::time::Instant::now();
+            loop {
+                check_cancel(&self.cancel)?;
+                let read = response.chunk();
+                tokio::pin!(read);
+                let chunk = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+                    loop {
+                        tokio::select! {
+                            result = &mut read => break result.map_err(|e| LineError::network(&e)),
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => check_cancel(&self.cancel)?,
+                        }
+                    }
+                }).await.map_err(|_| LineError::new(ErrorCode::Network, "Загрузка .mrpack остановилась: истёк таймаут ожидания данных.", true))??;
+                let Some(chunk) = chunk else { break };
+                received = received
+                    .checked_add(chunk.len() as u64)
+                    .ok_or_else(|| LineError::input("Некорректный размер архива."))?;
+                if received > limit as u64 {
+                    return Err(LineError::input(
+                        "Архив .mrpack превышает допустимый размер.",
+                    ));
+                }
+                if received.saturating_sub(last_space_check) >= 64 * 1024 * 1024 {
+                    super::super::install::available_space(&self.work_dir, 64 * 1024 * 1024)?;
+                    last_space_check = received;
+                }
+                output
+                    .write_all(&chunk)
+                    .await
+                    .map_err(|e| LineError::io(&e))?;
+                hasher.update(&chunk);
+                if last_report.elapsed() >= std::time::Duration::from_millis(120) {
+                    let mut p = self.progress.clone();
+                    p.received_bytes = received;
+                    p.total_bytes = expected_size;
+                    p.percent = if expected_size > 0 {
+                        (received as f64 / expected_size as f64 * 30.0).min(30.0)
+                    } else {
+                        0.0
+                    };
+                    self.sink.emit(p);
+                    last_report = std::time::Instant::now();
+                }
+            }
+            if expected_size > 0 && expected_size != received {
+                return Err(LineError::input("Загрузка .mrpack оборвалась."));
+            }
+            output.flush().await.map_err(|e| LineError::io(&e))?;
+            output
+                .seek(std::io::SeekFrom::Start(0))
+                .await
+                .map_err(|e| LineError::io(&e))?;
+            Ok((output.into_std().await, format!("{:x}", hasher.finalize())))
+        })
+    }
+    fn work_dir(&self) -> Option<&Path> {
+        Some(&self.work_dir)
+    }
+    fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::SeqCst)
+    }
+    fn cancel_flag(&self) -> Option<Arc<AtomicBool>> {
+        Some(self.cancel.clone())
     }
 }
 
@@ -182,6 +319,7 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
                     None
                 },
                 inline: None,
+                override_file: None,
                 size: 0,
             });
         }
@@ -214,40 +352,58 @@ pub async fn resolve_modrinth(
         .get("sha512")
         .cloned()
         .ok_or_else(|| LineError::input("У .mrpack нет sha512: проверить его нечем."))?;
-    // The index is read from the ZIP's central directory; the archive itself is
-    // not kept — the files it names are what gets installed.
-    let archive = fetch.get(&pack_url, 64 * 1024 * 1024).await?;
-    if !modrinth::matches_sha512(&archive, &expected) {
+    // The authenticated archive is streamed to a private temporary file, not RAM.
+    let (archive, actual_sha512) = fetch
+        .archive(
+            &pack_url,
+            usize::try_from(super::super::config::MAX_ARCHIVE_BYTES).unwrap_or(usize::MAX),
+        )
+        .await?;
+    if fetch.cancelled() {
         return Err(LineError::new(
-            ErrorCode::Integrity,
-            "Файл .mrpack не совпадает с sha512, указанным в версии Modrinth. Установка остановлена.",
+            ErrorCode::Cancelled,
+            "Установка отменена.",
             false,
         ));
     }
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(archive))
-        .map_err(|_| LineError::input(".mrpack не является ZIP-архивом."))?;
-    let index_bytes = {
-        let mut entry = zip
-            .by_name("modrinth.index.json")
-            .map_err(|_| LineError::input("В .mrpack нет modrinth.index.json."))?;
-        if entry.size() > modrinth::MAX_INDEX_BYTES as u64 {
-            return Err(LineError::input("modrinth.index.json слишком велик."));
-        }
-        let declared = entry.size();
-        let mut buffer = Vec::with_capacity(declared as usize);
-        std::io::Read::read_to_end(
-            &mut std::io::Read::take(&mut entry, modrinth::MAX_INDEX_BYTES as u64 + 1),
-            &mut buffer,
-        )
-        .map_err(|_| LineError::input("Не удалось прочитать modrinth.index.json."))?;
-        if buffer.len() as u64 != declared || buffer.len() > modrinth::MAX_INDEX_BYTES {
-            return Err(LineError::input("Некорректный размер modrinth.index.json."));
-        }
-        buffer
-    };
-    let index = modrinth::parse_index(&index_bytes)?;
-    let mut resolved = modrinth::assemble(&index)?;
-    apply_overrides(&mut zip, &mut resolved.files)?;
+    if !actual_sha512.eq_ignore_ascii_case(&expected) {
+        return Err(LineError::new(ErrorCode::Integrity, "Файл .mrpack не совпадает с sha512, указанным в версии Modrinth. Установка остановлена.", false));
+    }
+    let work_dir = fetch.work_dir().map(Path::to_path_buf);
+    let cancel = fetch.cancel_flag();
+    let mut resolved = tokio::task::spawn_blocking(move || {
+        let mut zip = zip::ZipArchive::new(archive)
+            .map_err(|_| LineError::input(".mrpack не является ZIP-архивом."))?;
+        let index_bytes = {
+            let mut entry = zip
+                .by_name("modrinth.index.json")
+                .map_err(|_| LineError::input("В .mrpack нет modrinth.index.json."))?;
+            if entry.size() > modrinth::MAX_INDEX_BYTES as u64 {
+                return Err(LineError::input("modrinth.index.json слишком велик."));
+            }
+            let declared = entry.size();
+            let mut buffer = Vec::with_capacity(declared as usize);
+            std::io::Read::read_to_end(
+                &mut std::io::Read::take(&mut entry, modrinth::MAX_INDEX_BYTES as u64 + 1),
+                &mut buffer,
+            )
+            .map_err(|_| LineError::input("Не удалось прочитать modrinth.index.json."))?;
+            if buffer.len() as u64 != declared || buffer.len() > modrinth::MAX_INDEX_BYTES {
+                return Err(LineError::input("Некорректный размер modrinth.index.json."));
+            }
+            buffer
+        };
+        let index = modrinth::parse_index(&index_bytes)?;
+        let mut resolved = modrinth::assemble(&index)?;
+        apply_overrides(&mut zip, &mut resolved.files, work_dir.as_deref(), &|| {
+            cancel
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::SeqCst))
+        })?;
+        Ok::<ResolvedPack, LineError>(resolved)
+    })
+    .await
+    .map_err(|_| LineError::new(ErrorCode::Internal, "Не удалось обработать .mrpack.", false))??;
     // The version id, not the project name: two versions of one project must not
     // look like the same build to the installer.
     resolved.revision = format!(
@@ -259,22 +415,70 @@ pub async fn resolve_modrinth(
 }
 
 /// Overlay common overrides first, then client-overrides, as specified by mrpack.
-/// The containing archive was authenticated before this is called. Keep bounded
-/// uncompressed bytes in memory until the installer's normal staging/index path.
+/// The archive is authenticated first; bounded overrides are streamed to private
+/// temporary files and verified again when copied into the release staging tree.
 fn apply_overrides<R: std::io::Read + std::io::Seek>(
     zip: &mut zip::ZipArchive<R>,
     files: &mut Vec<super::PackFile>,
+    work_dir: Option<&Path>,
+    cancelled: &dyn Fn() -> bool,
 ) -> LineResult<()> {
     use sha2::{Digest, Sha256};
-    use std::io::Read;
-    const MAX_OVERRIDES: u64 = 128 * 1024 * 1024;
+    use std::io::{Read, Write};
+    let directory = Arc::new(
+        match work_dir {
+            Some(dir) => tempfile::tempdir_in(dir),
+            None => tempfile::tempdir(),
+        }
+        .map_err(|e| LineError::io(&e))?,
+    );
     if zip.len() > super::MAX_FILES + 1 {
         return Err(LineError::input("Слишком много записей в .mrpack."));
     }
     let mut total = 0u64;
+    for i in 0..zip.len() {
+        if cancelled() {
+            return Err(LineError::new(
+                ErrorCode::Cancelled,
+                "Установка отменена.",
+                false,
+            ));
+        }
+        let entry = zip
+            .by_index(i)
+            .map_err(|_| LineError::input("Не удалось прочитать .mrpack."))?;
+        if !entry.is_dir()
+            && (entry.name().starts_with("overrides/")
+                || entry.name().starts_with("client-overrides/"))
+        {
+            if entry.size() > super::MAX_FILE_BYTES {
+                return Err(LineError::input("Файл overrides слишком велик."));
+            }
+            total = total
+                .checked_add(entry.size())
+                .ok_or_else(|| LineError::input("Overrides слишком велики."))?;
+            if total > super::super::config::MAX_UNPACKED_BYTES {
+                return Err(LineError::input("Overrides превышают допустимый размер."));
+            }
+        }
+    }
+    if let Some(root) = work_dir {
+        super::super::install::available_space(
+            root,
+            total.saturating_mul(2).saturating_add(64 * 1024 * 1024),
+        )?;
+    }
+    total = 0;
     for prefix in ["overrides/", "client-overrides/"] {
         let mut seen = std::collections::HashSet::new();
         for position in 0..zip.len() {
+            if cancelled() {
+                return Err(LineError::new(
+                    ErrorCode::Cancelled,
+                    "Установка отменена.",
+                    false,
+                ));
+            }
             let mut entry = zip
                 .by_index(position)
                 .map_err(|_| LineError::input("Не удалось прочитать .mrpack."))?;
@@ -302,28 +506,61 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
             total = total
                 .checked_add(entry.size())
                 .ok_or_else(|| LineError::input("Overrides слишком велики."))?;
-            if total > MAX_OVERRIDES {
-                return Err(LineError::input("Overrides превышают 128 МиБ."));
+            if total > super::super::config::MAX_UNPACKED_BYTES
+                || entry.size() > super::MAX_FILE_BYTES
+            {
+                return Err(LineError::input("Overrides превышают допустимый размер."));
             }
             let declared = entry.size();
-            let mut bytes = Vec::new();
-            (&mut entry)
-                .take(declared + 1)
-                .read_to_end(&mut bytes)
-                .map_err(|_| LineError::input("Не удалось распаковать overrides."))?;
-            if bytes.len() as u64 != declared {
+            let name = format!(
+                "{}-{}",
+                if prefix == "overrides/" { 0 } else { 1 },
+                position
+            );
+            let mut output = std::fs::File::create(directory.path().join(&name))
+                .map_err(|e| LineError::io(&e))?;
+            let mut hasher = Sha256::new();
+            let mut written = 0u64;
+            let mut buffer = [0u8; 64 * 1024];
+            loop {
+                if cancelled() {
+                    return Err(LineError::new(
+                        ErrorCode::Cancelled,
+                        "Установка отменена.",
+                        false,
+                    ));
+                }
+                let count = entry
+                    .read(&mut buffer)
+                    .map_err(|_| LineError::input("Не удалось распаковать overrides."))?;
+                if count == 0 {
+                    break;
+                }
+                written += count as u64;
+                if written > declared {
+                    return Err(LineError::input("Некорректный размер файла overrides."));
+                }
+                output
+                    .write_all(&buffer[..count])
+                    .map_err(|e| LineError::io(&e))?;
+                hasher.update(&buffer[..count]);
+            }
+            if written != declared {
                 return Err(LineError::input("Некорректный размер файла overrides."));
             }
-            let sha256 = format!("{:x}", Sha256::digest(&bytes));
-            // A later client override replaces the common override or download.
+            let sha256 = format!("{:x}", hasher.finalize());
             files.retain(|file| file.path != path);
             files.push(super::PackFile {
                 path,
                 url: String::new(),
                 sha256,
                 sha512: None,
-                size: bytes.len() as u64,
-                inline: Some(Arc::new(bytes)),
+                size: written,
+                inline: None,
+                override_file: Some(super::OverrideFile {
+                    directory: directory.clone(),
+                    name,
+                }),
             });
             if files.len() > super::MAX_FILES {
                 return Err(LineError::input("Слишком много файлов в .mrpack."));
@@ -509,6 +746,7 @@ mod tests {
                     fetch.0.get(&file.url).expect("fixture payload").clone(),
                 )),
                 size: file.size,
+                override_file: None,
             })
             .collect();
         let mut pending = PendingPack {
@@ -600,7 +838,16 @@ mod tests {
         ));
         assert_eq!(resolved.files[0].path, "config/example.txt");
         assert_eq!(
-            resolved.files[0].inline.as_ref().unwrap().as_slice(),
+            std::fs::read(
+                resolved.files[0]
+                    .override_file
+                    .as_ref()
+                    .unwrap()
+                    .directory
+                    .path()
+                    .join(&resolved.files[0].override_file.as_ref().unwrap().name)
+            )
+            .unwrap(),
             b"client"
         );
         fetch
@@ -636,10 +883,22 @@ mod tests {
             ("server-overrides/config/server.txt", b"server"),
         ]);
         let mut files = vec![];
-        apply_overrides(&mut zip, &mut files).unwrap();
+        apply_overrides(&mut zip, &mut files, None, &|| false).unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].path, "config/test.txt");
-        assert_eq!(files[0].inline.as_ref().unwrap().as_slice(), b"client");
+        assert_eq!(
+            std::fs::read(
+                files[0]
+                    .override_file
+                    .as_ref()
+                    .unwrap()
+                    .directory
+                    .path()
+                    .join(&files[0].override_file.as_ref().unwrap().name)
+            )
+            .unwrap(),
+            b"client"
+        );
         assert_eq!(files[0].size, 6);
         assert_eq!(files[0].sha256.len(), 64);
     }
@@ -654,7 +913,61 @@ mod tests {
                 ("overrides/config/a", b"y".as_slice()),
             ],
         ] {
-            assert!(apply_overrides(&mut archive(&entries), &mut vec![]).is_err());
+            assert!(apply_overrides(&mut archive(&entries), &mut vec![], None, &|| false).is_err());
         }
+    }
+    #[test]
+    fn large_overrides_are_disk_backed_and_cancel_cleans_workdir() {
+        use std::io::{Seek, Write};
+        let work = tempfile::tempdir().unwrap();
+        let mut archive = tempfile::tempfile().unwrap();
+        {
+            let mut writer = zip::ZipWriter::new(&mut archive);
+            writer
+                .start_file(
+                    "overrides/config/large.bin",
+                    SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Deflated),
+                )
+                .unwrap();
+            let block = vec![0u8; 1024 * 1024];
+            for _ in 0..129 {
+                writer.write_all(&block).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+        archive.rewind().unwrap();
+        let mut zip = zip::ZipArchive::new(archive).unwrap();
+        let mut files = vec![];
+        apply_overrides(&mut zip, &mut files, Some(work.path()), &|| false).unwrap();
+        assert_eq!(files[0].size, 129 * 1024 * 1024);
+        assert!(files[0].inline.is_none());
+        let disk = files[0].override_file.as_ref().unwrap();
+        assert_eq!(
+            std::fs::metadata(disk.directory.path().join(&disk.name))
+                .unwrap()
+                .len(),
+            files[0].size
+        );
+        drop(files);
+        assert!(std::fs::read_dir(work.path()).unwrap().next().is_none());
+        let error =
+            apply_overrides(&mut zip, &mut vec![], Some(work.path()), &|| true).unwrap_err();
+        assert_eq!(error.code, ErrorCode::Cancelled);
+        assert!(std::fs::read_dir(work.path()).unwrap().next().is_none());
+    }
+    #[test]
+    fn cancellation_during_override_copy_removes_temporary_files() {
+        let work = tempfile::tempdir().unwrap();
+        let bytes = vec![7u8; 150 * 1024];
+        let mut zip = archive(&[("overrides/config/big", &bytes)]);
+        let calls = std::cell::Cell::new(0);
+        let error = apply_overrides(&mut zip, &mut vec![], Some(work.path()), &|| {
+            calls.set(calls.get() + 1);
+            calls.get() >= 4
+        })
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::Cancelled);
+        assert!(std::fs::read_dir(work.path()).unwrap().next().is_none());
     }
 }

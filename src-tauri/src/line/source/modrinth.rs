@@ -307,6 +307,7 @@ pub fn assemble(index: &McIndex) -> LineResult<ResolvedPack> {
             sha256: String::new(),
             sha512: Some(sha512.to_ascii_lowercase()),
             inline: None,
+            override_file: None,
             size: file.file_size,
         });
     }

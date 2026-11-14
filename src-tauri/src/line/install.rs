@@ -517,7 +517,7 @@ async fn download_part(
     Ok(Downloaded { sha256: actual })
 }
 
-fn available_space(root: &Path, required: u64) -> LineResult<()> {
+pub(super) fn available_space(root: &Path, required: u64) -> LineResult<()> {
     let disks = sysinfo::Disks::new_with_refreshed_list();
     let root = std::path::absolute(root).map_err(|e| LineError::io(&e))?;
     let disk = disks

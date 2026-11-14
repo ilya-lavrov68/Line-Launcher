@@ -48,6 +48,7 @@ pub struct PendingFile {
     /// Present when the source published a sha512 instead.
     pub sha512: Option<String>,
     pub inline: Option<Arc<Vec<u8>>>,
+    pub override_file: Option<super::OverrideFile>,
     /// `0` = not published.
     pub size: u64,
 }
@@ -126,6 +127,70 @@ async fn fetch_one(
             .await
             .map_err(|e| LineError::io(&e))?;
         return Ok(sha256);
+    }
+    if let Some(source) = &file.override_file {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut input = tokio::fs::File::open(source.directory.path().join(&source.name))
+            .await
+            .map_err(|e| LineError::io(&e))?;
+        if let Some(parent) = target.parent() {
+            create_private_dir(parent)?;
+        }
+        let mut output = tokio::fs::File::create(target)
+            .await
+            .map_err(|e| LineError::io(&e))?;
+        let mut hasher = Sha256::new();
+        let mut total = 0u64;
+        let mut bytes = [0u8; 64 * 1024];
+        loop {
+            if cancel.load(Ordering::SeqCst) {
+                return Err(LineError::new(
+                    ErrorCode::Cancelled,
+                    "Установка отменена.",
+                    false,
+                ));
+            }
+            let count = input
+                .read(&mut bytes)
+                .await
+                .map_err(|e| LineError::io(&e))?;
+            if count == 0 {
+                break;
+            }
+            total += count as u64;
+            if total > file.size
+                || total > super::MAX_FILE_BYTES
+                || budget
+                    .fetch_add(count as u64, Ordering::Relaxed)
+                    .saturating_add(count as u64)
+                    > super::super::config::MAX_UNPACKED_BYTES
+            {
+                return Err(LineError::input(
+                    "Размер файла overrides превышает допустимый.",
+                ));
+            }
+            output
+                .write_all(&bytes[..count])
+                .await
+                .map_err(|e| LineError::io(&e))?;
+            hasher.update(&bytes[..count]);
+            progress(file.size, total);
+        }
+        let digest = format!("{:x}", hasher.finalize());
+        if total != file.size
+            || file
+                .sha256
+                .as_ref()
+                .is_none_or(|expected| !expected.eq_ignore_ascii_case(&digest))
+        {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Файл overrides не совпадает с проверенным содержимым.",
+                false,
+            ));
+        }
+        output.flush().await.map_err(|e| LineError::io(&e))?;
+        return Ok(digest);
     }
     let response = http::get(
         client,
@@ -328,7 +393,8 @@ pub async fn fetch_files(
                     // the user can see moving is the file count. The received
                     // count keeps the bar honest without pretending precision.
                     update.percent = if batch_total > 0 {
-                        (done as f64 / batch_total as f64) * 60.0
+                        template.percent
+                            + (done as f64 / batch_total as f64) * (60.0 - template.percent)
                     } else {
                         0.0
                     };
@@ -406,6 +472,10 @@ pub async fn fetch_files(
 pub async fn pending_for(
     client: &reqwest::Client,
     server: &Server,
+    work_dir: &Path,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+    progress: &InstallProgress,
 ) -> LineResult<Option<(PendingPack, ResolvedPack)>> {
     let kind = super::kind_of(server)?;
     if matches!(kind, SourceKind::Archive) {
@@ -413,6 +483,10 @@ pub async fn pending_for(
     }
     let fetch = HttpFetch {
         client: Arc::new(client.clone()),
+        cancel,
+        work_dir: work_dir.to_path_buf(),
+        sink: sink.clone(),
+        progress: progress.clone(),
     };
     let resolved = super::resolve::resolve(&fetch, &kind).await?;
     let mut files = Vec::with_capacity(resolved.files.len());
@@ -433,6 +507,7 @@ pub async fn pending_for(
             },
             sha512: file.sha512.clone(),
             inline: file.inline.clone(),
+            override_file: file.override_file.clone(),
             size: file.size,
         });
     }
@@ -461,11 +536,6 @@ pub async fn install_source(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
 ) -> LineResult<super::super::install::InstallReceipt> {
-    let Some((pending, _resolved)) = pending_for(client, server).await? else {
-        return Err(LineError::input(
-            "У этого сервера нет источника сборки: используйте архив.",
-        ));
-    };
     create_private_dir(base)?;
     let _lock = InstallLock::acquire(base)?;
     install::cleanup_staging(base)?;
@@ -480,12 +550,25 @@ pub async fn install_source(
         phase: InstallPhase::Downloading,
         percent: 0.0,
         received_bytes: 0,
-        total_bytes: pending.files.iter().map(|file| file.size).sum(),
+        total_bytes: 0,
         extracted_bytes: 0,
-        unpacked_bytes: pending.files.iter().map(|file| file.size).sum(),
+        unpacked_bytes: 0,
     };
     let result = async {
-        let mut pending = pending;
+        let Some((mut pending, _resolved)) =
+            pending_for(client, server, &staging, cancel.clone(), sink, &progress).await?
+        else {
+            return Err(LineError::input(
+                "У этого сервера нет источника сборки: используйте архив.",
+            ));
+        };
+        progress.percent = 30.0;
+        progress.total_bytes = pending.files.iter().map(|file| file.size).sum();
+        progress.unpacked_bytes = progress.total_bytes;
+        install::available_space(
+            &staging,
+            progress.total_bytes.saturating_add(64 * 1024 * 1024),
+        )?;
         let mut index = fetch_files(
             client,
             &mut pending,
@@ -752,6 +835,7 @@ mod tests {
             sha256: Some(format!("{:x}", Sha256::digest(b"valid"))),
             sha512: None,
             inline: Some(Arc::new(b"wrong".to_vec())),
+            override_file: None,
             size: 5,
         };
         let client = reqwest::Client::new();
@@ -769,6 +853,36 @@ mod tests {
             .unwrap();
         assert_eq!(hash, file.sha256.unwrap());
         assert_eq!(std::fs::read(target).unwrap(), b"valid");
+    }
+
+    #[tokio::test]
+    async fn disk_override_is_verified_again_before_publication() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = Arc::new(tempfile::tempdir().unwrap());
+        std::fs::write(directory.path().join("entry"), b"bad!").unwrap();
+        let file = PendingFile {
+            path: "config.txt".into(),
+            url: String::new(),
+            sha256: Some(format!("{:x}", Sha256::digest(b"good"))),
+            sha512: None,
+            inline: None,
+            override_file: Some(super::super::OverrideFile {
+                directory,
+                name: "entry".into(),
+            }),
+            size: 4,
+        };
+        let error = fetch_one(
+            &reqwest::Client::new(),
+            &file,
+            &temp.path().join("file"),
+            &AtomicBool::new(false),
+            &AtomicU64::new(0),
+            &|_, _| {},
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::Integrity);
     }
 
     fn progress_fixture() -> InstallProgress {
@@ -791,6 +905,7 @@ mod tests {
             sha256: Some(format!("{:x}", Sha256::digest(b"data"))),
             sha512: None,
             inline: Some(Arc::new(b"data".to_vec())),
+            override_file: None,
             size: 4,
         }
     }

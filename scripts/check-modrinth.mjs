@@ -5,7 +5,9 @@ import { inflateRawSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 
 const MAX_API = 4 * 1024 * 1024;
-const MAX_ARCHIVE = 64 * 1024 * 1024;
+const MAX_ARCHIVE = 64 * 1024 * 1024; // diagnostic default, not launcher limit
+const LAUNCHER_ARCHIVE_LIMIT = 4 * 1024 * 1024 * 1024;
+const LAUNCHER_OVERRIDE_LIMIT = 16 * 1024 * 1024 * 1024;
 const MAX_INDEX = 16 * 1024 * 1024;
 
 async function getBytes(raw, limit, fetcher, stage, timeoutMs, onProgress) {
@@ -224,12 +226,12 @@ export async function inspectModrinth(
     project,
     version: selected.id,
     archiveBytes: bytes.length,
-    launcherArchiveLimitBytes: MAX_ARCHIVE,
-    exceedsLauncherArchiveLimit: bytes.length > MAX_ARCHIVE,
+    launcherArchiveLimitBytes: LAUNCHER_ARCHIVE_LIMIT,
+    exceedsLauncherArchiveLimit: bytes.length > LAUNCHER_ARCHIVE_LIMIT,
     overrideFiles,
     declaredOverrideBytes: overrideBytes,
-    launcherOverrideLimitBytes: 128 * 1024 * 1024,
-    exceedsLauncherOverrideLimit: overrideBytes > 128 * 1024 * 1024,
+    launcherOverrideLimitBytes: LAUNCHER_OVERRIDE_LIMIT,
+    exceedsLauncherOverrideLimit: overrideBytes > LAUNCHER_OVERRIDE_LIMIT,
     versionNumber: selected.version_number ?? null,
     name: index.name ?? null,
     dependencies: index.dependencies ?? {},
@@ -279,11 +281,11 @@ if (
       );
       if (report.exceedsLauncherArchiveLimit)
         console.log(
-          "Внимание: архив превышает текущий лимит лаунчера 64 МиБ; диагностика не означает, что установка возможна.",
+          "Внимание: архив превышает текущий лимит лаунчера 4 ГиБ; диагностика не означает, что установка возможна.",
         );
       if (report.exceedsLauncherOverrideLimit)
         console.log(
-          "Внимание: заявленный размер overrides превышает лимит лаунчера 128 МиБ.",
+          "Внимание: заявленный размер overrides превышает лимит лаунчера 16 ГиБ.",
         );
       if (
         report.missingSha512 ||

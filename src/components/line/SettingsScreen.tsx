@@ -6,6 +6,7 @@ import {
   FileText,
   Languages,
   MemoryStick,
+  Download,
   Palette,
   RefreshCw,
   Trash2,
@@ -339,6 +340,47 @@ export default function SettingsScreen({
               </SelectContent>
             </Select>
           </div>
+        </Section>
+
+        <Section
+          icon={Download}
+          title={t("settings.downloadLimit")}
+          description={t("settings.downloadLimitHint")}
+        >
+          <Select
+            value={String(settings.downloadLimitKib ?? 0)}
+            disabled={saving}
+            onValueChange={(value) => {
+              const kib = Number(value);
+              if (Number.isInteger(kib) && kib >= 0 && kib <= 1_048_576) {
+                void persist({ ...settings, downloadLimitKib: kib });
+              }
+            }}
+          >
+            <SelectTrigger
+              className="w-full text-xs"
+              aria-label={t("settings.downloadLimit")}
+            >
+              <SelectValue>
+                {(value: string | null) =>
+                  Number(value) === 0
+                    ? t("settings.downloadUnlimited")
+                    : `${Number(value) / 1024} MiB/s`
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {[0, 256, 512, 1024, 2048, 5120, 10240, 20480, 51200, 102400].map(
+                (kib) => (
+                  <SelectItem key={kib} value={String(kib)}>
+                    {kib === 0
+                      ? t("settings.downloadUnlimited")
+                      : `${kib / 1024} MiB/s`}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
         </Section>
 
         <Section

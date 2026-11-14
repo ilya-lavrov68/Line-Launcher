@@ -220,6 +220,8 @@ export interface LauncherSettings {
    * the UI follows the system language, then Russian.
    */
   language?: string | null;
+  /** Pack-download rate in KiB/s; 0 or absent means unlimited. */
+  downloadLimitKib?: number;
   windowWidth: number;
   windowHeight: number;
   windowMaximized: boolean;

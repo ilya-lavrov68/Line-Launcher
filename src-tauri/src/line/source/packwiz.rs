@@ -344,5 +344,6 @@ pub fn assemble(
         minecraft_version: pack.versions.get("minecraft").cloned(),
         loader: loader_of(&pack.versions),
         archive: None,
+        source_identity: None,
     })
 }

@@ -26,13 +26,18 @@ test("the server action dock cannot be pushed up by a progress panel", () => {
   );
 });
 
-test("Minecraft operations lock navigation and reject repeat actions", () => {
+test("Minecraft operations retain state in background and reject repeat actions", () => {
   assert.match(
     minecraft,
     /if \(locked \|\| operationActive\.current\) return/g,
   );
   assert.match(minecraft, /onBusyChange\?\.\(operationActive\.current\)/);
-  assert.match(shell, /navigationDisabled=\{minecraftBusy \|\| !session\}/);
+  assert.match(shell, /navigationDisabled=\{!session\}/);
+  assert.match(shell, /<DownloadWidget/);
+  assert.match(
+    shell,
+    /hidden=\{section !== "servers" \|\| screen !== "detail"\}/,
+  );
   assert.match(shell, /onMinecraftBusyChange=\{setMinecraftBusy\}/);
   const listener = minecraft.slice(
     minecraft.indexOf(".onMcGame("),

@@ -585,26 +585,58 @@ async fn prepare_release(
     Ok(lease)
 }
 
-/// Block foreign files in the live mods directory without deleting player data.
-/// Nested paths and links cannot be authenticated from the pack's flat file list.
+/// Block foreign files and directories in the live mods tree without deleting
+/// player data. Provider-owned nested files are valid; links and special files
+/// are never followed.
 pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
     let dir = game.join("mods");
-    let entries = match std::fs::read_dir(&dir) {
-        Ok(entries) => entries,
+    match std::fs::symlink_metadata(&dir) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(LineError::io(&error)),
-    };
-    let owned: std::collections::BTreeSet<&str> = owned.iter().map(String::as_str).collect();
-    for entry in entries {
-        let entry = entry.map_err(|e| LineError::io(&e))?;
-        let kind = std::fs::symlink_metadata(entry.path())
-            .map_err(|e| LineError::io(&e))?
-            .file_type();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let path = format!("mods/{name}");
-        if !kind.is_file() || !owned.contains(path.as_str()) {
-            return Err(LineError::new(ErrorCode::Integrity,
-                format!("В папке mods найден посторонний файл или каталог: {name}. Уберите его и повторите запуск."), false));
+        Ok(_) if !is_real_dir(&dir) => {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Папка mods не является обычным каталогом.",
+                false,
+            ))
+        }
+        Ok(_) => {}
+    }
+    let mut files = std::collections::BTreeSet::new();
+    for path in owned.iter().filter(|path| path.starts_with("mods/")) {
+        super::install::safe_entry_path(path)?;
+        files.insert(path.as_str());
+    }
+    let mut pending = vec![(dir, "mods".to_string())];
+    let mut visited = 0usize;
+    while let Some((directory, prefix)) = pending.pop() {
+        for entry in std::fs::read_dir(directory).map_err(|e| LineError::io(&e))? {
+            let entry = entry.map_err(|e| LineError::io(&e))?;
+            visited += 1;
+            if visited > super::source::MAX_FILES * 4 {
+                return Err(LineError::input(
+                    "В папке mods слишком много файлов или каталогов.",
+                ));
+            }
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| LineError::input("Некорректное имя в папке mods."))?;
+            let relative = format!("{prefix}/{name}");
+            let kind = std::fs::symlink_metadata(entry.path())
+                .map_err(|e| LineError::io(&e))?
+                .file_type();
+            if kind.is_dir() && is_real_dir(&entry.path()) {
+                pending.push((entry.path(), relative));
+            } else if kind.is_file()
+                && is_real_file(&entry.path())
+                && files.contains(relative.as_str())
+            {
+                continue;
+            } else {
+                return Err(LineError::new(ErrorCode::Integrity,
+                    format!("В папке mods найден посторонний файл или каталог: {relative}. Уберите его и повторите запуск."), false));
+            }
         }
     }
     Ok(())
@@ -1145,6 +1177,34 @@ pub async fn check_resource_packs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nested_owned_mods_are_accepted_but_foreign_content_is_blocked() {
+        let temp = tempfile::tempdir().unwrap();
+        let nested = temp.path().join("mods/1.20.1/subdir");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("owned.jar"), b"mod").unwrap();
+        let owned = vec!["mods/1.20.1/subdir/owned.jar".to_owned()];
+        assert!(check_live_mods(temp.path(), &owned).is_ok());
+        std::fs::write(nested.join("foreign.jar"), b"foreign").unwrap();
+        assert!(check_live_mods(temp.path(), &owned).is_err());
+        std::fs::remove_file(nested.join("foreign.jar")).unwrap();
+        std::fs::create_dir(nested.join("foreign-dir")).unwrap();
+        // Empty directories may remain after a pack update; they load nothing.
+        assert!(check_live_mods(temp.path(), &owned).is_ok());
+        std::fs::write(nested.join("foreign-dir/hidden.jar"), b"foreign").unwrap();
+        assert!(check_live_mods(temp.path(), &owned).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn nested_mod_symlinks_are_never_accepted() {
+        use std::os::unix::fs::symlink;
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("mods")).unwrap();
+        symlink(temp.path(), temp.path().join("mods/nested")).unwrap();
+        assert!(check_live_mods(temp.path(), &["mods/nested/file.jar".into()]).is_err());
+    }
 
     #[test]
     fn pack_check_requires_a_complete_installed_release() {

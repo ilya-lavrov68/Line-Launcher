@@ -344,8 +344,9 @@ test("the live game directory is writable and player data survives updates", () 
   assert.match(pack, /keep_local\(relative\) && is_real_file\(&target\)/);
   assert.match(pack, /overlay_removals\(&previous\.files, &detected\.files\)/);
   // Every copied or deleted path goes through the archive path validator.
-  assert.equal(pack.match(/safe_entry_path\(relative\)\?/g)?.length, 2);
-  assert.match(pack, /fs::rename\(&temp, target\)/);
+  assert.ok((pack.match(/safe_entry_path\(relative\)\?/g)?.length ?? 0) >= 2);
+  assert.match(pack, /checked_game_path\(&game, relative, true\)/);
+  assert.match(pack, /temp\.persist\(target\)/);
   for (const guarded of ["saves/", "logs/", "screenshots/", "crash-reports/"]) {
     assert.ok(
       instance.includes(`"${guarded}"`),
@@ -388,6 +389,10 @@ test("test mode is provider-controlled and reuses the normal verified launch pat
   assert.match(play, /server\.test_mode_enabled/);
   assert.match(play, /integrity::scan\(&release\)/);
   assert.match(play, /scan_packs\(/);
-  assert.match(play, /current_receipt\(&base, &server\.id\)/);
+  assert.doesNotMatch(
+    play,
+    /if request\.test_mode \{\s*install::current_receipt/,
+  );
+  assert.match(play, /install::download_and_extract/);
   assert.match(rust, /if test_mode \{\s*remove_automatic_joins/);
 });

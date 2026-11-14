@@ -28,10 +28,83 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// How many files are fetched at once. Sequential downloads of a few hundred
-/// mods are dominated by round trips; more than a handful just queues requests
-/// behind each other at the CDN and makes cancellations slower to notice.
-const PARALLEL_DOWNLOADS: usize = 4;
+/// Bind source metadata to a particular, independently verified release index.
+/// Schema must change if resolution/profile generation semantics change.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct SourceCache {
+    schema: u32,
+    source_identity: String,
+    config_identity: String,
+    release: String,
+    index_identity: String,
+}
+
+fn config_identity(server: &Server) -> String {
+    // The launcher version in the generated profile is informational only:
+    // upgrading the launcher must not force a pack download.
+    let bytes = serde_json::to_vec(&(server.version.as_str(), &server.minecraft_version))
+        .expect("serializing server version strings cannot fail");
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn read_source_cache(base: &Path) -> Option<SourceCache> {
+    let path = base.join("source-cache.json");
+    if !super::super::storage::is_real_file(&path) || std::fs::metadata(&path).ok()?.len() > 4096 {
+        return None;
+    }
+    let cache: SourceCache = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    if cache.schema != 1 {
+        return None;
+    }
+    Some(cache)
+}
+
+fn cached_release(
+    base: &Path,
+    server: &Server,
+    cache: &SourceCache,
+    identity: &str,
+) -> Option<install::InstallReceipt> {
+    if cache.source_identity != identity || cache.config_identity != config_identity(server) {
+        return None;
+    }
+    let mut receipt = install::current_receipt(base, &server.id)?;
+    if receipt.version != server.version || receipt.sha256 != cache.release {
+        return None;
+    }
+    let release = base.join("releases").join(&receipt.sha256);
+    let index = super::super::integrity::read_index(&release).ok()?;
+    if revision_sha(&index) != cache.index_identity
+        || !super::super::integrity::scan(&release).ok()?.is_clean()
+    {
+        return None;
+    }
+    receipt.already_installed = true;
+    Some(receipt)
+}
+
+fn write_source_cache(
+    base: &Path,
+    server: &Server,
+    receipt: &install::InstallReceipt,
+    identity: String,
+) -> LineResult<()> {
+    let release = base.join("releases").join(&receipt.sha256);
+    let index = super::super::integrity::read_index(&release)?;
+    let cache = SourceCache {
+        schema: 1,
+        source_identity: identity,
+        config_identity: config_identity(server),
+        release: receipt.sha256.clone(),
+        index_identity: revision_sha(&index),
+    };
+    let bytes = serde_json::to_vec(&cache).map_err(|_| LineError::storage())?;
+    atomic_write(&base.join("source-cache.json"), &bytes)
+}
+
+/// Keep a modest number of transfers in flight to hide CDN latency without
+/// flooding hosts or overwhelming disks when the pack has many small files.
+const PARALLEL_DOWNLOADS: usize = 8;
 
 /// A digest the launcher may have to fill in after download.
 ///
@@ -242,6 +315,7 @@ async fn fetch_one(
             })?
             .map_err(|e| LineError::network(&e))?;
         let Some(chunk) = chunk else { break };
+        super::super::download_limit::acquire(chunk.len(), cancel).await?;
         received = received.saturating_add(chunk.len() as u64);
         if budget
             .fetch_add(chunk.len() as u64, Ordering::Relaxed)
@@ -367,44 +441,36 @@ pub async fn fetch_files(
     initial.total_bytes = 0;
     sink.emit(initial);
 
-    while next < pack_files.files.len() {
-        let batch_end = (next + concurrency).min(pack_files.files.len());
-        let batch: Vec<(usize, PendingFile)> = (next..batch_end)
-            .map(|position| (position, pack_files.files[position].clone()))
-            .collect();
-        let client_ref = client.clone();
-        let staging_ref = staging.to_path_buf();
-        let cancel_ref = cancel.clone();
-        let progress_template = base_progress.clone();
-        let progress_sink = sink.clone();
-        let batch_total = total;
-        let mut tasks = Vec::new();
-        for (position, file) in batch {
-            let client = client_ref.clone();
-            let root = staging_ref.clone();
-            let cancel = cancel_ref.clone();
-            let sink = progress_sink.clone();
-            let template = progress_template.clone();
+    // Refill each slot as soon as it finishes. Waiting for a whole batch made
+    // seven fast transfers idle behind one large or slow file.
+    let completed = Arc::new(AtomicU64::new(0));
+    let mut tasks = tokio::task::JoinSet::new();
+    let mut first_error = None;
+    loop {
+        while first_error.is_none() && next < pack_files.files.len() && tasks.len() < concurrency {
+            let position = next;
+            next += 1;
+            let file = pack_files.files[position].clone();
+            let client = client.clone();
+            let root = staging.to_path_buf();
+            let cancel = cancel.clone();
+            let sink = sink.clone();
+            let template = base_progress.clone();
             let budget = budget.clone();
-            tasks.push(tauri::async_runtime::spawn(async move {
+            let completed = completed.clone();
+            tasks.spawn(async move {
                 let target = root.join(
                     install::safe_entry_path(&file.path)
                         .map_err(|_| LineError::input("Некорректный путь файла в сборке."))?,
                 );
                 let progress = move |_total: u64, _received: u64| {
+                    let done = completed.load(Ordering::Relaxed);
                     let mut update = template.clone();
                     update.phase = InstallPhase::Downloading;
-                    // Concurrent per-file bytes are not a percentage of the pack;
-                    // report completed files instead.
-                    update.percent = if batch_total > 0 {
-                        template.percent
-                            + (done as f64 / batch_total as f64) * (60.0 - template.percent)
-                    } else {
-                        0.0
-                    };
+                    update.percent =
+                        template.percent + (done as f64 / total as f64) * (60.0 - template.percent);
                     update.files_done = Some(done);
-                    update.files_total = Some(batch_total);
-                    // Bytes from concurrent files are not comparable to the pack total.
+                    update.files_total = Some(total);
                     update.received_bytes = 0;
                     update.total_bytes = 0;
                     sink.emit(update);
@@ -412,66 +478,62 @@ pub async fn fetch_files(
                 let digest =
                     fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?;
                 Ok::<(usize, String), LineError>((position, digest))
-            }));
+            });
         }
-        // Await every spawned task even after a failure. Dropping a join handle
-        // detaches it, allowing it to write into staging after cleanup starts.
-        let mut batch_error = None;
-        for task in tasks {
-            match task.await {
-                Ok(Ok((position, digest))) => {
-                    if pack_files.files[position].sha256.is_none() {
-                        pack_files.settle(position, digest.clone());
-                    }
-                    let file = &pack_files.files[position];
-                    let size = std::fs::symlink_metadata(
-                        staging.join(install::safe_entry_path(&file.path)?),
-                    )
-                    .map(|metadata| metadata.len())
-                    .unwrap_or(0);
-                    let path = file.path.clone();
-                    pack_files.files[position].size = size;
-                    index.files.push(FileEntry {
-                        path,
-                        sha256: digest,
-                        size,
-                    });
-                    done += 1;
+        let Some(result) = tasks.join_next().await else {
+            break;
+        };
+        match result {
+            Ok(Ok((position, digest))) => {
+                if pack_files.files[position].sha256.is_none() {
+                    pack_files.settle(position, digest.clone());
                 }
-                Ok(Err(error)) => {
-                    if batch_error.is_none() {
-                        batch_error = Some(error);
-                    }
+                let file = &pack_files.files[position];
+                let size =
+                    std::fs::symlink_metadata(staging.join(install::safe_entry_path(&file.path)?))
+                        .map(|metadata| metadata.len())
+                        .unwrap_or(0);
+                let path = file.path.clone();
+                pack_files.files[position].size = size;
+                index.files.push(FileEntry {
+                    path,
+                    sha256: digest,
+                    size,
+                });
+                done += 1;
+                completed.store(done, Ordering::Relaxed);
+                if done % 32 == 0 || done == total {
+                    let mut update = base_progress.clone();
+                    update.phase = InstallPhase::Downloading;
+                    update.percent = base_progress.percent
+                        + (done as f64 / total as f64) * (60.0 - base_progress.percent);
+                    update.files_done = Some(done);
+                    update.files_total = Some(total);
+                    update.received_bytes = 0;
+                    update.total_bytes = 0;
+                    sink.emit(update);
                 }
-                Err(_) => {
-                    if batch_error.is_none() {
-                        batch_error = Some(LineError::new(
-                            ErrorCode::Internal,
-                            "Задача загрузки завершилась аварийно.",
-                            false,
-                        ));
-                    }
+            }
+            Ok(Err(error)) => {
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+            Err(_) => {
+                if first_error.is_none() {
+                    first_error = Some(LineError::new(
+                        ErrorCode::Internal,
+                        "Задача загрузки завершилась аварийно.",
+                        false,
+                    ));
                 }
             }
         }
-        if let Some(error) = batch_error {
-            return Err(error);
-        }
-        next = batch_end;
-        let mut update = base_progress.clone();
-        update.phase = InstallPhase::Downloading;
-        update.percent = if total > 0 {
-            done as f64 / total as f64 * 60.0
-        } else {
-            60.0
-        };
-        update.files_done = Some(done);
-        update.files_total = Some(total);
-        update.received_bytes = 0;
-        update.total_bytes = 0;
-        if done % 32 == 0 || done == total {
-            sink.emit(update);
-        }
+        // On failure, do not start more tasks, but drain all active tasks before
+        // staging can be cleaned up. JoinSet must never detach writers.
+    }
+    if let Some(error) = first_error {
+        return Err(error);
     }
     index
         .files
@@ -553,8 +615,65 @@ pub async fn install_source(
     create_private_dir(base)?;
     let _lock = InstallLock::acquire(base)?;
     install::cleanup_staging(base)?;
-    // Resolve/download on every request: a mutable source may change without the
-    // provider changing server.version. Repair must never reuse a damaged tree.
+    // Root identity is checked against the provider on every request, even when
+    // server.version has not changed. A legacy install has no trustworthy proof
+    // of its source identity, so it is rebuilt once and then gains a cache record.
+    if let Some(cache) = read_source_cache(base) {
+        let kind = super::kind_of(server)?;
+        let fetch = HttpFetch {
+            client: Arc::new(client.clone()),
+            cancel: cancel.clone(),
+            work_dir: base.to_path_buf(),
+            sink: sink.clone(),
+            progress: InstallProgress {
+                operation_id: operation_id.to_owned(),
+                server_id: server.id.clone(),
+                phase: InstallPhase::Verifying,
+                percent: 0.0,
+                received_bytes: 0,
+                total_bytes: 0,
+                extracted_bytes: 0,
+                unpacked_bytes: 0,
+                files_done: None,
+                files_total: None,
+            },
+        };
+        let identity = super::resolve::source_identity(&fetch, &kind).await?;
+        if cancel.load(Ordering::SeqCst) {
+            return Err(LineError::new(
+                ErrorCode::Cancelled,
+                "Установка отменена.",
+                false,
+            ));
+        }
+        if let Some(identity) = identity {
+            if cache.source_identity == identity && cache.config_identity == config_identity(server)
+            {
+                sink.emit(fetch.progress.clone());
+                let cache_base = base.to_path_buf();
+                let cache_server = server.clone();
+                let cached = tokio::task::spawn_blocking(move || {
+                    cached_release(&cache_base, &cache_server, &cache, &identity)
+                })
+                .await
+                .map_err(|_| LineError::storage())?;
+                if cancel.load(Ordering::SeqCst) {
+                    return Err(LineError::new(
+                        ErrorCode::Cancelled,
+                        "Установка отменена.",
+                        false,
+                    ));
+                }
+                if let Some(receipt) = cached {
+                    let mut progress = fetch.progress;
+                    progress.phase = InstallPhase::Completed;
+                    progress.percent = 100.0;
+                    sink.emit(progress);
+                    return Ok(receipt);
+                }
+            }
+        }
+    }
     let staging = base.join(format!(".staging-{}", uuid::Uuid::new_v4()));
     let content = staging.join("content");
     create_private_dir(&content)?;
@@ -570,14 +689,16 @@ pub async fn install_source(
         files_done: None,
         files_total: None,
     };
+    let mut resolved_identity = None;
     let result = async {
-        let Some((mut pending, _resolved)) =
+        let Some((mut pending, resolved)) =
             pending_for(client, server, &staging, cancel.clone(), sink, &progress).await?
         else {
             return Err(LineError::input(
                 "У этого сервера нет источника сборки: используйте архив.",
             ));
         };
+        resolved_identity = resolved.source_identity;
         progress.percent = 30.0;
         progress.total_bytes = pending.files.iter().map(|file| file.size).sum();
         progress.unpacked_bytes = progress.total_bytes;
@@ -663,6 +784,11 @@ pub async fn install_source(
         if result.is_ok() {
             return Err(error);
         }
+    }
+    if let (Ok(receipt), Some(identity)) = (&result, resolved_identity) {
+        // Cache metadata is an optimization: a failed write cannot invalidate an
+        // already published release, and the next install simply resolves again.
+        let _ = write_source_cache(base, server, receipt, identity);
     }
     match &result {
         Ok(_) => {
@@ -931,7 +1057,52 @@ mod tests {
                 .starts_with(".staging-")),
             "Временный staging не очищен"
         );
-        eprintln!("Установка и проверка хешей завершены. Minecraft и загрузчик не запускались.");
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = events.clone();
+        let second = install_source(
+            &client,
+            &server,
+            temp.path(),
+            "online-repeat",
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(move |p| recorded.lock().unwrap().push(p)),
+        )
+        .await
+        .expect("Повторная проверка установки не завершилась");
+        assert!(second.already_installed);
+        assert_eq!(second.sha256, receipt.sha256);
+        assert!(events
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|p| p.received_bytes == 0 && !matches!(p.phase, InstallPhase::Extracting)));
+        // Exercise the same live-game sync and mods verification as mc_play,
+        // including provider-owned nested paths that previously blocked launch.
+        let detected = super::super::super::pack::inspect(&release, &index, Some("1.20.1"))
+            .expect("Не удалось определить содержимое сборки");
+        let instance = temp.path().join("test-instance");
+        super::super::super::pack::sync_game_dir(&release, &detected, &instance, &receipt.sha256)
+            .expect("Не удалось подготовить игровой каталог");
+        let game = instance.join("game");
+        super::super::super::launch::check_live_mods(&game, &detected.files)
+            .expect("Проверка mods в игровом каталоге не пройдена");
+        let mut nested = 0;
+        for entry in &index.files {
+            let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
+                continue;
+            };
+            let Some(name) = relative.strip_prefix("mods/") else {
+                continue;
+            };
+            if name.contains('/') {
+                nested += 1;
+            }
+            let path =
+                super::super::super::pack::checked_game_path(&game, relative, false).unwrap();
+            let (hash, size) = super::super::super::integrity::hash_file(&path).unwrap();
+            assert_eq!((hash, size), (entry.sha256.clone(), entry.size));
+        }
+        eprintln!("Повторной загрузки архива нет; проверено вложенных файлов mods: {nested}. Minecraft и загрузчик не запускались.");
     }
 
     fn entry(path: &str, bytes: &[u8]) -> FileEntry {
@@ -980,8 +1151,26 @@ mod tests {
                 .unwrap()
                 .already_installed
         );
+        write_source_cache(temp.path(), &server, &receipt, "identity-a".into()).unwrap();
+        let cache = read_source_cache(temp.path()).unwrap();
+        assert!(
+            cached_release(temp.path(), &server, &cache, "identity-a")
+                .unwrap()
+                .already_installed
+        );
+        assert!(cached_release(temp.path(), &server, &cache, "identity-b").is_none());
+        let mut changed_server = server.clone();
+        changed_server.minecraft_version = Some("1.21.1".into());
+        assert!(cached_release(temp.path(), &changed_server, &cache, "identity-a").is_none());
+        let mut changed_cache = read_source_cache(temp.path()).unwrap();
+        changed_cache.release = "b".repeat(64);
+        assert!(cached_release(temp.path(), &server, &changed_cache, "identity-a").is_none());
+        changed_cache.release = receipt.sha256.clone();
+        changed_cache.index_identity = "b".repeat(64);
+        assert!(cached_release(temp.path(), &server, &changed_cache, "identity-a").is_none());
         std::fs::write(root.join("file.txt"), b"tampered").unwrap();
         assert!(equivalent_current_release(temp.path(), &server, &index).is_none());
+        assert!(cached_release(temp.path(), &server, &cache, "identity-a").is_none());
     }
 
     #[test]
@@ -1118,6 +1307,62 @@ mod tests {
         assert_eq!(last.files_done, Some(2));
         assert_eq!(last.files_total, Some(2));
         assert_eq!(last.total_bytes, 0);
+    }
+
+    #[tokio::test]
+    async fn rolling_workers_process_more_than_one_window_and_drain_on_failure() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut pending = PendingPack {
+            files: (0..40)
+                .map(|i| inline_file(&format!("mods/{i}.jar")))
+                .collect(),
+            ..Default::default()
+        };
+        let result = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.files.len(), 40);
+        assert!(result
+            .files
+            .windows(2)
+            .all(|pair| pair[0].path <= pair[1].path));
+        for file in &result.files {
+            assert_eq!(
+                std::fs::read(temp.path().join(&file.path)).unwrap(),
+                b"data"
+            );
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let mut broken = inline_file("broken.jar");
+        broken.inline = Some(Arc::new(b"bad!".to_vec()));
+        let mut pending = PendingPack {
+            files: std::iter::once(broken)
+                .chain((0..40).map(|i| inline_file(&format!("mods/{i}.jar"))))
+                .collect(),
+            ..Default::default()
+        };
+        let result = fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+        )
+        .await;
+        assert_eq!(result.unwrap_err().code, ErrorCode::Integrity);
+        // Once an error is returned there must be no detached tasks still writing.
+        let before = std::fs::read_dir(temp.path()).unwrap().count();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), before);
     }
 
     #[tokio::test]

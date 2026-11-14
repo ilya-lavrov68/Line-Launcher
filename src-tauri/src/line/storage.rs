@@ -104,11 +104,26 @@ pub fn remove_dir_if_present(path: &Path) -> LineResult<()> {
     }
 }
 
-/// Reject symlinks/reparse points at a filesystem trust boundary.
+/// Reject symlinks and Windows reparse points at a filesystem trust boundary.
+fn is_plain(metadata: &fs::Metadata) -> bool {
+    if metadata.file_type().is_symlink() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        // FILE_ATTRIBUTE_REPARSE_POINT: includes junctions and other redirects.
+        if metadata.file_attributes() & 0x400 != 0 {
+            return false;
+        }
+    }
+    true
+}
+
 pub fn is_real_dir(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink())
+    fs::symlink_metadata(path).is_ok_and(|m| m.is_dir() && is_plain(&m))
 }
 
 pub fn is_real_file(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|m| m.is_file() && !m.file_type().is_symlink())
+    fs::symlink_metadata(path).is_ok_and(|m| m.is_file() && is_plain(&m))
 }

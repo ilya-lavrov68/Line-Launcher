@@ -17,6 +17,7 @@ import type {
   InstallProgress,
   InstallReceipt,
   LineServer,
+  McInstallProgress,
   PackCheckResult,
   ReleaseHistory,
 } from "@/types/line";
@@ -53,6 +54,9 @@ export interface ServerDetailProps {
   onAuthRequired?: () => void;
   onRefreshConfig?: () => Promise<void>;
   onMinecraftBusyChange?: (busy: boolean) => void;
+  onMinecraftProgressChange?: (progress: McInstallProgress | null) => void;
+  onMinecraftFeedbackChange?: (message: string | null) => void;
+  allowBackground?: boolean;
   onBack: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -142,7 +146,7 @@ export default function ServerDetail(props: ServerDetailProps) {
       <Button
         variant="ghost"
         size="sm"
-        disabled={legacy}
+        disabled={legacy && !props.allowBackground}
         onClick={onBack}
         className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 self-start text-xs"
       >
@@ -268,6 +272,8 @@ export default function ServerDetail(props: ServerDetailProps) {
             onAuthRequired={props.onAuthRequired}
             onRefreshConfig={props.onRefreshConfig}
             onBusyChange={props.onMinecraftBusyChange}
+            onProgressChange={props.onMinecraftProgressChange}
+            onFeedbackChange={props.onMinecraftFeedbackChange}
           />
         ) : (
           <ServerActionPanel

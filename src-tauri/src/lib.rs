@@ -8,6 +8,7 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             app.manage(LineState::new()?);
+            line::settings::init_download_limit(app.handle());
             // The log has to exist before any command can fail, so it is set up
             // first — right after the state it will describe.
             if let Ok(root) = app.path().app_data_dir() {

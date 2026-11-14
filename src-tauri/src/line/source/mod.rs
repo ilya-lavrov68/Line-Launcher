@@ -101,6 +101,8 @@ impl PackFile {
 pub struct ResolvedPack {
     /// Human label: the source's own revision, shown in the UI and logged.
     pub revision: String,
+    /// Strong identity of the root metadata actually used during resolution.
+    pub source_identity: Option<String>,
     /// Files to download into the game directory.
     pub files: Vec<PackFile>,
     pub minecraft_version: Option<String>,

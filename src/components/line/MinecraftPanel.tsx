@@ -49,6 +49,8 @@ export interface MinecraftPanelProps {
   onAuthRequired?: () => void;
   onRefreshConfig?: () => Promise<void>;
   onBusyChange?: (busy: boolean) => void;
+  onProgressChange?: (progress: McInstallProgress | null) => void;
+  onFeedbackChange?: (message: string | null) => void;
 }
 
 type Busy = "idle" | "installing" | "launching" | "stopping";
@@ -72,6 +74,8 @@ export default function MinecraftPanel({
   onAuthRequired,
   onRefreshConfig,
   onBusyChange,
+  onProgressChange,
+  onFeedbackChange,
 }: MinecraftPanelProps) {
   const t = useT();
   const instanceId = server.id;
@@ -97,6 +101,13 @@ export default function MinecraftPanel({
       onBusyChange?.(false);
     };
   }, [onBusyChange]);
+
+  useEffect(() => {
+    onProgressChange?.(progress);
+  }, [progress, onProgressChange]);
+  useEffect(() => {
+    onFeedbackChange?.(error ?? notice ?? null);
+  }, [error, notice, onFeedbackChange]);
 
   const refreshProfiles = useCallback(async () => {
     try {

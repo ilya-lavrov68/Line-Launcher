@@ -157,6 +157,8 @@ const items = [
   attributed("minecraft_core.rs", "pub fn has_quick_play_token("),
   attributed("minecraft_core.rs", "pub fn server_join_args("),
   attributed("minecraft_core.rs", "pub fn ensure_server_join("),
+  attributed("minecraft_core.rs", "pub fn validate_test_mode("),
+  attributed("minecraft_core.rs", "pub fn remove_automatic_joins("),
   attributed("instance.rs", "pub const GAME_MARKERS:"),
   attributed("instance.rs", "pub const USER_DATA_PREFIXES:"),
   attributed("instance.rs", "pub const KEEP_LOCAL_FILES:"),
@@ -265,6 +267,14 @@ const tests = [
     "fn modern_clients_get_quick_play_and_legacy_ones_get_server_port(",
   ),
   attributed("minecraft_core.rs", "fn join_arguments_are_never_duplicated("),
+  attributed(
+    "minecraft_core.rs",
+    "fn test_launch_requires_provider_permission_and_minecraft_mode(",
+  ),
+  attributed(
+    "minecraft_core.rs",
+    "fn test_menu_removes_join_targets_without_touching_other_flags(",
+  ),
   attributed("instance.rs", "fn paths("),
   attributed(
     "instance.rs",

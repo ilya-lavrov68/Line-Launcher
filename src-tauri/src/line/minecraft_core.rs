@@ -261,7 +261,7 @@ pub fn remove_automatic_joins(args: &mut Vec<String>) {
         "--quickPlayRealms",
     ];
     let mut filtered = Vec::with_capacity(args.len());
-    let mut iter = args.drain(..).peekable();
+    let mut iter = std::mem::take(args).into_iter().peekable();
     while let Some(arg) = iter.next() {
         if JOIN_FLAGS.contains(&arg.as_str()) {
             if iter.peek().is_some_and(|next| !next.starts_with('-')) {

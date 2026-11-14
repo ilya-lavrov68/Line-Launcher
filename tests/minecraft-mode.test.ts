@@ -201,6 +201,8 @@ test("the pure Minecraft rules are part of the compiled Rust subset", () => {
     "has_quick_play_token(",
     "server_join_args(",
     "ensure_server_join(",
+    "validate_test_mode(",
+    "remove_automatic_joins(",
     "validate_instance_id(",
     "validate_version_id(",
     "validate_loader(",

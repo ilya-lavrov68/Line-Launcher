@@ -26,7 +26,7 @@ declare module "*pack-from-packwiz.mjs" {
   }
   export interface Reader {
     text(name: string): Promise<string>;
-    bytes(name: string): Promise<Buffer>;
+    bytes(name: string, limit?: number): Promise<Buffer>;
   }
   export function convert(options: {
     source: string;
@@ -43,6 +43,7 @@ declare module "*pack-from-packwiz.mjs" {
   export function createReader(
     source: string,
   ): Reader & { remote: boolean; root: string };
+  export function validateOutputPaths(entries: { name: string }[]): void;
   export function sha256(bytes: Buffer): string;
   export function strongHash(format: unknown): boolean;
   export function loaderFromVersions(versions?: Record<string, string>): {

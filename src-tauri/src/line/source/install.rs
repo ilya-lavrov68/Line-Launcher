@@ -95,6 +95,23 @@ async fn fetch_one(
         ));
     }
     if let Some(bytes) = &file.inline {
+        let sha256 = format!("{:x}", Sha256::digest(bytes.as_slice()));
+        if bytes.len() as u64 > super::MAX_FILE_BYTES
+            || (file.size > 0 && file.size != bytes.len() as u64)
+            || file
+                .sha256
+                .as_ref()
+                .is_some_and(|expected| !expected.eq_ignore_ascii_case(&sha256))
+            || file.sha512.as_ref().is_some_and(|expected| {
+                !format!("{:x}", Sha512::digest(bytes.as_slice())).eq_ignore_ascii_case(expected)
+            })
+        {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Встроенный файл сборки не совпадает с описанием.",
+                false,
+            ));
+        }
         if budget
             .fetch_add(bytes.len() as u64, Ordering::Relaxed)
             .saturating_add(bytes.len() as u64)
@@ -108,7 +125,7 @@ async fn fetch_one(
         tokio::fs::write(target, bytes.as_slice())
             .await
             .map_err(|e| LineError::io(&e))?;
-        return Ok(format!("{:x}", Sha256::digest(bytes.as_slice())));
+        return Ok(sha256);
     }
     let response = http::get(
         client,
@@ -494,11 +511,19 @@ pub async fn install_source(
             &content.join(super::super::integrity::COMPLETE_MARKER),
             b"line-release-v1\n",
         )?;
-        let release_sha = revision_sha(&pending);
+        if cancel.load(Ordering::SeqCst) {
+            return Err(LineError::new(
+                ErrorCode::Cancelled,
+                "Установка отменена.",
+                false,
+            ));
+        }
         let releases = base.join("releases");
         create_private_dir(&releases)?;
+        // Never remove an existing release before publishing: current.json can
+        // still point to it if the process crashes during a repair/update.
+        let release_sha = available_release_id(&releases, &index)?;
         let release = releases.join(&release_sha);
-        remove_dir_if_present(&release)?;
         std::fs::rename(&content, &release).map_err(|e| LineError::io(&e))?;
         sync_directory(&releases)?;
         let receipt = super::super::install::InstallReceipt {
@@ -539,30 +564,42 @@ pub async fn install_source(
     result
 }
 
-/// The release digest of a list: the same fold the resolver uses, so a re-resolve
-/// of an unchanged pack names the same release directory.
-fn revision_sha(pending: &PendingPack) -> String {
-    let mut ordered: Vec<(String, String, u64)> = pending
-        .files
-        .iter()
-        .map(|file| {
-            (
-                file.path.clone(),
-                file.sha256.clone().unwrap_or_default(),
-                file.size,
-            )
-        })
-        .collect();
-    ordered.sort();
+/// The installed index includes generated profile metadata as well as downloads.
+/// Hashing only the source files would give different loader profiles the same id.
+fn revision_sha(index: &FileIndex) -> String {
+    let mut ordered = index.files.clone();
+    ordered.sort_by(|left, right| left.path.cmp(&right.path));
     let mut hasher = Sha256::new();
-    for (path, sha, size) in ordered {
-        hasher.update(path.as_bytes());
+    for file in ordered {
+        hasher.update(file.path.as_bytes());
         hasher.update([0u8]);
-        hasher.update(sha.as_bytes());
+        hasher.update(file.sha256.as_bytes());
         hasher.update([0u8]);
-        hasher.update(size.to_le_bytes());
+        hasher.update(file.size.to_le_bytes());
     }
     format!("{:x}", hasher.finalize())
+}
+
+/// Allocate a new immutable release when a content id is already occupied. The
+/// old tree may be current or damaged: neither is safe to delete before commit.
+fn available_release_id(releases: &Path, index: &FileIndex) -> LineResult<String> {
+    let digest = revision_sha(index);
+    for attempt in 0..8 {
+        let candidate = if attempt == 0 {
+            digest.clone()
+        } else {
+            format!(
+                "{:x}",
+                Sha256::digest(format!("{digest}-{}", uuid::Uuid::new_v4()).as_bytes())
+            )
+        };
+        match std::fs::symlink_metadata(releases.join(&candidate)) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(candidate),
+            Err(error) => return Err(LineError::io(&error)),
+            Ok(_) => continue,
+        }
+    }
+    Err(LineError::storage())
 }
 
 /// Writes a minimal version profile when the pack does not ship one.
@@ -601,11 +638,6 @@ fn ensure_version_profile(
     // File lists are rooted at the game directory by definition (their paths are
     // `mods/…`, not `.minecraft/mods/…`), so there is no prefix to discover —
     // unlike an archive, whose layout is whatever the provider zipped.
-    let profiles = content.join("versions");
-    if profiles.is_dir() {
-        // The pack brought its own profile; it wins.
-        return Ok(());
-    }
     // The loader is expressed the way `inspect` reads it: a Maven coordinate in
     // `libraries`. Writing only the id (`fabric-loader-0.16.9-1.21.1`) would
     // look right and be read as "no loader", and the launch would then fetch a
@@ -636,6 +668,26 @@ fn ensure_version_profile(
     super::super::minecraft_core::validate_version_id(&version)?;
     super::super::minecraft_core::validate_version_id(&id)?;
     let directory = content.join("versions").join(&id);
+    let profile_path = directory.join(format!("{id}.json"));
+    let profile_relative = format!("versions/{id}/{id}.json");
+    if index
+        .files
+        .iter()
+        .any(|file| file.path.eq_ignore_ascii_case(&profile_relative))
+    {
+        return Err(LineError::input(
+            "Путь созданного профиля уже занят файлом сборки.",
+        ));
+    }
+    match std::fs::symlink_metadata(&profile_path) {
+        Ok(_) => {
+            return Err(LineError::input(
+                "Путь созданного профиля уже занят файлом сборки.",
+            ))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(LineError::io(&error)),
+    }
     create_private_dir(&directory)?;
     let profile = serde_json::json!({
         "id": id,
@@ -648,11 +700,94 @@ fn ensure_version_profile(
         "line": { "generated": true, "launcherVersion": LAUNCHER_VERSION },
     });
     let bytes = serde_json::to_vec(&profile).map_err(|_| LineError::storage())?;
-    atomic_write(&directory.join(format!("{id}.json")), &bytes)?;
+    atomic_write(&profile_path, &bytes)?;
     index.files.push(FileEntry {
-        path: format!("versions/{id}/{id}.json"),
+        path: profile_relative,
         sha256: format!("{:x}", Sha256::digest(&bytes)),
         size: bytes.len() as u64,
     });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(path: &str, bytes: &[u8]) -> FileEntry {
+        FileEntry {
+            path: path.into(),
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            size: bytes.len() as u64,
+        }
+    }
+
+    #[test]
+    fn release_identity_includes_generated_profile_and_never_replaces_existing_tree() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut index = FileIndex {
+            schema_version: super::super::super::integrity::INDEX_SCHEMA,
+            files: vec![
+                entry("mods/example.jar", b"mod"),
+                entry("versions/profile.json", b"fabric"),
+            ],
+        };
+        let first = available_release_id(temp.path(), &index).unwrap();
+        let old = temp.path().join(&first);
+        std::fs::create_dir(&old).unwrap();
+        std::fs::write(old.join("keep"), b"old release").unwrap();
+        let replacement = available_release_id(temp.path(), &index).unwrap();
+        assert_ne!(first, replacement);
+        assert_eq!(std::fs::read(old.join("keep")).unwrap(), b"old release");
+        index.files[1] = entry("versions/profile.json", b"neoforge");
+        assert_ne!(revision_sha(&index), first);
+    }
+
+    #[tokio::test]
+    async fn embedded_files_are_verified_before_writing() {
+        let temp = tempfile::tempdir().unwrap();
+        let target = temp.path().join("config.txt");
+        let mut file = PendingFile {
+            path: "config.txt".into(),
+            url: String::new(),
+            sha256: Some(format!("{:x}", Sha256::digest(b"valid"))),
+            sha512: None,
+            inline: Some(Arc::new(b"wrong".to_vec())),
+            size: 5,
+        };
+        let client = reqwest::Client::new();
+        let cancel = AtomicBool::new(false);
+        let budget = AtomicU64::new(0);
+        let progress = |_, _| {};
+        let error = fetch_one(&client, &file, &target, &cancel, &budget, &progress)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::Integrity);
+        assert!(!target.exists());
+        file.inline = Some(Arc::new(b"valid".to_vec()));
+        let hash = fetch_one(&client, &file, &target, &cancel, &budget, &progress)
+            .await
+            .unwrap();
+        assert_eq!(hash, file.sha256.unwrap());
+        assert_eq!(std::fs::read(target).unwrap(), b"valid");
+    }
+
+    #[test]
+    fn unrelated_versions_directory_does_not_suppress_generated_profile() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("versions/unrelated")).unwrap();
+        let server: Server = serde_json::from_value(serde_json::json!({
+            "id": "demo", "name": "Demo", "description": "test", "version": "1",
+            "distribution": {"url": "https://example.com/pack.zip"},
+            "minecraft_version": "1.20.1"
+        }))
+        .unwrap();
+        let mut index = FileIndex {
+            schema_version: super::super::super::integrity::INDEX_SCHEMA,
+            files: vec![],
+        };
+        let pending = PendingPack::default();
+        ensure_version_profile(temp.path(), &mut index, &server, &pending).unwrap();
+        assert_eq!(index.files.len(), 1);
+        assert!(temp.path().join(&index.files[0].path).is_file());
+    }
 }

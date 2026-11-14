@@ -26,10 +26,12 @@ import {
 } from "../src/lib/line/sources.ts";
 import {
   convert,
+  createReader,
   crc32,
   entryFromMetafile,
   readZipEntry,
   writeZip,
+  validateOutputPaths,
 } from "../scripts/pack-from-packwiz.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -696,4 +698,82 @@ test("packwiz converter rejects altered metafiles before parsing", async () => {
     convert({ source, reader: altered, dryRun: true }),
     /хеш/i,
   );
+});
+
+test("converter refuses output aliases and file-directory collisions", () => {
+  for (const paths of [
+    ["mods/A.jar", "mods/a.jar"],
+    ["config", "config/test.json"],
+    [".LINE-COMPLETE"],
+    ["mods/CON.jar"],
+    ["mods/../outside"],
+    ["mods/file:stream"],
+  ]) {
+    assert.throws(
+      () =>
+        validateOutputPaths(paths.map((name) => ({ name: `install/${name}` }))),
+      /путь|конфликт/i,
+      paths.join(", "),
+    );
+  }
+  assert.doesNotThrow(() =>
+    validateOutputPaths([{ name: "install/mods/example.jar" }]),
+  );
+});
+
+test("remote converter rejects HTTPS downgrade and limits streamed data", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () =>
+      new Response(null, {
+        status: 302,
+        headers: { location: "http://example.org/file" },
+      });
+    const reader = createReader("https://example.org/custom.toml");
+    await assert.rejects(reader.bytes("pack.toml", 20), /HTTPS/);
+    globalThis.fetch = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(8));
+            controller.enqueue(new Uint8Array(8));
+            controller.close();
+          },
+        }),
+      );
+    await assert.rejects(reader.bytes("index.toml", 10), /размера/);
+    let requested = "";
+    globalThis.fetch = async (url) => {
+      requested = String(url);
+      return new Response("test");
+    };
+    assert.equal(await reader.text("pack.toml"), "test");
+    assert.equal(requested, "https://example.org/custom.toml");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("converter rejects URL query and encoded traversal in indexed paths", async () => {
+  const { reader, source } = localPack();
+  for (const path of [
+    "%2e%2e/escape.toml",
+    "index.toml?other=1",
+    "index.toml#fragment",
+  ]) {
+    const bad = {
+      text: async (name: string) =>
+        name === "pack.toml"
+          ? (await reader.text(name)).replace(
+              'file = "index.toml"',
+              `file = "${path}"`,
+            )
+          : reader.text(name),
+      bytes: reader.bytes,
+    };
+    await assert.rejects(
+      convert({ source, reader: bad, dryRun: true }),
+      /путь/i,
+    );
+  }
 });

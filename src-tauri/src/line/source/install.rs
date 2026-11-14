@@ -502,7 +502,7 @@ pub async fn fetch_files(
                 });
                 done += 1;
                 completed.store(done, Ordering::Relaxed);
-                if done % 32 == 0 || done == total {
+                if done.is_multiple_of(32) || done == total {
                     let mut update = base_progress.clone();
                     update.phase = InstallPhase::Downloading;
                     update.percent = base_progress.percent

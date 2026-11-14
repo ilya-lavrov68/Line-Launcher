@@ -612,16 +612,8 @@ pub async fn mc_play(
     // 2. Download or verify. `download_and_extract` returns the existing receipt
     //    untouched when its sha256 already matches, so an unchanged pack costs
     //    one small JSON request, not a re-download.
-    let cached = if request.test_mode {
-        install::current_receipt(&base, &server.id)
-            .filter(|receipt| receipt.version == server.version)
-    } else {
-        None
-    };
-    let was_cached = cached.is_some();
-    let receipt = if let Some(receipt) = cached {
-        receipt
-    } else {
+    // Test mode and normal play both use the same source validation and cache.
+    let receipt = {
         let operation_id = Uuid::new_v4().to_string();
         let cancel = line.begin_install(&server.id, &operation_id)?;
         let sink_app = app.clone();
@@ -671,7 +663,7 @@ pub async fn mc_play(
         line.finish_install(&server.id, &operation_id);
         installed?
     };
-    if receipt.already_installed || was_cached {
+    if receipt.already_installed {
         emit_mc_progress(
             &app,
             &instance_id,

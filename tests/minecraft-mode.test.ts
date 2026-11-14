@@ -388,6 +388,10 @@ test("test mode is provider-controlled and reuses the normal verified launch pat
   assert.match(play, /server\.test_mode_enabled/);
   assert.match(play, /integrity::scan\(&release\)/);
   assert.match(play, /scan_packs\(/);
-  assert.match(play, /current_receipt\(&base, &server\.id\)/);
+  assert.doesNotMatch(
+    play,
+    /if request\.test_mode \{\s*install::current_receipt/,
+  );
+  assert.match(play, /install::download_and_extract/);
   assert.match(rust, /if test_mode \{\s*remove_automatic_joins/);
 });

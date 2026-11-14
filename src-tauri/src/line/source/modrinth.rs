@@ -342,6 +342,7 @@ pub fn assemble(index: &McIndex) -> LineResult<ResolvedPack> {
         minecraft_version: index.dependencies.get("minecraft").cloned(),
         loader,
         archive: None,
+        source_identity: None,
     })
 }
 

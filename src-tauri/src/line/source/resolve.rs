@@ -241,6 +241,97 @@ fn validate_packwiz_path(path: &str) -> LineResult<()> {
     Ok(())
 }
 
+/// Identity of the authenticated root metadata. Length-prefix each component so
+/// distinct source coordinates cannot collide through delimiter ambiguity.
+fn root_identity(parts: &[&[u8]]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    for part in parts {
+        hash.update((part.len() as u64).to_le_bytes());
+        hash.update(part);
+    }
+    format!("{:x}", hash.finalize())
+}
+
+fn packwiz_identity(url: &str, bytes: &[u8]) -> String {
+    root_identity(&[b"line-packwiz-source-v1", url.as_bytes(), bytes])
+}
+
+async fn modrinth_root(
+    fetch: &dyn Fetch,
+    project: &str,
+    version: Option<&str>,
+) -> LineResult<(modrinth::McVersion, String, String)> {
+    let url = modrinth::versions_url(project)?;
+    let bytes = fetch.get(&url, 4 * 1024 * 1024).await?;
+    let versions: Vec<modrinth::McVersion> = serde_json::from_slice(&bytes)
+        .map_err(|_| LineError::input("Modrinth вернул неожиданный ответ вместо списка версий."))?;
+    let picked = modrinth::pick_version(&versions, version)?.clone();
+    let file = picked.pack_file()?;
+    let pack_url = super::super::config::validate_https(&file.url)?
+        .as_str()
+        .to_owned();
+    let expected = file
+        .hashes
+        .get("sha512")
+        .cloned()
+        .ok_or_else(|| LineError::input("У .mrpack нет sha512: проверить его нечем."))?;
+    if expected.len() != 128 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(LineError::input("Некорректный sha512 архива .mrpack."));
+    }
+    Ok((picked, pack_url, expected.to_ascii_lowercase()))
+}
+
+fn modrinth_identity(
+    project: &str,
+    version: Option<&str>,
+    picked: &modrinth::McVersion,
+    expected: &str,
+) -> String {
+    root_identity(&[
+        b"line-modrinth-source-v1",
+        project.as_bytes(),
+        version.unwrap_or("").as_bytes(),
+        picked.id.as_bytes(),
+        expected.as_bytes(),
+    ])
+}
+
+/// Fetch only the root metadata; no cache is used if the provider cannot be reached.
+pub async fn source_identity(fetch: &dyn Fetch, kind: &SourceKind) -> LineResult<Option<String>> {
+    check_cancelled_fetch(fetch)?;
+    match kind {
+        SourceKind::Archive => Ok(None),
+        SourceKind::Packwiz { pack_toml_url } => {
+            let bytes = fetch
+                .get(pack_toml_url, packwiz::MAX_MANIFEST_BYTES)
+                .await?;
+            Ok(Some(packwiz_identity(pack_toml_url, &bytes)))
+        }
+        SourceKind::Modrinth { project, version } => {
+            let (picked, _, expected) = modrinth_root(fetch, project, version.as_deref()).await?;
+            Ok(Some(modrinth_identity(
+                project,
+                version.as_deref(),
+                &picked,
+                &expected,
+            )))
+        }
+    }
+}
+
+fn check_cancelled_fetch(fetch: &dyn Fetch) -> LineResult<()> {
+    if fetch.cancelled() {
+        Err(LineError::new(
+            ErrorCode::Cancelled,
+            "Установка отменена.",
+            false,
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Fetches a packwiz pack: `pack.toml` → `index.toml` (hash-checked) → each
 /// listed `.pw.toml`.
 pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResult<ResolvedPack> {
@@ -248,6 +339,7 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
     let pack_bytes = fetch
         .get(pack_toml_url, packwiz::MAX_MANIFEST_BYTES)
         .await?;
+    let identity = packwiz_identity(pack_toml_url, &pack_bytes);
     let pack = packwiz::parse_pack(&pack_bytes)?;
 
     // 1. The index the pack author wrote, identified by its own hash.
@@ -346,6 +438,7 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
     }
     let mut resolved = packwiz::assemble(&pack, &index, metafiles)?;
     resolved.files.extend(ordinary);
+    resolved.source_identity = Some(identity);
     if resolved.files.len() > super::MAX_FILES {
         return Err(LineError::input("Сборка описывает слишком много файлов."));
     }
@@ -358,20 +451,8 @@ pub async fn resolve_modrinth(
     project: &str,
     version: Option<&str>,
 ) -> LineResult<ResolvedPack> {
-    let url = modrinth::versions_url(project)?;
-    let bytes = fetch.get(&url, 4 * 1024 * 1024).await?;
-    let versions: Vec<modrinth::McVersion> = serde_json::from_slice(&bytes)
-        .map_err(|_| LineError::input("Modrinth вернул неожиданный ответ вместо списка версий."))?;
-    let picked = modrinth::pick_version(&versions, version)?.clone();
-    let file = picked.pack_file()?.clone();
-    let pack_url = super::super::config::validate_https(&file.url)?
-        .as_str()
-        .to_owned();
-    let expected = file
-        .hashes
-        .get("sha512")
-        .cloned()
-        .ok_or_else(|| LineError::input("У .mrpack нет sha512: проверить его нечем."))?;
+    let (picked, pack_url, expected) = modrinth_root(fetch, project, version).await?;
+    let identity = modrinth_identity(project, version, &picked, &expected);
     // The authenticated archive is streamed to a private temporary file, not RAM.
     let (archive, actual_sha512) = fetch
         .archive(
@@ -437,6 +518,7 @@ pub async fn resolve_modrinth(
     .map_err(|_| LineError::new(ErrorCode::Internal, "Не удалось обработать .mrpack.", false))??;
     // The version id, not the project name: two versions of one project must not
     // look like the same build to the installer.
+    resolved.source_identity = Some(identity);
     resolved.revision = format!(
         "{}-{}",
         picked.id,
@@ -681,6 +763,25 @@ mod tests {
         assert_eq!(result.files.len(), 1);
         assert_eq!(result.files[0].path, "mods/example.jar");
         assert_eq!(result.files[0].sha256, "a".repeat(64));
+        let kind = SourceKind::Packwiz {
+            pack_toml_url: "https://example.org/pack.toml".into(),
+        };
+        assert_eq!(
+            source_identity(&fetch, &kind).await.unwrap(),
+            result.source_identity
+        );
+        let old_identity = result.source_identity.clone();
+        fetch
+            .0
+            .get_mut("https://example.org/pack.toml")
+            .unwrap()
+            .push(b' ');
+        assert_ne!(source_identity(&fetch, &kind).await.unwrap(), old_identity);
+        fetch
+            .0
+            .get_mut("https://example.org/pack.toml")
+            .unwrap()
+            .pop();
         fetch
             .0
             .get_mut("https://example.org/mods/example.pw.toml")
@@ -878,6 +979,37 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resolved.minecraft_version.as_deref(), Some("1.20.1"));
+        let kind = SourceKind::Modrinth {
+            project: "rQiXwLhB".into(),
+            version: Some("TQIsQXtg".into()),
+        };
+        assert_eq!(
+            source_identity(&fetch, &kind).await.unwrap(),
+            resolved.source_identity
+        );
+        // The fast path reads only version metadata and must not need the archive.
+        let archive_bytes = fetch.0.remove("https://example.org/pack.mrpack").unwrap();
+        assert_eq!(
+            source_identity(&fetch, &kind).await.unwrap(),
+            resolved.source_identity
+        );
+        fetch
+            .0
+            .insert("https://example.org/pack.mrpack".into(), archive_bytes);
+        let mut changed = versions.clone();
+        changed[0]["files"][0]["hashes"]["sha512"] = serde_json::json!("b".repeat(128));
+        fetch.0.insert(
+            "https://api.modrinth.com/v2/project/rQiXwLhB/version".into(),
+            serde_json::to_vec(&changed).unwrap(),
+        );
+        assert_ne!(
+            source_identity(&fetch, &kind).await.unwrap(),
+            resolved.source_identity
+        );
+        fetch.0.insert(
+            "https://api.modrinth.com/v2/project/rQiXwLhB/version".into(),
+            serde_json::to_vec(&versions).unwrap(),
+        );
         assert!(matches!(
             resolved.loader.unwrap().0,
             super::super::super::minecraft_core::LoaderChoice::NeoForge

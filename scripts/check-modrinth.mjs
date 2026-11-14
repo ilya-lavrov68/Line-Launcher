@@ -8,7 +8,7 @@ const MAX_API = 4 * 1024 * 1024;
 const MAX_ARCHIVE = 64 * 1024 * 1024;
 const MAX_INDEX = 16 * 1024 * 1024;
 
-async function getBytes(raw, limit, fetcher, stage) {
+async function getBytes(raw, limit, fetcher, stage, timeoutMs, onProgress) {
   const tooLarge = (observed, declared = false) =>
     new Error(
       `${stage}: ${declared ? "Content-Length" : "Получено более"} ${observed} байт; лимит ${limit} байт.`,
@@ -17,10 +17,17 @@ async function getBytes(raw, limit, fetcher, stage) {
   for (let hops = 0; hops <= 5; hops++) {
     if (url.protocol !== "https:" || url.username || url.password)
       throw new Error("Допускается только HTTPS без учётных данных.");
-    const response = await fetcher(url, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(60_000),
-    });
+    const signal = AbortSignal.timeout(timeoutMs);
+    let response;
+    try {
+      response = await fetcher(url, { redirect: "manual", signal });
+    } catch (error) {
+      if (signal.aborted)
+        throw new Error(
+          `${stage}: истекло время ожидания (${timeoutMs / 1000} секунд).`,
+        );
+      throw error;
+    }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
       await response.body?.cancel();
@@ -37,10 +44,19 @@ async function getBytes(raw, limit, fetcher, stage) {
     }
     let total = 0;
     const chunks = [];
-    for await (const chunk of response.body ?? []) {
-      total += chunk.byteLength;
-      if (total > limit) throw tooLarge(total);
-      chunks.push(Buffer.from(chunk));
+    try {
+      for await (const chunk of response.body ?? []) {
+        total += chunk.byteLength;
+        if (total > limit) throw tooLarge(total);
+        chunks.push(Buffer.from(chunk));
+        onProgress?.(total, declared);
+      }
+    } catch (error) {
+      if (signal.aborted)
+        throw new Error(
+          `${stage}: истекло время ожидания (${timeoutMs / 1000} секунд), получено ${total} байт.`,
+        );
+      throw error;
     }
     return Buffer.concat(chunks, total);
   }
@@ -49,6 +65,10 @@ async function getBytes(raw, limit, fetcher, stage) {
 
 /** Read only the bounded index from a verified standard ZIP. No extraction. */
 export function readMrpackIndex(buffer) {
+  return inspectArchiveIndex(buffer).index;
+}
+
+function inspectArchiveIndex(buffer) {
   const bad = () => new Error("Повреждённый или неподдерживаемый .mrpack.");
   if (buffer.length < 22) throw bad();
   let end = -1;
@@ -79,6 +99,8 @@ export function readMrpackIndex(buffer) {
   const centralStart = pos;
   const centralEnd = pos + centralSize;
   let found;
+  let overrideFiles = 0;
+  let overrideBytes = 0;
   for (let i = 0; i < count; i++) {
     if (pos + 46 > centralEnd || buffer.readUInt32LE(pos) !== 0x02014b50)
       throw bad();
@@ -93,6 +115,14 @@ export function readMrpackIndex(buffer) {
     const next = pos + 46 + nameLen + extraLen + commentLen;
     if (next > centralEnd) throw bad();
     const name = buffer.toString("utf8", pos + 46, pos + 46 + nameLen);
+    if (
+      !name.endsWith("/") &&
+      (name.startsWith("overrides/") || name.startsWith("client-overrides/"))
+    ) {
+      if (size === 0xffffffff) throw bad();
+      overrideFiles++;
+      overrideBytes += size;
+    }
     if (name === "modrinth.index.json") {
       if (
         found ||
@@ -135,7 +165,7 @@ export function readMrpackIndex(buffer) {
     !Array.isArray(index.files)
   )
     throw bad();
-  return index;
+  return { index, overrideFiles, overrideBytes };
 }
 
 export async function inspectModrinth(
@@ -143,6 +173,7 @@ export async function inspectModrinth(
   version,
   fetcher = fetch,
   archiveLimit = MAX_ARCHIVE,
+  onProgress,
 ) {
   if (
     !Number.isSafeInteger(archiveLimit) ||
@@ -162,6 +193,7 @@ export async function inspectModrinth(
         MAX_API,
         fetcher,
         "Список версий Modrinth",
+        60_000,
       )
     ).toString("utf8"),
   );
@@ -181,17 +213,23 @@ export async function inspectModrinth(
     archiveLimit,
     fetcher,
     "Архив .mrpack",
+    15 * 60_000,
+    onProgress,
   );
   const hash = createHash("sha512").update(bytes).digest("hex");
   if (hash !== pack.hashes.sha512.toLowerCase())
     throw new Error("SHA-512 .mrpack не совпадает с API Modrinth.");
-  const index = readMrpackIndex(bytes);
+  const { index, overrideFiles, overrideBytes } = inspectArchiveIndex(bytes);
   return {
     project,
     version: selected.id,
     archiveBytes: bytes.length,
     launcherArchiveLimitBytes: MAX_ARCHIVE,
     exceedsLauncherArchiveLimit: bytes.length > MAX_ARCHIVE,
+    overrideFiles,
+    declaredOverrideBytes: overrideBytes,
+    launcherOverrideLimitBytes: 128 * 1024 * 1024,
+    exceedsLauncherOverrideLimit: overrideBytes > 128 * 1024 * 1024,
     versionNumber: selected.version_number ?? null,
     name: index.name ?? null,
     dependencies: index.dependencies ?? {},
@@ -219,7 +257,21 @@ if (
     );
     process.exit(1);
   }
-  inspectModrinth(project || "", version || "", fetch, archiveLimit)
+  let lastReported = 0;
+  inspectModrinth(
+    project || "",
+    version || "",
+    fetch,
+    archiveLimit,
+    (received, total) => {
+      if (received - lastReported >= 32 * 1024 * 1024) {
+        console.error(
+          `Загружено ${received} байт${total ? ` из ${total}` : ""}...`,
+        );
+        lastReported = received;
+      }
+    },
+  )
     .then((report) => {
       console.log(JSON.stringify(report, null, 2));
       console.log(
@@ -229,7 +281,15 @@ if (
         console.log(
           "Внимание: архив превышает текущий лимит лаунчера 64 МиБ; диагностика не означает, что установка возможна.",
         );
-      if (report.missingSha512 || report.exceedsLauncherArchiveLimit)
+      if (report.exceedsLauncherOverrideLimit)
+        console.log(
+          "Внимание: заявленный размер overrides превышает лимит лаунчера 128 МиБ.",
+        );
+      if (
+        report.missingSha512 ||
+        report.exceedsLauncherArchiveLimit ||
+        report.exceedsLauncherOverrideLimit
+      )
         process.exitCode = 1;
     })
     .catch((error) => {

@@ -69,5 +69,8 @@ declare module "*check-modrinth.mjs" {
     clientFiles: number;
     missingSha512: number;
     dependencies: Record<string, string>;
+    overrideFiles: number;
+    declaredOverrideBytes: number;
+    exceedsLauncherOverrideLimit: boolean;
   }>;
 }

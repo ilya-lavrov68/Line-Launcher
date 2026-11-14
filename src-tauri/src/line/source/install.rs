@@ -174,7 +174,6 @@ async fn fetch_one(
                 .await
                 .map_err(|e| LineError::io(&e))?;
             hasher.update(&bytes[..count]);
-            progress(file.size, total);
         }
         let digest = format!("{:x}", hasher.finalize());
         if total != file.size
@@ -361,6 +360,12 @@ pub async fn fetch_files(
     };
     let concurrency = PARALLEL_DOWNLOADS.max(1);
     let mut next = 0usize;
+    let mut initial = base_progress.clone();
+    initial.files_done = Some(0);
+    initial.files_total = Some(total);
+    initial.received_bytes = 0;
+    initial.total_bytes = 0;
+    sink.emit(initial);
 
     while next < pack_files.files.len() {
         let batch_end = (next + concurrency).min(pack_files.files.len());
@@ -386,19 +391,22 @@ pub async fn fetch_files(
                     install::safe_entry_path(&file.path)
                         .map_err(|_| LineError::input("Некорректный путь файла в сборке."))?,
                 );
-                let progress = move |_total: u64, received: u64| {
+                let progress = move |_total: u64, _received: u64| {
                     let mut update = template.clone();
                     update.phase = InstallPhase::Downloading;
-                    // Per-file bytes are not a percentage of the whole pack; what
-                    // the user can see moving is the file count. The received
-                    // count keeps the bar honest without pretending precision.
+                    // Concurrent per-file bytes are not a percentage of the pack;
+                    // report completed files instead.
                     update.percent = if batch_total > 0 {
                         template.percent
                             + (done as f64 / batch_total as f64) * (60.0 - template.percent)
                     } else {
                         0.0
                     };
-                    update.received_bytes = received;
+                    update.files_done = Some(done);
+                    update.files_total = Some(batch_total);
+                    // Bytes from concurrent files are not comparable to the pack total.
+                    update.received_bytes = 0;
+                    update.total_bytes = 0;
                     sink.emit(update);
                 };
                 let digest =
@@ -457,7 +465,13 @@ pub async fn fetch_files(
         } else {
             60.0
         };
-        sink.emit(update);
+        update.files_done = Some(done);
+        update.files_total = Some(total);
+        update.received_bytes = 0;
+        update.total_bytes = 0;
+        if done % 32 == 0 || done == total {
+            sink.emit(update);
+        }
     }
     index
         .files
@@ -553,6 +567,8 @@ pub async fn install_source(
         total_bytes: 0,
         extracted_bytes: 0,
         unpacked_bytes: 0,
+        files_done: None,
+        files_total: None,
     };
     let result = async {
         let Some((mut pending, _resolved)) =
@@ -1059,6 +1075,8 @@ mod tests {
             total_bytes: 0,
             extracted_bytes: 0,
             unpacked_bytes: 0,
+            files_done: None,
+            files_total: None,
         }
     }
 
@@ -1072,6 +1090,34 @@ mod tests {
             override_file: None,
             size: 4,
         }
+    }
+
+    #[tokio::test]
+    async fn file_progress_counts_whole_stage_not_individual_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut pending = PendingPack {
+            files: vec![inline_file("mods/a.jar"), inline_file("mods/b.jar")],
+            ..Default::default()
+        };
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = events.clone();
+        let sink = ProgressSink::new(move |p| recorded.lock().unwrap().push(p));
+        fetch_files(
+            &reqwest::Client::new(),
+            &mut pending,
+            temp.path(),
+            Arc::new(AtomicBool::new(false)),
+            &sink,
+            progress_fixture(),
+        )
+        .await
+        .unwrap();
+        let events = events.lock().unwrap();
+        assert_eq!(events.first().unwrap().files_done, Some(0));
+        let last = events.last().unwrap();
+        assert_eq!(last.files_done, Some(2));
+        assert_eq!(last.files_total, Some(2));
+        assert_eq!(last.total_bytes, 0);
     }
 
     #[tokio::test]

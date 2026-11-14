@@ -338,6 +338,13 @@ export default function LineLauncher() {
     if (refreshed && mounted.current) setSnapshot(refreshed);
   }
 
+  /** Minecraft actions and the pack check require a genuinely fresh snapshot. */
+  async function refreshConfigForMinecraft() {
+    const refreshed = await lineApi.ensureFreshConfig();
+    if (refreshed && mounted.current) setSnapshot(refreshed);
+    if (refreshed?.stale) throw new Error(t("mc.refreshFailed"));
+  }
+
   /** One sign-in for the whole project: no server id is involved. */
   async function authenticate(
     mode: AuthMode,
@@ -1075,9 +1082,10 @@ export default function LineLauncher() {
                                   ),
                                 )
                               }
-                              onCheckPacks={() =>
-                                lineApi.checkPacks(selected.id)
-                              }
+                              onCheckPacks={async () => {
+                                await refreshConfigForMinecraft();
+                                return lineApi.checkPacks(selected.id);
+                              }}
                               onReportPacks={
                                 snapshot?.config.provider.support_email
                                   ? () =>
@@ -1119,6 +1127,7 @@ export default function LineLauncher() {
                               onHistory={(open) => void openHistory(open)}
                               onRollback={(target) => void rollback(target)}
                               username={session?.username}
+                              onRefreshConfig={refreshConfigForMinecraft}
                               onAuthRequired={requireAuth}
                               historyOpen={historyOpen}
                               history={history}

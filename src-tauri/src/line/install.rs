@@ -44,6 +44,10 @@ pub struct InstallProgress {
     pub total_bytes: u64,
     pub extracted_bytes: u64,
     pub unpacked_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files_done: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files_total: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -727,6 +731,8 @@ async fn install_inner(
         total_bytes: server.distribution.size_bytes.unwrap_or(0),
         extracted_bytes: 0,
         unpacked_bytes: server.distribution.unpacked_size_bytes.unwrap_or(0),
+        files_done: None,
+        files_total: None,
     };
     let result = async {
         let mut attempt = 0u8;

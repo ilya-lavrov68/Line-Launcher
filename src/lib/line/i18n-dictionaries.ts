@@ -154,12 +154,29 @@ export const ru = {
   "minecraft.failed": "Запуск не удался",
   "minecraft.checking": "Проверяем состояние…",
   "minecraft.installing": "Загрузка Minecraft",
+  "mc.refreshFailed":
+    "Не удалось обновить конфигурацию провайдера. Проверьте подключение и повторите.",
+  "mc.stageResolve": "Проверка источника сборки",
+  "mc.stageLibraries": "Подготовка библиотек Minecraft",
+  "mc.stageAssets": "Загрузка ресурсов Minecraft",
+  "mc.stageRuntime": "Подготовка Java",
+  "mc.stageNatives": "Подготовка компонентов",
+  "mc.stageLoader": "Установка загрузчика модов",
+  "mc.stageVerify": "Проверка и подготовка файлов",
+  "mc.stageExtract": "Распаковка файлов сборки",
+  "mc.stageCommit": "Применение сборки",
+  "mc.stageCached": "Проверка установленной сборки",
+  "mc.stageTask": "Подготовка Minecraft",
+  "mc.stageDownload": "Загрузка текущего файла",
+  "mc.stageFiles": "Подготовка файлов сборки",
+  "mc.filesProgress": "Файлы: {done} / {total}",
+  "mc.stageWorking": "Выполняется…",
   "mc.prepare": "Подготовить заранее",
   "mc.testMode": "Тестовый режим",
   "mc.testModeHint":
     "Откроется меню Minecraft: создайте или выберите одиночный мир. Автоматического подключения к серверу не будет.",
   "mc.profilePrepared":
-    "Профиль {version} подготовлен. «Играть» запустит его без загрузки.",
+    "Сборка и профиль {version} подготовлены. Перед запуском источник будет проверен снова.",
   "mc.profiles": "Установлено профилей: {count}",
   "mc.onlineMode":
     "Вход под ником аккаунта проекта. Сервер должен принимать такие входы (online-mode=false).",
@@ -342,7 +359,7 @@ export const ru = {
   "source.packwiz": "Сборка packwiz",
   "source.modrinth": "Сборка Modrinth",
   "source.hint":
-    "Лаунчер скачивает файлы по списку провайдера и проверяет каждый по хешу. Обновления приходят из того же места, без загрузки нового архива.",
+    "Лаунчер получает сборку из источника провайдера и проверяет файлы по хешу. При повторной проверке часть данных может скачиваться заново.",
   "source.version": "Версия {version}",
 
   "packs.reportProvider": "Отправить провайдеру",
@@ -561,12 +578,29 @@ const en: Dictionary = {
   "minecraft.failed": "Launch failed",
   "minecraft.checking": "Checking the state…",
   "minecraft.installing": "Downloading Minecraft",
+  "mc.refreshFailed":
+    "Could not refresh the provider configuration. Check your connection and retry.",
+  "mc.stageResolve": "Checking the pack source",
+  "mc.stageLibraries": "Preparing Minecraft libraries",
+  "mc.stageAssets": "Downloading Minecraft assets",
+  "mc.stageRuntime": "Preparing Java",
+  "mc.stageNatives": "Preparing components",
+  "mc.stageLoader": "Installing the mod loader",
+  "mc.stageVerify": "Checking and preparing files",
+  "mc.stageExtract": "Extracting pack files",
+  "mc.stageCommit": "Applying the pack",
+  "mc.stageCached": "Checking the installed pack",
+  "mc.stageTask": "Preparing Minecraft",
+  "mc.stageDownload": "Downloading current file",
+  "mc.stageFiles": "Preparing pack files",
+  "mc.filesProgress": "Files: {done} / {total}",
+  "mc.stageWorking": "Working…",
   "mc.prepare": "Prepare in advance",
   "mc.testMode": "Test mode",
   "mc.testModeHint":
     "Minecraft opens at the menu: create or select a singleplayer world. It will not automatically join the server.",
   "mc.profilePrepared":
-    'Profile {version} is ready. "Play" starts it without downloading.',
+    "The pack and profile {version} are ready. The source will be checked again before launch.",
   "mc.profiles": "Profiles installed: {count}",
   "mc.onlineMode":
     "Sign-in uses the project account name. The server must accept these sign-ins (online-mode=false).",
@@ -751,7 +785,7 @@ const en: Dictionary = {
   "source.packwiz": "packwiz build",
   "source.modrinth": "Modrinth build",
   "source.hint":
-    "The launcher downloads the files from the provider's list and verifies each one by hash. Updates come from the same place, without a new archive upload.",
+    "The launcher obtains the pack from the provider's source and verifies files by hash. Some data may be downloaded again when checking for updates.",
   "source.version": "Version {version}",
 
   "packs.reportProvider": "Send to provider",
@@ -966,12 +1000,29 @@ const de: Dictionary = {
   "minecraft.failed": "Start fehlgeschlagen",
   "minecraft.checking": "Status wird geprüft…",
   "minecraft.installing": "Minecraft wird geladen",
+  "mc.refreshFailed":
+    "Die Anbieter-Konfiguration konnte nicht aktualisiert werden. Verbindung prüfen und erneut versuchen.",
+  "mc.stageResolve": "Paketquelle wird geprüft",
+  "mc.stageLibraries": "Minecraft-Bibliotheken werden vorbereitet",
+  "mc.stageAssets": "Minecraft-Ressourcen werden geladen",
+  "mc.stageRuntime": "Java wird vorbereitet",
+  "mc.stageNatives": "Komponenten werden vorbereitet",
+  "mc.stageLoader": "Mod-Loader wird installiert",
+  "mc.stageVerify": "Dateien werden geprüft und vorbereitet",
+  "mc.stageExtract": "Paketdateien werden entpackt",
+  "mc.stageCommit": "Paket wird angewendet",
+  "mc.stageCached": "Installiertes Paket wird geprüft",
+  "mc.stageTask": "Minecraft wird vorbereitet",
+  "mc.stageDownload": "Aktuelle Datei wird geladen",
+  "mc.stageFiles": "Paketdateien werden vorbereitet",
+  "mc.filesProgress": "Dateien: {done} / {total}",
+  "mc.stageWorking": "Wird ausgeführt…",
   "mc.prepare": "Vorab vorbereiten",
   "mc.testMode": "Testmodus",
   "mc.testModeHint":
     "Minecraft öffnet das Menü: Erstelle oder wähle eine Einzelspielerwelt. Es wird nicht automatisch verbunden.",
   "mc.profilePrepared":
-    'Profil {version} ist vorbereitet. "Spielen" startet es ohne Download.',
+    "Paket und Profil {version} sind vorbereitet. Die Quelle wird vor dem Start erneut geprüft.",
   "mc.profiles": "Installierte Profile: {count}",
   "mc.onlineMode":
     "Die Anmeldung nutzt den Namen des Projektkontos. Der Server muss solche Anmeldungen akzeptieren (online-mode=false).",
@@ -1159,7 +1210,7 @@ const de: Dictionary = {
   "source.packwiz": "packwiz-Build",
   "source.modrinth": "Modrinth-Build",
   "source.hint":
-    "Der Launcher lädt die Dateien aus der Liste des Anbieters und prüft jede per Hash. Updates kommen von derselben Stelle, ohne ein neues Archiv hochzuladen.",
+    "Der Launcher bezieht das Paket aus der Anbieterquelle und prüft die Dateien per Hash. Bei erneuter Prüfung können Daten erneut geladen werden.",
   "source.version": "Version {version}",
 
   "packs.reportProvider": "An Anbieter senden",
@@ -1375,12 +1426,29 @@ const fr: Dictionary = {
   "minecraft.failed": "Échec du lancement",
   "minecraft.checking": "Vérification de l'état…",
   "minecraft.installing": "Téléchargement de Minecraft",
+  "mc.refreshFailed":
+    "Impossible d'actualiser la configuration du fournisseur. Vérifiez la connexion et réessayez.",
+  "mc.stageResolve": "Vérification de la source du pack",
+  "mc.stageLibraries": "Préparation des bibliothèques Minecraft",
+  "mc.stageAssets": "Téléchargement des ressources Minecraft",
+  "mc.stageRuntime": "Préparation de Java",
+  "mc.stageNatives": "Préparation des composants",
+  "mc.stageLoader": "Installation du chargeur de mods",
+  "mc.stageVerify": "Vérification et préparation des fichiers",
+  "mc.stageExtract": "Extraction des fichiers du pack",
+  "mc.stageCommit": "Application du pack",
+  "mc.stageCached": "Vérification du pack installé",
+  "mc.stageTask": "Préparation de Minecraft",
+  "mc.stageDownload": "Téléchargement du fichier courant",
+  "mc.stageFiles": "Préparation des fichiers du pack",
+  "mc.filesProgress": "Fichiers : {done} / {total}",
+  "mc.stageWorking": "En cours…",
   "mc.prepare": "Préparer à l'avance",
   "mc.testMode": "Mode test",
   "mc.testModeHint":
     "Minecraft ouvre le menu : créez ou choisissez un monde solo. La connexion au serveur ne sera pas automatique.",
   "mc.profilePrepared":
-    "Le profil {version} est prêt. « Jouer » le lance sans téléchargement.",
+    "Le pack et le profil {version} sont prêts. La source sera revérifiée avant le lancement.",
   "mc.profiles": "Profils installés : {count}",
   "mc.onlineMode":
     "La connexion utilise le nom du compte du projet. Le serveur doit accepter ces connexions (online-mode=false).",
@@ -1567,7 +1635,7 @@ const fr: Dictionary = {
   "source.packwiz": "Compilation packwiz",
   "source.modrinth": "Compilation Modrinth",
   "source.hint":
-    "Le launcher télécharge les fichiers de la liste du fournisseur et vérifie chacun par empreinte. Les mises à jour viennent du même endroit, sans nouvel envoi d'archive.",
+    "Le launcher récupère le pack depuis la source du fournisseur et vérifie les fichiers par empreinte. Certaines données peuvent être retéléchargées lors des vérifications.",
   "source.version": "Version {version}",
 
   "packs.reportProvider": "Envoyer au fournisseur",

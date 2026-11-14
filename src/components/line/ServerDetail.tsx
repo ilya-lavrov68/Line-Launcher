@@ -50,6 +50,7 @@ export interface ServerDetailProps {
   username?: string;
   /** The shell sent the player back to the single sign-in screen. */
   onAuthRequired?: () => void;
+  onRefreshConfig?: () => Promise<void>;
   onBack: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -270,6 +271,7 @@ export default function ServerDetail(props: ServerDetailProps) {
             username={props.username}
             disabled={actionsBusy}
             onAuthRequired={props.onAuthRequired}
+            onRefreshConfig={props.onRefreshConfig}
           />
         ) : (
           <ServerActionPanel
@@ -313,6 +315,21 @@ export default function ServerDetail(props: ServerDetailProps) {
         </p>
       )}
 
+      {/* The check the launch runs, offered before the launch. Two reasons it is
+          a button and not automatic: hashing a large folder on every visit is
+          wasted work, and a player who just installed a pack wants to know now,
+          not by being refused at the dock. */}
+      {hasSession && (
+        <PackCheckPanel
+          onCheck={props.onCheckPacks}
+          onReport={props.onReportPacks}
+          blocked={
+            phase === "blocked" ? (props.launchError ?? undefined) : undefined
+          }
+          disabled={actionsBusy}
+        />
+      )}
+
       {/* A source-backed build is not "a ZIP you have not downloaded yet", and
           the dock's «Скачать» wording would be misleading: there is no archive
           to fetch, the launcher fetches the files. One line, with the reason it
@@ -334,21 +351,6 @@ export default function ServerDetail(props: ServerDetailProps) {
           )}
           <span className="basis-full">{t("source.hint")}</span>
         </p>
-      )}
-
-      {/* The check the launch runs, offered before the launch. Two reasons it is
-          a button and not automatic: hashing a large folder on every visit is
-          wasted work, and a player who just installed a pack wants to know now,
-          not by being refused at the dock. */}
-      {hasSession && (
-        <PackCheckPanel
-          onCheck={props.onCheckPacks}
-          onReport={props.onReportPacks}
-          blocked={
-            phase === "blocked" ? (props.launchError ?? undefined) : undefined
-          }
-          disabled={actionsBusy}
-        />
       )}
     </section>
   );
@@ -397,7 +399,7 @@ export function PackCheckPanel({
   const suspicious = (result?.findings.length ?? 0) > 0;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="bg-fill-subtle flex flex-col gap-2 rounded-[var(--radius-item)] p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"

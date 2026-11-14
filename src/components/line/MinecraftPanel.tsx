@@ -142,12 +142,12 @@ export default function MinecraftPanel({
   const working = busy === "installing" || busy === "launching";
   const locked = disabled || working || busy === "stopping";
 
-  async function play() {
+  async function play(testMode = false) {
     setBusy("launching");
     setError(undefined);
     setNotice(undefined);
     try {
-      const next = await lineApi.mcPlay({ serverId: instanceId });
+      const next = await lineApi.mcPlay({ serverId: instanceId, testMode });
       if (!mounted.current) return;
       setStatus(next);
       // A resolved promise means the process was spawned; the running phase and
@@ -289,7 +289,7 @@ export default function MinecraftPanel({
           <Button
             size="sm"
             disabled={locked}
-            onClick={() => void play()}
+            onClick={() => void play(false)}
             className="cursor-pointer gap-1.5 text-xs"
           >
             {busy === "launching" ? (
@@ -298,6 +298,19 @@ export default function MinecraftPanel({
               <Play className="size-3.5" aria-hidden="true" />
             )}
             {t("detail.play")}
+          </Button>
+        )}
+
+        {!running && server.test_mode_enabled !== false && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={locked}
+            onClick={() => void play(true)}
+            className="cursor-pointer gap-1.5 text-xs"
+          >
+            <Gamepad2 className="size-3.5" aria-hidden="true" />
+            {t("mc.testMode")}
           </Button>
         )}
 
@@ -319,6 +332,12 @@ export default function MinecraftPanel({
           </Button>
         )}
       </div>
+
+      {server.test_mode_enabled !== false && !running && (
+        <p className="text-muted-foreground text-[11px] leading-relaxed">
+          {t("mc.testModeHint")}
+        </p>
+      )}
 
       {profiles && profiles.length > 0 && (
         <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">

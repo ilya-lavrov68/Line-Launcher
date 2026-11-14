@@ -28,8 +28,8 @@ use super::java;
 use super::launch::{optimal_heap_mb, player_uuid, validate_heap, GamePhase};
 use super::minecraft_core::{
     apply_heap, ensure_server_join, has_quick_play_token, reject_dangerous_args,
-    validate_instance_id, validate_loader, validate_server_address, validate_version_id,
-    LoaderChoice,
+    remove_automatic_joins, validate_instance_id, validate_loader, validate_server_address,
+    validate_test_mode, validate_version_id, LoaderChoice,
 };
 use super::pack::{self, DetectedInstance};
 use super::settings::{self, LauncherSettings};
@@ -110,6 +110,8 @@ pub struct McPlayRequest {
     pub loader: Option<McLoaderRequest>,
     #[serde(default)]
     pub server_address: Option<String>,
+    #[serde(default)]
+    pub test_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -532,7 +534,17 @@ pub async fn mc_launch(
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version_id = validate_version_id(&request.version_id)?;
     let (host, port) = validate_server_address(&request.server_address)?;
-    launch_profile(&app, &line, &state, instance_id, version_id, host, port).await
+    launch_profile(
+        &app,
+        &line,
+        &state,
+        instance_id,
+        version_id,
+        host,
+        port,
+        false,
+    )
+    .await
 }
 
 /// «Играть»: read `pack.json`, download the instance ZIP or confirm the copy on
@@ -548,6 +560,11 @@ pub async fn mc_play(
     let (_, config) = line.fresh_config()?;
     config.validate(LAUNCHER_VERSION)?;
     let server = config.server(&request.server_id)?.clone();
+    validate_test_mode(
+        request.test_mode,
+        server.test_mode_enabled,
+        server.launch_mode == super::config::LaunchMode::Minecraft,
+    )?;
     let instance_id = validate_instance_id(request.instance_id.as_deref().unwrap_or(&server.id))?;
     let address = request
         .server_address
@@ -585,38 +602,55 @@ pub async fn mc_play(
     // 2. Download or verify. `download_and_extract` returns the existing receipt
     //    untouched when its sha256 already matches, so an unchanged pack costs
     //    one small JSON request, not a re-download.
-    let operation_id = Uuid::new_v4().to_string();
-    let cancel = line.begin_install(&server.id, &operation_id)?;
-    let sink_app = app.clone();
-    let sink_instance = instance_id.clone();
-    let sink = ProgressSink::new(move |progress: InstallProgress| {
-        let _ = sink_app.emit(install::PROGRESS_EVENT, &progress);
-        let (stage, label) = match progress.phase {
-            InstallPhase::Downloading => ("download", "Скачивание сборки"),
-            InstallPhase::Verifying => ("verify", "Проверка архива"),
-            InstallPhase::Extracting => ("extract", "Распаковка сборки"),
-            InstallPhase::Committing => ("commit", "Применение сборки"),
-            InstallPhase::Completed => ("completed", "Сборка готова"),
-            InstallPhase::Cancelled => ("task", "Отменено"),
-            InstallPhase::Failed => ("task", "Ошибка установки"),
-        };
-        let total = (progress.total_bytes > 0).then_some(progress.total_bytes);
-        emit_mc_progress(
-            &sink_app,
-            &sink_instance,
-            stage,
-            label,
-            progress.received_bytes,
-            total,
-            matches!(progress.phase, InstallPhase::Completed),
-        );
-    });
-    let installed =
-        install::download_and_extract(&line.http, &effective, &base, &operation_id, cancel, &sink)
-            .await;
-    line.finish_install(&server.id, &operation_id);
-    let receipt = installed?;
-    if receipt.already_installed {
+    let cached = if request.test_mode {
+        install::current_receipt(&base, &server.id)
+            .filter(|receipt| receipt.version == server.version)
+    } else {
+        None
+    };
+    let was_cached = cached.is_some();
+    let receipt = if let Some(receipt) = cached {
+        receipt
+    } else {
+        let operation_id = Uuid::new_v4().to_string();
+        let cancel = line.begin_install(&server.id, &operation_id)?;
+        let sink_app = app.clone();
+        let sink_instance = instance_id.clone();
+        let sink = ProgressSink::new(move |progress: InstallProgress| {
+            let _ = sink_app.emit(install::PROGRESS_EVENT, &progress);
+            let (stage, label) = match progress.phase {
+                InstallPhase::Downloading => ("download", "Скачивание сборки"),
+                InstallPhase::Verifying => ("verify", "Проверка архива"),
+                InstallPhase::Extracting => ("extract", "Распаковка сборки"),
+                InstallPhase::Committing => ("commit", "Применение сборки"),
+                InstallPhase::Completed => ("completed", "Сборка готова"),
+                InstallPhase::Cancelled => ("task", "Отменено"),
+                InstallPhase::Failed => ("task", "Ошибка установки"),
+            };
+            let total = (progress.total_bytes > 0).then_some(progress.total_bytes);
+            emit_mc_progress(
+                &sink_app,
+                &sink_instance,
+                stage,
+                label,
+                progress.received_bytes,
+                total,
+                matches!(progress.phase, InstallPhase::Completed),
+            );
+        });
+        let installed = install::download_and_extract(
+            &line.http,
+            &effective,
+            &base,
+            &operation_id,
+            cancel,
+            &sink,
+        )
+        .await;
+        line.finish_install(&server.id, &operation_id);
+        installed?
+    };
+    if receipt.already_installed || was_cached {
         emit_mc_progress(
             &app,
             &instance_id,
@@ -752,7 +786,17 @@ pub async fn mc_play(
     }
 
     // 5. Straight into the server.
-    launch_profile(&app, &line, &state, instance_id, launch_version, host, port).await
+    launch_profile(
+        &app,
+        &line,
+        &state,
+        instance_id,
+        launch_version,
+        host,
+        port,
+        request.test_mode,
+    )
+    .await
 }
 
 fn emit_mc_progress(
@@ -786,6 +830,7 @@ async fn launch_profile(
     version_id: String,
     host: String,
     port: u16,
+    test_mode: bool,
 ) -> LineResult<McGameStatus> {
     // One account per project: the nickname and the stable UUID come from it.
     let session = line.session()?;
@@ -811,6 +856,7 @@ async fn launch_profile(
         &uuid,
         &host,
         port,
+        test_mode,
         stop,
     )
     .await;
@@ -849,6 +895,7 @@ async fn start_game(
     uuid: &str,
     host: &str,
     port: u16,
+    test_mode: bool,
     stop: Arc<AtomicBool>,
 ) -> LineResult<McGameStatus> {
     let dir = instance_root(app, instance_id)?;
@@ -927,7 +974,11 @@ async fn start_game(
         let mut args = command.args;
         reject_dangerous_args(&args)?;
         apply_heap(&mut args, heap_mb);
-        ensure_server_join(&mut args, quick_play, &join_host, port);
+        if test_mode {
+            remove_automatic_joins(&mut args);
+        } else {
+            ensure_server_join(&mut args, quick_play, &join_host, port);
+        }
         Ok(LaunchCommand { args, ..command })
     })
     .await

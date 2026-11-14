@@ -178,6 +178,9 @@ pub struct Server {
     /// the Minecraft mode; provider ZIP packs may omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_address: Option<String>,
+    /// Allows the player to open this server's pack at the singleplayer menu.
+    #[serde(default = "default_true")]
+    pub test_mode_enabled: bool,
     #[serde(default)]
     pub auth: LaunchAuth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -831,6 +834,18 @@ mod tests {
             "id": "local", "name": "Local", "description": "Pack", "version": "1", "launch_mode": "pirate",
             "distribution": { "url": "https://example.com/pack.zip", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size_bytes": 1, "unpacked_size_bytes": 1 }
         })).is_err());
+    }
+
+    #[test]
+    fn test_mode_defaults_on_and_can_be_disabled() {
+        let base =
+            serde_json::json!({"id":"demo", "name":"Demo", "description":"Pack", "version":"1"});
+        let enabled: Server = serde_json::from_value(base.clone()).unwrap();
+        assert!(enabled.test_mode_enabled);
+        let mut disabled = base;
+        disabled["test_mode_enabled"] = false.into();
+        let disabled: Server = serde_json::from_value(disabled).unwrap();
+        assert!(!disabled.test_mode_enabled);
     }
 
     #[test]

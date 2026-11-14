@@ -5,7 +5,8 @@
 //   npm run demo -- --provider-only   # provider only, app started separately
 //   npm run demo:app              # attach the desktop app to that provider
 //   npm run demo:doctor           # check the whole chain, change nothing
-//   npm run demo -- --no-java     # skip the JDK: everything except launching
+//   npm run demo -- --no-java     # skip the demo JDK build
+//   npm run demo -- --battlearmory # add the real Modrinth pack for test mode
 //   npm run demo -- --port 8553   # another port when 8443 is busy
 //   npm run demo:update           # publish the second release (update/rollback)
 //   npm run demo:check            # verify the demo provider over real HTTPS
@@ -44,6 +45,7 @@ const providerOnly = flags.has("--provider-only");
 const appOnly = flags.has("--app-only");
 const noJava = flags.has("--no-java");
 const skipDoctor = flags.has("--skip-doctor");
+const battleArmory = flags.has("--battlearmory");
 const host = "127.0.0.1";
 const base = `https://${host}:${port}`;
 const configUrl = `${base}/config.json`;
@@ -226,6 +228,31 @@ if (run(process.execPath, packArgs, { env: packEnv }) !== 0) {
   fail("Не удалось собрать демо-сборки.");
 }
 
+// Explicit opt-in only: the loopback address is a placeholder, not a server.
+// The test-mode button opens the Minecraft menu and does not join it.
+if (battleArmory) {
+  const configPath = path.join(dir, "config.json");
+  const example = JSON.parse(readFileSync(configPath, "utf8"));
+  if (!example.required_features.includes("modrinth-v1"))
+    example.required_features.push("modrinth-v1");
+  example.servers.push({
+    id: "battlearmory-test",
+    name: "BattleArmory — тестовый режим",
+    description:
+      "Настоящая сборка Modrinth. Сервер не настроен: используйте тестовый режим.",
+    version: "1.3.1",
+    minecraft_version: "1.20.1",
+    launch_mode: "minecraft",
+    server_address: "127.0.0.1:25565",
+    test_mode_enabled: true,
+    source: { kind: "modrinth", project: "rQiXwLhB", version: "TQIsQXtg" },
+  });
+  writeFileSync(configPath, `${JSON.stringify(example, null, 2)}\n`);
+  console.log(
+    "BattleArmory включён для теста: сервер на 127.0.0.1 не предоставляется; выбирайте «Тестовый режим».",
+  );
+}
+
 // ---------------------------------------------------------------- branding
 step(3, "Направляю сборку на локальный провайдер");
 const originalBrand = existsSync(brandFile)
@@ -347,7 +374,9 @@ if (!probe) {
 }
 
 const config = JSON.parse(readFileSync(path.join(dir, "config.json"), "utf8"));
-const launchable = config.servers.some((s) => s.auth?.launch_ticket_url);
+const launchable = config.servers.some(
+  (s) => s.auth?.launch_ticket_url || s.launch_mode === "minecraft",
+);
 // `npm run demo:app` reads this instead of asking the user to export an env var
 // with shell-specific syntax.
 writeFileSync(
@@ -359,7 +388,7 @@ ${C.green("✔")} Демо-проект готов
       Адрес:        ${C.bold(configUrl)}
       Аккаунт:      ${C.bold("Player_1 / demo-password")} ${C.dim("(или зарегистрируйте свой)")}
       Серверы:      ${config.servers.map((s) => s.name).join(", ")}
-      Запуск игры:  ${launchable ? C.green("включён") : C.yellow("выключен — нет JDK")}
+      Запуск игры:  ${launchable ? C.green("доступен для настроенных серверов") : C.yellow("демо-игра выключена — нет JDK")}
       Сертификат:   ${certPath} ${C.dim(`(годен до ${inspectCertificate(certPath, host).validTo})`)}
       Лог провайдера ниже показывает login / ticket / exchange / skin updated.
       Что нажимать: ${C.bold("docs/DEMO.md")}

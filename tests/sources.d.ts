@@ -74,3 +74,8 @@ declare module "*check-modrinth.mjs" {
     exceedsLauncherOverrideLimit: boolean;
   }>;
 }
+
+declare module "*frontend-deps.mjs" {
+  export function missingFrontendDependencies(root: string): string[];
+  export const frontendDependenciesHelp: string;
+}

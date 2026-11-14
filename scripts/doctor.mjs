@@ -5,6 +5,10 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { findMsvc, findWebView2, probe, tryLink } from "./lib/env-probe.mjs";
 import { findOpenSsl } from "./lib/find-openssl.mjs";
+import {
+  missingFrontendDependencies,
+  frontendDependenciesHelp,
+} from "./lib/frontend-deps.mjs";
 import { checkTauriVersions, tauriVersionHelp } from "./lib/tauri-versions.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -52,6 +56,11 @@ else bad("Node.js", `${process.versions.node}, нужен 22+`, "node");
 if (existsSync(path.join(root, "node_modules")))
   ok("node_modules", "установлены");
 else bad("node_modules", "не установлены", "npm");
+
+const missingFrontend = missingFrontendDependencies(root);
+if (missingFrontend.length)
+  bad("Frontend-зависимости", missingFrontend.join(", "), "frontend");
+else ok("Frontend-зависимости", "Vite и стили доступны");
 
 // --- Tauri crate/npm pair ---------------------------------------------------
 // The CLI aborts the build on a major.minor mismatch; catch it here with a fix.
@@ -167,7 +176,8 @@ const FIXES = {
   node: [
     "Node.js 22+: https://nodejs.org — установите LTS и переоткройте терминал.",
   ],
-  npm: ["Установите зависимости:  npm ci"],
+  npm: ["Установите зависимости:  npm ci --include=dev"],
+  frontend: [frontendDependenciesHelp],
   rust: [
     "Установите Rust через rustup:",
     platform === "win32"

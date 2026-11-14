@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { cn } from "@/lib/utils";
 import { useT, type Translator } from "@/lib/line/i18n";
 import type { GameStatus, InstallProgress, LineServer } from "@/types/line";
@@ -152,27 +153,9 @@ export default function ServerActionPanel({
   const canPress = !unavailable && (!disabled || installing || active);
 
   return (
-    <m.section
-      data-line-glass="dock"
-      role="region"
-      aria-labelledby="server-action-title"
-      initial={
-        reducedMotion ? false : { opacity: 0, y: 12, filter: "blur(6px)" }
-      }
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{
-        duration: reducedMotion ? 0 : 0.22,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className="flex flex-col gap-3 p-4"
-    >
+    <ServerDock name={server.name}>
       <div className="flex items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {/* Still the region's accessible name, no longer a second visible
-              copy of the heading directly above it. */}
-          <h2 id="server-action-title" className="sr-only">
-            {server.name}
-          </h2>
           <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <span
               className={cn(
@@ -272,43 +255,22 @@ export default function ServerActionPanel({
       </AnimatePresence>
 
       <div className="flex items-center gap-2">
-        <m.div
-          className="min-w-0 flex-1"
-          whileHover={
-            reducedMotion || canPress === false ? undefined : { scale: 1.004 }
-          }
-          whileTap={
-            reducedMotion || canPress === false ? undefined : { scale: 0.994 }
-          }
-          transition={{ type: "spring", stiffness: 320, damping: 22 }}
+        <ServerDockPrimary
+          disabled={!canPress}
+          active={active}
+          onClick={installing && onCancel ? onCancel : onPrimary}
         >
-          <Button
-            size="lg"
-            disabled={!canPress}
-            aria-disabled={!canPress}
-            onClick={installing && onCancel ? onCancel : onPrimary}
-            className={cn(
-              "h-11 w-full gap-2 rounded-[var(--radius-item)] text-sm font-semibold",
-              active
-                ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
-                : // No glow: a coloured halo around the button was the only
-                  // ornament on the screen, and it read as a light source that
-                  // does not exist. The fill itself is enough.
-                  "bg-primary text-primary-foreground hover:bg-primary/90",
-            )}
-          >
-            {installing ? (
-              <CloudDownload className="size-4" aria-hidden="true" />
-            ) : phase === "starting" ? (
-              <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
-            ) : phase === "running" ? (
-              <Square className="size-4 fill-current" aria-hidden="true" />
-            ) : (
-              <Play className="size-4 fill-current" aria-hidden="true" />
-            )}
-            <span>{primaryLabel(t, phase)}</span>
-          </Button>
-        </m.div>
+          {installing ? (
+            <CloudDownload className="size-4" aria-hidden="true" />
+          ) : phase === "starting" ? (
+            <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
+          ) : phase === "running" ? (
+            <Square className="size-4 fill-current" aria-hidden="true" />
+          ) : (
+            <Play className="size-4 fill-current" aria-hidden="true" />
+          )}
+          <span>{primaryLabel(t, phase)}</span>
+        </ServerDockPrimary>
       </div>
 
       <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">
@@ -334,6 +296,6 @@ export default function ServerActionPanel({
           </m.p>
         )}
       </AnimatePresence>
-    </m.section>
+    </ServerDock>
   );
 }

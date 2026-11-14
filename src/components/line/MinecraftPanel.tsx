@@ -1,6 +1,16 @@
-import { Check, Download, Gamepad2, Loader2, Play, Square } from "lucide-react";
+import {
+  Check,
+  Download,
+  Gamepad2,
+  Loader2,
+  Play,
+  ShieldCheck,
+  Square,
+  Wifi,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type {
   GamePhase,
@@ -206,33 +216,26 @@ export default function MinecraftPanel({
       : null;
 
   return (
-    <div
-      data-line-glass
-      className="flex flex-col gap-4 rounded-[var(--radius-panel)] p-4"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span
-            data-line-icon
-            className="bg-fill flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-control)]"
-          >
-            <Gamepad2 className="size-4" aria-hidden="true" />
+    <ServerDock name={server.name}>
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1",
+            running && "text-primary",
+            status?.phase === "failed" && "text-destructive",
+          )}
+        >
+          <Wifi className="size-3" aria-hidden="true" />
+          <span role="status">
+            {status ? phaseHint(t, status.phase) : t("minecraft.checking")}
           </span>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-foreground text-sm font-semibold">
-              Minecraft
-            </span>
-            <span className="text-muted-foreground text-[12px]">
-              {status ? phaseHint(t, status.phase) : t("minecraft.checking")}
-              {server.minecraft_version && ` · ${server.minecraft_version}`}
-            </span>
-          </div>
-        </div>
-        {username && (
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-            {username}
+        </span>
+        {server.minecraft_version && (
+          <span className="font-mono text-[12px] opacity-80">
+            MC {server.minecraft_version}
           </span>
         )}
+        {username && <span className="font-mono text-[11px]">{username}</span>}
       </div>
 
       {/* One continuous progress line: stage label on the left, bytes on the
@@ -269,38 +272,24 @@ export default function MinecraftPanel({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {running ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={locked}
-            onClick={() => void stop()}
-            className="cursor-pointer gap-1.5 text-xs"
-          >
-            {busy === "stopping" ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Square className="size-3.5" aria-hidden="true" />
-            )}
-            {t("detail.stopGame")}
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            disabled={locked}
-            onClick={() => void play(false)}
-            className="cursor-pointer gap-1.5 text-xs"
-          >
-            {busy === "launching" ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Play className="size-3.5" aria-hidden="true" />
-            )}
-            {t("detail.play")}
-          </Button>
-        )}
+      <div className="flex items-center gap-2">
+        <ServerDockPrimary
+          disabled={locked}
+          active={running}
+          onClick={() => void (running ? stop() : play(false))}
+        >
+          {working || busy === "stopping" ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : running ? (
+            <Square className="size-4 fill-current" aria-hidden="true" />
+          ) : (
+            <Play className="size-4 fill-current" aria-hidden="true" />
+          )}
+          {running ? t("detail.stopGame") : t("detail.play")}
+        </ServerDockPrimary>
+      </div>
 
+      <div className="flex flex-wrap items-center gap-2">
         {!running && server.test_mode_enabled !== false && (
           <Button
             size="sm"
@@ -367,10 +356,11 @@ export default function MinecraftPanel({
         </p>
       )}
 
-      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] leading-relaxed">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-[12px] leading-relaxed">
+        <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
         {t("mc.onlineMode")}
       </p>
-    </div>
+    </ServerDock>
   );
 }
 

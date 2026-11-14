@@ -15,8 +15,8 @@
 //!
 //! - **No image decoding.** Reading pixels to decide whether a texture looks
 //!   like an xray overlay is an opinion, not a check: it fires on legitimate
-//!   shaders and misses a renamed overlay. Names and text inside the ZIP are
-//!   what a cheat pack cannot avoid.
+//!   shaders and misses a renamed overlay. The keyword check is a heuristic,
+//!   not proof that a resource pack is safe.
 //! - **No deleting.** A hit is reported. The caller stops the launch and asks
 //!   the player, because a false positive that deletes a pack is worse than one
 //!   that blocks a launch.
@@ -223,6 +223,13 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
             )
         })?;
         let entry_name = entry.name().to_owned();
+        // Directory names are also present in file paths. A language resource
+        // only contains translated labels, often for unrelated gameplay mods;
+        // a word there is not evidence of a cheat resource. Narrowly exclude
+        // only canonical language files, never models, metadata or pack names.
+        if entry.is_dir() || is_language_resource(&entry_name) {
+            continue;
+        }
         for word in words {
             if contains_word(&entry_name, word) {
                 findings.hits.push(Hit {
@@ -267,7 +274,34 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
     Ok(findings)
 }
 
-/// Which entries are worth reading: JSON models, blockstates, language files and
+/// Minecraft language files are assets/<namespace>/lang/<locale>.json or
+/// legacy .lang files. Do not accept traversal, nested paths or other file types.
+pub fn is_language_resource(entry: &str) -> bool {
+    let parts: Vec<&str> = entry.split('/').collect();
+    if parts.len() != 4 || parts[0] != "assets" || parts[2] != "lang" {
+        return false;
+    }
+    let namespace = parts[1];
+    let file = parts[3];
+    let Some(locale) = file
+        .strip_suffix(".json")
+        .or_else(|| file.strip_suffix(".lang"))
+    else {
+        return false;
+    };
+    !namespace.is_empty()
+        && namespace.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-' || b == b'.'
+        })
+        && namespace != "."
+        && namespace != ".."
+        && !locale.is_empty()
+        && locale
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// Which entries are worth reading: JSON models, blockstates, other text and
 /// pack metadata — the parts of a resource pack that are text. PNGs are skipped
 /// on purpose (see the module comment).
 pub fn reads_text(entry: &str) -> bool {
@@ -376,6 +410,57 @@ mod tests {
         std::os::unix::fs::symlink(external, packs.join("owned.zip")).unwrap();
         let found = foreign_packs(dir.path(), &["resourcepacks/owned.zip".into()]).unwrap();
         assert_eq!(found, vec!["resourcepacks/owned.zip"]);
+    }
+
+    #[test]
+    fn translations_do_not_trigger_but_other_pack_content_still_does() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pack.zip");
+        let mut zip = zip::ZipWriter::new(fs::File::create(&path).unwrap());
+        zip.add_directory("assets/nightvision/", SimpleFileOptions::default())
+            .unwrap();
+        zip.start_file(
+            "assets/nightvision/lang/zh_cn.json",
+            SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(br#"{"item.reach":"Hitbox and xray"}"#)
+            .unwrap();
+        zip.start_file(
+            "assets/physicsmod/lang/en_us.lang",
+            SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(b"hitbox=Reach").unwrap();
+        zip.finish().unwrap();
+        let words = vec![
+            "nightvision".into(),
+            "reach".into(),
+            "hitbox".into(),
+            "xray".into(),
+        ];
+        assert!(scan_pack("resourcepacks/language.zip", &path, &words)
+            .unwrap()
+            .is_clean());
+        assert!(!scan_pack("resourcepacks/xray.zip", &path, &words)
+            .unwrap()
+            .is_clean());
+        assert!(!is_language_resource("assets/../lang/en_us.json"));
+        assert!(!is_language_resource("assets/test/lang/nested/en_us.json"));
+        assert!(!is_language_resource("assets/test/lang/xray.png"));
+
+        let model = dir.path().join("model.zip");
+        let mut zip = zip::ZipWriter::new(fs::File::create(&model).unwrap());
+        zip.start_file(
+            "assets/test/models/block/xray.json",
+            SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(br#"{"model":"xray"}"#).unwrap();
+        zip.finish().unwrap();
+        assert!(!scan_pack("resourcepacks/model.zip", &model, &words)
+            .unwrap()
+            .is_clean());
     }
 
     #[test]

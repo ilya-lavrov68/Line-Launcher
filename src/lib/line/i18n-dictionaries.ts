@@ -429,6 +429,7 @@ export const ru = {
 
   "status.authExpired": "Сессия истекла. Войдите повторно.",
   "status.noSession": "Вы не вошли в аккаунт.",
+  "status.projectAccount": "Аккаунт проекта",
   "launch.runningLocked":
     "Игра запущена. Установка и откат заблокированы до выхода.",
   "launch.exited": "Игра завершилась.",
@@ -864,6 +865,7 @@ const en: Dictionary = {
 
   "status.authExpired": "Your session expired. Sign in again.",
   "status.noSession": "You are not signed in.",
+  "status.projectAccount": "Project account",
   "launch.runningLocked":
     "The game is running. Installing and rolling back are blocked until it closes.",
   "launch.exited": "The game closed.",
@@ -1302,6 +1304,7 @@ const de: Dictionary = {
 
   "status.authExpired": "Die Sitzung ist abgelaufen. Bitte erneut anmelden.",
   "status.noSession": "Du bist nicht angemeldet.",
+  "status.projectAccount": "Projektkonto",
   "launch.runningLocked":
     "Das Spiel läuft. Installieren und Zurücksetzen sind bis zum Beenden gesperrt.",
   "launch.exited": "Das Spiel wurde beendet.",
@@ -1738,6 +1741,7 @@ const fr: Dictionary = {
 
   "status.authExpired": "Votre session a expiré. Reconnectez-vous.",
   "status.noSession": "Vous n'êtes pas connecté.",
+  "status.projectAccount": "Compte du projet",
   "launch.runningLocked":
     "Le jeu tourne. L'installation et le retour en arrière sont bloqués jusqu'à la fermeture.",
   "launch.exited": "Le jeu s'est fermé.",

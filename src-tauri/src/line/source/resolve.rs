@@ -70,6 +70,20 @@ fn parent_of(url: &str) -> LineResult<String> {
     Ok(joined.as_str().to_owned())
 }
 
+/// A literal relative packwiz path cannot be a URL, a query or an encoded
+/// traversal. The same path is used for network lookup and the installed file.
+fn validate_packwiz_path(path: &str) -> LineResult<()> {
+    super::super::install::safe_entry_path(path)?;
+    if path.contains(['%', '?', '#'])
+        || path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err(LineError::input("Некорректный относительный путь packwiz."));
+    }
+    Ok(())
+}
+
 /// Fetches a packwiz pack: `pack.toml` → `index.toml` (hash-checked) → each
 /// listed `.pw.toml`.
 pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResult<ResolvedPack> {
@@ -99,17 +113,11 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
             pack.index.hash_format
         )));
     }
-    if pack.index.file.contains("..") || pack.index.file.starts_with('/') {
-        return Err(LineError::input(
-            "index.file не может выходить за папку сборки.",
-        ));
-    }
-    let index_url = super::super::config::validate_https(&format!(
-        "{base}{}",
-        pack.index.file.trim_start_matches("./")
-    ))?
-    .as_str()
-    .to_owned();
+    let index_path = pack.index.file.trim_start_matches("./");
+    validate_packwiz_path(index_path)?;
+    let index_url = super::super::config::validate_https(&format!("{base}{index_path}"))?
+        .as_str()
+        .to_owned();
     let index_bytes = fetch.get(&index_url, packwiz::MAX_INDEX_BYTES).await?;
     let actual = packwiz::digest(&pack.index.hash_format, &index_bytes);
     if !actual.eq_ignore_ascii_case(pack.index.hash.trim()) {
@@ -131,8 +139,8 @@ pub async fn resolve_packwiz(fetch: &dyn Fetch, pack_toml_url: &str) -> LineResu
     let mut ordinary = Vec::new();
     for entry in &index.files {
         let path = entry.file.trim_start_matches("./");
-        super::super::install::safe_entry_path(path)?;
-        if path.contains('\\') || super::super::integrity::is_reserved(path) {
+        validate_packwiz_path(path)?;
+        if super::super::integrity::is_reserved(&path.to_ascii_lowercase()) {
             return Err(LineError::input("Некорректный путь файла packwiz."));
         }
         let hash = entry
@@ -225,9 +233,16 @@ pub async fn resolve_modrinth(
         if entry.size() > modrinth::MAX_INDEX_BYTES as u64 {
             return Err(LineError::input("modrinth.index.json слишком велик."));
         }
-        let mut buffer = Vec::with_capacity(entry.size() as usize);
-        std::io::Read::read_to_end(&mut entry, &mut buffer)
-            .map_err(|_| LineError::input("Не удалось прочитать modrinth.index.json."))?;
+        let declared = entry.size();
+        let mut buffer = Vec::with_capacity(declared as usize);
+        std::io::Read::read_to_end(
+            &mut std::io::Read::take(&mut entry, modrinth::MAX_INDEX_BYTES as u64 + 1),
+            &mut buffer,
+        )
+        .map_err(|_| LineError::input("Не удалось прочитать modrinth.index.json."))?;
+        if buffer.len() as u64 != declared || buffer.len() > modrinth::MAX_INDEX_BYTES {
+            return Err(LineError::input("Некорректный размер modrinth.index.json."));
+        }
         buffer
     };
     let index = modrinth::parse_index(&index_bytes)?;
@@ -341,6 +356,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn packwiz_relative_paths_cannot_change_url_meaning() {
+        assert!(validate_packwiz_path("mods/example file.toml").is_ok());
+        for path in [
+            "../outside",
+            "mods/%2e%2e/outside",
+            "mods/a?x=1",
+            "mods/a#fragment",
+            "mods//a",
+            "mods/./a",
+        ] {
+            assert!(validate_packwiz_path(path).is_err(), "{path}");
+        }
+    }
+
     #[tokio::test]
     async fn packwiz_resolves_hash_checked_index_and_metadata() {
         let metadata = format!(
@@ -389,6 +419,61 @@ mod tests {
             .push(b' ');
         assert_eq!(
             resolve_packwiz(&fetch, "https://example.org/pack.toml")
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::Integrity
+        );
+    }
+
+    #[tokio::test]
+    async fn modrinth_resolves_pinned_archive_and_rejects_tampering() {
+        use sha2::{Digest, Sha512};
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        writer
+            .start_file("modrinth.index.json", SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(br#"{"formatVersion":1,"game":"minecraft","dependencies":{"minecraft":"1.20.1","neoforge":"20.1.0"},"files":[]}"#).unwrap();
+        writer
+            .start_file(
+                "client-overrides/config/example.txt",
+                SimpleFileOptions::default(),
+            )
+            .unwrap();
+        writer.write_all(b"client").unwrap();
+        let bytes = writer.finish().unwrap().into_inner();
+        let digest = format!("{:x}", Sha512::digest(&bytes));
+        let versions = serde_json::json!([{"id":"TQIsQXtg","version_type":"release","files":[{
+            "filename":"BattleArmory.mrpack","url":"https://example.org/pack.mrpack",
+            "hashes":{"sha512":digest},"primary":true
+        }]}]);
+        let mut fetch = FixtureFetch(std::collections::HashMap::from([
+            (
+                "https://api.modrinth.com/v2/project/rQiXwLhB/version".into(),
+                serde_json::to_vec(&versions).unwrap(),
+            ),
+            ("https://example.org/pack.mrpack".into(), bytes),
+        ]));
+        let resolved = resolve_modrinth(&fetch, "rQiXwLhB", Some("TQIsQXtg"))
+            .await
+            .unwrap();
+        assert_eq!(resolved.minecraft_version.as_deref(), Some("1.20.1"));
+        assert!(matches!(
+            resolved.loader.unwrap().0,
+            super::super::super::minecraft_core::LoaderChoice::NeoForge
+        ));
+        assert_eq!(resolved.files[0].path, "config/example.txt");
+        assert_eq!(
+            resolved.files[0].inline.as_ref().unwrap().as_slice(),
+            b"client"
+        );
+        fetch
+            .0
+            .get_mut("https://example.org/pack.mrpack")
+            .unwrap()
+            .push(0);
+        assert_eq!(
+            resolve_modrinth(&fetch, "rQiXwLhB", Some("TQIsQXtg"))
                 .await
                 .unwrap_err()
                 .code,

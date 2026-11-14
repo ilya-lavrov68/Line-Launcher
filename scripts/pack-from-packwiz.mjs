@@ -52,7 +52,7 @@ const HELP = `packwiz → pack.zip
   node scripts/pack-from-packwiz.mjs <pack.toml> [-o pack.zip] [--dry-run]
 
 <pack.toml> — HTTPS-ссылка (raw.githubusercontent.com/…) или путь к файлу.
---dry-run   показать файлы, ничего не скачивая и не записывая.
+--dry-run   скачать и проверить файлы, не записывая архив.
 
 Файлы сборки скачиваются и проверяются по хешу; pack.zip содержит mod/
 сборку в виде install/ (то, что распаковывает лаунчер) и pack.json.
@@ -90,30 +90,54 @@ export function createReader(source) {
       const absolute = /^https:\/\//i.test(name);
       if (absolute && !remote) {
         throw new Error(
-          `${name}: локальная сборка ссылается на файл по сети. Используйте --offline-map или запустите конвертацию по HTTPS-ссылке.`,
+          `${name}: локальная сборка ссылается на файл по сети. Используйте HTTPS-ссылку на pack.toml.`,
         );
       }
       const url = absolute
         ? name
-        : remote
-          ? new URL(name, root).href
-          : path.join(root, name);
+        : name === "pack.toml"
+          ? remote
+            ? source
+            : path.resolve(source)
+          : remote
+            ? new URL(name, root).href
+            : path.join(root, name);
       if (remote && !url.startsWith("https://")) {
         throw new Error(`Ссылка вне HTTPS: ${url}`);
       }
       let bytes;
       if (remote) {
-        const response = await fetch(url, { redirect: "follow" });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status} для ${url}`);
+        let next = new URL(url);
+        let response;
+        for (let redirects = 0; redirects < 6; redirects += 1) {
+          if (next.protocol !== "https:" || next.username || next.password) {
+            throw new Error(
+              "Разрешены только HTTPS-ссылки без учётных данных.",
+            );
+          }
+          response = await fetch(next, { redirect: "manual" });
+          if (![301, 302, 303, 307, 308].includes(response.status)) break;
+          const location = response.headers.get("location");
+          await response.body?.cancel();
+          if (!location || redirects === 5)
+            throw new Error("Некорректное перенаправление загрузки.");
+          next = new URL(location, next);
         }
+        if (!response.ok)
+          throw new Error(`HTTP ${response.status} при загрузке файла.`);
         const length = Number(response.headers.get("content-length") ?? 0);
-        if (length > limit)
-          throw new Error(`${url}: файл больше допустимого размера`);
-        const array = new Uint8Array(await response.arrayBuffer());
-        if (array.byteLength > limit)
-          throw new Error(`${url}: файл больше допустимого размера`);
-        bytes = Buffer.from(array);
+        if (length > limit) {
+          await response.body?.cancel();
+          throw new Error("Файл больше допустимого размера.");
+        }
+        const chunks = [];
+        let size = 0;
+        for await (const chunk of response.body ?? []) {
+          size += chunk.byteLength;
+          if (size > limit) throw new Error("Файл больше допустимого размера.");
+          chunks.push(Buffer.from(chunk));
+        }
+        bytes = Buffer.concat(chunks, size);
       } else {
         const stat = await import("node:fs/promises").then((fs) =>
           fs.stat(url),
@@ -196,6 +220,43 @@ export function entryFromMetafile(metaPath, meta) {
       declaredSize: 0,
     },
   };
+}
+
+/** Reject paths the Rust installer cannot extract safely on Windows or Unix. */
+export function validateOutputPaths(entries) {
+  const seen = new Set();
+  for (const entry of entries) {
+    const name = entry.name.replace(/^install\//, "");
+    const parts = name.split("/");
+    if (
+      name.length > 1024 ||
+      parts.length > 64 ||
+      parts.some(
+        (part) =>
+          !part ||
+          part === "." ||
+          part === ".." ||
+          /[\\:\x00-\x1f\x7f]/.test(part) ||
+          /[. ]$/.test(part) ||
+          Buffer.byteLength(part, "utf8") > 255 ||
+          /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part),
+      )
+    )
+      throw new Error(`Некорректный путь файла сборки: ${name}`);
+    const key = name.toLowerCase();
+    if ([".line-complete", ".line-files.json"].includes(key) || seen.has(key)) {
+      throw new Error(`Повторяющийся или зарезервированный путь: ${name}`);
+    }
+    seen.add(key);
+  }
+  for (const name of seen) {
+    let slash = name.indexOf("/");
+    while (slash !== -1) {
+      if (seen.has(name.slice(0, slash)))
+        throw new Error(`Пути файлов сборки конфликтуют: ${name}`);
+      slash = name.indexOf("/", slash + 1);
+    }
+  }
 }
 
 export function loaderFromVersions(versions = {}) {
@@ -397,7 +458,11 @@ export async function convert({
   if (!index.file || String(index.file).includes("..")) {
     throw new Error("index.file не может выходить за папку сборки.");
   }
-  const indexBytes = await reader.bytes(String(index.file));
+  const indexPath = String(index.file).replace(/^(\.\/)+/, "");
+  validateOutputPaths([{ name: `install/${indexPath}` }]);
+  if (/[%?#]/.test(indexPath))
+    throw new Error("Некорректный относительный путь packwiz.");
+  const indexBytes = await reader.bytes(indexPath, 8 * 1024 * 1024);
   const expectedKind = String(index["hash-format"]).toLowerCase();
   const actual = createHash(expectedKind).update(indexBytes).digest("hex");
   if (actual !== String(index.hash).toLowerCase()) {
@@ -408,6 +473,8 @@ export async function convert({
 
   const indexToml = parseToml(indexBytes.toString("utf8"));
   const listed = Array.isArray(indexToml.files) ? indexToml.files : [];
+  if (listed.length > 50_000)
+    throw new Error("Слишком много файлов в index.toml.");
   log(`pack "${pack.name}": ${listed.length} записей в ${index.file}`);
 
   /** @type {{name: string, data: Buffer}[]} */
@@ -437,7 +504,13 @@ export async function convert({
       )
     )
       throw new Error(`Некорректный хеш: ${metaPath}`);
-    const indexedBytes = await reader.bytes(metaPath);
+    validateOutputPaths([{ name: `install/${metaPath}` }]);
+    if (/[%?#]/.test(metaPath))
+      throw new Error("Некорректный относительный путь packwiz.");
+    const indexedBytes = await reader.bytes(
+      metaPath,
+      item.metafile ? MAX_MANIFEST : MAX_FILE,
+    );
     if (createHash(indexKind).update(indexedBytes).digest("hex") !== expected)
       throw new Error(`Хеш файла ${metaPath} не совпадает с index.toml.`);
     if (!item.metafile) {
@@ -465,6 +538,10 @@ export async function convert({
     log(`  + ${outcome.entry.path} (${bytes.length} Б)`);
     entries.push({ name: `install/${outcome.entry.path}`, data: bytes });
   }
+
+  validateOutputPaths(entries);
+  if (entries.length === 0 || entries.length > 50_000)
+    throw new Error("Список файлов сборки пуст или слишком велик.");
 
   // The provider archive layout: `install/` is what the launcher unpacks into
   // the game directory on a fresh install, and `pack.json` describes it.

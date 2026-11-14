@@ -1,6 +1,8 @@
 import { m } from "framer-motion";
-import { useRef, useState } from "react";
-import { GripVertical, RefreshCw, ShieldAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { RefreshCw, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LineServer } from "@/types/line";
 import { useT } from "@/lib/line/i18n";
@@ -61,16 +63,119 @@ export default function ServerList({
   onLayoutChange,
 }: ServerListProps) {
   const t = useT();
-  const dragServer = useRef<string | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const listRef = useRef<HTMLElement>(null);
+  const cleanupDrag = useRef<(() => void) | null>(null);
+  const suppressClick = useRef(false);
+  const [dragging, setDragging] = useState<{
+    server: LineServer;
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+  } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const canMove = Boolean(
-    layout && onLayoutChange && !refreshing && !actionsDisabled,
+    layout &&
+    onLayoutChange &&
+    layout.sections.length > 0 &&
+    !refreshing &&
+    !actionsDisabled,
   );
-  function finishDrag() {
-    dragServer.current = null;
-    setDragging(false);
-    setDropTarget(null);
+  const current = useRef({ canMove, layout, servers, onLayoutChange });
+  current.current = { canMove, layout, servers, onLayoutChange };
+  useEffect(() => () => cleanupDrag.current?.(), []);
+
+  function beginDrag(
+    event: ReactPointerEvent<HTMLDivElement>,
+    server: LineServer,
+  ) {
+    // Keep touch scrolling and keyboard activation intact; the section selector
+    // remains available for non-mouse input. A normal click still opens the card.
+    if (
+      !canMove ||
+      event.pointerType !== "mouse" ||
+      event.button !== 0 ||
+      !layout
+    )
+      return;
+    cleanupDrag.current?.();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    let active = false;
+    const targetAt = (x: number, y: number): string | null => {
+      const node = document
+        .elementFromPoint(x, y)
+        ?.closest<HTMLElement>("[data-section-id]");
+      return node && listRef.current?.contains(node)
+        ? (node.dataset.sectionId ?? null)
+        : null;
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", keydown);
+      window.removeEventListener("blur", blur);
+      cleanupDrag.current = null;
+    };
+    const move = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      if (!active && Math.hypot(e.clientX - startX, e.clientY - startY) < 6)
+        return;
+      active = true;
+      e.preventDefault();
+      setDragging({
+        server,
+        x: e.clientX,
+        y: e.clientY,
+        offsetX: startX - bounds.left,
+        offsetY: startY - bounds.top,
+        width: bounds.width,
+      });
+      setDropTarget(targetAt(e.clientX, e.clientY));
+    };
+    const cancel = (e?: PointerEvent) => {
+      if (e && e.pointerId !== pointerId) return;
+      if (active) {
+        suppressClick.current = true;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+      }
+      setDragging(null);
+      setDropTarget(null);
+      cleanup();
+    };
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      if (active && current.current.canMove && current.current.layout) {
+        const target = targetAt(e.clientX, e.clientY);
+        if (target !== null) {
+          const latest = current.current;
+          const next = moveServerToSection(
+            latest.layout!,
+            latest.servers,
+            server.id,
+            target,
+          );
+          if (next !== latest.layout) latest.onLayoutChange?.(next);
+        }
+      }
+      cancel(e);
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancel();
+    };
+    const blur = () => cancel();
+    cleanupDrag.current = cleanup;
+    window.addEventListener("blur", blur);
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", keydown);
   }
   // One call decides the shape; the component only renders it. `layout`
   // undefined means the flat catalogue, so grouping is opt-in by the caller.
@@ -86,6 +191,7 @@ export default function ServerList({
       : groups;
   return (
     <section
+      ref={listRef}
       aria-labelledby="server-list-title"
       className="flex flex-col gap-6"
     >
@@ -142,27 +248,8 @@ export default function ServerList({
         <div
           key={group.id || "unsorted"}
           data-section-drop={group.id || "unassigned"}
+          data-section-id={group.id}
           className={`flex flex-col rounded-lg ${dropTarget === group.id ? "bg-primary/10 ring-primary/60 ring-2" : ""}`}
-          onDragOver={(event) => {
-            if (!canMove || !dragServer.current) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            setDropTarget(group.id);
-          }}
-          onDragLeave={(event) => {
-            if (
-              !event.currentTarget.contains(event.relatedTarget as Node | null)
-            )
-              setDropTarget(null);
-          }}
-          onDrop={(event) => {
-            if (!canMove || !layout || !dragServer.current) return;
-            event.preventDefault();
-            const id = dragServer.current;
-            const next = moveServerToSection(layout, servers, id, group.id);
-            if (next !== layout) onLayoutChange?.(next);
-            finishDrag();
-          }}
         >
           {/* A single flat group with no name is the pre-sections catalogue;
               a heading saying "No section" over every server would be noise. */}
@@ -199,35 +286,20 @@ export default function ServerList({
               {group.servers.map((server, index) => (
                 <m.div
                   key={server.id}
+                  data-server-drag={server.id}
+                  onPointerDown={(event) => beginDrag(event, server)}
+                  onDragStart={(event) => event.preventDefault()}
+                  className={`${canMove ? "cursor-grab select-none active:cursor-grabbing" : ""} ${dragging?.server.id === server.id ? "opacity-30" : ""}`}
                   initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  animate={{
+                    opacity: dragging?.server.id === server.id ? 0.3 : 1,
+                    y: 0,
+                  }}
                   transition={{
                     duration: 0.2,
                     delay: Math.min(index * 0.035, 0.2),
                   }}
                 >
-                  {layout !== undefined && layout.sections.length > 0 && (
-                    <div
-                      draggable={canMove}
-                      title={t("sections.dragHandle", { name: server.name })}
-                      aria-hidden="true"
-                      data-server-drag={server.id}
-                      className="text-muted-foreground hover:text-foreground bg-fill-subtle flex h-7 w-full cursor-grab items-center justify-center rounded-t-md active:cursor-grabbing"
-                      onDragStart={(event) => {
-                        if (!canMove) {
-                          event.preventDefault();
-                          return;
-                        }
-                        dragServer.current = server.id;
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", server.id);
-                        setDragging(true);
-                      }}
-                      onDragEnd={finishDrag}
-                    >
-                      <GripVertical className="h-4 w-4" />
-                    </div>
-                  )}
                   <ServerCard
                     name={server.name}
                     description={server.description}
@@ -239,7 +311,9 @@ export default function ServerList({
                     statusLabel={statusFor?.(server)}
                     hasPack={Boolean(server.pack_manifest_url)}
                     disabled={refreshing || actionsDisabled}
-                    onClick={() => onSelect(server)}
+                    onClick={() => {
+                      if (!suppressClick.current) onSelect(server);
+                    }}
                   />
                 </m.div>
               ))}
@@ -247,6 +321,35 @@ export default function ServerList({
           )}
         </div>
       ))}
+
+      {dragging &&
+        createPortal(
+          <div
+            aria-hidden="true"
+            data-drag-preview
+            className="pointer-events-none fixed z-[9999] opacity-90 shadow-2xl"
+            style={{
+              left: dragging.x - dragging.offsetX,
+              top: dragging.y - dragging.offsetY,
+              width: dragging.width,
+            }}
+          >
+            <ServerCard
+              name={dragging.server.name}
+              description={dragging.server.description}
+              iconUrl={dragging.server.icon_url ?? dragging.server.logo_url}
+              bannerUrl={dragging.server.banner_url}
+              version={dragging.server.version}
+              minecraftVersion={dragging.server.minecraft_version}
+              installed={installedIds.has(dragging.server.id)}
+              statusLabel={statusFor?.(dragging.server)}
+              hasPack={Boolean(dragging.server.pack_manifest_url)}
+              disabled
+              onClick={() => {}}
+            />
+          </div>,
+          document.body,
+        )}
 
       {layout !== undefined && !refreshing && (
         <AddSectionButton

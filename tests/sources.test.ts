@@ -826,6 +826,9 @@ test("read-only Modrinth check verifies the selected archive and index", async (
   };
   const zip = writeZip([
     { name: "modrinth.index.json", data: Buffer.from(JSON.stringify(index)) },
+    { name: "overrides/config.txt", data: Buffer.from("abc") },
+    { name: "client-overrides/config.txt", data: Buffer.from("hello") },
+    { name: "server-overrides/ignored", data: Buffer.from("ignore") },
   ]);
   const versions = [
     {
@@ -855,6 +858,9 @@ test("read-only Modrinth check verifies the selected archive and index", async (
   assert.equal(report.files, 2);
   assert.equal(report.clientFiles, 1);
   assert.equal(report.missingSha512, 0);
+  assert.equal(report.overrideFiles, 2);
+  assert.equal(report.declaredOverrideBytes, 8);
+  assert.equal(report.exceedsLauncherOverrideLimit, false);
   const corrupt = Buffer.concat([zip, Buffer.from("tampered")]);
   const badFetch = async (input: string | URL | Request) =>
     new Response(
@@ -909,4 +915,56 @@ test("Modrinth diagnostic identifies which bounded response is too large", async
     inspectModrinth("project", "version", oversizedArchive as typeof fetch),
     /Архив .mrpack: Content-Length 67108865 байт; лимит 67108864/,
   );
+});
+
+test("Modrinth diagnostic applies longer archive timeout and reports the stage", async () => {
+  const originalTimeout = AbortSignal.timeout;
+  const timeouts: number[] = [];
+  AbortSignal.timeout = (ms: number) => {
+    timeouts.push(ms);
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 20);
+    return controller.signal;
+  };
+  try {
+    const versions = [
+      {
+        id: "version",
+        files: [
+          {
+            filename: "test.mrpack",
+            url: "https://cdn.example.test/test",
+            hashes: { sha512: "a".repeat(128) },
+          },
+        ],
+      },
+    ];
+    const fetcher = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      if (String(input).includes("api.modrinth.com"))
+        return new Response(JSON.stringify(versions));
+      const signal = init?.signal;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1, 2, 3]));
+            signal?.addEventListener(
+              "abort",
+              () => controller.error(signal.reason),
+              { once: true },
+            );
+          },
+        }),
+      );
+    };
+    await assert.rejects(
+      inspectModrinth("project", "version", fetcher as typeof fetch),
+      /Архив .mrpack: истекло время ожидания \(900 секунд\), получено 3 байт/,
+    );
+    assert.deepEqual(timeouts, [60_000, 900_000]);
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
 });

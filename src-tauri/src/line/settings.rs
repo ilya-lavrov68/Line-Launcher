@@ -125,6 +125,8 @@ pub struct LauncherSettings {
     /// a layout that does not fit is discarded, never a reason to fail startup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_layout: Option<ServerLayout>,
+    /// Pack download cap in KiB/s; zero means unlimited.
+    pub download_limit_kib: u32,
     pub window_width: u32,
     pub window_height: u32,
     pub window_maximized: bool,
@@ -140,6 +142,7 @@ impl Default for LauncherSettings {
             backdrop: None,
             language: None,
             server_layout: None,
+            download_limit_kib: 0,
             window_width: 1100,
             window_height: 720,
             window_maximized: false,
@@ -151,6 +154,9 @@ impl LauncherSettings {
     /// Reject out-of-range values instead of silently clamping, so the UI and
     /// the stored document can never disagree about what was saved.
     pub fn validate(&self, total_memory_bytes: u64) -> LineResult<()> {
+        if self.download_limit_kib > 1_048_576 {
+            return Err(LineError::input("Недопустимый лимит загрузки."));
+        }
         if let Some(heap) = self.heap_mb {
             validate_heap(heap, total_memory_bytes)?;
         }
@@ -207,6 +213,11 @@ pub fn save(
     atomic_write(&settings_path(app)?, &bytes)
 }
 
+pub fn init_download_limit(app: &AppHandle) {
+    let settings = load(app, total_memory());
+    super::download_limit::set_limit_kib(settings.download_limit_kib);
+}
+
 fn total_memory() -> u64 {
     let mut system = sysinfo::System::new();
     system.refresh_memory();
@@ -234,7 +245,9 @@ fn snapshot(settings: LauncherSettings, total: u64) -> SettingsSnapshot {
 #[tauri::command]
 pub async fn get_settings(app: AppHandle) -> LineResult<SettingsSnapshot> {
     let total = total_memory();
-    Ok(snapshot(load(&app, total), total))
+    let settings = load(&app, total);
+    super::download_limit::set_limit_kib(settings.download_limit_kib);
+    Ok(snapshot(settings, total))
 }
 
 #[tauri::command]
@@ -250,6 +263,7 @@ pub async fn save_settings(
         settings.java_path = Some(runtime.path.to_string_lossy().into_owned());
     }
     save(&app, &settings, total)?;
+    super::download_limit::set_limit_kib(settings.download_limit_kib);
     Ok(snapshot(settings, total))
 }
 

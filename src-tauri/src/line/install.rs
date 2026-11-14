@@ -468,6 +468,7 @@ async fn download_part(
         let Some(chunk) = chunk else {
             break;
         };
+        super::download_limit::acquire(chunk.len(), cancel).await?;
         received = received.checked_add(chunk.len() as u64).ok_or_else(|| {
             LineError::new(ErrorCode::Integrity, "Некорректный размер загрузки.", false)
         })?;

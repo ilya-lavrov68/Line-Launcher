@@ -397,6 +397,10 @@ await page.addInitScript(
               unpackedBytes: 2_097_152,
             });
           emit("downloading", 10);
+          if (window.__holdInstall)
+            await new Promise((resolve) => {
+              window.__releaseInstall = resolve;
+            });
           await new Promise((r) => setTimeout(r, 120));
           emit("downloading", 70);
           await new Promise((r) => setTimeout(r, 120));
@@ -629,10 +633,10 @@ try {
         };
       }),
     );
-  // Seven sections: language, memory, backdrop, Java, window behaviour,
+  // Eight sections: language, download limit, memory, backdrop, Java, window behaviour,
   // configuration cache and support. Language is first, above memory.
   check(
-    sectionIcons.length === 7 &&
+    sectionIcons.length === 8 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&
@@ -882,7 +886,34 @@ try {
     .getByRole("region", { name: "Survival" })
     .getByRole("button", { name: "Установить сборку" })
     .waitFor();
+  await page.evaluate(() => {
+    window.__holdInstall = true;
+  });
   await page.getByRole("button", { name: "Установить сборку" }).click();
+  await page.getByRole("button", { name: "Все серверы", exact: true }).click();
+  const downloadWidget = page.getByTestId("download-widget");
+  await downloadWidget.waitFor();
+  check(
+    (await downloadWidget
+      .getByRole("progressbar")
+      .getAttribute("aria-valuenow")) === "10",
+    "background progress was lost",
+  );
+  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await page.getByLabel("Скорость загрузки сборок").click();
+  await page.getByRole("option", { name: "1 MiB/s", exact: true }).click();
+  await page.waitForFunction(() =>
+    window.__calls.some(
+      ([cmd, args]) =>
+        cmd === "save_settings" && args.settings.downloadLimitKib === 1024,
+    ),
+  );
+  await downloadWidget.getByRole("button", { name: "Открыть" }).click();
+  await page.getByRole("region", { name: "Survival" }).waitFor();
+  await page.getByRole("button", { name: "Все серверы", exact: true }).click();
+  await page.evaluate(() => window.__releaseInstall());
+  await downloadWidget.getByText("Подготовка завершена").waitFor();
+  await downloadWidget.getByRole("button", { name: "Открыть" }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("installed");
 

@@ -4,6 +4,8 @@ pub mod config_commands;
 #[cfg(feature = "dev-provider-ca")]
 pub mod dev_ca;
 pub mod diagnostics;
+pub mod download_bucket;
+pub mod download_limit;
 pub mod error;
 pub mod http;
 pub mod install;

@@ -242,6 +242,7 @@ async fn fetch_one(
             })?
             .map_err(|e| LineError::network(&e))?;
         let Some(chunk) = chunk else { break };
+        super::super::download_limit::acquire(chunk.len(), cancel).await?;
         received = received.saturating_add(chunk.len() as u64);
         if budget
             .fetch_add(chunk.len() as u64, Ordering::Relaxed)

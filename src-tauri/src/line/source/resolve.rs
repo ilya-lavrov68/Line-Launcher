@@ -154,6 +154,7 @@ impl Fetch for HttpFetch {
                     }
                 }).await.map_err(|_| LineError::new(ErrorCode::Network, "Загрузка .mrpack остановилась: истёк таймаут ожидания данных.", true))??;
                 let Some(chunk) = chunk else { break };
+                super::super::download_limit::acquire(chunk.len(), &self.cancel).await?;
                 received = received
                     .checked_add(chunk.len() as u64)
                     .ok_or_else(|| LineError::input("Некорректный размер архива."))?;

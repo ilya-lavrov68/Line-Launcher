@@ -109,6 +109,7 @@ export default function LineLauncher() {
   const [installing, setInstalling] = useState(false);
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [minecraftBusy, setMinecraftBusy] = useState(false);
   const [launchError, setLaunchError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
@@ -129,7 +130,8 @@ export default function LineLauncher() {
         : t("servers.railMissing");
   const gameActive =
     gameStatus?.phase === "starting" || gameStatus?.phase === "running";
-  const actionsBusy = installing || authLoading || launching || gameActive;
+  const actionsBusy =
+    installing || authLoading || launching || gameActive || minecraftBusy;
 
   const loadConfig = useCallback(async (url: string, force = false) => {
     const generation = ++requestGeneration.current;
@@ -267,14 +269,23 @@ export default function LineLauncher() {
       const current = await lineApi.session().catch(() => null);
       if (!mounted.current) return;
       setSession(current);
-      setReceipt(null);
-      detailGeneration.current += 1;
       if (!current) {
+        detailGeneration.current += 1;
+        setReceipt(null);
         setScreen("account");
         setSelected(null);
-      } else if (screen === "detail") {
-        setScreen("servers");
-        setSelected(null);
+      } else if (screen === "detail" && selected) {
+        const updated = next.config.servers.find(
+          (server) => server.id === selected.id,
+        );
+        if (updated) {
+          setSelected(updated);
+        } else {
+          detailGeneration.current += 1;
+          setReceipt(null);
+          setScreen("servers");
+          setSelected(null);
+        }
       }
     } catch (cause) {
       if (mounted.current) setError(errorMessage(cause));
@@ -679,6 +690,7 @@ export default function LineLauncher() {
             : (snapshot?.config.provider.name ?? t("window.connecting"));
 
   function navigate(next: LineSection) {
+    if (minecraftBusy) return;
     setSection(next);
     setError(undefined);
   }
@@ -786,12 +798,15 @@ export default function LineLauncher() {
    * same dead end the cached-startup bug produced, through a different door.
    *
    * The one state that legitimately has no session *and* no sign-in page is a
-   * build with no provider at all: there is nothing to authenticate against, so
-   * the gate would be a password box that cannot work. `mode === "unconfigured"`
-   * is that state, and it is reachable only on a release with an empty
-   * branding/provider.json — never with a baked address.
+   * build with no provider at all: there is nothing to authenticate against.
+   * A dev-url build must also expose its configuration form until a provider
+   * exists; otherwise an inert form sits behind a sign-in page that cannot work.
    */
-  const signedOut = introDone && !session && mode !== "unconfigured";
+  const signedOut =
+    introDone &&
+    !session &&
+    mode !== "unconfigured" &&
+    !(mode === "dev-url" && !snapshot);
   /** The shell is not the player's until they are in. */
   const shellLocked = signedOut || !introDone;
 
@@ -882,7 +897,8 @@ export default function LineLauncher() {
                   section={section}
                   collapsed={settings?.settings.sidebarCollapsed ?? true}
                   providerName={snapshot?.config.provider.name}
-                  actionsDisabled={actionsBusy || loading}
+                  actionsDisabled={actionsBusy || loading || !session}
+                  navigationDisabled={minecraftBusy || !session}
                   onNavigate={navigate}
                   onToggleCollapsed={() => void toggleSidebar()}
                   onChangeProvider={reconnect}
@@ -1128,6 +1144,7 @@ export default function LineLauncher() {
                               onRollback={(target) => void rollback(target)}
                               username={session?.username}
                               onRefreshConfig={refreshConfigForMinecraft}
+                              onMinecraftBusyChange={setMinecraftBusy}
                               onAuthRequired={requireAuth}
                               historyOpen={historyOpen}
                               history={history}

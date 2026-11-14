@@ -48,6 +48,7 @@ export interface MinecraftPanelProps {
   disabled?: boolean;
   onAuthRequired?: () => void;
   onRefreshConfig?: () => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 type Busy = "idle" | "installing" | "launching" | "stopping";
@@ -70,6 +71,7 @@ export default function MinecraftPanel({
   disabled = false,
   onAuthRequired,
   onRefreshConfig,
+  onBusyChange,
 }: MinecraftPanelProps) {
   const t = useT();
   const instanceId = server.id;
@@ -80,13 +82,21 @@ export default function MinecraftPanel({
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const mounted = useRef(true);
+  const operationActive = useRef(false);
+
+  function updateBusy(next: Busy) {
+    operationActive.current = next !== "idle";
+    onBusyChange?.(operationActive.current);
+    setBusy(next);
+  }
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      onBusyChange?.(false);
     };
-  }, []);
+  }, [onBusyChange]);
 
   const refreshProfiles = useCallback(async () => {
     try {
@@ -125,7 +135,6 @@ export default function MinecraftPanel({
         if (cancelled || !mounted.current) return;
         setStatus(next);
         if (next.phase === "running" || next.phase === "starting") {
-          setBusy("idle");
           setProgress(null);
         }
         if (next.phase === "exited") setProgress(null);
@@ -153,7 +162,8 @@ export default function MinecraftPanel({
   const locked = disabled || working || busy === "stopping";
 
   async function play(testMode = false) {
-    setBusy("launching");
+    if (locked || operationActive.current) return;
+    updateBusy("launching");
     setProgress({
       instanceId,
       stage: "resolve",
@@ -177,7 +187,7 @@ export default function MinecraftPanel({
       setError(errorMessage(cause));
     } finally {
       if (mounted.current) {
-        setBusy("idle");
+        updateBusy("idle");
         setProgress(null);
       }
     }
@@ -185,7 +195,8 @@ export default function MinecraftPanel({
 
   /** Download and verify without launching: the same path minus the last step. */
   async function prepare() {
-    setBusy("installing");
+    if (locked || operationActive.current) return;
+    updateBusy("installing");
     setProgress({
       instanceId,
       stage: "resolve",
@@ -210,14 +221,15 @@ export default function MinecraftPanel({
       setError(errorMessage(cause));
     } finally {
       if (mounted.current) {
-        setBusy("idle");
+        updateBusy("idle");
         setProgress(null);
       }
     }
   }
 
   async function stop() {
-    setBusy("stopping");
+    if (locked || operationActive.current) return;
+    updateBusy("stopping");
     setError(undefined);
     try {
       await lineApi.mcStop(instanceId);
@@ -225,7 +237,7 @@ export default function MinecraftPanel({
     } catch (cause) {
       if (mounted.current) setError(errorMessage(cause));
     } finally {
-      if (mounted.current) setBusy("idle");
+      if (mounted.current) updateBusy("idle");
     }
   }
 
@@ -271,7 +283,11 @@ export default function MinecraftPanel({
         >
           <Wifi className="size-3" aria-hidden="true" />
           <span role="status">
-            {status ? phaseHint(t, status.phase) : t("minecraft.checking")}
+            {working
+              ? t("mc.busyPreparing")
+              : status
+                ? phaseHint(t, status.phase)
+                : t("minecraft.checking")}
           </span>
         </span>
         {server.minecraft_version && (
@@ -280,6 +296,56 @@ export default function MinecraftPanel({
           </span>
         )}
         {username && <span className="font-mono text-[11px]">{username}</span>}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <ServerDockPrimary
+          disabled={locked}
+          active={running}
+          onClick={() => void (running ? stop() : play(false))}
+        >
+          {working || busy === "stopping" ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : running ? (
+            <Square className="size-4 fill-current" aria-hidden="true" />
+          ) : (
+            <Play className="size-4 fill-current" aria-hidden="true" />
+          )}
+          {running ? t("detail.stopGame") : t("detail.play")}
+        </ServerDockPrimary>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {!running && server.test_mode_enabled !== false && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={locked}
+            onClick={() => void play(true)}
+            className="cursor-pointer gap-1.5 text-xs"
+          >
+            <Gamepad2 className="size-3.5" aria-hidden="true" />
+            {t("mc.testMode")}
+          </Button>
+        )}
+
+        {/* The secondary path is only useful while nothing is running. */}
+        {!running && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={locked}
+            onClick={() => void prepare()}
+            className="text-muted-foreground hover:text-foreground cursor-pointer gap-1.5 text-xs"
+          >
+            {busy === "installing" ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Download className="size-3.5" aria-hidden="true" />
+            )}
+            {t("mc.prepare")}
+          </Button>
+        )}
       </div>
 
       {/* One continuous progress line: stage label on the left, bytes on the
@@ -335,56 +401,6 @@ export default function MinecraftPanel({
           </div>
         </div>
       )}
-
-      <div className="flex items-center gap-2">
-        <ServerDockPrimary
-          disabled={locked}
-          active={running}
-          onClick={() => void (running ? stop() : play(false))}
-        >
-          {working || busy === "stopping" ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-          ) : running ? (
-            <Square className="size-4 fill-current" aria-hidden="true" />
-          ) : (
-            <Play className="size-4 fill-current" aria-hidden="true" />
-          )}
-          {running ? t("detail.stopGame") : t("detail.play")}
-        </ServerDockPrimary>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {!running && server.test_mode_enabled !== false && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={locked}
-            onClick={() => void play(true)}
-            className="cursor-pointer gap-1.5 text-xs"
-          >
-            <Gamepad2 className="size-3.5" aria-hidden="true" />
-            {t("mc.testMode")}
-          </Button>
-        )}
-
-        {/* The secondary path is only useful while nothing is running. */}
-        {!running && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={locked}
-            onClick={() => void prepare()}
-            className="text-muted-foreground hover:text-foreground cursor-pointer gap-1.5 text-xs"
-          >
-            {busy === "installing" ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Download className="size-3.5" aria-hidden="true" />
-            )}
-            {t("mc.prepare")}
-          </Button>
-        )}
-      </div>
 
       {server.test_mode_enabled !== false && !running && (
         <p className="text-muted-foreground text-[11px] leading-relaxed">

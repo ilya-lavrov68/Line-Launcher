@@ -156,6 +156,7 @@ export const ru = {
   "minecraft.installing": "Загрузка Minecraft",
   "mc.refreshFailed":
     "Не удалось обновить конфигурацию провайдера. Проверьте подключение и повторите.",
+  "mc.busyPreparing": "Подготовка сборки…",
   "mc.stageResolve": "Проверка источника сборки",
   "mc.stageLibraries": "Подготовка библиотек Minecraft",
   "mc.stageAssets": "Загрузка ресурсов Minecraft",
@@ -580,6 +581,7 @@ const en: Dictionary = {
   "minecraft.installing": "Downloading Minecraft",
   "mc.refreshFailed":
     "Could not refresh the provider configuration. Check your connection and retry.",
+  "mc.busyPreparing": "Preparing the pack…",
   "mc.stageResolve": "Checking the pack source",
   "mc.stageLibraries": "Preparing Minecraft libraries",
   "mc.stageAssets": "Downloading Minecraft assets",
@@ -1002,6 +1004,7 @@ const de: Dictionary = {
   "minecraft.installing": "Minecraft wird geladen",
   "mc.refreshFailed":
     "Die Anbieter-Konfiguration konnte nicht aktualisiert werden. Verbindung prüfen und erneut versuchen.",
+  "mc.busyPreparing": "Paket wird vorbereitet…",
   "mc.stageResolve": "Paketquelle wird geprüft",
   "mc.stageLibraries": "Minecraft-Bibliotheken werden vorbereitet",
   "mc.stageAssets": "Minecraft-Ressourcen werden geladen",
@@ -1428,6 +1431,7 @@ const fr: Dictionary = {
   "minecraft.installing": "Téléchargement de Minecraft",
   "mc.refreshFailed":
     "Impossible d'actualiser la configuration du fournisseur. Vérifiez la connexion et réessayez.",
+  "mc.busyPreparing": "Préparation du pack…",
   "mc.stageResolve": "Vérification de la source du pack",
   "mc.stageLibraries": "Préparation des bibliothèques Minecraft",
   "mc.stageAssets": "Téléchargement des ressources Minecraft",

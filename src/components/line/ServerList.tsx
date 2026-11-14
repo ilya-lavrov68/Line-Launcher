@@ -18,6 +18,7 @@ import {
   type ServerLayout,
 } from "@/lib/line/server-layout";
 import ServerCard from "./ServerCard";
+import StableActionLabel from "./StableActionLabel";
 import SectionHeader, { AddSectionButton } from "./SectionHeader";
 
 export interface ServerListProps {
@@ -216,9 +217,11 @@ export default function ServerList({
             className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
             aria-hidden="true"
           />
-          <span>
-            {refreshing ? t("servers.refreshing") : t("servers.refresh")}
-          </span>
+          <StableActionLabel
+            busy={refreshing}
+            idle={t("servers.refresh")}
+            active={t("servers.refreshing")}
+          />
         </Button>
       </div>
 
@@ -351,10 +354,10 @@ export default function ServerList({
           document.body,
         )}
 
-      {layout !== undefined && !refreshing && (
+      {layout !== undefined && (
         <AddSectionButton
           layout={layout}
-          disabled={actionsDisabled}
+          disabled={actionsDisabled || refreshing}
           onAdd={(name) =>
             onLayoutChange?.({
               sections: [

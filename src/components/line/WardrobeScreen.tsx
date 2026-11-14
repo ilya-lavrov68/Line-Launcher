@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import SkinPreview from "@/components/line/SkinPreview";
 import SectionIcon from "@/components/line/SectionIcon";
+import StableActionLabel from "@/components/line/StableActionLabel";
 import SkinThumb from "@/components/line/SkinThumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -498,7 +499,11 @@ export default function WardrobeScreen({
                 className="cursor-pointer items-center gap-1.5 text-xs"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                {busy ? t("wardrobe.saving") : t("wardrobe.toHistory")}
+                <StableActionLabel
+                  busy={busy}
+                  idle={t("wardrobe.toHistory")}
+                  active={t("wardrobe.saving")}
+                />
               </Button>
             </div>
           )}

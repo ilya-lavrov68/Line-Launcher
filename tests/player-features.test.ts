@@ -602,22 +602,22 @@ test("one account per project unlocks every server", () => {
  * next to it. The account entry answered "You are not signed in." and offered
  * nothing to do about it.
  *
- * The rule is now the session, not the screen. The one exemption is a build
- * with no provider at all, which has nothing to authenticate against.
+ * The rule is now the session, not the screen. The exemptions are an unconfigured release and a dev template before its first
+ * provider is connected: neither has anything to authenticate against.
  */
 test("a signed-out launcher locks the shell on every screen", () => {
   const shell = read("src/components/line/LineLauncher.tsx");
 
   assert.match(
     shell,
-    /const signedOut = introDone && !session && mode !== "unconfigured"/,
+    /const signedOut =\s*introDone &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
     "the lock must be derived from the session",
   );
   // The page is raised by the session, not by the screen name; see the test
   // below for the door that the screen-shaped rule left open.
   assert.match(
     shell,
-    /const signedOut = introDone && !session && mode !== "unconfigured"/,
+    /const signedOut =\s*introDone &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
     "the sign-in page is raised by the absence of a session",
   );
   // The page itself: shown whenever the player is signed out, with the shell
@@ -663,7 +663,7 @@ test("a build with no provider keeps its own screen instead of a sign-in box", (
   // would show a password field that can never succeed.
   assert.match(
     shell,
-    /const signedOut = introDone && !session && mode !== "unconfigured"/,
+    /const signedOut =\s*introDone &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
   );
   assert.match(shell, /mode === "unconfigured" \? \(/);
 });

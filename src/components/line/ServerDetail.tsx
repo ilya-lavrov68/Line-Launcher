@@ -26,6 +26,7 @@ import ServerActionPanel, {
   type ServerAvailability,
 } from "./ServerActionPanel";
 import MinecraftPanel from "./MinecraftPanel";
+import StableActionLabel from "./StableActionLabel";
 
 export interface ServerDetailProps {
   server: LineServer;
@@ -51,6 +52,7 @@ export interface ServerDetailProps {
   /** The shell sent the player back to the single sign-in screen. */
   onAuthRequired?: () => void;
   onRefreshConfig?: () => Promise<void>;
+  onMinecraftBusyChange?: (busy: boolean) => void;
   onBack: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -134,13 +136,8 @@ export default function ServerDetail(props: ServerDetailProps) {
   const isMinecraft = server.launch_mode === "minecraft";
 
   return (
-    // The page is a column with the dock pinned to its bottom edge: the one
-    // action a player came for is always reachable without scrolling, and the
-    // empty space above it reads as room, not as a missing layout.
-    // `flex-1` rather than `min-h-full`: a percentage height resolves against
-    // the parent's *definite* height, and the shell above is a flex child, so
-    // `min-h-full` silently collapsed to the content height and the dock never
-    // reached the bottom edge.
+    // Keep controls in normal document flow: dynamic progress below them must
+    // not pull the entire dock upward as its height changes.
     <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
       <Button
         variant="ghost"
@@ -254,9 +251,7 @@ export default function ServerDetail(props: ServerDetailProps) {
 
       <m.div
         key={server.id}
-        // `mt-auto` is what makes the dock sit on the bottom edge instead of
-        // floating in the middle of the page when the content is short.
-        className="mt-auto"
+        className="w-full"
         initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
@@ -272,6 +267,7 @@ export default function ServerDetail(props: ServerDetailProps) {
             disabled={actionsBusy}
             onAuthRequired={props.onAuthRequired}
             onRefreshConfig={props.onRefreshConfig}
+            onBusyChange={props.onMinecraftBusyChange}
           />
         ) : (
           <ServerActionPanel
@@ -419,7 +415,11 @@ export function PackCheckPanel({
               aria-hidden="true"
             />
           )}
-          {state === "running" ? t("packs.checking") : t("packs.check")}
+          <StableActionLabel
+            busy={state === "running"}
+            idle={t("packs.check")}
+            active={t("packs.checking")}
+          />
         </Button>
         {result && !suspicious && (
           <span

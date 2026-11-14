@@ -47,14 +47,8 @@ export function ServerDockPrimary({
   active?: boolean;
   onClick: () => void;
 }) {
-  const reducedMotion = useReducedMotion();
   return (
-    <m.div
-      className="min-w-0 flex-1"
-      whileHover={reducedMotion || disabled ? undefined : { scale: 1.004 }}
-      whileTap={reducedMotion || disabled ? undefined : { scale: 0.994 }}
-      transition={{ type: "spring", stiffness: 320, damping: 22 }}
-    >
+    <div className="min-w-0 flex-1">
       <Button
         size="lg"
         disabled={disabled}
@@ -69,6 +63,6 @@ export function ServerDockPrimary({
       >
         {children}
       </Button>
-    </m.div>
+    </div>
   );
 }

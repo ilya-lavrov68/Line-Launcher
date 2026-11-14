@@ -31,6 +31,7 @@ export interface SideNavProps {
   onChangeProvider: () => void;
   onAbout: () => void;
   actionsDisabled?: boolean;
+  navigationDisabled?: boolean;
 }
 
 interface NavItem {
@@ -61,6 +62,7 @@ export default function SideNav({
   onChangeProvider,
   onAbout,
   actionsDisabled = false,
+  navigationDisabled = false,
 }: SideNavProps) {
   const reducedMotion = useReducedMotion();
   const t = useT();
@@ -108,11 +110,13 @@ export default function SideNav({
           const button = (
             <Button
               variant="ghost"
-              disabled={item.disabled}
+              disabled={item.disabled || navigationDisabled}
               // Keep it focusable and hoverable so the reason is reachable by
               // keyboard and pointer; the shared Button otherwise applies
               // pointer-events-none and the hint can never be read.
-              focusableWhenDisabled={item.disabled ? true : undefined}
+              focusableWhenDisabled={
+                item.disabled && !navigationDisabled ? true : undefined
+              }
               aria-current={active ? "page" : undefined}
               aria-label={item.label}
               title={collapsed && !item.hint ? item.label : undefined}
@@ -123,7 +127,7 @@ export default function SideNav({
                 // focusableWhenDisabled drops the native :disabled styling, so
                 // the muted look is restored explicitly. It stays hoverable so
                 // the tooltip explaining the reason can still be read.
-                item.disabled
+                item.disabled || navigationDisabled
                   ? "cursor-not-allowed opacity-50 hover:bg-transparent"
                   : "cursor-pointer",
                 active
@@ -187,6 +191,7 @@ export default function SideNav({
         <Button
           variant="ghost"
           onClick={onToggleCollapsed}
+          disabled={navigationDisabled}
           aria-expanded={!collapsed}
           aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
           title={collapsed ? t("nav.expand") : t("nav.collapse")}

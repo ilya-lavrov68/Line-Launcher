@@ -14,3 +14,6 @@ src-tauri/Cargo.lock
 src/brand/generated.ts
 src/brand/generated.css
 src/brand/provider.generated.ts
+
+# Vendored upstream shadcn CSS (v4.13.0), kept byte-for-byte.
+src/vendor/shadcn/tailwind.css

@@ -563,11 +563,14 @@ try {
     const main = document.querySelector("main");
     const cs = getComputedStyle(main);
     const thumb = getComputedStyle(main, "::-webkit-scrollbar-thumb");
+    const gutter = getComputedStyle(main, "::-webkit-scrollbar");
     return {
       standard: cs.scrollbarWidth,
       radius: thumb.borderTopLeftRadius,
       clip: thumb.backgroundClip,
       colour: thumb.backgroundColor,
+      border: thumb.borderLeftWidth,
+      gutterWidth: gutter.width,
     };
   });
   check(
@@ -583,6 +586,10 @@ try {
     "the thumb needs background-clip:content-box for its inset",
   );
 
+  check(
+    scrollbar.gutterWidth === "12px" && scrollbar.border === "4px",
+    "scrollbar lost its thin pill and usable gutter",
+  );
   // Custom title bar: the caption buttons must actually reach the window plugin.
   // The labels come from the catalogue now, so they are the short window verbs
   // rather than the old "…окно" phase.

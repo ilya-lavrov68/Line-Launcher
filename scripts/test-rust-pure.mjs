@@ -199,6 +199,7 @@ const items = [
   attributed("storage.rs", "impl InstallLock {"),
   attributed("storage.rs", "impl Drop for InstallLock {"),
   attributed("storage.rs", "pub fn remove_dir_if_present("),
+  attributed("storage.rs", "fn is_plain("),
   attributed("storage.rs", "pub fn is_real_dir("),
   attributed("storage.rs", "pub fn is_real_file("),
   attributed("config.rs", "pub const MAX_UNPACKED_BYTES:"),

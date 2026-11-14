@@ -357,6 +357,40 @@ fn read_state(path: &Path) -> PackState {
         .unwrap_or_default()
 }
 
+/// Validate every live parent before copying or reading. Never follow a link or
+/// a special object planted inside the writable game directory.
+pub fn checked_game_path(game: &Path, relative: &str, create_parents: bool) -> LineResult<PathBuf> {
+    let safe = super::install::safe_entry_path(relative)?;
+    if !is_real_dir(game) {
+        return Err(LineError::new(
+            ErrorCode::Integrity,
+            "Папка игры не является обычным каталогом.",
+            false,
+        ));
+    }
+    let mut parent = game.to_path_buf();
+    if let Some(parts) = safe.parent() {
+        for component in parts.components() {
+            parent.push(component.as_os_str());
+            match fs::symlink_metadata(&parent) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound && create_parents => {
+                    fs::create_dir(&parent).map_err(|e| LineError::io(&e))?;
+                }
+                Err(error) => return Err(LineError::io(&error)),
+                Ok(_) => {}
+            }
+            if !is_real_dir(&parent) {
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    format!("Каталог игры не является обычной папкой: {relative}."),
+                    false,
+                ));
+            }
+        }
+    }
+    Ok(game.join(safe))
+}
+
 /// Copies the pack into the live game directory. Returns `false` when the same
 /// revision is already there — the cheap path that also protects the player's
 /// own edits. `true` means files were copied for a new revision.
@@ -375,11 +409,27 @@ pub fn sync_game_dir(
     if !integrity::valid_sha256(sha256) {
         return Err(LineError::input("Некорректный отпечаток сборки."));
     }
+    if fs::symlink_metadata(&game).is_ok() && !is_real_dir(&game) {
+        return Err(LineError::new(
+            ErrorCode::Integrity,
+            "Папка игры не является обычным каталогом.",
+            false,
+        ));
+    }
     create_private_dir(&game)?;
     let source_root = release.join(&detected.prefix);
     for relative in &detected.files {
         let safe = super::install::safe_entry_path(relative)?;
-        let target = game.join(&safe);
+        let target = checked_game_path(&game, relative, true)?;
+        if let Ok(metadata) = fs::symlink_metadata(&target) {
+            if !metadata.is_file() || !is_real_file(&target) {
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    format!("Недопустимый файл в папке игры: {relative}."),
+                    false,
+                ));
+            }
+        }
         if keep_local(relative) && is_real_file(&target) {
             continue;
         }
@@ -393,9 +443,6 @@ pub fn sync_game_dir(
                 false,
             ));
         }
-        if let Some(parent) = target.parent() {
-            create_private_dir(parent)?;
-        }
         copy_file(&source, &target)?;
     }
     let stale = overlay_removals(&previous.files, &detected.files);
@@ -403,6 +450,7 @@ pub fn sync_game_dir(
         let safe = super::install::safe_entry_path(relative)?;
         let target = game.join(&safe);
         if is_real_file(&target) {
+            checked_game_path(&game, relative, false)?;
             fs::remove_file(&target).map_err(|e| LineError::io(&e))?;
         }
     }
@@ -418,12 +466,37 @@ pub fn sync_game_dir(
 /// Copy through a temporary name so a crash cannot leave half a mod jar in the
 /// game directory looking like a complete file.
 fn copy_file(source: &Path, target: &Path) -> LineResult<()> {
-    let mut temp = target.as_os_str().to_os_string();
-    temp.push(".line-part");
-    let temp = PathBuf::from(temp);
-    fs::copy(source, &temp).map_err(|e| LineError::io(&e))?;
-    fs::rename(&temp, target).map_err(|e| {
-        let _ = fs::remove_file(&temp);
-        LineError::io(&e)
-    })
+    let parent = target.parent().ok_or_else(LineError::storage)?;
+    let mut temp = tempfile::NamedTempFile::new_in(parent).map_err(|e| LineError::io(&e))?;
+    let mut input = fs::File::open(source).map_err(|e| LineError::io(&e))?;
+    std::io::copy(&mut input, &mut temp).map_err(|e| LineError::io(&e))?;
+    temp.persist(target).map_err(|_| LineError::storage())?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::*;
+
+    #[test]
+    fn checked_paths_support_nested_files_and_reject_file_parents() {
+        let temp = tempfile::tempdir().unwrap();
+        let target = checked_game_path(temp.path(), "mods/1.20.1/file.jar", true).unwrap();
+        assert_eq!(target, temp.path().join("mods/1.20.1/file.jar"));
+        std::fs::write(temp.path().join("mods/block"), b"x").unwrap();
+        assert!(checked_game_path(temp.path(), "mods/block/file.jar", true).is_err());
+        assert!(checked_game_path(temp.path(), "mods/../file.jar", true).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checked_paths_refuse_symlinked_parents() {
+        use std::os::unix::fs::symlink;
+        let temp = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("mods")).unwrap();
+        symlink(outside.path(), temp.path().join("mods/linked")).unwrap();
+        assert!(checked_game_path(temp.path(), "mods/linked/file.jar", true).is_err());
+        assert!(!outside.path().join("file.jar").exists());
+    }
 }

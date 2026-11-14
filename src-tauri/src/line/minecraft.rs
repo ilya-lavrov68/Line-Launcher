@@ -733,13 +733,10 @@ pub async fn mc_play(
                 let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
                     continue;
                 };
-                let Some(name) = relative.strip_prefix("mods/") else {
+                let Some(_name) = relative.strip_prefix("mods/") else {
                     continue;
                 };
-                if name.contains('/') {
-                    return Err(LineError::input("Вложенные файлы mods не поддерживаются."));
-                }
-                let target = mods.join(name);
+                let target = pack::checked_game_path(&game, relative, false)?;
                 if !super::storage::is_real_file(&target) {
                     return Err(LineError::new(
                         ErrorCode::Integrity,

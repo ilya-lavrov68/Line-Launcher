@@ -1076,7 +1076,33 @@ mod tests {
             .unwrap()
             .iter()
             .all(|p| p.received_bytes == 0 && !matches!(p.phase, InstallPhase::Extracting)));
-        eprintln!("Установка и повторная проверка завершены без повторной загрузки архива. Minecraft и загрузчик не запускались.");
+        // Exercise the same live-game sync and mods verification as mc_play,
+        // including provider-owned nested paths that previously blocked launch.
+        let detected = super::super::super::pack::inspect(&release, &index, Some("1.20.1"))
+            .expect("Не удалось определить содержимое сборки");
+        let instance = temp.path().join("test-instance");
+        super::super::super::pack::sync_game_dir(&release, &detected, &instance, &receipt.sha256)
+            .expect("Не удалось подготовить игровой каталог");
+        let game = instance.join("game");
+        super::super::super::launch::check_live_mods(&game, &detected.files)
+            .expect("Проверка mods в игровом каталоге не пройдена");
+        let mut nested = 0;
+        for entry in &index.files {
+            let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
+                continue;
+            };
+            let Some(name) = relative.strip_prefix("mods/") else {
+                continue;
+            };
+            if name.contains('/') {
+                nested += 1;
+            }
+            let path =
+                super::super::super::pack::checked_game_path(&game, relative, false).unwrap();
+            let (hash, size) = super::super::super::integrity::hash_file(&path).unwrap();
+            assert_eq!((hash, size), (entry.sha256.clone(), entry.size));
+        }
+        eprintln!("Повторной загрузки архива нет; проверено вложенных файлов mods: {nested}. Minecraft и загрузчик не запускались.");
     }
 
     fn entry(path: &str, bytes: &[u8]) -> FileEntry {

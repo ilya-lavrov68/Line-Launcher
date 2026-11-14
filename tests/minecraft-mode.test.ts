@@ -344,8 +344,9 @@ test("the live game directory is writable and player data survives updates", () 
   assert.match(pack, /keep_local\(relative\) && is_real_file\(&target\)/);
   assert.match(pack, /overlay_removals\(&previous\.files, &detected\.files\)/);
   // Every copied or deleted path goes through the archive path validator.
-  assert.equal(pack.match(/safe_entry_path\(relative\)\?/g)?.length, 2);
-  assert.match(pack, /fs::rename\(&temp, target\)/);
+  assert.ok((pack.match(/safe_entry_path\(relative\)\?/g)?.length ?? 0) >= 2);
+  assert.match(pack, /checked_game_path\(&game, relative, true\)/);
+  assert.match(pack, /temp\.persist\(target\)/);
   for (const guarded of ["saves/", "logs/", "screenshots/", "crash-reports/"]) {
     assert.ok(
       instance.includes(`"${guarded}"`),

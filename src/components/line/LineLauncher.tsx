@@ -87,6 +87,8 @@ export default function LineLauncher() {
   const t = useT();
   const [section, setSection] = useState<LineSection>("servers");
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
+  const [layoutSaving, setLayoutSaving] = useState(false);
+  const layoutSavingRef = useRef(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<ConfigSnapshot | null>(null);
   const [selected, setSelected] = useState<LineServer | null>(null);
@@ -678,13 +680,15 @@ export default function LineLauncher() {
    * Saves the player's section layout.
    *
    * Optimistic like the sidebar toggle — collapsing a folder must feel instant —
-   * but a failed write re-reads the confirmed snapshot instead of restoring a
-   * stale local copy: two quick edits in a row would otherwise resurrect the
-   * first one from the closure. Entries for servers the provider no longer
+   * and disables further layout edits until the write completes; otherwise two
+   * fast moves could save older snapshots out of order. A failed write restores
+   * the previous snapshot. Entries for servers the provider no longer
    * lists are pruned on the way out, so settings.json does not accumulate ids.
    */
   async function changeLayout(next: ServerLayout) {
-    if (!settings) return;
+    if (!settings || layoutSavingRef.current) return;
+    layoutSavingRef.current = true;
+    setLayoutSaving(true);
     const current = settings;
     const cleaned = pruneLayout(
       normalizeLayout(next),
@@ -704,6 +708,9 @@ export default function LineLauncher() {
     } catch (cause) {
       setSettings(current);
       setError(errorMessage(cause));
+    } finally {
+      layoutSavingRef.current = false;
+      setLayoutSaving(false);
     }
   }
 
@@ -1040,7 +1047,7 @@ export default function LineLauncher() {
                               installedIds={installedIds}
                               stale={snapshot.stale}
                               refreshing={refreshing}
-                              actionsDisabled={actionsBusy}
+                              actionsDisabled={actionsBusy || layoutSaving}
                               onSelect={(server) => void selectServer(server)}
                               onRefresh={() => void refresh()}
                             />
@@ -1087,7 +1094,7 @@ export default function LineLauncher() {
                               status={gameStatus}
                               installing={installing}
                               launching={launching}
-                              actionsBusy={actionsBusy}
+                              actionsBusy={actionsBusy || layoutSaving}
                               installError={installError}
                               launchError={launchError}
                               availability={

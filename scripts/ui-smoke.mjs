@@ -792,6 +792,41 @@ try {
     "the catalogue gained a shortcut that is not a server card",
   );
 
+  // Dragging changes the same player-owned layout as the section selector.
+  // Exercise an empty, collapsed destination and the return to "no section".
+  await page.getByRole("button", { name: "Добавить секцию" }).click();
+  const group = page
+    .locator("[data-section-drop]")
+    .filter({ hasText: "Секция 1" });
+  await group.getByRole("button", { name: "Свернуть секцию Секция 1" }).click();
+  await page.locator('[data-server-drag="survival"]').dragTo(group);
+  await page.waitForFunction(() =>
+    window.__calls.some(
+      ([cmd, args]) =>
+        cmd === "save_settings" &&
+        args.settings.serverLayout?.assignments?.survival,
+    ),
+  );
+  await group
+    .getByRole("button", { name: "Развернуть секцию Секция 1" })
+    .click();
+  await page
+    .locator('[data-server-drag="survival"]')
+    .dragTo(page.locator('[data-section-drop="unassigned"]'));
+  await page.waitForFunction(() => {
+    const saves = window.__calls.filter(([cmd]) => cmd === "save_settings");
+    return (
+      saves.length > 0 &&
+      !saves.at(-1)[1].settings.serverLayout?.assignments?.survival
+    );
+  });
+  check(
+    (await page
+      .locator('[data-section-drop="unassigned"] [data-server-drag="survival"]')
+      .count()) === 1,
+    "dragging back to the unassigned group did not move the card",
+  );
+
   await page.getByRole("button", { name: "Открыть сервер Survival" }).click();
   // No second login on the server screen.
   check(

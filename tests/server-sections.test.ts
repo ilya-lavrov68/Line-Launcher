@@ -11,6 +11,7 @@ import {
   groupServers,
   MAX_SECTION_NAME,
   MAX_SECTIONS,
+  moveServerToSection,
   newSection,
   NO_SECTION,
   normalizeLayout,
@@ -275,4 +276,28 @@ test("the count reads as a sentence in every plural bucket", () => {
   for (const [count, bucket] of cases) {
     assert.equal(pluralBucket(count), bucket, `count ${count}`);
   }
+});
+
+test("drag moves only existing servers to existing sections or back to no section", () => {
+  const initial = layout(
+    [
+      ["a", "Alpha"],
+      ["b", "Beta"],
+    ],
+    { a: "a" },
+  );
+  const moved = moveServerToSection(initial, servers, "a", "b");
+  assert.equal(moved.assignments.a, "b");
+  assert.equal(initial.assignments.a, "a");
+  assert.equal(moveServerToSection(moved, servers, "a", "b"), moved);
+  assert.equal(moveServerToSection(moved, servers, "missing", "a"), moved);
+  assert.equal(moveServerToSection(moved, servers, "a", "missing"), moved);
+  const returned = moveServerToSection(moved, servers, "a", NO_SECTION);
+  assert.equal(returned.assignments.a, undefined);
+  assert.equal(
+    groupServers(servers, returned)
+      .at(-1)
+      ?.servers.some((s) => s.id === "a"),
+    true,
+  );
 });

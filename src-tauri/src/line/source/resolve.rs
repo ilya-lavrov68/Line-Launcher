@@ -324,6 +324,78 @@ mod tests {
     use std::io::{Cursor, Write};
     use zip::write::SimpleFileOptions;
 
+    struct FixtureFetch(std::collections::HashMap<String, Vec<u8>>);
+
+    impl Fetch for FixtureFetch {
+        fn get<'a>(&'a self, url: &'a str, limit: usize) -> FetchFuture<'a> {
+            Box::pin(async move {
+                let bytes = self
+                    .0
+                    .get(url)
+                    .ok_or_else(|| LineError::input("Нет тестового файла."))?;
+                if bytes.len() > limit {
+                    return Err(LineError::input("Тестовый файл слишком велик."));
+                }
+                Ok(bytes.clone())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn packwiz_resolves_hash_checked_index_and_metadata() {
+        let metadata = format!(
+            "name = \"Example\"\nfilename = \"example.jar\"\nside = \"client\"\n[download]\nurl = \"https://example.org/example.jar\"\nhash-format = \"sha256\"\nhash = \"{}\"\n",
+            "a".repeat(64)
+        );
+        let index = format!(
+            "hash-format = \"sha256\"\n[[files]]\nfile = \"mods/example.pw.toml\"\nmetafile = true\nhash = \"{}\"\n",
+            packwiz::digest("sha256", metadata.as_bytes())
+        );
+        let pack = format!(
+            "name = \"Fixture\"\npack-format = \"packwiz:1.1.0\"\n[index]\nfile = \"index.toml\"\nhash-format = \"sha256\"\nhash = \"{}\"\n[versions]\nminecraft = \"1.20.1\"\n",
+            packwiz::digest("sha256", index.as_bytes())
+        );
+        let mut fetch = FixtureFetch(std::collections::HashMap::from([
+            ("https://example.org/pack.toml".into(), pack.into_bytes()),
+            ("https://example.org/index.toml".into(), index.into_bytes()),
+            (
+                "https://example.org/mods/example.pw.toml".into(),
+                metadata.into_bytes(),
+            ),
+        ]));
+        let result = resolve_packwiz(&fetch, "https://example.org/pack.toml")
+            .await
+            .unwrap();
+        assert_eq!(result.minecraft_version.as_deref(), Some("1.20.1"));
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.files[0].path, "mods/example.jar");
+        assert_eq!(result.files[0].sha256, "a".repeat(64));
+        fetch
+            .0
+            .get_mut("https://example.org/mods/example.pw.toml")
+            .unwrap()
+            .push(b' ');
+        assert_eq!(
+            resolve_packwiz(&fetch, "https://example.org/pack.toml")
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::Integrity
+        );
+        fetch
+            .0
+            .get_mut("https://example.org/index.toml")
+            .unwrap()
+            .push(b' ');
+        assert_eq!(
+            resolve_packwiz(&fetch, "https://example.org/pack.toml")
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::Integrity
+        );
+    }
+
     fn archive(entries: &[(&str, &[u8])]) -> zip::ZipArchive<Cursor<Vec<u8>>> {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         for (name, bytes) in entries {

@@ -685,7 +685,7 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
                 }),
             });
             file_done += 1;
-            if file_done % 32 == 0 || file_done == file_total {
+            if file_done.is_multiple_of(32) || file_done == file_total {
                 report(file_done, file_total);
             }
             if files.len() > super::MAX_FILES {

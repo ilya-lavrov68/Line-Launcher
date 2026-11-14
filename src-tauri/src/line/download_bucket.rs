@@ -7,6 +7,12 @@ pub struct Bucket {
     rate: u64,
 }
 
+impl Default for Bucket {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Bucket {
     pub fn new() -> Self {
         Self {

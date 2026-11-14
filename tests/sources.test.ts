@@ -585,7 +585,9 @@ test("the Rust resolver keeps the same decisions", () => {
     "verify the index hash before parsing it",
   );
   // And the .mrpack file itself is checked before its index is read.
-  const packHash = resolve.indexOf("modrinth::matches_sha512");
+  const packHash = resolve.indexOf(
+    "actual_sha512.eq_ignore_ascii_case(&expected)",
+  );
   const packRead = resolve.indexOf('by_name("modrinth.index.json")');
   assert.ok(
     packHash > 0 && packRead > packHash,

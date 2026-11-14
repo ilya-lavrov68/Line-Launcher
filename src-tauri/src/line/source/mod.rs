@@ -33,6 +33,19 @@ pub const MAX_FILES: usize = 50_000;
 /// One file's ceiling: a mod jar is megabytes, this is generous.
 pub const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
+/// Temporary, private override payload kept alive until the staging copy finishes.
+#[derive(Debug, Clone)]
+pub struct OverrideFile {
+    pub directory: std::sync::Arc<tempfile::TempDir>,
+    pub name: String,
+}
+impl PartialEq for OverrideFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.directory.path() == other.directory.path() && self.name == other.name
+    }
+}
+impl Eq for OverrideFile {}
+
 /// One file the build is made of.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackFile {
@@ -46,6 +59,7 @@ pub struct PackFile {
     pub sha512: Option<String>,
     /// Authenticated bytes embedded in a verified .mrpack override.
     pub inline: Option<std::sync::Arc<Vec<u8>>>,
+    pub override_file: Option<OverrideFile>,
     pub size: u64,
 }
 

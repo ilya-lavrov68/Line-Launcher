@@ -254,6 +254,7 @@ pub fn file_from_metafile(path: &str, meta: &Metafile) -> LineResult<Option<Pack
         sha256,
         sha512,
         inline: None,
+        override_file: None,
         size: 0,
     };
     super::super::config::validate_https(&entry.url)?;

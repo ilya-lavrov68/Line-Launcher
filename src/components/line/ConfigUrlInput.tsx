@@ -3,6 +3,7 @@ import { Link2, RefreshCw } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { useT } from "@/lib/line/i18n";
 import { Button } from "@/components/ui/button";
+import StableActionLabel from "./StableActionLabel";
 import FieldMessage from "./FieldMessage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,7 +132,11 @@ export default function ConfigUrlInput({
           ) : (
             <Link2 className="h-4 w-4" />
           )}
-          <span>{loading ? t("connect.submitting") : t("connect.submit")}</span>
+          <StableActionLabel
+            busy={loading}
+            idle={t("connect.submit")}
+            active={t("connect.submitting")}
+          />
         </Button>
       </form>
     </m.section>

@@ -17,7 +17,6 @@ import type {
   LineServer,
   McGameStatus,
   McInstallProgress,
-  McInstalled,
 } from "@/types/line";
 import { cn } from "@/lib/utils";
 import { useT, type Translator } from "@/lib/line/i18n";
@@ -39,8 +38,7 @@ import { useT, type Translator } from "@/lib/line/i18n";
  * commands that *do* need a separate surface are reached from here:
  * `mc_list_installed` fills the "installed profiles" line, `mc_status` restores
  * state after a screen change, `mc_stop` is the running-game action, and
- * `mc_install` backs the "prepare without playing" path for someone who wants
- * the download done before they have time to play.
+ * `mc_play` with `prepareOnly` runs the same pack preparation without launching.
  */
 export interface MinecraftPanelProps {
   server: LineServer;
@@ -49,6 +47,8 @@ export interface MinecraftPanelProps {
   /** The shell already knows whether the provider enabled launch at all. */
   disabled?: boolean;
   onAuthRequired?: () => void;
+  onRefreshConfig?: () => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 type Busy = "idle" | "installing" | "launching" | "stopping";
@@ -70,6 +70,8 @@ export default function MinecraftPanel({
   username,
   disabled = false,
   onAuthRequired,
+  onRefreshConfig,
+  onBusyChange,
 }: MinecraftPanelProps) {
   const t = useT();
   const instanceId = server.id;
@@ -80,13 +82,21 @@ export default function MinecraftPanel({
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const mounted = useRef(true);
+  const operationActive = useRef(false);
+
+  function updateBusy(next: Busy) {
+    operationActive.current = next !== "idle";
+    onBusyChange?.(operationActive.current);
+    setBusy(next);
+  }
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      onBusyChange?.(false);
     };
-  }, []);
+  }, [onBusyChange]);
 
   const refreshProfiles = useCallback(async () => {
     try {
@@ -125,7 +135,6 @@ export default function MinecraftPanel({
         if (cancelled || !mounted.current) return;
         setStatus(next);
         if (next.phase === "running" || next.phase === "starting") {
-          setBusy("idle");
           setProgress(null);
         }
         if (next.phase === "exited") setProgress(null);
@@ -137,7 +146,7 @@ export default function MinecraftPanel({
     void lineApi
       .onMcProgress(instanceId, (next) => {
         if (cancelled || !mounted.current) return;
-        setProgress(next.finished ? null : next);
+        if (!next.finished) setProgress(next);
       })
       .then((fn) => (cancelled ? fn() : (unlistenProgress = fn)))
       .catch(() => undefined);
@@ -153,10 +162,19 @@ export default function MinecraftPanel({
   const locked = disabled || working || busy === "stopping";
 
   async function play(testMode = false) {
-    setBusy("launching");
+    if (locked || operationActive.current) return;
+    updateBusy("launching");
+    setProgress({
+      instanceId,
+      stage: "resolve",
+      label: "",
+      receivedBytes: 0,
+      finished: false,
+    });
     setError(undefined);
     setNotice(undefined);
     try {
+      await onRefreshConfig?.();
       const next = await lineApi.mcPlay({ serverId: instanceId, testMode });
       if (!mounted.current) return;
       setStatus(next);
@@ -168,19 +186,31 @@ export default function MinecraftPanel({
       if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
       setError(errorMessage(cause));
     } finally {
-      if (mounted.current) setBusy("idle");
+      if (mounted.current) {
+        updateBusy("idle");
+        setProgress(null);
+      }
     }
   }
 
   /** Download and verify without launching: the same path minus the last step. */
   async function prepare() {
-    setBusy("installing");
+    if (locked || operationActive.current) return;
+    updateBusy("installing");
+    setProgress({
+      instanceId,
+      stage: "resolve",
+      label: "",
+      receivedBytes: 0,
+      finished: false,
+    });
     setError(undefined);
     setNotice(undefined);
     try {
-      const installed: McInstalled = await lineApi.mcInstall({
-        instanceId,
-        minecraftVersion: server.minecraft_version ?? "",
+      await onRefreshConfig?.();
+      const installed = await lineApi.mcPlay({
+        serverId: instanceId,
+        prepareOnly: true,
       });
       if (!mounted.current) return;
       setNotice(t("mc.profilePrepared", { version: installed.versionId }));
@@ -190,12 +220,16 @@ export default function MinecraftPanel({
       if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
       setError(errorMessage(cause));
     } finally {
-      if (mounted.current) setBusy("idle");
+      if (mounted.current) {
+        updateBusy("idle");
+        setProgress(null);
+      }
     }
   }
 
   async function stop() {
-    setBusy("stopping");
+    if (locked || operationActive.current) return;
+    updateBusy("stopping");
     setError(undefined);
     try {
       await lineApi.mcStop(instanceId);
@@ -203,17 +237,39 @@ export default function MinecraftPanel({
     } catch (cause) {
       if (mounted.current) setError(errorMessage(cause));
     } finally {
-      if (mounted.current) setBusy("idle");
+      if (mounted.current) updateBusy("idle");
     }
   }
 
-  const percent =
-    progress && progress.totalBytes
+  const percent = progress?.filesTotal
+    ? Math.min(
+        100,
+        Math.round(((progress.filesDone ?? 0) / progress.filesTotal) * 100),
+      )
+    : progress?.totalBytes
       ? Math.min(
           100,
           Math.round((progress.receivedBytes / progress.totalBytes) * 100),
         )
       : null;
+  const formatBytes = (bytes: number) =>
+    `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+  const stageNames: Record<string, string> = {
+    resolve: t("mc.stageResolve"),
+    libraries: t("mc.stageLibraries"),
+    assets: t("mc.stageAssets"),
+    runtime: t("mc.stageRuntime"),
+    natives: t("mc.stageNatives"),
+    loader: t("mc.stageLoader"),
+    verify: t("mc.stageVerify"),
+    extract: t("mc.stageExtract"),
+    commit: t("mc.stageCommit"),
+    cached: t("mc.stageCached"),
+    task: t("mc.stageTask"),
+    download: t("mc.stageDownload"),
+    "source-files": t("mc.stageFiles"),
+    completed: t("mc.stageVerify"),
+  };
 
   return (
     <ServerDock name={server.name}>
@@ -227,7 +283,11 @@ export default function MinecraftPanel({
         >
           <Wifi className="size-3" aria-hidden="true" />
           <span role="status">
-            {status ? phaseHint(t, status.phase) : t("minecraft.checking")}
+            {working
+              ? t("mc.busyPreparing")
+              : status
+                ? phaseHint(t, status.phase)
+                : t("minecraft.checking")}
           </span>
         </span>
         {server.minecraft_version && (
@@ -237,40 +297,6 @@ export default function MinecraftPanel({
         )}
         {username && <span className="font-mono text-[11px]">{username}</span>}
       </div>
-
-      {/* One continuous progress line: stage label on the left, bytes on the
-          right. It is a bar rather than a spinner because a first install is
-          hundreds of megabytes and "it is working" is not enough information. */}
-      {progress && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-muted-foreground truncate text-[12px]">
-              {progress.label}
-            </span>
-            {percent !== null && (
-              <span className="text-muted-foreground font-mono text-[11px]">
-                {percent}%
-              </span>
-            )}
-          </div>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent ?? undefined}
-            aria-label={t("minecraft.installing")}
-            className="bg-fill h-1 w-full overflow-hidden rounded-full"
-          >
-            <div
-              className={cn(
-                "bg-primary h-full rounded-full transition-[width] duration-200",
-                percent === null && "w-1/3 animate-pulse",
-              )}
-              style={percent === null ? undefined : { width: `${percent}%` }}
-            />
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center gap-2">
         <ServerDockPrimary
@@ -321,6 +347,60 @@ export default function MinecraftPanel({
           </Button>
         )}
       </div>
+
+      {/* One continuous progress line: stage label on the left, bytes on the
+          right. It is a bar rather than a spinner because a first install is
+          hundreds of megabytes and "it is working" is not enough information. */}
+      {progress && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-muted-foreground truncate text-[12px]">
+              {stageNames[progress.stage] ??
+                progress.label ??
+                t("minecraft.installing")}
+            </span>
+            {percent !== null && (
+              <span className="text-muted-foreground font-mono text-[11px]">
+                {percent}%
+              </span>
+            )}
+          </div>
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent ?? undefined}
+            aria-label={t("minecraft.installing")}
+            className="bg-fill h-2 w-full overflow-hidden rounded-full"
+          >
+            <div
+              className={cn(
+                "bg-primary h-full rounded-full transition-[width] duration-200",
+                percent === null && "w-1/3 animate-pulse",
+              )}
+              style={percent === null ? undefined : { width: `${percent}%` }}
+            />
+          </div>
+          <div
+            className="text-muted-foreground flex flex-wrap justify-between gap-1 font-mono text-[11px]"
+            role="status"
+          >
+            <span>
+              {progress.filesTotal
+                ? t("mc.filesProgress", {
+                    done: progress.filesDone ?? 0,
+                    total: progress.filesTotal,
+                  })
+                : progress.receivedBytes > 0
+                  ? `${formatBytes(progress.receivedBytes)}${progress.totalBytes ? ` / ${formatBytes(progress.totalBytes)}` : ""}`
+                  : t("mc.stageWorking")}
+            </span>
+            {progress.label && !progress.filesTotal && (
+              <span className="max-w-full truncate">{progress.label}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {server.test_mode_enabled !== false && !running && (
         <p className="text-muted-foreground text-[11px] leading-relaxed">

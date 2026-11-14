@@ -81,11 +81,15 @@ export default function ReleaseHistoryDialog({
                         onClick={() => onRollback(receipt)}
                         className="cursor-pointer text-xs"
                       >
-                        {loading ? (
-                          <RefreshCw className="h-4 w-4 animate-spin" />
-                        ) : (
-                          t("history.rollback")
-                        )}
+                        <RefreshCw
+                          className={
+                            loading
+                              ? "h-4 w-4 animate-spin"
+                              : "invisible h-4 w-4"
+                          }
+                          aria-hidden="true"
+                        />
+                        {t("history.rollback")}
                       </Button>
                     )}
                   </div>

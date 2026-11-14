@@ -197,6 +197,25 @@ export default function ServerActionPanel({
         )}
       </div>
 
+      <div className="flex items-center gap-2">
+        <ServerDockPrimary
+          disabled={!canPress}
+          active={active}
+          onClick={installing && onCancel ? onCancel : onPrimary}
+        >
+          {installing ? (
+            <CloudDownload className="size-4" aria-hidden="true" />
+          ) : phase === "starting" ? (
+            <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
+          ) : phase === "running" ? (
+            <Square className="size-4 fill-current" aria-hidden="true" />
+          ) : (
+            <Play className="size-4 fill-current" aria-hidden="true" />
+          )}
+          <span>{primaryLabel(t, phase)}</span>
+        </ServerDockPrimary>
+      </div>
+
       <AnimatePresence initial={false}>
         {installing && (
           <m.div
@@ -253,25 +272,6 @@ export default function ServerActionPanel({
           </m.div>
         )}
       </AnimatePresence>
-
-      <div className="flex items-center gap-2">
-        <ServerDockPrimary
-          disabled={!canPress}
-          active={active}
-          onClick={installing && onCancel ? onCancel : onPrimary}
-        >
-          {installing ? (
-            <CloudDownload className="size-4" aria-hidden="true" />
-          ) : phase === "starting" ? (
-            <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
-          ) : phase === "running" ? (
-            <Square className="size-4 fill-current" aria-hidden="true" />
-          ) : (
-            <Play className="size-4 fill-current" aria-hidden="true" />
-          )}
-          <span>{primaryLabel(t, phase)}</span>
-        </ServerDockPrimary>
-      </div>
 
       <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />

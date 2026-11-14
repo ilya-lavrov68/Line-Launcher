@@ -96,8 +96,9 @@ test("every mc_* command has exactly one caller, and mc_launch has none", () => 
   ]) {
     assert.match(panel, call, "a command is missing its caller in the panel");
   }
-  // «Подготовить заранее» is the only path to mc_install.
-  assert.ok(panel.includes("lineApi.mcInstall("), "mc_install has no caller");
+  // Preparation uses the same verified pack path without starting the game.
+  assert.match(panel, /prepareOnly: true/);
+  assert.match(panel, /await onRefreshConfig\?\.\(\)/);
   // mc_launch would start a profile without checking it against the published
   // pack; mc_play is the only correct "just play" path, so it stays unused in
   // the UI on purpose (documented in MINECRAFT.md).

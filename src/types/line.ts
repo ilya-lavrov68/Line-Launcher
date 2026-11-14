@@ -483,6 +483,7 @@ export interface McPlayRequest {
   loader?: McLoaderRequest;
   serverAddress?: string;
   testMode?: boolean;
+  prepareOnly?: boolean;
 }
 
 /** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */
@@ -502,6 +503,8 @@ export interface McInstallProgress {
   label: string;
   receivedBytes: number;
   totalBytes?: number;
+  filesDone?: number;
+  filesTotal?: number;
   finished: boolean;
 }
 

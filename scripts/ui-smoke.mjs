@@ -629,10 +629,10 @@ try {
         };
       }),
     );
-  // Six sections now: language, memory, backdrop, Java, window behaviour and
-  // the configuration cache. Language is first, above memory.
+  // Seven sections: language, memory, backdrop, Java, window behaviour,
+  // configuration cache and support. Language is first, above memory.
   check(
-    sectionIcons.length === 6 &&
+    sectionIcons.length === 7 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&

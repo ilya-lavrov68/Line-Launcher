@@ -112,6 +112,8 @@ pub struct McPlayRequest {
     pub server_address: Option<String>,
     #[serde(default)]
     pub test_mode: bool,
+    #[serde(default)]
+    pub prepare_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -124,6 +126,10 @@ pub struct McInstallProgress {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_bytes: Option<u64>,
     pub finished: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files_done: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files_total: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -334,6 +340,8 @@ fn progress_dto(instance_id: &str, event: &ProgressEvent, finished: bool) -> McI
         received_bytes: received,
         total_bytes: total,
         finished,
+        files_done: None,
+        files_total: None,
     }
 }
 
@@ -420,6 +428,8 @@ async fn install_profile(
             received_bytes: 0,
             total_bytes: None,
             finished: true,
+            files_done: None,
+            files_total: None,
         },
     );
     Ok(McInstalled {
@@ -628,14 +638,25 @@ pub async fn mc_play(
                 InstallPhase::Failed => ("task", "Ошибка установки"),
             };
             let total = (progress.total_bytes > 0).then_some(progress.total_bytes);
-            emit_mc_progress(
-                &sink_app,
-                &sink_instance,
-                stage,
-                label,
-                progress.received_bytes,
-                total,
-                matches!(progress.phase, InstallPhase::Completed),
+            let _ = sink_app.emit(
+                MC_INSTALL_EVENT,
+                McInstallProgress {
+                    instance_id: sink_instance.clone(),
+                    stage: if progress.files_total.is_some()
+                        && matches!(progress.phase, InstallPhase::Downloading)
+                    {
+                        "source-files"
+                    } else {
+                        stage
+                    }
+                    .to_string(),
+                    label: label.to_string(),
+                    received_bytes: progress.received_bytes,
+                    total_bytes: total,
+                    finished: false,
+                    files_done: progress.files_done,
+                    files_total: progress.files_total,
+                },
             );
         });
         let installed = install::download_and_extract(
@@ -662,6 +683,15 @@ pub async fn mc_play(
         );
     }
 
+    emit_mc_progress(
+        &app,
+        &instance_id,
+        "verify",
+        "Проверка файлов сборки…",
+        0,
+        None,
+        false,
+    );
     // 3. Read the instance and bring the live game directory up to date. Both
     //    steps touch thousands of files, so they stay off the async workers.
     let hint = request
@@ -785,6 +815,26 @@ pub async fn mc_play(
         }
     }
 
+    if request.prepare_only {
+        emit_mc_progress(
+            &app,
+            &instance_id,
+            "completed",
+            "Сборка подготовлена",
+            0,
+            None,
+            true,
+        );
+        return Ok(McGameStatus {
+            instance_id,
+            version_id: launch_version,
+            phase: GamePhase::Idle,
+            started_at: None,
+            exit_code: None,
+            message: None,
+        });
+    }
+
     // 5. Straight into the server.
     launch_profile(
         &app,
@@ -817,6 +867,8 @@ fn emit_mc_progress(
             received_bytes,
             total_bytes,
             finished,
+            files_done: None,
+            files_total: None,
         },
     );
 }

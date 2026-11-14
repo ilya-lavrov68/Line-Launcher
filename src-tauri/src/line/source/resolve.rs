@@ -58,6 +58,9 @@ pub trait Fetch: Send + Sync {
             Ok((file, hash))
         })
     }
+    fn extraction_reporter(&self) -> Option<Arc<dyn Fn(u64, u64) + Send + Sync>> {
+        None
+    }
     fn work_dir(&self) -> Option<&Path> {
         None
     }
@@ -78,6 +81,22 @@ pub struct HttpFetch {
 }
 
 impl Fetch for HttpFetch {
+    fn extraction_reporter(&self) -> Option<Arc<dyn Fn(u64, u64) + Send + Sync>> {
+        let sink = self.sink.clone();
+        let template = self.progress.clone();
+        Some(Arc::new(move |done, total| {
+            let mut update = template.clone();
+            update.phase = super::super::install::InstallPhase::Extracting;
+            update.files_done = Some(done);
+            update.files_total = Some(total);
+            update.percent = if total > 0 {
+                30.0 * done as f64 / total as f64
+            } else {
+                0.0
+            };
+            sink.emit(update);
+        }))
+    }
     fn get<'a>(&'a self, url: &'a str, limit: usize) -> FetchFuture<'a> {
         Box::pin(async move {
             let response = http::get(&self.client, url, Default::default()).await?;
@@ -371,6 +390,7 @@ pub async fn resolve_modrinth(
     }
     let work_dir = fetch.work_dir().map(Path::to_path_buf);
     let cancel = fetch.cancel_flag();
+    let report = fetch.extraction_reporter();
     let mut resolved = tokio::task::spawn_blocking(move || {
         let mut zip = zip::ZipArchive::new(archive)
             .map_err(|_| LineError::input(".mrpack не является ZIP-архивом."))?;
@@ -395,11 +415,21 @@ pub async fn resolve_modrinth(
         };
         let index = modrinth::parse_index(&index_bytes)?;
         let mut resolved = modrinth::assemble(&index)?;
-        apply_overrides(&mut zip, &mut resolved.files, work_dir.as_deref(), &|| {
-            cancel
-                .as_ref()
-                .is_some_and(|flag| flag.load(Ordering::SeqCst))
-        })?;
+        apply_overrides(
+            &mut zip,
+            &mut resolved.files,
+            work_dir.as_deref(),
+            &|| {
+                cancel
+                    .as_ref()
+                    .is_some_and(|flag| flag.load(Ordering::SeqCst))
+            },
+            &|done, total| {
+                if let Some(report) = &report {
+                    report(done, total);
+                }
+            },
+        )?;
         Ok::<ResolvedPack, LineError>(resolved)
     })
     .await
@@ -422,6 +452,7 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
     files: &mut Vec<super::PackFile>,
     work_dir: Option<&Path>,
     cancelled: &dyn Fn() -> bool,
+    report: &dyn Fn(u64, u64),
 ) -> LineResult<()> {
     use sha2::{Digest, Sha256};
     use std::io::{Read, Write};
@@ -436,6 +467,7 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
         return Err(LineError::input("Слишком много записей в .mrpack."));
     }
     let mut total = 0u64;
+    let mut file_total = 0u64;
     for i in 0..zip.len() {
         if cancelled() {
             return Err(LineError::new(
@@ -451,6 +483,7 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
             && (entry.name().starts_with("overrides/")
                 || entry.name().starts_with("client-overrides/"))
         {
+            file_total += 1;
             if entry.size() > super::MAX_FILE_BYTES {
                 return Err(LineError::input("Файл overrides слишком велик."));
             }
@@ -469,6 +502,10 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
         )?;
     }
     total = 0;
+    let mut file_done = 0u64;
+    let mut present: std::collections::HashSet<String> =
+        files.iter().map(|file| file.path.clone()).collect();
+    report(0, file_total);
     for prefix in ["overrides/", "client-overrides/"] {
         let mut seen = std::collections::HashSet::new();
         for position in 0..zip.len() {
@@ -549,7 +586,9 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
                 return Err(LineError::input("Некорректный размер файла overrides."));
             }
             let sha256 = format!("{:x}", hasher.finalize());
-            files.retain(|file| file.path != path);
+            if !present.insert(path.clone()) {
+                files.retain(|file| file.path != path);
+            }
             files.push(super::PackFile {
                 path,
                 url: String::new(),
@@ -562,6 +601,10 @@ fn apply_overrides<R: std::io::Read + std::io::Seek>(
                     name,
                 }),
             });
+            file_done += 1;
+            if file_done % 32 == 0 || file_done == file_total {
+                report(file_done, file_total);
+            }
             if files.len() > super::MAX_FILES {
                 return Err(LineError::input("Слишком много файлов в .mrpack."));
             }
@@ -763,6 +806,8 @@ mod tests {
             total_bytes: 0,
             extracted_bytes: 0,
             unpacked_bytes: 0,
+            files_done: None,
+            files_total: None,
         };
         let index = fetch_files(
             &reqwest::Client::new(),
@@ -883,7 +928,12 @@ mod tests {
             ("server-overrides/config/server.txt", b"server"),
         ]);
         let mut files = vec![];
-        apply_overrides(&mut zip, &mut files, None, &|| false).unwrap();
+        let events = std::cell::RefCell::new(Vec::new());
+        apply_overrides(&mut zip, &mut files, None, &|| false, &|done, total| {
+            events.borrow_mut().push((done, total));
+        })
+        .unwrap();
+        assert_eq!(*events.borrow(), vec![(0, 2), (2, 2)]);
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].path, "config/test.txt");
         assert_eq!(
@@ -913,7 +963,14 @@ mod tests {
                 ("overrides/config/a", b"y".as_slice()),
             ],
         ] {
-            assert!(apply_overrides(&mut archive(&entries), &mut vec![], None, &|| false).is_err());
+            assert!(apply_overrides(
+                &mut archive(&entries),
+                &mut vec![],
+                None,
+                &|| false,
+                &|_, _| {}
+            )
+            .is_err());
         }
     }
     #[test]
@@ -939,7 +996,14 @@ mod tests {
         archive.rewind().unwrap();
         let mut zip = zip::ZipArchive::new(archive).unwrap();
         let mut files = vec![];
-        apply_overrides(&mut zip, &mut files, Some(work.path()), &|| false).unwrap();
+        apply_overrides(
+            &mut zip,
+            &mut files,
+            Some(work.path()),
+            &|| false,
+            &|_, _| {},
+        )
+        .unwrap();
         assert_eq!(files[0].size, 129 * 1024 * 1024);
         assert!(files[0].inline.is_none());
         let disk = files[0].override_file.as_ref().unwrap();
@@ -951,8 +1015,14 @@ mod tests {
         );
         drop(files);
         assert!(std::fs::read_dir(work.path()).unwrap().next().is_none());
-        let error =
-            apply_overrides(&mut zip, &mut vec![], Some(work.path()), &|| true).unwrap_err();
+        let error = apply_overrides(
+            &mut zip,
+            &mut vec![],
+            Some(work.path()),
+            &|| true,
+            &|_, _| {},
+        )
+        .unwrap_err();
         assert_eq!(error.code, ErrorCode::Cancelled);
         assert!(std::fs::read_dir(work.path()).unwrap().next().is_none());
     }
@@ -962,10 +1032,16 @@ mod tests {
         let bytes = vec![7u8; 150 * 1024];
         let mut zip = archive(&[("overrides/config/big", &bytes)]);
         let calls = std::cell::Cell::new(0);
-        let error = apply_overrides(&mut zip, &mut vec![], Some(work.path()), &|| {
-            calls.set(calls.get() + 1);
-            calls.get() >= 4
-        })
+        let error = apply_overrides(
+            &mut zip,
+            &mut vec![],
+            Some(work.path()),
+            &|| {
+                calls.set(calls.get() + 1);
+                calls.get() >= 4
+            },
+            &|_, _| {},
+        )
         .unwrap_err();
         assert_eq!(error.code, ErrorCode::Cancelled);
         assert!(std::fs::read_dir(work.path()).unwrap().next().is_none());

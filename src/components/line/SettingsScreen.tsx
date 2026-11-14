@@ -33,6 +33,7 @@ import type {
 import { cn } from "@/lib/utils";
 import BackdropPicker from "@/components/line/BackdropPicker";
 import SupportSection from "@/components/line/SupportSection";
+import StableActionLabel from "@/components/line/StableActionLabel";
 import SectionIcon from "@/components/line/SectionIcon";
 import { LANGUAGES, LANGUAGE_NAMES, isLanguage } from "@/lib/line/languages";
 import { setLanguage, useT, type Translator } from "@/lib/line/i18n";
@@ -473,9 +474,11 @@ export default function SettingsScreen({
                 className={javaLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
                 aria-hidden="true"
               />
-              {javaLoading
-                ? t("settings.javaChecking")
-                : t("settings.javaResearch")}
+              <StableActionLabel
+                busy={javaLoading}
+                idle={t("settings.javaResearch")}
+                active={t("settings.javaChecking")}
+              />
             </Button>
             <div className="border-border/40 flex flex-col gap-2 border-t pt-3">
               <Label

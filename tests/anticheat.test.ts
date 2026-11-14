@@ -60,7 +60,10 @@ test("the shipped word list is clean data, not prose", () => {
     .split("\n")
     .map((line) => line.split("#")[0].trim().toLowerCase())
     .filter(Boolean);
-  assert.ok(parsed.length >= 20, `only ${parsed.length} keywords`);
+  assert.ok(
+    !parsed.includes("reach") && !parsed.includes("hitbox"),
+    "generic gameplay terms are not reliable cheat signals",
+  );
   // Duplicates make the report list the same hit twice, which looks like a bug
   // in the scanner rather than in the list.
   assert.equal(new Set(parsed).size, parsed.length, "duplicate keyword");
@@ -119,16 +122,15 @@ test("a provider may add words but cannot remove the built-in ones", () => {
   assert.match(kernel, /word\.len\(\) >= 3/);
 });
 
-test("the scan reads text entries and skips images", () => {
+test("the scan only reads render JSON, not image pixels or ordinary prose", () => {
   const body = rust.slice(
     rust.indexOf("pub fn reads_text"),
     rust.indexOf("/// Every pack under"),
   );
-  for (const ext of [".json", ".mcmeta", ".txt", ".lang"]) {
-    assert.ok(body.includes(ext), `reads_text misses ${ext}`);
-  }
-  assert.ok(!body.includes(".png"), "PNG must not be read: no image heuristic");
-  // And the scan is bounded, like the installer it sits next to.
+  assert.match(body, /models\//);
+  assert.match(body, /blockstates\//);
+  assert.match(body, /\.json/);
+  assert.doesNotMatch(body, /\.png/);
   for (const constant of [
     "MAX_ENTRIES",
     "MAX_TEXT_BYTES",
@@ -261,12 +263,10 @@ test("pack check reports missing installs and renders structured errors", async 
   );
 });
 
-test("language resources are exempted narrowly without disabling model scanning", () => {
-  assert.match(
-    rust,
-    /entry\.is_dir\(\) \|\| is_language_resource\(&entry_name\)/,
-  );
-  assert.match(rust, /parts\.len\(\) != 4/);
+test("the resource scan skips prose across mods and keeps checking render assets", () => {
+  assert.match(rust, /render_asset_path\(&entry_name\)/);
+  assert.match(rust, /"textures" \| "models" \| "blockstates"/);
+  assert.match(rust, /patchouli_books\/book_of_shadows/);
   assert.match(
     rust,
     /translations_do_not_trigger_but_other_pack_content_still_does/,

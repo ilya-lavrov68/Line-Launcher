@@ -337,6 +337,15 @@ test("the scrollbar pill is token-driven and not disabled by the standard props"
   const css = read("src/index.css");
   assert.match(css, /::-webkit-scrollbar-thumb/);
   assert.match(css, /background-clip:\s*content-box/);
+  assert.match(
+    css,
+    /::-webkit-scrollbar-track:vertical\s*\{\s*margin-block:\s*12px/,
+  );
+  assert.match(
+    css,
+    /::-webkit-scrollbar-track:horizontal\s*\{\s*margin-inline:\s*12px/,
+  );
+  assert.match(css, /border:\s*4px solid transparent/);
   assert.match(css, /var\(--foreground\)/);
   assert.match(css, /var\(--primary\)/);
   // Setting scrollbar-width/color unconditionally makes Chromium ignore

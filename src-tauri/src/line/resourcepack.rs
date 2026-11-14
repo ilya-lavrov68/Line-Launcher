@@ -8,8 +8,8 @@
 //!    anticheat, because it needs no opinion about names.
 //! 2. **What is inside those packs.** A pack can be supplied *by* the provider
 //!    and still contain `xray` in a model name, or the player can unpack the
-//!    provider's pack, edit it and repack it under the same name. Neither shows
-//!    up in (1), and both are what this scans for.
+//!    provider's pack, edit it and repack it under the same name. The heuristic
+//!    checks only pack names and rendering assets, not unrelated prose.
 //!
 //! What is deliberately *not* here:
 //!
@@ -223,15 +223,17 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
             )
         })?;
         let entry_name = entry.name().to_owned();
-        // Directory names are also present in file paths. A language resource
-        // only contains translated labels, often for unrelated gameplay mods;
-        // a word there is not evidence of a cheat resource. Narrowly exclude
-        // only canonical language files, never models, metadata or pack names.
-        if entry.is_dir() || is_language_resource(&entry_name) {
+        // Book pages, translations, advancements and arbitrary prose often
+        // mention ordinary game mechanics. Only inspect actual rendering assets,
+        // and ignore the namespace (usually just a mod's name).
+        let Some(asset) = render_asset_path(&entry_name) else {
+            continue;
+        };
+        if entry.is_dir() {
             continue;
         }
         for word in words {
-            if contains_word(&entry_name, word) {
+            if contains_word(asset, word) {
                 findings.hits.push(Hit {
                     pack: pack.to_owned(),
                     entry: entry_name.clone(),
@@ -274,45 +276,42 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
     Ok(findings)
 }
 
-/// Minecraft language files are assets/<namespace>/lang/<locale>.json or
-/// legacy .lang files. Do not accept traversal, nested paths or other file types.
-pub fn is_language_resource(entry: &str) -> bool {
-    let parts: Vec<&str> = entry.split('/').collect();
-    if parts.len() != 4 || parts[0] != "assets" || parts[2] != "lang" {
-        return false;
+/// Only the path below a namespace is meaningful to the visual heuristic.
+/// Reject malformed paths and skip translations, books, recipes and other prose
+/// regardless of mod or language rather than maintaining a per-mod denylist.
+pub fn render_asset_path(entry: &str) -> Option<&str> {
+    let mut parts = entry.split('/');
+    if parts.next()? != "assets" {
+        return None;
     }
-    let namespace = parts[1];
-    let file = parts[3];
-    let Some(locale) = file
-        .strip_suffix(".json")
-        .or_else(|| file.strip_suffix(".lang"))
-    else {
-        return false;
-    };
-    !namespace.is_empty()
-        && namespace.bytes().all(|b| {
-            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-' || b == b'.'
-        })
-        && namespace != "."
-        && namespace != ".."
-        && !locale.is_empty()
-        && locale
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    let namespace = parts.next()?;
+    if namespace.is_empty() || namespace == "." || namespace == ".." {
+        return None;
+    }
+    let kind = parts.next()?;
+    if !matches!(kind, "textures" | "models" | "blockstates") {
+        return None;
+    }
+    let rest = parts.collect::<Vec<_>>();
+    if rest.is_empty()
+        || rest
+            .iter()
+            .any(|part| part.is_empty() || *part == "." || *part == "..")
+    {
+        return None;
+    }
+    entry
+        .strip_prefix("assets/")?
+        .strip_prefix(namespace)?
+        .strip_prefix('/')
 }
 
-/// Which entries are worth reading: JSON models, blockstates, other text and
-/// pack metadata — the parts of a resource pack that are text. PNGs are skipped
-/// on purpose (see the module comment).
+/// Only JSON that describes models and block states is read as text. Images
+/// are never decoded, and prose such as guides and translations is not scanned.
 pub fn reads_text(entry: &str) -> bool {
-    let lower = entry.to_ascii_lowercase();
-    lower.ends_with(".json")
-        || lower.ends_with(".mcmeta")
-        || lower.ends_with(".txt")
-        || lower.ends_with(".lang")
-        || lower.ends_with(".properties")
-        || lower.ends_with(".toml")
-        || lower.ends_with(".cfg")
+    render_asset_path(entry).is_some_and(|path| {
+        (path.starts_with("models/") || path.starts_with("blockstates/")) && path.ends_with(".json")
+    })
 }
 
 /// Every pack under `game/resourcepacks`, whether or not the provider owns it,
@@ -432,6 +431,15 @@ mod tests {
         )
         .unwrap();
         zip.write_all(b"hitbox=Reach").unwrap();
+        zip.start_file("assets/bewitchment/patchouli_books/book_of_shadows/zh_cn/entries/brewing/synchronized.json", SimpleFileOptions::default()).unwrap();
+        zip.write_all(br#"{"text":"the reach of a brew; hitbox and xray"}"#)
+            .unwrap();
+        zip.start_file(
+            "assets/other/advancements/achieve_xray.json",
+            SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(br#"{"description":"reach"}"#).unwrap();
         zip.finish().unwrap();
         let words = vec![
             "nightvision".into(),
@@ -445,9 +453,9 @@ mod tests {
         assert!(!scan_pack("resourcepacks/xray.zip", &path, &words)
             .unwrap()
             .is_clean());
-        assert!(!is_language_resource("assets/../lang/en_us.json"));
-        assert!(!is_language_resource("assets/test/lang/nested/en_us.json"));
-        assert!(!is_language_resource("assets/test/lang/xray.png"));
+        assert!(render_asset_path("assets/../models/xray.json").is_none());
+        assert!(render_asset_path("assets/test/lang/nested/en_us.json").is_none());
+        assert!(!reads_text("assets/test/textures/xray.png"));
 
         let model = dir.path().join("model.zip");
         let mut zip = zip::ZipWriter::new(fs::File::create(&model).unwrap());

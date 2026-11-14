@@ -144,13 +144,11 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
 
 test("a minecraft-mode server swaps the dock, never renders two of them", () => {
   const detail = read("src/components/line/ServerDetail.tsx");
-  // The two looks used to be two branches here. With one design there is one
-  // page and one dock; the Minecraft panel is a separate branch *below* it, not
-  // a second copy of the page, so «Играть» exists exactly once for assistive
-  // tech and for the smoke test.
+  // Minecraft and ZIP modes use mutually exclusive panels in the same dock.
   assert.doesNotMatch(detail, /theme === /);
   assert.doesNotMatch(detail, /LegacyDetail/);
-  assert.match(detail, /\{isMinecraft && \(/);
+  assert.match(detail, /\{isMinecraft \? \(/);
+  assert.equal((detail.match(/<MinecraftPanel\b/g) ?? []).length, 1);
   assert.match(detail, /function phaseOf\(/);
   for (const phase of [
     '"needs-install"',

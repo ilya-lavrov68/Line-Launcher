@@ -72,7 +72,11 @@ test("the provider ZIP requirements are skipped only for this mode", () => {
 test("the panel replaces the ZIP dock instead of competing with it", () => {
   // One dock at a time: a ternary, not two panels on the same screen.
   assert.match(detail, /isMinecraft \? \(/);
-  assert.match(detail, /<MinecraftPanel/);
+  assert.equal(
+    (detail.match(/<MinecraftPanel\b/g) ?? []).length,
+    1,
+    "Minecraft controls must be rendered only once",
+  );
   assert.match(detail, /\) : \(\s*\n\s*<ServerActionPanel/);
   // One design, so there is no second page to keep in step: the panel is the
   // only place a minecraft-mode server can end up, and the ZIP dock cannot be

@@ -40,12 +40,10 @@ struct SourceCache {
 }
 
 fn config_identity(server: &Server) -> String {
-    let bytes = serde_json::to_vec(&(
-        server.version.as_str(),
-        &server.minecraft_version,
-        LAUNCHER_VERSION,
-    ))
-    .expect("serializing server version strings cannot fail");
+    // The launcher version in the generated profile is informational only:
+    // upgrading the launcher must not force a pack download.
+    let bytes = serde_json::to_vec(&(server.version.as_str(), &server.minecraft_version))
+        .expect("serializing server version strings cannot fail");
     format!("{:x}", Sha256::digest(bytes))
 }
 

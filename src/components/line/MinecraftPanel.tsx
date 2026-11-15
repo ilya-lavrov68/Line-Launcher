@@ -1,14 +1,5 @@
-import {
-  Check,
-  Download,
-  Gamepad2,
-  Loader2,
-  Play,
-  ShieldCheck,
-  Square,
-  Wifi,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Download, Gamepad2, Loader2, Play, Square, Wifi } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { errorMessage, lineApi } from "@/lib/line/api";
@@ -34,16 +25,14 @@ import { useT, type Translator } from "@/lib/line/i18n";
  *
  * The whole flow is one button on purpose. `mc_play` already does resolve →
  * download-or-verify → sync → fill gaps → launch + auto-join; exposing those
- * steps separately would let a player launch a half-synced pack. The four
- * commands that *do* need a separate surface are reached from here:
- * `mc_list_installed` fills the "installed profiles" line, `mc_status` restores
- * state after a screen change, `mc_stop` is the running-game action, and
+ * steps separately would let a player launch a half-synced pack. The commands
+ * that need a separate surface are reached from here:
+ * `mc_status` restores state after a screen change, `mc_stop` is the
+ * running-game action, and
  * `mc_play` with `prepareOnly` runs the same pack preparation without launching.
  */
 export interface MinecraftPanelProps {
   server: LineServer;
-  /** Nickname of the signed-in project account; the offline identity. */
-  username?: string;
   /** The shell already knows whether the provider enabled launch at all. */
   disabled?: boolean;
   onAuthRequired?: () => void;
@@ -69,7 +58,6 @@ function phaseHint(t: Translator, phase: GamePhase): string {
 
 export default function MinecraftPanel({
   server,
-  username,
   disabled = false,
   onAuthRequired,
   onRefreshConfig,
@@ -80,7 +68,6 @@ export default function MinecraftPanel({
   const t = useT();
   const instanceId = server.id;
   const [status, setStatus] = useState<McGameStatus | null>(null);
-  const [profiles, setProfiles] = useState<string[] | null>(null);
   const [progress, setProgress] = useState<McInstallProgress | null>(null);
   const [busy, setBusy] = useState<Busy>("idle");
   const [error, setError] = useState<string>();
@@ -109,17 +96,6 @@ export default function MinecraftPanel({
     onFeedbackChange?.(error ?? notice ?? null);
   }, [error, notice, onFeedbackChange]);
 
-  const refreshProfiles = useCallback(async () => {
-    try {
-      const found = await lineApi.mcListInstalled(instanceId);
-      if (mounted.current) setProfiles(found);
-    } catch {
-      // Reading the install list is informational; failing to read it must not
-      // put an error in front of a player who can still press «Играть».
-      if (mounted.current) setProfiles(null);
-    }
-  }, [instanceId]);
-
   // Restore state after a screen change: a game started before the player
   // navigated away is still running, and the dock has to say so.
   useEffect(() => {
@@ -130,11 +106,10 @@ export default function MinecraftPanel({
         if (!cancelled && mounted.current) setStatus(current);
       })
       .catch(() => undefined);
-    void refreshProfiles();
     return () => {
       cancelled = true;
     };
-  }, [instanceId, refreshProfiles]);
+  }, [instanceId]);
 
   // Events are filtered by instance id in `onMcGame`/`onMcProgress`.
   useEffect(() => {
@@ -150,7 +125,6 @@ export default function MinecraftPanel({
         }
         if (next.phase === "exited") setProgress(null);
         if (next.phase === "failed" && next.message) setError(next.message);
-        if (next.phase === "exited") void refreshProfiles();
       })
       .then((fn) => (cancelled ? fn() : (unlistenStatus = fn)))
       .catch(() => undefined);
@@ -166,7 +140,7 @@ export default function MinecraftPanel({
       unlistenStatus?.();
       unlistenProgress?.();
     };
-  }, [instanceId, refreshProfiles]);
+  }, [instanceId]);
 
   const running = status?.phase === "running" || status?.phase === "starting";
   const working = busy === "installing" || busy === "launching";
@@ -219,13 +193,12 @@ export default function MinecraftPanel({
     setNotice(undefined);
     try {
       await onRefreshConfig?.();
-      const installed = await lineApi.mcPlay({
+      await lineApi.mcPlay({
         serverId: instanceId,
         prepareOnly: true,
       });
       if (!mounted.current) return;
-      setNotice(t("mc.profilePrepared", { version: installed.versionId }));
-      await refreshProfiles();
+      setNotice(t("mc.profilePrepared"));
     } catch (cause) {
       if (!mounted.current) return;
       if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
@@ -306,7 +279,6 @@ export default function MinecraftPanel({
             MC {server.minecraft_version}
           </span>
         )}
-        {username && <span className="font-mono text-[11px]">{username}</span>}
       </div>
 
       <div className="flex items-center gap-2">
@@ -413,23 +385,6 @@ export default function MinecraftPanel({
         </div>
       )}
 
-      {server.test_mode_enabled !== false && !running && (
-        <p className="text-muted-foreground text-[11px] leading-relaxed">
-          {t("mc.testModeHint")}
-        </p>
-      )}
-
-      {profiles && profiles.length > 0 && (
-        <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
-          <Check
-            className="size-3 shrink-0 text-[var(--line-online)]"
-            aria-hidden="true"
-          />
-          {t("mc.profiles", { count: profiles.length })}
-          {profiles.length <= 3 && ` · ${profiles.join(", ")}`}
-        </p>
-      )}
-
       {notice && (
         <p
           role="status"
@@ -447,10 +402,15 @@ export default function MinecraftPanel({
         </p>
       )}
 
-      <p className="text-muted-foreground flex items-center gap-1.5 text-[12px] leading-relaxed">
-        <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />
-        {t("mc.onlineMode")}
-      </p>
+      <details className="text-muted-foreground text-[11px] leading-relaxed">
+        <summary className="hover:text-foreground w-fit cursor-pointer">
+          {t("mc.launchDetails")}
+        </summary>
+        <div className="mt-2 flex flex-col gap-1.5">
+          {server.test_mode_enabled !== false && <p>{t("mc.testModeHint")}</p>}
+          <p>{t("mc.onlineMode")}</p>
+        </div>
+      </details>
     </ServerDock>
   );
 }

@@ -174,10 +174,10 @@ export const ru = {
   "mc.stageWorking": "Выполняется…",
   "mc.prepare": "Подготовить заранее",
   "mc.testMode": "Тестовый режим",
+  "mc.launchDetails": "О запуске",
   "mc.testModeHint":
     "Откроется меню Minecraft: создайте или выберите одиночный мир. Автоматического подключения к серверу не будет.",
-  "mc.profilePrepared":
-    "Сборка и профиль {version} подготовлены. Перед запуском источник будет проверен снова.",
+  "mc.profilePrepared": "Сборка подготовлена.",
   "mc.profiles": "Установлено профилей: {count}",
   "mc.onlineMode":
     "Вход под ником аккаунта проекта. Сервер должен принимать такие входы (online-mode=false).",
@@ -297,7 +297,7 @@ export const ru = {
   "backdrop.pearl": "Жемчужное кольцо",
   "settings.java": "Java",
   "settings.javaHint":
-    "Только проверенные рантаймы, версия под требование сборки.",
+    "Java проверяется при выборе. Если её версия не подходит сборке, лаунчер ищет нужную отдельно (например, Java 17 для Minecraft 1.20.1).",
   "settings.javaSearching": "Поиск Java…",
   "settings.javaAuto": "Автоматически по версии сборки",
   "settings.javaChecking": "Проверяем Java…",
@@ -610,10 +610,10 @@ const en: Dictionary = {
   "mc.stageWorking": "Working…",
   "mc.prepare": "Prepare in advance",
   "mc.testMode": "Test mode",
+  "mc.launchDetails": "About launching",
   "mc.testModeHint":
     "Minecraft opens at the menu: create or select a singleplayer world. It will not automatically join the server.",
-  "mc.profilePrepared":
-    "The pack and profile {version} are ready. The source will be checked again before launch.",
+  "mc.profilePrepared": "The pack is ready.",
   "mc.profiles": "Profiles installed: {count}",
   "mc.onlineMode":
     "Sign-in uses the project account name. The server must accept these sign-ins (online-mode=false).",
@@ -734,7 +734,7 @@ const en: Dictionary = {
   "backdrop.pearl": "Pearl ring",
   "settings.java": "Java",
   "settings.javaHint":
-    "Only verified runtimes, the version the build requires.",
+    "Java is verified when selected. If its version does not match the build, the launcher looks for the required version (for example, Java 17 for Minecraft 1.20.1).",
   "settings.javaSearching": "Looking for Java…",
   "settings.javaAuto": "Automatic, by the build's requirement",
   "settings.javaChecking": "Checking Java…",
@@ -1044,10 +1044,10 @@ const de: Dictionary = {
   "mc.stageWorking": "Wird ausgeführt…",
   "mc.prepare": "Vorab vorbereiten",
   "mc.testMode": "Testmodus",
+  "mc.launchDetails": "Zum Start",
   "mc.testModeHint":
     "Minecraft öffnet das Menü: Erstelle oder wähle eine Einzelspielerwelt. Es wird nicht automatisch verbunden.",
-  "mc.profilePrepared":
-    "Paket und Profil {version} sind vorbereitet. Die Quelle wird vor dem Start erneut geprüft.",
+  "mc.profilePrepared": "Das Paket ist vorbereitet.",
   "mc.profiles": "Installierte Profile: {count}",
   "mc.onlineMode":
     "Die Anmeldung nutzt den Namen des Projektkontos. Der Server muss solche Anmeldungen akzeptieren (online-mode=false).",
@@ -1171,7 +1171,7 @@ const de: Dictionary = {
   "backdrop.pearl": "Perlenring",
   "settings.java": "Java",
   "settings.javaHint":
-    "Nur geprüfte Runtimes, die Version, die der Build verlangt.",
+    "Java wird bei der Auswahl geprüft. Falls die Version nicht zum Build passt, sucht der Launcher die benötigte Version (zum Beispiel Java 17 für Minecraft 1.20.1).",
   "settings.javaSearching": "Java wird gesucht…",
   "settings.javaAuto": "Automatisch nach Vorgabe des Builds",
   "settings.javaChecking": "Java wird geprüft…",
@@ -1482,10 +1482,10 @@ const fr: Dictionary = {
   "mc.stageWorking": "En cours…",
   "mc.prepare": "Préparer à l'avance",
   "mc.testMode": "Mode test",
+  "mc.launchDetails": "À propos du lancement",
   "mc.testModeHint":
     "Minecraft ouvre le menu : créez ou choisissez un monde solo. La connexion au serveur ne sera pas automatique.",
-  "mc.profilePrepared":
-    "Le pack et le profil {version} sont prêts. La source sera revérifiée avant le lancement.",
+  "mc.profilePrepared": "Le pack est prêt.",
   "mc.profiles": "Profils installés : {count}",
   "mc.onlineMode":
     "La connexion utilise le nom du compte du projet. Le serveur doit accepter ces connexions (online-mode=false).",
@@ -1606,7 +1606,7 @@ const fr: Dictionary = {
   "backdrop.pearl": "Anneau de perle",
   "settings.java": "Java",
   "settings.javaHint":
-    "Uniquement des runtimes vérifiés, la version exigée par la build.",
+    "Java est vérifié à la sélection. Si sa version ne convient pas à la build, le launcher recherche la version requise (par exemple Java 17 pour Minecraft 1.20.1).",
   "settings.javaSearching": "Recherche de Java…",
   "settings.javaAuto": "Automatique, selon la build",
   "settings.javaChecking": "Vérification de Java…",

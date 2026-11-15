@@ -616,6 +616,61 @@ pub async fn mc_list_installed(app: AppHandle, instance_id: String) -> LineResul
     Ok(found)
 }
 
+/// Runtime installation returns a boxed error, which may contain URLs, local
+/// paths or tokens. Classify known types only; never expose raw error text.
+fn java_install_error(
+    error: &(dyn std::error::Error + 'static),
+    required_major: u16,
+    selected_major: Option<u16>,
+) -> LineError {
+    let selected = match selected_major {
+        Some(major) if major != required_major => {
+            format!("Выбрана Java {major}, но для этой сборки нужна Java {required_major}. ")
+        }
+        _ => format!("Для этой сборки нужна Java {required_major}. "),
+    };
+    let mut current = Some(error);
+    let mut detail = "Не удалось автоматически установить Java от Mojang.".to_string();
+    let mut status = None;
+    let mut code = ErrorCode::JavaRequired;
+    while let Some(cause) = current {
+        if let Some(network) = cause.downcast_ref::<reqwest::Error>() {
+            status = network.status().map(|s| s.as_u16());
+            detail = if let Some(http) = status {
+                code = ErrorCode::HttpStatus;
+                format!("Ошибка загрузки Java от Mojang (HTTP {http}).")
+            } else if network.is_timeout() {
+                code = ErrorCode::Network;
+                "Истекло время ожидания при загрузке Java от Mojang.".into()
+            } else if network.is_connect() {
+                code = ErrorCode::Network;
+                "Не удалось подключиться при загрузке Java от Mojang.".into()
+            } else if network.is_decode() {
+                "Не удалось прочитать ответ сервера Java; причина неизвестна.".into()
+            } else {
+                code = ErrorCode::Network;
+                "Ошибка загрузки Java от Mojang; причина неизвестна.".into()
+            };
+            break;
+        }
+        if cause.downcast_ref::<std::io::Error>().is_some() {
+            code = ErrorCode::Storage;
+            detail =
+                "Не удалось прочитать или записать файлы Java. Проверьте место и права доступа."
+                    .into();
+            break;
+        }
+        current = cause.source();
+    }
+    let mut result = LineError::new(
+        code,
+        format!("{selected}{detail} Установите Java {required_major} и выберите её в настройках."),
+        true,
+    );
+    result.http_status = status;
+    result
+}
+
 /// Picks a runtime the game actually accepts: the player's verified choice,
 /// then local discovery, then Mojang's own JRE for that version.
 async fn resolve_java(
@@ -624,11 +679,13 @@ async fn resolve_java(
     required_major: u16,
     preferences: &LauncherSettings,
 ) -> LineResult<PathBuf> {
+    let mut selected_major = None;
     if let Some(requested) = &preferences.java_path {
         if let Ok(runtime) = java::inspect_path(requested).await {
             if runtime.major == required_major {
                 return Ok(runtime.path);
             }
+            selected_major = Some(runtime.major);
         }
     }
     if let Ok(runtime) = java::discover(required_major).await {
@@ -644,19 +701,17 @@ async fn resolve_java(
         ));
     };
     if let Some(path) = runtime::get_executable_path(&component, dir) {
-        return Ok(java::inspect_path(&path.to_string_lossy()).await?.path);
+        if let Ok(existing) = java::inspect_path(&path.to_string_lossy()).await {
+            if existing.major == required_major {
+                return Ok(existing.path);
+            }
+        }
     }
     let owned_dir = dir.to_path_buf();
     let owned_component = component.clone();
     tokio::task::spawn_blocking(move || -> LineResult<()> {
         runtime::install_jvm_runtime(&owned_component, &owned_dir, &CallbackDict::default())
-            .map_err(|_| {
-                LineError::new(
-                    ErrorCode::Network,
-                    "Не удалось скачать Java от Mojang. Проверьте интернет или выберите свою Java в настройках.",
-                    true,
-                )
-            })
+            .map_err(|error| java_install_error(error.as_ref(), required_major, selected_major))
     })
     .await
     .map_err(|_| join_error())??;
@@ -1336,6 +1391,12 @@ mod network_diagnostics_tests {
             .error_for_status()
             .unwrap_err();
         server.await.unwrap();
+        let java_error = java_install_error(&source, 17, Some(25));
+        assert_eq!(java_error.http_status, Some(404));
+        assert!(java_error.message.contains("Java 17"));
+        assert!(java_error.message.contains("Java 25"));
+        assert!(!java_error.message.contains("secret"));
+        assert!(!java_error.message.contains("private-path"));
         let error = mc_error(LauncherError::Network { source });
         assert_eq!(error.http_status, Some(404));
         assert!(error.message.contains("HTTP 404"));
@@ -1375,6 +1436,21 @@ mod network_diagnostics_tests {
             legacy_neoforge_version("1.21.1", &exact("21.1.65")).unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn java_install_error_explains_version_without_leaking_details() {
+        let unknown = std::io::Error::other("secret-path-and-token");
+        let error = java_install_error(&unknown, 17, Some(25));
+        assert!(error.message.contains("Java 25"));
+        assert!(error.message.contains("Java 17"));
+        assert!(!error.message.contains("secret-path-and-token"));
+        assert_eq!(error.code, ErrorCode::Storage);
+        let unknown = std::fmt::Error;
+        let error = java_install_error(&unknown, 17, None);
+        assert!(error.message.contains("Java 17"));
+        assert!(!error.message.contains("Java 25"));
+        assert_eq!(error.code, ErrorCode::JavaRequired);
     }
 
     #[test]

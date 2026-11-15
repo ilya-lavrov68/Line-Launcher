@@ -29,6 +29,18 @@ try {
     const play = region.getByRole("button", { name: "Играть", exact: true });
     const testMode = region.getByRole("button", { name: "Тестовый режим" });
     await play.waitFor();
+    const details = region.locator("details");
+    const hint = details.getByText(/Откроется меню Minecraft/);
+    assert.equal(await hint.isVisible(), false);
+    assert.equal(await region.getByText(/Установлено профилей/).count(), 0);
+    await details.locator("summary").click();
+    assert.equal(await hint.isVisible(), true);
+    assert.equal(
+      await details.getByText(/online-mode=false/).isVisible(),
+      true,
+    );
+    await details.locator("summary").click();
+    assert.equal(await hint.isVisible(), false);
     await page.waitForTimeout(350);
     const beforePlay = await play.boundingBox();
     const beforeTest = await testMode.boundingBox();

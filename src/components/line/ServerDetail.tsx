@@ -267,7 +267,6 @@ export default function ServerDetail(props: ServerDetailProps) {
                  the two never appear together. */
           <MinecraftPanel
             server={server}
-            username={props.username}
             disabled={actionsBusy}
             onAuthRequired={props.onAuthRequired}
             onRefreshConfig={props.onRefreshConfig}
@@ -332,10 +331,7 @@ export default function ServerDetail(props: ServerDetailProps) {
         />
       )}
 
-      {/* A source-backed build is not "a ZIP you have not downloaded yet", and
-          the dock's «Скачать» wording would be misleading: there is no archive
-          to fetch, the launcher fetches the files. One line, with the reason it
-          is different, and only for the two source kinds. */}
+      {/* Keep the source and version visible without a repeated technical explanation. */}
       {server.source && (
         <p
           className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-2 text-[12px] leading-relaxed"
@@ -351,7 +347,6 @@ export default function ServerDetail(props: ServerDetailProps) {
               {t("source.version", { version: server.source.version })}
             </span>
           )}
-          <span className="basis-full">{t("source.hint")}</span>
         </p>
       )}
     </section>

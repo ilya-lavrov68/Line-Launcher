@@ -174,10 +174,10 @@ export const ru = {
   "mc.stageWorking": "Выполняется…",
   "mc.prepare": "Подготовить заранее",
   "mc.testMode": "Тестовый режим",
+  "mc.launchDetails": "О запуске",
   "mc.testModeHint":
     "Откроется меню Minecraft: создайте или выберите одиночный мир. Автоматического подключения к серверу не будет.",
-  "mc.profilePrepared":
-    "Сборка и профиль {version} подготовлены. Перед запуском источник будет проверен снова.",
+  "mc.profilePrepared": "Сборка подготовлена.",
   "mc.profiles": "Установлено профилей: {count}",
   "mc.onlineMode":
     "Вход под ником аккаунта проекта. Сервер должен принимать такие входы (online-mode=false).",
@@ -610,10 +610,10 @@ const en: Dictionary = {
   "mc.stageWorking": "Working…",
   "mc.prepare": "Prepare in advance",
   "mc.testMode": "Test mode",
+  "mc.launchDetails": "About launching",
   "mc.testModeHint":
     "Minecraft opens at the menu: create or select a singleplayer world. It will not automatically join the server.",
-  "mc.profilePrepared":
-    "The pack and profile {version} are ready. The source will be checked again before launch.",
+  "mc.profilePrepared": "The pack is ready.",
   "mc.profiles": "Profiles installed: {count}",
   "mc.onlineMode":
     "Sign-in uses the project account name. The server must accept these sign-ins (online-mode=false).",
@@ -1044,10 +1044,10 @@ const de: Dictionary = {
   "mc.stageWorking": "Wird ausgeführt…",
   "mc.prepare": "Vorab vorbereiten",
   "mc.testMode": "Testmodus",
+  "mc.launchDetails": "Zum Start",
   "mc.testModeHint":
     "Minecraft öffnet das Menü: Erstelle oder wähle eine Einzelspielerwelt. Es wird nicht automatisch verbunden.",
-  "mc.profilePrepared":
-    "Paket und Profil {version} sind vorbereitet. Die Quelle wird vor dem Start erneut geprüft.",
+  "mc.profilePrepared": "Das Paket ist vorbereitet.",
   "mc.profiles": "Installierte Profile: {count}",
   "mc.onlineMode":
     "Die Anmeldung nutzt den Namen des Projektkontos. Der Server muss solche Anmeldungen akzeptieren (online-mode=false).",
@@ -1482,10 +1482,10 @@ const fr: Dictionary = {
   "mc.stageWorking": "En cours…",
   "mc.prepare": "Préparer à l'avance",
   "mc.testMode": "Mode test",
+  "mc.launchDetails": "À propos du lancement",
   "mc.testModeHint":
     "Minecraft ouvre le menu : créez ou choisissez un monde solo. La connexion au serveur ne sera pas automatique.",
-  "mc.profilePrepared":
-    "Le pack et le profil {version} sont prêts. La source sera revérifiée avant le lancement.",
+  "mc.profilePrepared": "Le pack est prêt.",
   "mc.profiles": "Profils installés : {count}",
   "mc.onlineMode":
     "La connexion utilise le nom du compte du projet. Le serveur doit accepter ces connexions (online-mode=false).",

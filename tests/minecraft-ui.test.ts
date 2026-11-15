@@ -85,12 +85,10 @@ test("the panel replaces the ZIP dock instead of competing with it", () => {
   assert.doesNotMatch(detail, /LegacyDetail/);
 });
 
-test("every mc_* command has exactly one caller, and mc_launch has none", () => {
-  // These four are reached from the panel (`mcStatus` through a chained call,
-  // hence the looser match).
+test("the panel calls the commands needed for play, and mc_launch has none", () => {
+  // mcStatus is reached through a chained call, hence the looser match.
   for (const call of [
     /lineApi\s*\.?\s*mcStatus\(/,
-    /lineApi\.mcListInstalled\(/,
     /lineApi\.mcPlay\(/,
     /lineApi\.mcStop\(/,
   ]) {
@@ -171,4 +169,20 @@ test("the provider guide documents the opt-in, its fields and its limit", () => 
   assert.match(providerDocs, /distribution/);
   // The honest limit — no Mojang session, no bypass — is written down.
   assert.match(providerDocs, /не подделывает сессию/);
+});
+
+test("Minecraft dock keeps actions and errors prominent, with explanations on demand", () => {
+  assert.doesNotMatch(panel, /lineApi\.mcListInstalled\(/);
+  assert.doesNotMatch(panel, /t\("mc\.profiles"/);
+  assert.match(panel, /<details className=/);
+  assert.match(panel, /<summary[^>]*>[\s\S]*?t\("mc\.launchDetails"\)/);
+  const details = panel.slice(
+    panel.indexOf("<details"),
+    panel.indexOf("</details>"),
+  );
+  assert.match(details, /t\("mc\.testModeHint"\)/);
+  assert.match(details, /t\("mc\.onlineMode"\)/);
+  assert.match(panel, /role="alert"/);
+  assert.match(panel, /role="progressbar"/);
+  assert.doesNotMatch(detail, /t\("source\.hint"\)/);
 });

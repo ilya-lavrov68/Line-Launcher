@@ -478,11 +478,15 @@ async fn install_legacy_neoforge(
     .await
     .map_err(|_| join_error())??;
     let preferences = settings::load(app, total_memory());
+    // The shared runtime belongs beside game/, not inside the pack's files.
+    let runtime_dir = dir.parent().ok_or_else(LineError::storage)?;
     let java = resolve_java(
-        &dir,
+        runtime_dir,
         Some("java-runtime-gamma".to_string()),
         17,
         &preferences,
+        app,
+        &instance,
     )
     .await?;
     tokio::task::spawn_blocking(move || -> LineResult<String> {
@@ -678,6 +682,8 @@ async fn resolve_java(
     component: Option<String>,
     required_major: u16,
     preferences: &LauncherSettings,
+    app: &AppHandle,
+    instance_id: &str,
 ) -> LineResult<PathBuf> {
     let mut selected_major = None;
     if let Some(requested) = &preferences.java_path {
@@ -690,6 +696,25 @@ async fn resolve_java(
     }
     if let Ok(runtime) = java::discover(required_major).await {
         return Ok(runtime.path);
+    }
+    // Prefer a verified private JRE on Windows x64, including versions whose
+    // Mojang manifest has no runtime component. No administrator rights or
+    // system Java changes are needed.
+    if cfg!(all(target_os = "windows", target_arch = "x86_64"))
+        && matches!(required_major, 8 | 17 | 21 | 25)
+    {
+        return super::java_auto::install_windows_x64(dir, required_major, |done, total| {
+            emit_mc_progress(
+                app,
+                instance_id,
+                "runtime",
+                "Установка Java",
+                done,
+                total,
+                false,
+            );
+        })
+        .await;
     }
     let Some(component) = component else {
         return Err(LineError::new(
@@ -1188,7 +1213,15 @@ async fn start_game(
         Some(requested) => validate_heap(requested, total)?,
         None => optimal_heap_mb(total),
     };
-    let java_path = resolve_java(&dir, component, required_major, &preferences).await?;
+    let java_path = resolve_java(
+        &dir,
+        component,
+        required_major,
+        &preferences,
+        app,
+        instance_id,
+    )
+    .await?;
 
     let build_dir = game_dir.clone();
     let account_name = username.to_string();

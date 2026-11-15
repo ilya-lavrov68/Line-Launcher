@@ -13,6 +13,7 @@ pub mod instance;
 pub mod integrity;
 pub mod ipc;
 pub mod java;
+pub mod java_auto;
 pub mod launch;
 pub mod launch_manifest;
 pub mod logger;

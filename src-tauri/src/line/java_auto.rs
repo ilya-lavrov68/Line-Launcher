@@ -2,7 +2,7 @@
 //! Metadata is public, HTTPS-only and scoped to the official repository. The
 //! archive is bounded, SHA-256 checked, safely extracted and verified before use.
 use super::error::{ErrorCode, LineError, LineResult};
-use super::{http, install, integrity, java, pack, storage};
+use super::{install, integrity, java, pack, storage};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -132,11 +132,51 @@ fn select_asset(body: &[u8], major: u16) -> LineResult<Asset> {
     })
 }
 
+// Keep the existing TLS classification, but do not call the Adoptium source
+// "the provider" or expose URLs, server bodies, or filesystem paths.
+fn java_network_error(error: &reqwest::Error) -> LineError {
+    let original = LineError::network(error);
+    let message = if error.is_timeout() {
+        "Сервер Java (Adoptium) не ответил вовремя. Повторите попытку."
+    } else if original.code == ErrorCode::TlsUntrusted {
+        "Не удалось проверить сертификат сервера Java (Adoptium). Проверьте системные сертификаты."
+    } else if error.is_connect() {
+        "Не удалось подключиться к серверу Java (Adoptium). Проверьте соединение и повторите."
+    } else {
+        "Не удалось скачать Java (Adoptium). Повторите попытку."
+    };
+    LineError::new(original.code, message, original.retryable)
+}
+
+async fn read_metadata(response: &mut reqwest::Response) -> LineResult<Vec<u8>> {
+    let too_large = || {
+        LineError::new(
+            ErrorCode::Integrity,
+            "Ответ сервера Java слишком большой.",
+            false,
+        )
+    };
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_METADATA as u64)
+    {
+        return Err(too_large());
+    }
+    let mut data = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| java_network_error(&e))? {
+        if data.len().saturating_add(chunk.len()) > MAX_METADATA {
+            return Err(too_large());
+        }
+        data.extend_from_slice(&chunk);
+    }
+    Ok(data)
+}
+
 fn status_error(status: reqwest::StatusCode) -> LineError {
     let mut error = LineError::new(
         ErrorCode::HttpStatus,
         format!(
-            "Не удалось загрузить Java: сервер ответил HTTP {}. Повторите попытку позже.",
+            "Не удалось загрузить Java (Adoptium): сервер ответил HTTP {}. Повторите попытку позже.",
             status.as_u16()
         ),
         true,
@@ -172,7 +212,7 @@ fn client() -> LineResult<reqwest::Client> {
             }
         }))
         .build()
-        .map_err(|e| LineError::network(&e))
+        .map_err(|e| java_network_error(&e))
 }
 
 async fn cached(target: &Path, major: u16) -> Option<PathBuf> {
@@ -223,19 +263,16 @@ pub async fn install_windows_x64(
         .get(metadata_url)
         .send()
         .await
-        .map_err(|e| LineError::network(&e))?;
+        .map_err(|e| java_network_error(&e))?;
     if !response.status().is_success() {
         return Err(status_error(response.status()));
     }
-    let asset = select_asset(
-        &http::read_limited(&mut response, MAX_METADATA).await?,
-        major,
-    )?;
+    let asset = select_asset(&read_metadata(&mut response).await?, major)?;
     let mut response = client
         .get(&asset.url)
         .send()
         .await
-        .map_err(|e| LineError::network(&e))?;
+        .map_err(|e| java_network_error(&e))?;
     if !response.status().is_success() {
         return Err(status_error(response.status()));
     }
@@ -254,7 +291,7 @@ pub async fn install_windows_x64(
     let mut sha = Sha256::new();
     let mut received = 0u64;
     let mut last_report = std::time::Instant::now();
-    while let Some(chunk) = response.chunk().await.map_err(|e| LineError::network(&e))? {
+    while let Some(chunk) = response.chunk().await.map_err(|e| java_network_error(&e))? {
         received = received
             .checked_add(chunk.len() as u64)
             .ok_or_else(LineError::storage)?;

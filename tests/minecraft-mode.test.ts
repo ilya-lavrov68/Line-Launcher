@@ -98,7 +98,7 @@ test("the child gets args, env, cwd, logging and a kill switch", () => {
   assert.match(rust, /let _ = child\.kill\(\)\.await;/);
 });
 
-test("Java falls back from the player's choice to discovery to Mojang's runtime", () => {
+test("Java prefers a valid local runtime, then Windows Temurin or Mojang", () => {
   const resolve = rust.slice(
     rust.indexOf("async fn resolve_java("),
     rust.indexOf("fn emit_status("),
@@ -106,6 +106,7 @@ test("Java falls back from the player's choice to discovery to Mojang's runtime"
   const order = [
     "java::inspect_path(requested)",
     "java::discover(required_major)",
+    "java_auto::install_windows_x64",
     "runtime::get_executable_path(",
     "runtime::install_jvm_runtime(",
   ].map((needle) => resolve.indexOf(needle));

@@ -23,6 +23,7 @@ fn main() {
         // Written by `npm run brand` with the source's SHA-256, so a rebuild is
         // triggered even if an icon file happens to be byte-identical.
         "icons/.brand-source.sha256",
+        "icons/.brand-files.sha256.json",
     ] {
         println!("cargo:rerun-if-changed={icon}");
     }

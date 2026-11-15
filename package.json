@@ -19,6 +19,7 @@
     "test:java": "node scripts/test-java-client.mjs",
     "brand": "node --experimental-strip-types scripts/apply-brand.ts",
     "brand:check": "node --experimental-strip-types scripts/apply-brand.ts --check",
+    "icon:check": "node scripts/check-windows-icon.mjs",
     "tauri:build": "npm run brand && node scripts/tauri-build.mjs",
     "test:rust": "node scripts/test-rust-pure.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",

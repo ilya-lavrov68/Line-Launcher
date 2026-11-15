@@ -188,14 +188,14 @@ pack.json. Если обновить архив, но забыть pack.json, л
 
 ## Как это устроено
 
-| Шаг             | Код                                    | API крейта                                                                         |
-| --------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
-| Инициализация   | `instance_root` + `Launcher::new(dir)` | `launcher::Launcher`                                                               |
-| Установка       | `mc_install`                           | `install_with_progress(InstallRequest, reporter)`                                  |
-| Загрузчик модов | `loader_spec`                          | `LoaderSpec::{Fabric,Quilt,Forge,NeoForge}`, `LoaderVersion::{LatestStable,Exact}` |
-| Метаданные      | `start_game`                           | `load_version` → `VersionJson` (с учётом `inheritsFrom`)                           |
-| Команда         | `start_game`                           | `build_launch_command_from_version(&version, LaunchOptions)`                       |
-| Процесс         | `tokio::process::Command`              | `LaunchCommand { executable, args, working_dir, env }`                             |
+| Шаг             | Код                                    | API крейта                                                                                                                           |
+| --------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Инициализация   | `instance_root` + `Launcher::new(dir)` | `launcher::Launcher`                                                                                                                 |
+| Установка       | `mc_install`                           | `install_with_progress(InstallRequest, reporter)`                                                                                    |
+| Загрузчик модов | `loader_spec`                          | `LoaderSpec::{Fabric,Quilt,Forge,NeoForge}`, `LoaderVersion::{LatestStable,Exact}`; NeoForge 1.20.1: отдельный путь установщика 47.x |
+| Метаданные      | `start_game`                           | `load_version` → `VersionJson` (с учётом `inheritsFrom`)                                                                             |
+| Команда         | `start_game`                           | `build_launch_command_from_version(&version, LaunchOptions)`                                                                         |
+| Процесс         | `tokio::process::Command`              | `LaunchCommand { executable, args, working_dir, env }`                                                                               |
 
 Три особенности крейта, которые учтены в коде:
 
@@ -226,8 +226,8 @@ Account::Offline { username: account_name, uuid: account_uuid }
 
 1. путь, выбранный игроком в настройках (проверяется запуском `java -version`);
 2. локальный поиск `java::discover(required_major)`;
-3. уже скачанный JRE от Mojang — `runtime::get_executable_path`;
-4. автозагрузка — `runtime::install_jvm_runtime(component, dir, &CallbackDict::default())`.
+3. на Windows x64 для Java 8, 17, 21 и 25 — проверенный кэш Eclipse Temurin или автоматическая загрузка с GitHub;
+4. на остальных платформах и для остальных версий — уже скачанный JRE Mojang или `runtime::install_jvm_runtime`, если манифест Minecraft указал компонент.
 
 `required_major` и `component` берутся из `VersionJson::java_version`. Скачанный
 рантайм тоже проверяется запуском, и несовпадение мажора — ошибка, а не тихий

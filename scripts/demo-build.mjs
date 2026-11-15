@@ -1,3 +1,4 @@
+import { verifyWindowsIcon } from "./lib/windows-icon.mjs";
 // Build a local-only release executable against the running demo provider.
 // Never hand this executable to players: it enables the development CA feature.
 import { spawnSync } from "node:child_process";
@@ -101,6 +102,15 @@ if (
   );
 const exe = path.join(root, "src-tauri/target/release/line-launcher.exe");
 if (!existsSync(exe)) fail(`Готовый файл не найден: ${exe}`);
+try {
+  const result = verifyWindowsIcon(
+    readFileSync(exe),
+    readFileSync(path.join(root, "src-tauri/icons/icon.ico")),
+  );
+  console.log(`[demo:build] Иконка exe проверена: ${result.images} размеров.`);
+} catch (error) {
+  fail(`Проверка иконки exe не прошла: ${error.message}`);
+}
 console.log(
   `[demo:build] Запускаю ${exe}\n[demo:build] Отпечаток интерфейса: ${readFileSync(path.join(root, "src-tauri/.frontend-build.sha256"), "utf8").trim()}`,
 );

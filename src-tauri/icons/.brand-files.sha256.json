@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "files": {
+    "32x32.png": "53f8ba6eaeb66edfb481c6ca6e7694b426c162f3fbaedefbf6a1e70fa08b49da",
+    "64x64.png": "006bf117ee7020c71560f1d3cd14bc059ca78721a89eb5bbb3c002be6d761b33",
+    "128x128.png": "ca1de4343d564219ab57dfc6a82b8ef11a552bc26355238a8debd2a71e7f520b",
+    "128x128@2x.png": "103126f44c02f34489d196944c5eccc0d76c302e946d9885d909cc9ad01cf354",
+    "icon.png": "1b75f232a4b50fdda259d9f457ebe1e92bf402c6a2c636419cc1ce5873e0a23e",
+    "icon.ico": "ab67fb4d1cc5dd778b0b623e189903e1874f7fc9b21d1fa3dc87464f510e98cd",
+    "icon.icns": "c3516cfc37a225e04a3a8adc1ed141a9d1f2a9da9a7d522b59db01404581d09c",
+    "StoreLogo.png": "32e2b22720578b2d743414b6439ea1396a7df4cd11f735d947a7cd7c830c1c65",
+    "Square30x30Logo.png": "9dae2189804ba2c190b9caaf98ea7e25fa5d1bf322baf5a26f2e6a76de3b4ca7",
+    "Square44x44Logo.png": "329b896ebaf94b9dc1e69a679f284620be71ee4be20fee1d8df100bb04c0b930",
+    "Square71x71Logo.png": "b6bf3b514b07a3ac560c81cca90be51f9b005331459573a89a18ede8786cc971",
+    "Square89x89Logo.png": "8dbd67d830f75ef0ce91eac9cd2e65b70c23ac3aa3397f33d4e4f519a933fa48",
+    "Square107x107Logo.png": "df2a8f634c9e0c228c23b1176ce8c7bd01e82e6b04f8672c3cc426024d79a974",
+    "Square142x142Logo.png": "8d109029a1b06ca97a179fe92173894e50d7ff3bc9563f2b8f6a9516cdc99cac",
+    "Square150x150Logo.png": "1199b363fc0f7c5cafc99d62bbae38e90af4971fed9b14363caa21b68d798df4",
+    "Square284x284Logo.png": "565892f3df9395850ccfcf7248085664b3c33758fc6f54c45282a43528df8dbd",
+    "Square310x310Logo.png": "bcc690c875b76b0c7dadd7797cf81af234587ca020928caedf4da373c0129cf0"
+  }
+}

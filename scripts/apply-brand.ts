@@ -29,6 +29,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { licenseToRtf } from "./lib/license-rtf.mjs";
 import { tauriCliCommand } from "./lib/tauri-cli.mjs";
 import { sameText } from "./lib/text-eol.mjs";
+import { iconManifest } from "./lib/icon-integrity.mjs";
 import type { BrandConfig } from "../branding/brand.types.ts";
 import {
   renderCss,
@@ -202,11 +203,15 @@ async function main(): Promise<void> {
     const current = existsSync(stampPath)
       ? readFileSync(stampPath, "utf8")
       : null;
-    if (!sameText(current, stamp)) {
+    const manifestPath = join(ICONS_DIR, ".brand-files.sha256.json");
+    const recorded = existsSync(manifestPath)
+      ? readFileSync(manifestPath, "utf8")
+      : null;
+    const actual = iconManifest(ICONS_DIR);
+    if (!sameText(current, stamp) || !actual || !sameText(recorded, actual)) {
       if (CHECK_ONLY)
         fail(
-          "src-tauri/icons is out of date (the app icon changed, or the set was " +
-            "never regenerated). Run: npm run brand — then rebuild the installer, " +
+          "src-tauri/icons is out of date (the app icon changed, or an output is missing or modified). Run: npm run brand — then rebuild the installer, " +
             "because an already-installed shortcut keeps the icon it was " +
             "installed with.",
         );
@@ -219,6 +224,10 @@ async function main(): Promise<void> {
       for (const mobile of ["ios", "android"]) {
         rmSync(join(ICONS_DIR, mobile), { recursive: true, force: true });
       }
+      const generated = iconManifest(ICONS_DIR);
+      if (!generated) fail("tauri icon не создал полный набор иконок.");
+      // Commit the stamps last: a failed generation cannot mark partial output valid.
+      writeFileSync(manifestPath, generated);
       writeFileSync(stampPath, stamp);
       changed.push("src-tauri/icons");
     }

@@ -453,6 +453,60 @@ fn legacy_neoforge_version(
     }
 }
 
+/// Retry only transient installer failures. The core skips an existing file
+/// without a checksum, so an interrupted download must be removed *before*
+/// retrying; otherwise a partial jar would be mistaken for a complete one.
+fn retryable_installer_error(error: &LauncherError) -> bool {
+    match error {
+        LauncherError::Network { source } => {
+            if LineError::network(source).code == ErrorCode::TlsUntrusted {
+                return false;
+            }
+            source.is_timeout()
+                || source.is_connect()
+                || source
+                    .status()
+                    .is_some_and(|s| s.as_u16() == 429 || s.is_server_error())
+        }
+        LauncherError::Io { source } => matches!(
+            source.kind(),
+            std::io::ErrorKind::TimedOut
+                | std::io::ErrorKind::ConnectionReset
+                | std::io::ErrorKind::ConnectionAborted
+                | std::io::ErrorKind::UnexpectedEof
+        ),
+        _ => false,
+    }
+}
+
+fn download_installer_with_retry(
+    path: &Path,
+    mut download: impl FnMut() -> Result<(), LauncherError>,
+    mut wait: impl FnMut(Duration),
+    mut retrying: impl FnMut(u32),
+) -> LineResult<()> {
+    const ATTEMPTS: u32 = 3;
+    for attempt in 1..=ATTEMPTS {
+        match download() {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                // Fail rather than retry if an incomplete file cannot be removed.
+                if let Err(io) = std::fs::remove_file(path) {
+                    if io.kind() != std::io::ErrorKind::NotFound {
+                        return Err(LineError::io(&io));
+                    }
+                }
+                if attempt == ATTEMPTS || !retryable_installer_error(&error) {
+                    return Err(mc_error(error));
+                }
+                retrying(attempt + 1);
+                wait(Duration::from_millis(u64::from(attempt) * 750));
+            }
+        }
+    }
+    unreachable!("the retry loop always returns")
+}
+
 async fn install_legacy_neoforge(
     app: &AppHandle,
     dir: PathBuf,
@@ -498,8 +552,13 @@ async fn install_legacy_neoforge(
         let installer = temp.path().join("installer.jar");
         let artifact = format!("1.20.1-{version}");
         let url = format!("https://maven.neoforged.net/releases/net/neoforged/forge/{artifact}/forge-{artifact}-installer.jar");
+        let retry_app = app_emit.clone();
+        let retry_instance = instance.clone();
         let mut report = move |event: ProgressEvent| { let _ = app_emit.emit(MC_INSTALL_EVENT, progress_dto(&instance, &event, false)); };
-        execute_plan(&DownloadPlan { tasks: vec![DownloadTask { url, destination: installer.clone(), checksum: None, label: "NeoForge installer".to_string() }] }, &mut report).map_err(mc_error)?;
+        let plan = DownloadPlan { tasks: vec![DownloadTask { url, destination: installer.clone(), checksum: None, label: "NeoForge installer".to_string() }] };
+        download_installer_with_retry(&installer, || execute_plan(&plan, &mut report), std::thread::sleep, |attempt| {
+            emit_mc_progress(&retry_app, &retry_instance, "loader", &format!("NeoForge: повторная попытка {attempt} из 3"), 0, None, false);
+        })?;
         // Read the profile id from the installer rather than assuming Forge's ID convention.
         let file = std::fs::File::open(&installer).map_err(|e| LineError::io(&e))?;
         let mut archive = zip::ZipArchive::new(file).map_err(|_| LineError::new(ErrorCode::Integrity, "Установщик NeoForge повреждён.", false))?;
@@ -528,6 +587,7 @@ async fn install_profile(
     version: String,
     loader: Option<LoaderSpec>,
 ) -> LineResult<McInstalled> {
+    let dir = game_root(app, &instance_id)?;
     {
         let mut inner = state.lock()?;
         if inner.running.contains_key(&instance_id) || inner.starting.contains(&instance_id) {
@@ -538,7 +598,6 @@ async fn install_profile(
         }
     }
 
-    let dir = game_root(app, &instance_id)?;
     let legacy = legacy_neoforge_version(&version, &loader);
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
@@ -1430,12 +1489,84 @@ mod network_diagnostics_tests {
         assert!(java_error.message.contains("Java 25"));
         assert!(!java_error.message.contains("secret"));
         assert!(!java_error.message.contains("private-path"));
-        let error = mc_error(LauncherError::Network { source });
+        let network = LauncherError::Network { source };
+        assert!(
+            !retryable_installer_error(&network),
+            "404 must not be retried"
+        );
+        let error = mc_error(network);
         assert_eq!(error.http_status, Some(404));
         assert!(error.message.contains("HTTP 404"));
         assert!(!error.message.contains("secret"));
         assert!(!error.message.contains("private-path"));
         assert!(!error.message.contains(&addr.to_string()));
+    }
+
+    #[test]
+    fn retry_removes_partial_installer_and_does_not_retry_disk_errors() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("installer.jar");
+        let mut calls = 0;
+        let mut retries = Vec::new();
+        download_installer_with_retry(
+            &path,
+            || {
+                calls += 1;
+                assert!(!path.exists(), "an incomplete jar must not be reused");
+                std::fs::write(&path, b"partial").unwrap();
+                if calls < 3 {
+                    Err(LauncherError::Io {
+                        source: std::io::Error::new(std::io::ErrorKind::TimedOut, "private"),
+                    })
+                } else {
+                    Ok(())
+                }
+            },
+            |_| {},
+            |n| retries.push(n),
+        )
+        .unwrap();
+        assert_eq!(calls, 3);
+        assert_eq!(retries, vec![2, 3]);
+        std::fs::remove_file(&path).unwrap();
+        calls = 0;
+        let result = download_installer_with_retry(
+            &path,
+            || {
+                calls += 1;
+                std::fs::write(&path, b"partial").unwrap();
+                Err(LauncherError::Io {
+                    source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "private"),
+                })
+            },
+            |_| panic!("disk errors must not be retried"),
+            |_| {},
+        );
+        assert!(result.is_err());
+        assert_eq!(calls, 1);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn repeated_timeout_stops_after_three_attempts_and_cleans_partial_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("installer.jar");
+        let mut attempts = 0;
+        let result = download_installer_with_retry(
+            &path,
+            || {
+                attempts += 1;
+                std::fs::write(&path, b"incomplete").unwrap();
+                Err(LauncherError::Io {
+                    source: std::io::Error::new(std::io::ErrorKind::TimedOut, "secret"),
+                })
+            },
+            |_| {},
+            |_| {},
+        );
+        assert!(result.is_err());
+        assert_eq!(attempts, 3);
+        assert!(!path.exists());
     }
 
     #[test]

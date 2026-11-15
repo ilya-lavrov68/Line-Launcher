@@ -12,9 +12,11 @@
 //
 // The Rust binary is compiled once; the second pass reuses it.
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { tauriCliCommand } from "./lib/tauri-cli.mjs";
+import { verifyWindowsIcon } from "./lib/windows-icon.mjs";
 
 export const BRAND_CONFIG = "src-tauri/tauri.brand.conf.json";
 export const MSI_CONFIG = "src-tauri/tauri.msi.conf.json";
@@ -115,6 +117,47 @@ function main() {
       process.exit(1);
     }
     if (result.status !== 0) process.exit(result.status ?? 1);
+    if (process.platform === "win32") {
+      // Cargo's metadata honours CARGO_TARGET_DIR and workspace configuration.
+      // Never search for an arbitrary old exe if the expected path is missing.
+      const metadata = spawnSync(
+        "cargo",
+        ["metadata", "--no-deps", "--format-version", "1"],
+        {
+          cwd: path.join(root, "src-tauri"),
+          encoding: "utf8",
+        },
+      );
+      try {
+        if (metadata.error || metadata.status !== 0)
+          throw new Error("не удалось определить каталог Cargo");
+        const targetDir = JSON.parse(metadata.stdout).target_directory;
+        const at = extraArgs.indexOf("--target");
+        const explicit =
+          at >= 0
+            ? extraArgs[at + 1]
+            : extraArgs.find((arg) => arg.startsWith("--target="))?.slice(9);
+        const target = explicit || process.env.CARGO_BUILD_TARGET;
+        const exe = path.join(
+          targetDir,
+          ...(target ? [target] : []),
+          "release",
+          "line-launcher.exe",
+        );
+        const result = verifyWindowsIcon(
+          readFileSync(exe),
+          readFileSync(path.join(root, "src-tauri/icons/icon.ico")),
+        );
+        console.log(
+          `[icon] Иконка exe проверена: ${result.images} размеров. ${exe}`,
+        );
+      } catch (error) {
+        console.error(
+          `[icon] Не удалось проверить иконку готового exe: ${error.message}. Не распространяйте сборку до проверки.`,
+        );
+        process.exit(1);
+      }
+    }
   }
 }
 

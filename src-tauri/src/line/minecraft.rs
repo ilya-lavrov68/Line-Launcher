@@ -293,7 +293,7 @@ fn mc_error(error: LauncherError) -> LineError {
         }
         LauncherError::InstallerFailed { loader, .. } => LineError::new(
             ErrorCode::Internal,
-            format!("Установщик {loader:?} завершился с ошибкой. Проверьте Java и повторите."),
+            format!("Установщик {loader:?} завершился с ошибкой. Причину нужно проверить в выводе установщика."),
             true,
         ),
         LauncherError::UnsupportedPlatform { .. } => LineError::new(
@@ -507,6 +507,30 @@ fn download_installer_with_retry(
     unreachable!("the retry loop always returns")
 }
 
+/// Forge-family client installers expect a launcher profile even when this
+/// independent launcher uses its own profile database. Never replace an existing
+/// profile: it may have been supplied by the user or another launcher.
+fn ensure_installer_profile(dir: &Path) -> LineResult<()> {
+    use std::io::Write;
+    let path = dir.join("launcher_profiles.json");
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+    {
+        Ok(mut file) => {
+            if let Err(error) = file.write_all(b"{\"profiles\":{}}\n") {
+                drop(file);
+                let _ = std::fs::remove_file(&path);
+                return Err(LineError::io(&error));
+            }
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(LineError::io(&error)),
+    }
+}
+
 async fn install_legacy_neoforge(
     app: &AppHandle,
     dir: PathBuf,
@@ -570,6 +594,7 @@ async fn install_legacy_neoforge(
         let id = profile.get("id").and_then(|v| v.as_str()).ok_or_else(|| LineError::new(ErrorCode::Integrity, "В профиле установщика NeoForge нет идентификатора.", false))?;
         let id = validate_version_id(id)?;
         drop(archive);
+        ensure_installer_profile(&dir)?;
         run_loader_installer(&InstallerInvocation { loader: LoaderKind::NeoForge, java_executable: java, installer_path: installer, minecraft_dir: dir.clone() }).map_err(mc_error)?;
         let launcher = Launcher::new(&dir);
         let merged = launcher.load_version(&id).map_err(mc_error)?;
@@ -1500,6 +1525,20 @@ mod network_diagnostics_tests {
         assert!(!error.message.contains("secret"));
         assert!(!error.message.contains("private-path"));
         assert!(!error.message.contains(&addr.to_string()));
+    }
+
+    #[test]
+    fn installer_profile_is_created_without_overwriting_existing_data() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("launcher_profiles.json");
+        ensure_installer_profile(temp.path()).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(json["profiles"].is_object());
+        std::fs::write(&path, b"existing profile").unwrap();
+        ensure_installer_profile(temp.path()).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"existing profile");
+        assert!(ensure_installer_profile(&temp.path().join("missing")).is_err());
     }
 
     #[test]

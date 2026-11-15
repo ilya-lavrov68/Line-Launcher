@@ -297,7 +297,7 @@ export const ru = {
   "backdrop.pearl": "Жемчужное кольцо",
   "settings.java": "Java",
   "settings.javaHint":
-    "Только проверенные рантаймы, версия под требование сборки.",
+    "Java проверяется при выборе. Если её версия не подходит сборке, лаунчер ищет нужную отдельно (например, Java 17 для Minecraft 1.20.1).",
   "settings.javaSearching": "Поиск Java…",
   "settings.javaAuto": "Автоматически по версии сборки",
   "settings.javaChecking": "Проверяем Java…",
@@ -734,7 +734,7 @@ const en: Dictionary = {
   "backdrop.pearl": "Pearl ring",
   "settings.java": "Java",
   "settings.javaHint":
-    "Only verified runtimes, the version the build requires.",
+    "Java is verified when selected. If its version does not match the build, the launcher looks for the required version (for example, Java 17 for Minecraft 1.20.1).",
   "settings.javaSearching": "Looking for Java…",
   "settings.javaAuto": "Automatic, by the build's requirement",
   "settings.javaChecking": "Checking Java…",
@@ -1171,7 +1171,7 @@ const de: Dictionary = {
   "backdrop.pearl": "Perlenring",
   "settings.java": "Java",
   "settings.javaHint":
-    "Nur geprüfte Runtimes, die Version, die der Build verlangt.",
+    "Java wird bei der Auswahl geprüft. Falls die Version nicht zum Build passt, sucht der Launcher die benötigte Version (zum Beispiel Java 17 für Minecraft 1.20.1).",
   "settings.javaSearching": "Java wird gesucht…",
   "settings.javaAuto": "Automatisch nach Vorgabe des Builds",
   "settings.javaChecking": "Java wird geprüft…",
@@ -1606,7 +1606,7 @@ const fr: Dictionary = {
   "backdrop.pearl": "Anneau de perle",
   "settings.java": "Java",
   "settings.javaHint":
-    "Uniquement des runtimes vérifiés, la version exigée par la build.",
+    "Java est vérifié à la sélection. Si sa version ne convient pas à la build, le launcher recherche la version requise (par exemple Java 17 pour Minecraft 1.20.1).",
   "settings.javaSearching": "Recherche de Java…",
   "settings.javaAuto": "Automatique, selon la build",
   "settings.javaChecking": "Vérification de Java…",

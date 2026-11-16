@@ -147,6 +147,7 @@ const items = [
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
   attributed("minecraft_core.rs", "pub fn validate_version_id("),
+  attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
   attributed("minecraft_core.rs", "pub fn reject_dangerous_args("),
@@ -255,6 +256,7 @@ const tests = [
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
+  attributed("minecraft_core.rs", "fn explicit_java_must_meet_the_declared_minimum("),
   attributed(
     "minecraft_core.rs",
     "fn server_addresses_parse_host_port_and_ipv6(",

@@ -297,7 +297,7 @@ export const ru = {
   "backdrop.pearl": "Жемчужное кольцо",
   "settings.java": "Java",
   "settings.javaHint":
-    "Java проверяется при выборе. Если её версия не подходит сборке, лаунчер ищет нужную отдельно (например, Java 17 для Minecraft 1.20.1).",
+    "В режиме Minecraft вручную выбранная Java используется, если она не старше требуемой. Более новая Java может быть несовместима с модами; автоматический выбор ищет указанную версию.",
   "settings.javaSearching": "Поиск Java…",
   "settings.javaAuto": "Автоматически по версии сборки",
   "settings.javaChecking": "Проверяем Java…",
@@ -734,7 +734,7 @@ const en: Dictionary = {
   "backdrop.pearl": "Pearl ring",
   "settings.java": "Java",
   "settings.javaHint":
-    "Java is verified when selected. If its version does not match the build, the launcher looks for the required version (for example, Java 17 for Minecraft 1.20.1).",
+    "In Minecraft mode, a manually selected Java is used if it meets the required minimum. A newer Java may be incompatible with mods; automatic selection looks for the specified version.",
   "settings.javaSearching": "Looking for Java…",
   "settings.javaAuto": "Automatic, by the build's requirement",
   "settings.javaChecking": "Checking Java…",
@@ -1171,7 +1171,7 @@ const de: Dictionary = {
   "backdrop.pearl": "Perlenring",
   "settings.java": "Java",
   "settings.javaHint":
-    "Java wird bei der Auswahl geprüft. Falls die Version nicht zum Build passt, sucht der Launcher die benötigte Version (zum Beispiel Java 17 für Minecraft 1.20.1).",
+    "Im Minecraft-Modus wird eine manuell gewählte Java-Version verwendet, wenn sie mindestens der benötigten Version entspricht. Neuere Versionen können mit Mods inkompatibel sein; die automatische Auswahl sucht die angegebene Version.",
   "settings.javaSearching": "Java wird gesucht…",
   "settings.javaAuto": "Automatisch nach Vorgabe des Builds",
   "settings.javaChecking": "Java wird geprüft…",
@@ -1606,7 +1606,7 @@ const fr: Dictionary = {
   "backdrop.pearl": "Anneau de perle",
   "settings.java": "Java",
   "settings.javaHint":
-    "Java est vérifié à la sélection. Si sa version ne convient pas à la build, le launcher recherche la version requise (par exemple Java 17 pour Minecraft 1.20.1).",
+    "En mode Minecraft, une version Java choisie manuellement est utilisée si elle atteint le minimum requis. Une version plus récente peut être incompatible avec des mods ; la sélection automatique cherche la version indiquée.",
   "settings.javaSearching": "Recherche de Java…",
   "settings.javaAuto": "Automatique, selon la build",
   "settings.javaChecking": "Vérification de Java…",

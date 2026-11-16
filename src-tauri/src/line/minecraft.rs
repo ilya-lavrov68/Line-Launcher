@@ -27,9 +27,9 @@ use super::integrity;
 use super::java;
 use super::launch::{optimal_heap_mb, player_uuid, validate_heap, GamePhase};
 use super::minecraft_core::{
-    apply_heap, ensure_server_join, has_quick_play_token, reject_dangerous_args,
-    remove_automatic_joins, validate_instance_id, validate_loader, validate_server_address,
-    validate_test_mode, validate_version_id, LoaderChoice,
+    accepts_explicit_java, apply_heap, ensure_server_join, has_quick_play_token,
+    reject_dangerous_args, remove_automatic_joins, validate_instance_id, validate_loader,
+    validate_server_address, validate_test_mode, validate_version_id, LoaderChoice,
 };
 use super::pack::{self, DetectedInstance};
 use super::settings::{self, LauncherSettings};
@@ -561,7 +561,10 @@ async fn install_legacy_neoforge(
     let java = resolve_java(
         runtime_dir,
         Some("java-runtime-gamma".to_string()),
-        17,
+        JavaRequirement {
+            major: 17,
+            allow_newer_explicit: false,
+        },
         &preferences,
         app,
         &instance,
@@ -759,20 +762,43 @@ fn java_install_error(
     result
 }
 
-/// Picks a runtime the game actually accepts: the player's verified choice,
-/// then local discovery, then Mojang's own JRE for that version.
+struct JavaRequirement {
+    major: u16,
+    allow_newer_explicit: bool,
+}
+
+/// Uses a verified explicit choice at or above the declared minimum, then
+/// discovers the exact requested major, then downloads a matching runtime.
+/// A newer explicit JVM is the player's override, not a compatibility promise.
 async fn resolve_java(
     dir: &Path,
     component: Option<String>,
-    required_major: u16,
+    requirement: JavaRequirement,
     preferences: &LauncherSettings,
     app: &AppHandle,
     instance_id: &str,
 ) -> LineResult<PathBuf> {
+    let JavaRequirement {
+        major: required_major,
+        allow_newer_explicit,
+    } = requirement;
     let mut selected_major = None;
     if let Some(requested) = &preferences.java_path {
         if let Ok(runtime) = java::inspect_path(requested).await {
-            if runtime.major == required_major {
+            if runtime.major == required_major
+                || (allow_newer_explicit && accepts_explicit_java(required_major, runtime.major))
+            {
+                if runtime.major > required_major {
+                    use super::logger::{self, Area, Field};
+                    logger::info(
+                        Area::Launch,
+                        "using newer explicitly selected Java",
+                        &[
+                            Field::num("required_major", u64::from(required_major)),
+                            Field::num("selected_major", u64::from(runtime.major)),
+                        ],
+                    );
+                }
                 return Ok(runtime.path);
             }
             selected_major = Some(runtime.major);
@@ -1352,7 +1378,10 @@ async fn start_game(
     let java_path = resolve_java(
         &dir,
         component,
-        required_major,
+        JavaRequirement {
+            major: required_major,
+            allow_newer_explicit: true,
+        },
         &preferences,
         app,
         instance_id,

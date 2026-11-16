@@ -874,6 +874,23 @@ pub async fn mc_launch(
     .await
 }
 
+/// Diagnostic timing deliberately contains no URL, path, user or raw error.
+fn log_preparation_stage(stage: &'static str, started: std::time::Instant, success: bool) {
+    use super::logger::{self, Area, Field};
+    logger::info(
+        Area::Install,
+        "minecraft preparation stage",
+        &[
+            Field::text("stage", stage),
+            Field::num(
+                "elapsed_ms",
+                started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
+            ),
+            Field::flag("success", success),
+        ],
+    );
+}
+
 /// «Играть»: read `pack.json`, download the instance ZIP or confirm the copy on
 /// disk is still the published revision, copy it into the live game directory,
 /// fetch only what the archive lacks, then join the server without a menu step.
@@ -930,6 +947,7 @@ pub async fn mc_play(
     //    untouched when its sha256 already matches, so an unchanged pack costs
     //    one small JSON request, not a re-download.
     // Test mode and normal play both use the same source validation and cache.
+    let pack_started = std::time::Instant::now();
     let receipt = {
         let operation_id = Uuid::new_v4().to_string();
         let cancel = line.begin_install(&server.id, &operation_id)?;
@@ -978,6 +996,7 @@ pub async fn mc_play(
         )
         .await;
         line.finish_install(&server.id, &operation_id);
+        log_preparation_stage("pack", pack_started, installed.is_ok());
         installed?
     };
     if receipt.already_installed {
@@ -1012,73 +1031,85 @@ pub async fn mc_play(
     let instance_dir = instance_root(&app, &instance_id)?;
     let inspect_instance = instance_id.clone();
     let inspect_app = app.clone();
-    let detected: DetectedInstance =
-        tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
-            let release = pack::release_dir(&release_base, &sha256)?;
-            let index = integrity::read_index(&release)?;
-            let report = integrity::scan(&release)?;
-            if !report.is_clean() {
-                return Err(LineError::new(
-                    ErrorCode::Integrity,
-                    "Сборка изменилась после установки. Повторите установку перед запуском.",
-                    false,
-                ));
-            }
-            let detected = pack::inspect(&release, &index, hint.as_deref())?;
-            emit_mc_progress(
-                &inspect_app,
-                &inspect_instance,
-                "verify",
-                "Проверка файлов экземпляра…",
-                0,
-                None,
+    let verify_started = std::time::Instant::now();
+    let detected_result = tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
+        let release = pack::release_dir(&release_base, &sha256)?;
+        let index = integrity::read_index(&release)?;
+        let report = integrity::scan(&release)?;
+        if !report.is_clean() {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Сборка изменилась после установки. Повторите установку перед запуском.",
                 false,
-            );
-            pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
-            // A release can be intact while its live mod copy was replaced.
-            // Never follow a planted mods directory or file symlink.
-            let game = instance_dir.join("game");
-            let mods = game.join("mods");
-            if mods.exists() && !super::storage::is_real_dir(&mods) {
+            ));
+        }
+        let detected = pack::inspect(&release, &index, hint.as_deref())?;
+        emit_mc_progress(
+            &inspect_app,
+            &inspect_instance,
+            "verify",
+            "Проверка файлов экземпляра…",
+            0,
+            None,
+            false,
+        );
+        pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
+        // A release can be intact while its live mod copy was replaced.
+        // Never follow a planted mods directory or file symlink.
+        let game = instance_dir.join("game");
+        let mods = game.join("mods");
+        if mods.exists() && !super::storage::is_real_dir(&mods) {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Папка mods не является обычным каталогом.",
+                false,
+            ));
+        }
+        for entry in &index.files {
+            let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
+                continue;
+            };
+            let Some(_name) = relative.strip_prefix("mods/") else {
+                continue;
+            };
+            let target = pack::checked_game_path(&game, relative, false)?;
+            if !super::storage::is_real_file(&target) {
                 return Err(LineError::new(
                     ErrorCode::Integrity,
-                    "Папка mods не является обычным каталогом.",
+                    format!("Файл {relative} отсутствует или заменён ссылкой."),
                     false,
                 ));
             }
-            for entry in &index.files {
-                let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
-                    continue;
-                };
-                let Some(_name) = relative.strip_prefix("mods/") else {
-                    continue;
-                };
-                let target = pack::checked_game_path(&game, relative, false)?;
-                if !super::storage::is_real_file(&target) {
-                    return Err(LineError::new(
-                        ErrorCode::Integrity,
-                        format!("Файл {relative} отсутствует или заменён ссылкой."),
-                        false,
-                    ));
-                }
-                let (actual, size) = integrity::hash_file(&target)?;
-                if actual != entry.sha256 || size != entry.size {
-                    return Err(LineError::new(
-                        ErrorCode::Integrity,
-                        format!("Файл {relative} изменён. Восстановите сборку."),
-                        false,
-                    ));
-                }
+            let (actual, size) = integrity::hash_file(&target)?;
+            if actual != entry.sha256 || size != entry.size {
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    format!("Файл {relative} изменён. Восстановите сборку."),
+                    false,
+                ));
             }
-            Ok(detected)
-        })
-        .await
-        .map_err(|_| join_error())??;
+        }
+        Ok(detected)
+    })
+    .await
+    .map_err(|_| join_error())
+    .and_then(|result| result);
+    log_preparation_stage("verify_and_sync", verify_started, detected_result.is_ok());
+    let detected: DetectedInstance = detected_result?;
 
     // Check the directory actually used by Minecraft, not the archive server's
     // separate game/ directory. Never start Java when a keyword was found.
     let instance_dir = instance_root(&app, &instance_id)?;
-    let scan = super::launch::scan_packs(&instance_dir, &server, &detected.files)?;
+    let scan_started = std::time::Instant::now();
+    let scan_result = super::launch::scan_packs(&instance_dir, &server, &detected.files);
+    log_preparation_stage(
+        "pack_safety",
+        scan_started,
+        scan_result
+            .as_ref()
+            .is_ok_and(|scan| scan.blocked.is_none()),
+    );
+    let scan = scan_result?;
     if let Some(message) = scan.blocked {
         return Err(LineError::new(ErrorCode::Integrity, message, false));
     }
@@ -1108,14 +1139,21 @@ pub async fn mc_play(
         None
     };
     if !detected.missing.is_empty() || loader.is_some() || detected.generated_profile {
-        let filled = install_profile(
+        let loader_started = std::time::Instant::now();
+        let filled_result = install_profile(
             &app,
             &state,
             instance_id.clone(),
             detected.minecraft_version.clone(),
             loader,
         )
-        .await?;
+        .await;
+        log_preparation_stage(
+            "minecraft_and_loader",
+            loader_started,
+            filled_result.is_ok(),
+        );
+        let filled = filled_result?;
         if detected.generated_profile || detected.loader.is_none() {
             launch_version = filled.version_id;
         }

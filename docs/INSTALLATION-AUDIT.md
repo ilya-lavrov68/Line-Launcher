@@ -15,10 +15,18 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
    fsync is unavailable in the current Windows implementation and staged file
    durability is not guaranteed; do not claim power-loss safety or Windows
    readiness without integration testing. The local index is not authentication.
-2. **Connector-generated files:** `check_live_mods` treats generated executable
-   JARs in `.connector` as foreign. Do not allow the entire directory or trust
-   arbitrary files captured after a run. Implement verifiable provenance or
-   carefully scoped safe regeneration, including tamper and reparse-point tests.
+2. **Connector-generated files:** the Minecraft launch path can now prove a
+   narrowly scoped direct nested JAR in `.connector/temp` against the current
+   scanned release index, the live parent mod's SHA-256 and its declared Fabric
+   `jars` entry, comparing the complete bytes. Unknown, modified, ambiguous,
+   recursively nested or transformed output remains blocked, not trusted or
+   deleted. This covers only top-level lowercase `.jar` parent names and bounded
+   files; resource-pack-only checks and the non-Minecraft launch path remain
+   strict. The ZIP-based Rust integration tests, Windows reparse/race behaviour
+   and actual Connector versions still require full Cargo and real-instance
+   validation. Locks coordinate cooperating processes only; external mutation
+   after the scan is not prevented. Do not declare the false positive solved for
+   all Connector artifacts.
 3. **Prism ZIP without Mojang profiles:** metadata inspection exists but cannot
    build and repair the required instance. A read-only requirements pass now
    retains exact Minecraft, loader and LWJGL pins and rejects unsupported,

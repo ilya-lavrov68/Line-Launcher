@@ -405,7 +405,7 @@ test("test mode is provider-controlled and reuses the normal verified launch pat
   assert.match(play, /validate_test_mode\(/);
   assert.match(play, /server\.test_mode_enabled/);
   assert.match(play, /integrity::scan\(&release\)/);
-  assert.match(play, /scan_packs\(/);
+  assert.match(play, /scan_packs_with\(/);
   assert.doesNotMatch(
     play,
     /if request\.test_mode \{\s*install::current_receipt/,

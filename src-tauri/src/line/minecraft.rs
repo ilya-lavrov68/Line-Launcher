@@ -1236,91 +1236,93 @@ pub async fn mc_play(
     // claim alive until all live-file verification and synchronization has stopped.
     let worker_preparation = Arc::clone(&preparation);
     let worker_release_lease = Arc::clone(&release_lease);
-    let detected_result = tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
-        let _worker_preparation = worker_preparation;
-        let _worker_release_lease = worker_release_lease;
-        let release = pack::release_dir(&release_base, &sha256)?;
-        let index = integrity::read_index(&release)?;
-        let report = integrity::scan(&release)?;
-        if !report.is_clean() {
-            return Err(LineError::new(
-                ErrorCode::Integrity,
-                "Сборка изменилась после установки. Повторите установку перед запуском.",
-                false,
-            ));
-        }
-        let mut detected = pack::inspect(&release, &index, hint.as_deref())?;
-        emit_mc_progress(
-            &inspect_app,
-            &inspect_instance,
-            "verify",
-            "Проверка файлов экземпляра…",
-            0,
-            None,
-            false,
-        );
-        pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
-        // A release can be intact while its live mod copy was replaced.
-        // Never follow a planted mods directory or file symlink.
-        let game = instance_dir.join("game");
-        let mods = game.join("mods");
-        if mods.exists() && !super::storage::is_real_dir(&mods) {
-            return Err(LineError::new(
-                ErrorCode::Integrity,
-                "Папка mods не является обычным каталогом.",
-                false,
-            ));
-        }
-        for entry in &index.files {
-            let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
-                continue;
-            };
-            let Some(_name) = relative.strip_prefix("mods/") else {
-                continue;
-            };
-            let target = pack::checked_game_path(&game, relative, false)?;
-            if !super::storage::is_real_file(&target) {
+    let detected_result = tokio::task::spawn_blocking(
+        move || -> LineResult<(DetectedInstance, integrity::FileIndex)> {
+            let _worker_preparation = worker_preparation;
+            let _worker_release_lease = worker_release_lease;
+            let release = pack::release_dir(&release_base, &sha256)?;
+            let index = integrity::read_index(&release)?;
+            let report = integrity::scan(&release)?;
+            if !report.is_clean() {
                 return Err(LineError::new(
                     ErrorCode::Integrity,
-                    format!("Файл {relative} отсутствует или заменён ссылкой."),
+                    "Сборка изменилась после установки. Повторите установку перед запуском.",
                     false,
                 ));
             }
-            let (actual, size) = integrity::hash_file(&target)?;
-            if actual != entry.sha256 || size != entry.size {
+            let mut detected = pack::inspect(&release, &index, hint.as_deref())?;
+            emit_mc_progress(
+                &inspect_app,
+                &inspect_instance,
+                "verify",
+                "Проверка файлов экземпляра…",
+                0,
+                None,
+                false,
+            );
+            pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
+            // A release can be intact while its live mod copy was replaced.
+            // Never follow a planted mods directory or file symlink.
+            let game = instance_dir.join("game");
+            let mods = game.join("mods");
+            if mods.exists() && !super::storage::is_real_dir(&mods) {
                 return Err(LineError::new(
                     ErrorCode::Integrity,
-                    format!("Файл {relative} изменён. Восстановите сборку."),
+                    "Папка mods не является обычным каталогом.",
                     false,
                 ));
             }
-        }
-        if audit_live_assets && detected.asset_inventory.is_some() {
-            if let Some(id) = &detected.asset_index_id {
-                emit_mc_progress(
-                    &inspect_app,
-                    &inspect_instance,
-                    "verify",
-                    "Проверка хешей ресурсов экземпляра…",
-                    0,
-                    None,
-                    false,
-                );
-                let bytes = pack::read_release_asset_index(&release, &detected.prefix, id)?;
-                detected.live_assets = Some(super::asset_inventory::inspect_live(
-                    &bytes,
-                    &game,
-                    |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
-                )?);
+            for entry in &index.files {
+                let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
+                    continue;
+                };
+                let Some(_name) = relative.strip_prefix("mods/") else {
+                    continue;
+                };
+                let target = pack::checked_game_path(&game, relative, false)?;
+                if !super::storage::is_real_file(&target) {
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        format!("Файл {relative} отсутствует или заменён ссылкой."),
+                        false,
+                    ));
+                }
+                let (actual, size) = integrity::hash_file(&target)?;
+                if actual != entry.sha256 || size != entry.size {
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        format!("Файл {relative} изменён. Восстановите сборку."),
+                        false,
+                    ));
+                }
             }
-        }
-        Ok(detected)
-    })
+            if audit_live_assets && detected.asset_inventory.is_some() {
+                if let Some(id) = &detected.asset_index_id {
+                    emit_mc_progress(
+                        &inspect_app,
+                        &inspect_instance,
+                        "verify",
+                        "Проверка хешей ресурсов экземпляра…",
+                        0,
+                        None,
+                        false,
+                    );
+                    let bytes = pack::read_release_asset_index(&release, &detected.prefix, id)?;
+                    detected.live_assets = Some(super::asset_inventory::inspect_live(
+                        &bytes,
+                        &game,
+                        |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
+                    )?);
+                }
+            }
+            Ok((detected, index))
+        },
+    )
     .await
     .map_err(|_| join_error())
     .and_then(|result| result);
     log_preparation_stage("verify_and_sync", verify_started, detected_result.is_ok());
-    let detected: DetectedInstance = detected_result?;
+    let (detected, verified_index) = detected_result?;
     if let Some(inventory) = detected.asset_inventory {
         use super::logger::{self, Area, Field};
         logger::info(
@@ -1356,7 +1358,32 @@ pub async fn mc_play(
     // separate game/ directory. Never start Java when a keyword was found.
     let instance_dir = instance_root(&app, &instance_id)?;
     let scan_started = std::time::Instant::now();
-    let scan_result = super::launch::scan_packs(&instance_dir, &server, &detected.files);
+    // The release index was just checked, and the server/instance locks still
+    // cover this scan. Only byte-identical declared direct nested jars qualify.
+    let scan_base = instance_dir.clone();
+    let scan_server = server.clone();
+    let scan_files = detected.files.clone();
+    let scan_prefix = detected.prefix.clone();
+    let scan_preparation = Arc::clone(&preparation);
+    let scan_lease = Arc::clone(&release_lease);
+    let scan_result = tokio::task::spawn_blocking(move || {
+        let _preparation = scan_preparation;
+        let _lease = scan_lease;
+        let game = scan_base.join("game");
+        let mut checked = super::connector::ParentChecks::default();
+        super::launch::scan_packs_with(&scan_base, &scan_server, &scan_files, |relative| {
+            super::connector::matches_verified_nested(
+                &game,
+                &verified_index,
+                &scan_prefix,
+                relative,
+                &mut checked,
+            )
+        })
+    })
+    .await
+    .map_err(|_| join_error())
+    .and_then(|result| result);
     log_preparation_stage(
         "pack_safety",
         scan_started,

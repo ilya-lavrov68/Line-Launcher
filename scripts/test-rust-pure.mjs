@@ -145,6 +145,7 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("connector.rs", "fn connector_names("),
   attributed("release_swap.rs", "const SWAP_PREFIX:"),
   attributed("release_swap.rs", "fn valid_swap_sha("),
   attributed("release_swap.rs", "fn unsafe_swap("),
@@ -273,6 +274,7 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
+  attributed("connector.rs", "fn narrow_cache_names_only("),
   attributed("release_swap.rs", "fn swap_temp("),
   attributed(
     "release_swap.rs",

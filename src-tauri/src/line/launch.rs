@@ -590,6 +590,14 @@ async fn prepare_release(
 /// player data. Provider-owned nested files are valid; links and special files
 /// are never followed.
 pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
+    check_live_mods_with(game, owned, |_| Ok(false))
+}
+
+fn check_live_mods_with(
+    game: &Path,
+    owned: &[String],
+    mut prove: impl FnMut(&str) -> LineResult<bool>,
+) -> LineResult<()> {
     let dir = game.join("mods");
     match std::fs::symlink_metadata(&dir) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -631,7 +639,7 @@ pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
                 pending.push((entry.path(), relative));
             } else if kind.is_file()
                 && is_real_file(&entry.path())
-                && files.contains(relative.as_str())
+                && (files.contains(relative.as_str()) || prove(&relative)?)
             {
                 continue;
             } else {
@@ -668,8 +676,19 @@ pub fn scan_packs(
     server: &super::config::Server,
     owned: &[String],
 ) -> LineResult<PackScan> {
+    scan_packs_with(base, server, owned, |_| Ok(false))
+}
+
+/// The callback may admit only content proved against the current verified
+/// release. Callers without that evidence keep the strict default.
+pub fn scan_packs_with(
+    base: &Path,
+    server: &super::config::Server,
+    owned: &[String],
+    prove: impl FnMut(&str) -> LineResult<bool>,
+) -> LineResult<PackScan> {
     let game = instance_game_dir(base)?;
-    check_live_mods(&game, owned)?;
+    check_live_mods_with(&game, owned, prove)?;
     let settings = server.anticheat.clone().unwrap_or_default();
     if !settings.scan_resourcepacks {
         // The hard half still runs: "nobody published this file" is not an
@@ -1195,6 +1214,24 @@ mod tests {
         assert!(check_live_mods(temp.path(), &owned).is_ok());
         std::fs::write(nested.join("foreign-dir/hidden.jar"), b"foreign").unwrap();
         assert!(check_live_mods(temp.path(), &owned).is_err());
+    }
+
+    #[test]
+    fn foreign_mods_need_explicit_proof_and_proof_does_not_cover_links() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache = temp.path().join("mods/.connector/temp");
+        std::fs::create_dir_all(&cache).unwrap();
+        std::fs::write(cache.join("parent$child.jar"), b"nested").unwrap();
+        assert!(check_live_mods(temp.path(), &[]).is_err());
+        assert!(check_live_mods_with(temp.path(), &[], |name| Ok(
+            name == "mods/.connector/temp/parent$child.jar"
+        ))
+        .is_ok());
+        std::fs::write(cache.join("foreign.jar"), b"unknown").unwrap();
+        assert!(check_live_mods_with(temp.path(), &[], |name| Ok(
+            name == "mods/.connector/temp/parent$child.jar"
+        ))
+        .is_err());
     }
 
     #[cfg(unix)]

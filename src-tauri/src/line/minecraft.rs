@@ -1096,6 +1096,20 @@ pub async fn mc_play(
     .and_then(|result| result);
     log_preparation_stage("verify_and_sync", verify_started, detected_result.is_ok());
     let detected: DetectedInstance = detected_result?;
+    if let Some(inventory) = detected.asset_inventory {
+        use super::logger::{self, Area, Field};
+        logger::info(
+            Area::Install,
+            "release asset inventory (sizes only)",
+            &[
+                Field::num("objects", inventory.unique_objects),
+                Field::num("present_by_size", inventory.present_by_size),
+                Field::num("missing", inventory.missing),
+                Field::num("wrong_size", inventory.wrong_size),
+                Field::num("missing_bytes", inventory.missing_bytes),
+            ],
+        );
+    }
 
     // Check the directory actually used by Minecraft, not the archive server's
     // separate game/ directory. Never start Java when a keyword was found.

@@ -1,3 +1,4 @@
+pub mod asset_inventory;
 pub mod auth;
 pub mod config;
 pub mod config_commands;

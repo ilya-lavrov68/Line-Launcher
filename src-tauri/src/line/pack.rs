@@ -192,6 +192,8 @@ pub struct DetectedInstance {
     pub generated_profile: bool,
     /// Parts that must come from the official hosts (`instance::missing_parts`).
     pub missing: Vec<&'static str>,
+    /// Optional read-only inventory. Size matches are not SHA-1 validation.
+    pub asset_inventory: Option<super::asset_inventory::AssetInventory>,
     /// Game-relative files the pack owns.
     pub files: Vec<String>,
 }
@@ -344,6 +346,37 @@ pub fn inspect(
             assets = asset_index(&read_json(&parent)?);
         }
     }
+    // Inventory only: do not infer content integrity from a matching size, and
+    // do not use this diagnostic to trigger downloads without a repair plan.
+    let asset_inventory = assets
+        .as_deref()
+        .and_then(|id| validate_version_id(id).ok())
+        .and_then(|id| {
+            let relative = format!("{prefix}assets/indexes/{id}.json");
+            if !paths.contains(&relative) {
+                return None;
+            }
+            let path = release.join(relative);
+            if !is_real_file(&path) {
+                return None;
+            }
+            use std::io::Read;
+            let mut bytes = Vec::new();
+            fs::File::open(path)
+                .ok()?
+                .take(super::asset_inventory::MAX_ASSET_INDEX_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+                .ok()?;
+            super::asset_inventory::inventory(
+                &bytes,
+                index
+                    .files
+                    .iter()
+                    .map(|entry| (entry.path.clone(), entry.size)),
+                &prefix,
+            )
+            .ok()
+        });
     let missing = instance::missing_parts(&paths, &prefix, &minecraft_version, assets.as_deref());
     let files: Vec<String> = paths
         .iter()
@@ -361,6 +394,7 @@ pub fn inspect(
             .and_then(Value::as_bool)
             == Some(true),
         missing,
+        asset_inventory,
         files,
     })
 }

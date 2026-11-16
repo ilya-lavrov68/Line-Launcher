@@ -385,6 +385,105 @@ async fn fetch_one(
     Ok(sha256)
 }
 
+/// Reuse only bytes that match the *new* source's digest. The old release is
+/// never modified or hard-linked into the new one; a damaged candidate falls
+/// back to a normal download. Metadata alone is not proof of content.
+async fn reuse_verified_file(
+    release: &Path,
+    file: &PendingFile,
+    target: &Path,
+    cancel: &AtomicBool,
+    budget: &AtomicU64,
+) -> LineResult<Option<String>> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    if file.inline.is_some()
+        || file.override_file.is_some()
+        || (file.sha256.is_none() && file.sha512.is_none())
+    {
+        return Ok(None);
+    }
+    let source = match super::super::pack::checked_game_path(release, &file.path, false) {
+        Ok(path) if super::super::storage::is_real_file(&path) => path,
+        _ => return Ok(None),
+    };
+    let mut input = match tokio::fs::File::open(source).await {
+        Ok(file) => file,
+        Err(_) => return Ok(None),
+    };
+    if let Some(parent) = target.parent() {
+        create_private_dir(parent)?;
+    }
+    let mut output = tokio::fs::File::create(target)
+        .await
+        .map_err(|e| LineError::io(&e))?;
+    let mut sha256 = Sha256::new();
+    let mut sha512 = Sha512::new();
+    let mut size = 0u64;
+    let mut accounted = 0u64;
+    let mut buf = [0u8; 64 * 1024];
+    let mut valid = true;
+    loop {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(LineError::new(
+                ErrorCode::Cancelled,
+                "Установка отменена.",
+                false,
+            ));
+        }
+        let n = match input.read(&mut buf).await {
+            Ok(n) => n,
+            Err(_) => {
+                valid = false;
+                break;
+            }
+        };
+        if n == 0 {
+            break;
+        }
+        size = size.saturating_add(n as u64);
+        if size > super::MAX_FILE_BYTES || (file.size > 0 && size > file.size) {
+            valid = false;
+            break;
+        }
+        if budget
+            .fetch_add(n as u64, Ordering::Relaxed)
+            .saturating_add(n as u64)
+            > super::super::config::MAX_UNPACKED_BYTES
+        {
+            return Err(LineError::input("Сборка превышает допустимый размер."));
+        }
+        accounted += n as u64;
+        sha256.update(&buf[..n]);
+        sha512.update(&buf[..n]);
+        output
+            .write_all(&buf[..n])
+            .await
+            .map_err(|e| LineError::io(&e))?;
+    }
+    let digest256 = format!("{:x}", sha256.finalize());
+    let digest512 = format!("{:x}", sha512.finalize());
+    valid &= (file.size == 0 || file.size == size)
+        && file
+            .sha256
+            .as_ref()
+            .is_none_or(|v| v.eq_ignore_ascii_case(&digest256))
+        && file
+            .sha512
+            .as_ref()
+            .is_none_or(|v| v.eq_ignore_ascii_case(&digest512));
+    if !valid {
+        drop(output);
+        // `size` can include the chunk rejected before accounting.
+        budget.fetch_sub(accounted, Ordering::Relaxed);
+        tokio::fs::remove_file(target)
+            .await
+            .map_err(|e| LineError::io(&e))?;
+        return Ok(None);
+    }
+    output.flush().await.map_err(|e| LineError::io(&e))?;
+    Ok(Some(digest256))
+}
+
 /// Downloads a list into `staging` and returns the index that describes it.
 pub async fn fetch_files(
     client: &reqwest::Client,
@@ -393,6 +492,27 @@ pub async fn fetch_files(
     cancel: Arc<AtomicBool>,
     sink: &ProgressSink,
     base_progress: InstallProgress,
+) -> LineResult<FileIndex> {
+    fetch_files_with_reuse(
+        client,
+        pack_files,
+        staging,
+        cancel,
+        sink,
+        base_progress,
+        None,
+    )
+    .await
+}
+
+async fn fetch_files_with_reuse(
+    client: &reqwest::Client,
+    pack_files: &mut PendingPack,
+    staging: &Path,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+    base_progress: InstallProgress,
+    previous_release: Option<&Path>,
 ) -> LineResult<FileIndex> {
     // Reject aliases and file/directory conflicts before concurrent writers start.
     let mut paths = std::collections::BTreeSet::new();
@@ -458,6 +578,7 @@ pub async fn fetch_files(
             let template = base_progress.clone();
             let budget = budget.clone();
             let completed = completed.clone();
+            let previous_release = previous_release.map(Path::to_path_buf);
             tasks.spawn(async move {
                 let target = root.join(
                     install::safe_entry_path(&file.path)
@@ -475,8 +596,15 @@ pub async fn fetch_files(
                     update.total_bytes = 0;
                     sink.emit(update);
                 };
-                let digest =
-                    fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?;
+                let reused = if let Some(release) = previous_release.as_deref() {
+                    reuse_verified_file(release, &file, &target, &cancel, &budget).await?
+                } else {
+                    None
+                };
+                let digest = match reused {
+                    Some(digest) => digest,
+                    None => fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?,
+                };
                 Ok::<(usize, String), LineError>((position, digest))
             });
         }
@@ -706,13 +834,16 @@ pub async fn install_source(
             &staging,
             progress.total_bytes.saturating_add(64 * 1024 * 1024),
         )?;
-        let mut index = fetch_files(
+        let previous_release = install::current_receipt(base, &server.id)
+            .map(|receipt| base.join("releases").join(receipt.sha256));
+        let mut index = fetch_files_with_reuse(
             client,
             &mut pending,
             &content,
             cancel.clone(),
             sink,
             progress.clone(),
+            previous_release.as_deref(),
         )
         .await?;
         progress.phase = InstallPhase::Committing;
@@ -1200,6 +1331,130 @@ mod tests {
         assert_eq!(std::fs::read(old.join("keep")).unwrap(), b"old release");
         index.files[1] = entry("versions/profile.json", b"neoforge");
         assert_ne!(revision_sha(&index), first);
+    }
+
+    #[tokio::test]
+    async fn previous_release_reuse_verifies_new_hash_and_copies_independently() {
+        let old = tempfile::tempdir().unwrap();
+        let new = tempfile::tempdir().unwrap();
+        std::fs::create_dir(old.path().join("mods")).unwrap();
+        let source = old.path().join("mods/a.jar");
+        std::fs::write(&source, b"content").unwrap();
+        let target = new.path().join("mods/a.jar");
+        let mut file = PendingFile {
+            path: "mods/a.jar".into(),
+            url: "https://example.invalid/file".into(),
+            sha256: None,
+            sha512: Some(format!("{:x}", Sha512::digest(b"content"))),
+            inline: None,
+            override_file: None,
+            size: 7,
+        };
+        let cancel = AtomicBool::new(false);
+        let budget = AtomicU64::new(0);
+        let hash = reuse_verified_file(old.path(), &file, &target, &cancel, &budget)
+            .await
+            .unwrap();
+        assert_eq!(hash, Some(format!("{:x}", Sha256::digest(b"content"))));
+        assert_eq!(budget.load(Ordering::Relaxed), 7);
+        std::fs::write(&source, b"changed").unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), b"content");
+        std::fs::remove_file(&target).unwrap();
+        assert_eq!(
+            reuse_verified_file(old.path(), &file, &target, &cancel, &budget)
+                .await
+                .unwrap(),
+            None
+        );
+        assert!(!target.exists());
+        assert_eq!(budget.load(Ordering::Relaxed), 7);
+        file.sha512 = None;
+        assert_eq!(
+            reuse_verified_file(old.path(), &file, &target, &cancel, &budget)
+                .await
+                .unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn changed_pack_reuses_verified_files_without_a_network_request() {
+        let old = tempfile::tempdir().unwrap();
+        let new = tempfile::tempdir().unwrap();
+        std::fs::write(old.path().join("same.jar"), b"old bytes").unwrap();
+        let mut pending = PendingPack {
+            files: vec![PendingFile {
+                path: "same.jar".into(),
+                url: "not a valid url".into(),
+                sha256: Some(format!("{:x}", Sha256::digest(b"old bytes"))),
+                sha512: None,
+                inline: None,
+                override_file: None,
+                size: 9,
+            }],
+            ..Default::default()
+        };
+        let index = fetch_files_with_reuse(
+            &reqwest::Client::new(),
+            &mut pending,
+            new.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+            Some(old.path()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(index.files.len(), 1);
+        assert_eq!(
+            std::fs::read(new.path().join("same.jar")).unwrap(),
+            b"old bytes"
+        );
+        std::fs::write(old.path().join("same.jar"), b"corrupted").unwrap();
+        let other = tempfile::tempdir().unwrap();
+        assert!(fetch_files_with_reuse(
+            &reqwest::Client::new(),
+            &mut pending,
+            other.path(),
+            Arc::new(AtomicBool::new(false)),
+            &ProgressSink::new(|_| {}),
+            progress_fixture(),
+            Some(old.path()),
+        )
+        .await
+        .is_err());
+        assert!(!other.path().join("same.jar").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn previous_release_reuse_rejects_symlinks() {
+        let old = tempfile::tempdir().unwrap();
+        let new = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        std::fs::write(external.path().join("a.jar"), b"content").unwrap();
+        std::os::unix::fs::symlink(external.path(), old.path().join("mods")).unwrap();
+        let file = PendingFile {
+            path: "mods/a.jar".into(),
+            url: String::new(),
+            sha256: Some(format!("{:x}", Sha256::digest(b"content"))),
+            sha512: None,
+            inline: None,
+            override_file: None,
+            size: 7,
+        };
+        assert_eq!(
+            reuse_verified_file(
+                old.path(),
+                &file,
+                &new.path().join("a.jar"),
+                &AtomicBool::new(false),
+                &AtomicU64::new(0)
+            )
+            .await
+            .unwrap(),
+            None
+        );
     }
 
     #[tokio::test]

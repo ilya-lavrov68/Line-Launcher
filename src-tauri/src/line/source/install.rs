@@ -484,6 +484,57 @@ async fn reuse_verified_file(
     Ok(Some(digest256))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileOrigin {
+    Network,
+    Reused,
+    Local,
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
+struct FileCounts {
+    downloaded_files: u64,
+    downloaded_bytes: u64,
+    reused_files: u64,
+    reused_bytes: u64,
+    local_files: u64,
+    local_bytes: u64,
+}
+
+impl FileCounts {
+    fn record(&mut self, origin: FileOrigin, bytes: u64) {
+        let (files, total) = match origin {
+            FileOrigin::Network => (&mut self.downloaded_files, &mut self.downloaded_bytes),
+            FileOrigin::Reused => (&mut self.reused_files, &mut self.reused_bytes),
+            FileOrigin::Local => (&mut self.local_files, &mut self.local_bytes),
+        };
+        *files += 1;
+        *total = total.saturating_add(bytes);
+    }
+
+    fn log(&self, total: u64, elapsed: Duration, success: bool) {
+        use super::super::logger::{self, Area, Field};
+        logger::info(
+            Area::Install,
+            "source file stage",
+            &[
+                Field::num("total_files", total),
+                Field::num("downloaded_files", self.downloaded_files),
+                Field::num("downloaded_verified_bytes", self.downloaded_bytes),
+                Field::num("reused_files", self.reused_files),
+                Field::num("reused_bytes", self.reused_bytes),
+                Field::num("local_files", self.local_files),
+                Field::num("local_bytes", self.local_bytes),
+                Field::num(
+                    "elapsed_ms",
+                    elapsed.as_millis().min(u128::from(u64::MAX)) as u64,
+                ),
+                Field::flag("success", success),
+            ],
+        );
+    }
+}
+
 /// Downloads a list into `staging` and returns the index that describes it.
 pub async fn fetch_files(
     client: &reqwest::Client,
@@ -546,6 +597,8 @@ async fn fetch_files_with_reuse(
         ));
     }
     let total = pack_files.files.len() as u64;
+    let started = Instant::now();
+    let mut counts = FileCounts::default();
     let budget = Arc::new(AtomicU64::new(0));
     let mut done = 0u64;
     let mut index = FileIndex {
@@ -601,18 +654,28 @@ async fn fetch_files_with_reuse(
                 } else {
                     None
                 };
-                let digest = match reused {
-                    Some(digest) => digest,
-                    None => fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?,
+                let (digest, origin) = match reused {
+                    Some(digest) => (digest, FileOrigin::Reused),
+                    None => {
+                        let origin = if file.inline.is_some() || file.override_file.is_some() {
+                            FileOrigin::Local
+                        } else {
+                            FileOrigin::Network
+                        };
+                        (
+                            fetch_one(&client, &file, &target, &cancel, &budget, &progress).await?,
+                            origin,
+                        )
+                    }
                 };
-                Ok::<(usize, String), LineError>((position, digest))
+                Ok::<(usize, String, FileOrigin), LineError>((position, digest, origin))
             });
         }
         let Some(result) = tasks.join_next().await else {
             break;
         };
         match result {
-            Ok(Ok((position, digest))) => {
+            Ok(Ok((position, digest, origin))) => {
                 if pack_files.files[position].sha256.is_none() {
                     pack_files.settle(position, digest.clone());
                 }
@@ -622,6 +685,7 @@ async fn fetch_files_with_reuse(
                         .map(|metadata| metadata.len())
                         .unwrap_or(0);
                 let path = file.path.clone();
+                counts.record(origin, size);
                 pack_files.files[position].size = size;
                 index.files.push(FileEntry {
                     path,
@@ -660,6 +724,7 @@ async fn fetch_files_with_reuse(
         // On failure, do not start more tasks, but drain all active tasks before
         // staging can be cleaned up. JoinSet must never detach writers.
     }
+    counts.log(total, started.elapsed(), first_error.is_none());
     if let Some(error) = first_error {
         return Err(error);
     }
@@ -793,6 +858,11 @@ pub async fn install_source(
                     ));
                 }
                 if let Some(receipt) = cached {
+                    super::super::logger::info(
+                        super::super::logger::Area::Install,
+                        "source release cache hit",
+                        &[],
+                    );
                     let mut progress = fetch.progress;
                     progress.phase = InstallPhase::Completed;
                     progress.percent = 100.0;
@@ -1542,6 +1612,21 @@ mod tests {
             override_file: None,
             size: 4,
         }
+    }
+
+    #[test]
+    fn file_counts_distinguish_network_cache_and_local_payloads() {
+        let mut counts = FileCounts::default();
+        counts.record(FileOrigin::Network, 10);
+        counts.record(FileOrigin::Reused, 7);
+        counts.record(FileOrigin::Local, 3);
+        counts.record(FileOrigin::Reused, 5);
+        assert_eq!(counts.downloaded_files, 1);
+        assert_eq!(counts.downloaded_bytes, 10);
+        assert_eq!(counts.reused_files, 2);
+        assert_eq!(counts.reused_bytes, 12);
+        assert_eq!(counts.local_files, 1);
+        assert_eq!(counts.local_bytes, 3);
     }
 
     #[tokio::test]

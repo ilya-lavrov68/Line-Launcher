@@ -101,7 +101,7 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -145,6 +145,12 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("release_swap.rs", "const SWAP_PREFIX:"),
+  attributed("release_swap.rs", "fn valid_swap_sha("),
+  attributed("release_swap.rs", "fn unsafe_swap("),
+  attributed("release_swap.rs", "pub fn recover_releases("),
+  attributed("release_swap.rs", "pub fn stage_replacement("),
+  attributed("release_swap.rs", "pub fn finish_replacement("),
   attributed("minecraft.rs", "struct Running {"),
   attributed("minecraft.rs", "struct Inner {"),
   attributed("minecraft.rs", "pub struct MinecraftState {"),
@@ -267,6 +273,23 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
+  attributed("release_swap.rs", "fn swap_temp("),
+  attributed(
+    "release_swap.rs",
+    "fn swap_preserves_old_until_commit_and_recovers_completed_replacement(",
+  ),
+  attributed(
+    "release_swap.rs",
+    "fn swap_recovery_restores_missing_and_never_discards_backup_for_bad_target(",
+  ),
+  attributed(
+    "release_swap.rs",
+    "fn swap_failure_restores_original_and_first_install_needs_no_backup(",
+  ),
+  attributed(
+    "release_swap.rs",
+    "fn swap_rejects_symlink_target_without_touching_it(",
+  ),
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
   attributed(

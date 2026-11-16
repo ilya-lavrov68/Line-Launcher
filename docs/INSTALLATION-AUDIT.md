@@ -5,14 +5,16 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
 
 ## Critical issues to resolve before release
 
-1. **ZIP replacement at the same digest:** `install_inner` removes an existing
-   `releases/<sha>` before moving the newly verified directory into its place.
-   If this digest is still referenced by `current.json`, a failure between
-   removal and rename can leave the existing pointer without its release. The
-   statement that every failed publish preserves the previous complete release
-   is therefore too broad. Design and test crash-recoverable replacement on
-   Windows before claiming this guarantee; do not delete player data or silently
-   replace a verified release with unverified content.
+1. **ZIP replacement at the same digest:** replacement now retains the old
+   directory in a recoverable sibling until publication, and recovery runs under
+   the server lock before installation, launch inspection, Minecraft sync and
+   rollback. A complete new directory is scanned before discarding its backup;
+   if verification fails both copies remain for diagnosis. Pure filesystem tests
+   cover interruption states and rename failure, but not actual process kills,
+   power loss, Windows reparse points or Windows rename durability. Directory
+   fsync is unavailable in the current Windows implementation and staged file
+   durability is not guaranteed; do not claim power-loss safety or Windows
+   readiness without integration testing. The local index is not authentication.
 2. **Connector-generated files:** `check_live_mods` treats generated executable
    JARs in `.connector` as foreign. Do not allow the entire directory or trust
    arbitrary files captured after a run. Implement verifiable provenance or

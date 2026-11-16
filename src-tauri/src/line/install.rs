@@ -592,8 +592,19 @@ pub fn installed_receipt(base: &Path, server: &Server) -> Option<InstallReceipt>
     Some(receipt)
 }
 
+/// Recover interrupted release swaps. Caller holds the server InstallLock.
+pub fn recover_releases(base: &Path) -> LineResult<()> {
+    super::release_swap::recover_releases(base, |release| {
+        Ok(
+            super::storage::is_real_file(&release.join(super::integrity::COMPLETE_MARKER))
+                && super::integrity::scan(release).is_ok_and(|report| report.is_clean()),
+        )
+    })
+}
+
 /// Remove only launcher-owned staging directories. Caller holds InstallLock.
 pub fn cleanup_staging(base: &Path) -> LineResult<()> {
+    recover_releases(base)?;
     let entries = match fs::read_dir(base) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -870,10 +881,11 @@ async fn install_inner(
         // provider pinned a digest; when they are not, the measured one is the
         // only one that describes what is on disk — and it is what every later
         // launch and rollback compares against.
-        let release = releases.join(&downloaded_archive.sha256);
-        remove_dir_if_present(&release)?;
-        fs::rename(&content, &release).map_err(|e| LineError::io(&e))?;
-        sync_directory(&releases)?;
+        let had_previous = super::release_swap::stage_replacement(
+            &content,
+            &releases,
+            &downloaded_archive.sha256,
+        )?;
         let receipt = InstallReceipt {
             server_id: server.id.clone(),
             version: server.version.clone(),
@@ -881,12 +893,16 @@ async fn install_inner(
             installed_at: epoch_millis(),
             already_installed: false,
         };
-        // Immutable release directories + atomic pointer avoid renaming a live
-        // game directory (especially important on Windows). Failed publish keeps
-        // current.json pointing to the previous complete release.
+        // Publish only after the replacement is fully staged. If interrupted,
+        // the previous directory is recoverable under the server lock.
         let bytes = serde_json::to_vec(&receipt).map_err(|_| LineError::storage())?;
         atomic_write(&base.join("current.json"), &bytes)?;
         super::rollback::record_release(base, &receipt)?;
+        super::release_swap::finish_replacement(
+            &releases,
+            &downloaded_archive.sha256,
+            had_previous,
+        )?;
         // The command layer rejects install while a game is running. Low-level
         // callers still protect the current pointer and retention window.
         super::rollback::prune_releases(base, &server.id, None)?;

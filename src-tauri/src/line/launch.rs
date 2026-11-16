@@ -454,6 +454,7 @@ struct ReleaseLease {
 /// install/rollback cannot race the scan.
 fn scan_release_blocking(base: &Path, server_id: &str) -> LineResult<ReleaseLease> {
     let lock = InstallLock::acquire(base)?;
+    super::install::recover_releases(base)?;
     let receipt = current_receipt(base, server_id)
         .ok_or_else(|| LineError::new(ErrorCode::Integrity, "Сначала установите сборку.", false))?;
     let release = verified_game_dir(base, &receipt.sha256)?;

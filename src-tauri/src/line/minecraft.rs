@@ -1188,6 +1188,16 @@ pub async fn mc_play(
     // it before inspecting or copying the release; a concurrent update or
     // rollback could have changed current.json in the gap.
     let release_lease = Arc::new(InstallLock::acquire(&base)?);
+    // A previous process can have died between the two directory renames.
+    // Recovery may hash a whole release, and must retain the lock if cancelled.
+    let recovery_lease = Arc::clone(&release_lease);
+    let recovery_base = base.clone();
+    tokio::task::spawn_blocking(move || {
+        let _lease = recovery_lease;
+        install::recover_releases(&recovery_base)
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
     let current = install::current_receipt(&base, &server.id);
     if !current
         .as_ref()

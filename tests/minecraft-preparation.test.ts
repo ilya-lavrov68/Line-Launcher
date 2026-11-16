@@ -104,3 +104,20 @@ test("preparation claims the instance before touching its files and blocks direc
   );
   assert.match(rust, /impl Drop for PreparationGuard/);
 });
+
+test("the live sync blocking worker retains the preparation claim when its awaiter is dropped", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  const clone = play.indexOf(
+    "let worker_preparation = Arc::clone(&preparation)",
+  );
+  const worker = play.indexOf("tokio::task::spawn_blocking", clone);
+  const hold = play.indexOf(
+    "let _worker_preparation = worker_preparation",
+    worker,
+  );
+  const sync = play.indexOf("pack::sync_game_dir(", hold);
+  assert.ok(clone >= 0 && worker > clone && hold > worker && sync > hold);
+});

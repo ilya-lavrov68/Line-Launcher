@@ -166,7 +166,7 @@ struct Inner {
 /// release sha256, which a Mojang profile does not have.
 #[derive(Default)]
 pub struct MinecraftState {
-    inner: Mutex<Inner>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl MinecraftState {
@@ -180,7 +180,7 @@ impl MinecraftState {
         })
     }
 
-    fn begin_preparation(&self, instance_id: &str) -> LineResult<PreparationGuard<'_>> {
+    fn begin_preparation(&self, instance_id: &str) -> LineResult<Arc<PreparationGuard>> {
         let mut inner = self.lock()?;
         if inner.preparing.contains(instance_id)
             || inner.installing.contains(instance_id)
@@ -190,23 +190,23 @@ impl MinecraftState {
             return Err(busy());
         }
         inner.preparing.insert(instance_id.to_string());
-        Ok(PreparationGuard {
-            state: self,
+        Ok(Arc::new(PreparationGuard {
+            inner: Arc::clone(&self.inner),
             instance_id: instance_id.to_string(),
-        })
+        }))
     }
 }
 
 /// Held from before pack resolution and sync until the whole play/prepare call
 /// returns, including every error and the confirmation-required return.
-struct PreparationGuard<'a> {
-    state: &'a MinecraftState,
+struct PreparationGuard {
+    inner: Arc<Mutex<Inner>>,
     instance_id: String,
 }
 
-impl Drop for PreparationGuard<'_> {
+impl Drop for PreparationGuard {
     fn drop(&mut self) {
-        if let Ok(mut inner) = self.state.lock() {
+        if let Ok(mut inner) = self.inner.lock() {
             inner.preparing.remove(&self.instance_id);
         }
     }
@@ -995,7 +995,7 @@ pub async fn mc_play(
     let (host, port) = validate_server_address(&address)?;
     // Claim the instance before any pack resolution, sync or live-file scan.
     // The inner install and launch are allowed only as part of this operation.
-    let _preparation = state.begin_preparation(&instance_id)?;
+    let preparation = state.begin_preparation(&instance_id)?;
     let root = app
         .path()
         .app_data_dir()
@@ -1117,7 +1117,11 @@ pub async fn mc_play(
     let inspect_app = app.clone();
     let verify_started = std::time::Instant::now();
     let audit_live_assets = request.prepare_only;
+    // A blocking task continues after its awaiting future is dropped. Keep its
+    // claim alive until all live-file verification and synchronization has stopped.
+    let worker_preparation = Arc::clone(&preparation);
     let detected_result = tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
+        let _worker_preparation = worker_preparation;
         let release = pack::release_dir(&release_base, &sha256)?;
         let index = integrity::read_index(&release)?;
         let report = integrity::scan(&release)?;
@@ -1729,6 +1733,27 @@ mod preparation_lock_tests {
         drop(other_instance);
         drop(first);
         assert!(state.begin_preparation("server-one").is_ok());
+    }
+
+    #[test]
+    fn blocking_worker_keeps_claim_after_awaiter_drops_it() {
+        let state = MinecraftState::default();
+        let guard = state.begin_preparation("server").unwrap();
+        let worker_guard = Arc::clone(&guard);
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _guard = worker_guard;
+            ready_tx.send(()).unwrap();
+            finish_rx.recv().unwrap();
+        });
+        ready_rx.recv().unwrap();
+        drop(guard); // The async caller can disappear while blocking work continues.
+        assert!(state.begin_preparation("server").is_err());
+        assert!(state.begin_preparation("other").is_ok());
+        finish_tx.send(()).unwrap();
+        worker.join().unwrap();
+        assert!(state.begin_preparation("server").is_ok());
     }
 
     #[test]

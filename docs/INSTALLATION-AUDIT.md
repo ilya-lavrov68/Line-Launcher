@@ -20,8 +20,12 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
    arbitrary files captured after a run. Implement verifiable provenance or
    carefully scoped safe regeneration, including tamper and reparse-point tests.
 3. **Prism ZIP without Mojang profiles:** metadata inspection exists but cannot
-   build and repair the required instance. Component plans must reject unknown,
-   ambiguous and custom patches; respect exact Minecraft and loader versions;
+   build and repair the required instance. A read-only requirements pass now
+   retains exact Minecraft, loader and LWJGL pins and rejects unsupported,
+   unpinned or ambiguous components, custom patches and conflicting hints. For
+   archives with a profile, LWJGL Maven coordinates must match the Prism pin;
+   this verifies identity, not jar hashes or platform rules. Component repair
+   must respect all exact versions;
    discover and validate pre-existing live components without reinstalling them;
    and prompt before downloading only the actual missing components.
 4. **Consent:** the ZIP confirmation currently follows archive download, is

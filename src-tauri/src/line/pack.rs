@@ -340,14 +340,21 @@ pub fn inspect(
                 .read_to_end(&mut bytes)
                 .map_err(|e| LineError::io(&e))?;
             let profile = super::prism::PrismProfile::parse(&bytes)?;
+            let patches = format!("{root}patches/");
+            let has_patches = paths.iter().any(|path| path.starts_with(&patches));
             if candidates.is_empty() {
+                let requirements = profile.requirements(has_patches, hint)?;
+                let lwjgl = requirements
+                    .lwjgl
+                    .as_ref()
+                    .map(|(uid, version)| format!(" {uid}: {version}."))
+                    .unwrap_or_default();
                 return Err(LineError::input(format!(
-                    "Обнаружен экземпляр Prism Launcher без профиля versions. {} Метаданные mmc-pack.json пока не поддерживаются для установки: загрузчик не будет установлен автоматически. Дождитесь поддержки Prism.",
+                    "Обнаружен экземпляр Prism Launcher без профиля versions. {}{lwjgl} Метаданные mmc-pack.json пока не поддерживаются для установки: загрузчик не будет установлен автоматически. Дождитесь поддержки Prism.",
                     profile.summary()
                 )));
             }
-            let patches = format!("{root}patches/");
-            prism = Some((profile, paths.iter().any(|path| path.starts_with(&patches))));
+            prism = Some((profile, has_patches));
         }
     }
     // A mods-only archive has no profiles at all: then the provider's version
@@ -395,6 +402,20 @@ pub fn inspect(
                 .map(|(kind, version)| (*kind, version.as_str())),
             *has_patches,
         )?;
+        // LWJGL is frequently on the inherited vanilla profile rather than the
+        // loader profile. Its Prism pin must not be silently ignored.
+        let mut libraries = library_names(&read_json(&profile_path)?);
+        if minecraft_version != version_id {
+            let parent = release
+                .join(&prefix)
+                .join("versions")
+                .join(&minecraft_version)
+                .join(format!("{minecraft_version}.json"));
+            if is_real_file(&parent) {
+                libraries.extend(library_names(&read_json(&parent)?));
+            }
+        }
+        profile.verify_lwjgl(libraries.iter().map(String::as_str))?;
     }
     // Assets are described by the vanilla profile when a loader inherits it.
     let mut assets = asset_index(&profile);
@@ -669,6 +690,53 @@ mod path_tests {
         });
         let error = inspect(temp.path(), &index, None).unwrap_err();
         assert!(error.message.contains("patches"));
+    }
+
+    #[test]
+    fn prism_lwjgl_pin_is_checked_against_inherited_vanilla_profile() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("pack");
+        let versions = root.join("minecraft/versions");
+        std::fs::create_dir_all(versions.join("fabric")).unwrap();
+        std::fs::create_dir_all(versions.join("1.20.1")).unwrap();
+        std::fs::write(root.join("mmc-pack.json"), br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.fabricmc.fabric-loader","version":"0.15.0"},{"uid":"org.lwjgl3","version":"3.3.1"}]}"#).unwrap();
+        std::fs::write(versions.join("fabric/fabric.json"), br#"{"inheritsFrom":"1.20.1","libraries":[{"name":"net.fabricmc:fabric-loader:0.15.0"}]}"#).unwrap();
+        let parent = versions.join("1.20.1/1.20.1.json");
+        std::fs::write(
+            &parent,
+            br#"{"libraries":[{"name":"org.lwjgl:lwjgl:3.3.1"}]}"#,
+        )
+        .unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: [
+                "pack/mmc-pack.json",
+                "pack/minecraft/versions/fabric/fabric.json",
+                "pack/minecraft/versions/1.20.1/1.20.1.json",
+            ]
+            .into_iter()
+            .map(|path| integrity::FileEntry {
+                path: path.into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            })
+            .collect(),
+        };
+        assert!(inspect(temp.path(), &index, None).is_ok());
+        std::fs::write(
+            &parent,
+            br#"{"libraries":[{"name":"org.lwjgl:lwjgl:3.3.2"}]}"#,
+        )
+        .unwrap();
+        assert!(inspect(temp.path(), &index, None)
+            .unwrap_err()
+            .message
+            .contains("LWJGL"));
+        std::fs::write(&parent, br#"{"libraries":[]}"#).unwrap();
+        assert!(inspect(temp.path(), &index, None)
+            .unwrap_err()
+            .message
+            .contains("LWJGL"));
     }
 
     #[test]

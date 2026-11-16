@@ -25,6 +25,17 @@ pub struct PrismProfile {
     pub components: Vec<PrismComponent>,
 }
 
+/// Exact component intent from the archive, not proof that anything is installed.
+/// LWJGL is retained because replacing Prism metadata with the default Mojang
+/// version can silently change the instance. A future executor must resolve and
+/// verify every one of these pins before it can launch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrismRequirements {
+    pub minecraft: String,
+    pub loader: Option<(LoaderChoice, String)>,
+    pub lwjgl: Option<(String, String)>,
+}
+
 fn invalid() -> LineError {
     LineError::input("Некорректный mmc-pack.json: проверьте метаданные экземпляра Prism.")
 }
@@ -98,6 +109,118 @@ impl PrismProfile {
             "net.neoforged" => Some(LoaderChoice::NeoForge),
             _ => None,
         }
+    }
+
+    /// Build exact, fail-closed requirements without fetching or executing code.
+    /// Cached versions are not authoritative; custom patches and components
+    /// cannot be silently replaced by a default runtime.
+    pub fn requirements(
+        &self,
+        has_patches: bool,
+        hint: Option<&str>,
+    ) -> LineResult<PrismRequirements> {
+        if has_patches {
+            return Err(LineError::input("Экземпляр Prism содержит пользовательские patches; их применение пока не поддерживается."));
+        }
+        let mut minecraft = None;
+        let mut loader = None;
+        let mut lwjgl = None;
+        for component in self.components.iter().filter(|c| !c.disabled) {
+            let pinned = || {
+                component.version.clone().ok_or_else(|| LineError::input(format!(
+                "В mmc-pack.json не закреплена версия компонента {}. CachedVersion недостаточно для установки.", component.uid
+            )))
+            };
+            match component.uid.as_str() {
+                "net.minecraft" => minecraft = Some(pinned()?),
+                "org.lwjgl" | "org.lwjgl3" => {
+                    let value = (component.uid.clone(), pinned()?);
+                    if lwjgl.replace(value).is_some() {
+                        return Err(LineError::input(
+                            "В экземпляре Prism указано несколько версий LWJGL.",
+                        ));
+                    }
+                }
+                _ => {
+                    let kind = Self::loader(component).ok_or_else(|| LineError::input(format!(
+                        "Компонент Prism {} пока не поддерживается; запуск остановлен, чтобы не пропустить его.", component.uid
+                    )))?;
+                    let value = (kind, pinned()?);
+                    if loader.replace(value).is_some() {
+                        return Err(LineError::input(
+                            "В экземпляре Prism указано несколько загрузчиков.",
+                        ));
+                    }
+                }
+            }
+        }
+        let minecraft = minecraft.ok_or_else(|| {
+            LineError::input("В mmc-pack.json отсутствует активный компонент Minecraft.")
+        })?;
+        if hint.is_some_and(|hint| hint.trim() != minecraft) {
+            return Err(LineError::input(
+                "Версия Minecraft у сервера не совпадает с закреплённой версией в mmc-pack.json.",
+            ));
+        }
+        Ok(PrismRequirements {
+            minecraft,
+            loader,
+            lwjgl,
+        })
+    }
+
+    /// A profile's Maven coordinates must actually contain the pinned LWJGL
+    /// runtime, with no conflicting version. The caller supplies both the
+    /// selected profile and its inherited vanilla profile. This is an identity
+    /// check only; it does not verify the downloaded jar bytes.
+    pub fn verify_lwjgl<'a>(&self, libraries: impl IntoIterator<Item = &'a str>) -> LineResult<()> {
+        let components: Vec<_> = self
+            .components
+            .iter()
+            .filter(|c| !c.disabled && matches!(c.uid.as_str(), "org.lwjgl" | "org.lwjgl3"))
+            .collect();
+        if components.is_empty() {
+            return Ok(());
+        }
+        if components.len() != 1 {
+            return Err(LineError::input(
+                "В экземпляре Prism указано несколько версий LWJGL.",
+            ));
+        }
+        let component = components[0];
+        let expected = component
+            .version
+            .as_deref()
+            .ok_or_else(|| LineError::input("В mmc-pack.json не закреплена версия LWJGL."))?;
+        let group = if component.uid == "org.lwjgl3" {
+            "org.lwjgl"
+        } else {
+            "org.lwjgl.lwjgl"
+        };
+        let mut found = false;
+        for name in libraries {
+            let mut parts = name.split(':');
+            let (Some(actual_group), Some(artifact), Some(version)) =
+                (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            if actual_group != group || !(artifact == "lwjgl" || artifact.starts_with("lwjgl-")) {
+                continue;
+            }
+            found = true;
+            if version != expected {
+                return Err(LineError::input(
+                    "Версия LWJGL в профиле не совпадает с mmc-pack.json.",
+                ));
+            }
+        }
+        if !found {
+            return Err(LineError::input(
+                "Профиль не подтверждает закреплённую версию LWJGL из mmc-pack.json.",
+            ));
+        }
+        Ok(())
     }
 
     /// Ensure a Mojang-style profile describes the same pinned components as
@@ -193,6 +316,53 @@ impl PrismProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn requirements_keep_exact_pins_and_ignore_disabled_components() {
+        let profile = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.neoforged","version":"47.1.106"},{"uid":"org.lwjgl3","version":"3.3.1"},{"uid":"net.minecraftforge","version":"47.0.0","disabled":true}]}"#).unwrap();
+        let plan = profile.requirements(false, Some("1.20.1")).unwrap();
+        assert_eq!(plan.minecraft, "1.20.1");
+        assert_eq!(
+            plan.loader,
+            Some((LoaderChoice::NeoForge, "47.1.106".into()))
+        );
+        assert_eq!(plan.lwjgl, Some(("org.lwjgl3".into(), "3.3.1".into())));
+        assert!(profile.requirements(true, None).is_err());
+        assert!(profile.requirements(false, Some("1.20.2")).is_err());
+    }
+
+    #[test]
+    fn requirements_reject_unpinned_unknown_and_ambiguous_components() {
+        for bytes in [
+            &br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","cachedVersion":"1.20.1"}]}"#[..],
+            &br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"org.lwjgl3","cachedVersion":"3.3.1"}]}"#[..],
+            &br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"custom.patch","version":"1"}]}"#[..],
+            &br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"org.lwjgl","version":"2"},{"uid":"org.lwjgl3","version":"3"}]}"#[..],
+            &br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.fabricmc.fabric-loader","version":"1"},{"uid":"net.minecraftforge","version":"2"}]}"#[..],
+            &br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1","disabled":true}]}"#[..],
+        ] {
+            assert!(PrismProfile::parse(bytes).unwrap().requirements(false, None).is_err());
+        }
+    }
+
+    #[test]
+    fn lwjgl_identity_needs_exact_evidence_and_rejects_conflicts() {
+        let profile = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"org.lwjgl3","version":"3.3.1"}]}"#).unwrap();
+        assert!(profile
+            .verify_lwjgl([
+                "org.lwjgl:lwjgl:3.3.1",
+                "org.lwjgl:lwjgl-glfw:3.3.1:natives-windows"
+            ])
+            .is_ok());
+        assert!(profile.verify_lwjgl(["org.lwjgl:lwjgl:3.3.2"]).is_err());
+        assert!(profile
+            .verify_lwjgl(["org.lwjgl:lwjgl:3.3.1", "org.lwjgl:lwjgl-openal:3.3.2"])
+            .is_err());
+        assert!(profile.verify_lwjgl(["example:lwjgl:3.3.1"]).is_err());
+        let legacy = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.6.4"},{"uid":"org.lwjgl","version":"2.9.1"}]}"#).unwrap();
+        assert!(legacy.verify_lwjgl(["org.lwjgl.lwjgl:lwjgl:2.9.1"]).is_ok());
+        assert!(legacy.verify_lwjgl(["org.lwjgl:lwjgl:2.9.1"]).is_err());
+    }
 
     #[test]
     fn reads_pinned_versions_and_does_not_treat_disabled_loader_as_active() {

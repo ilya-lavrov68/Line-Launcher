@@ -34,7 +34,7 @@ use super::minecraft_core::{
 use super::pack::{self, DetectedInstance};
 use super::settings::{self, LauncherSettings};
 use super::state::{epoch_millis, LineState};
-use super::storage::{create_private_dir, server_dir};
+use super::storage::{create_private_dir, server_dir, InstallLock};
 use super::LAUNCHER_VERSION;
 // Imported from the prelude, but not as a glob: the crate also exports a
 // one-parameter `Result` alias that would shadow `std::result::Result` here.
@@ -300,6 +300,17 @@ fn instance_root(app: &AppHandle, instance_id: &str) -> LineResult<PathBuf> {
     Ok(dir)
 }
 
+fn acquire_instance_lease(app: &AppHandle, instance_id: &str) -> LineResult<Arc<InstallLock>> {
+    let instance = instance_root(app, instance_id)?;
+    Ok(Arc::new(InstallLock::acquire(&instance)?))
+}
+
+/// Combines the in-process claim and the cooperating-process file lock.
+struct InstanceOperation {
+    _claim: Arc<OperationGuard>,
+    lease: Arc<InstallLock>,
+}
+
 /// The live game directory. It is a plain `.minecraft`: the pack's mods, config
 /// and (when present) versions/libraries/assets are copied here, and the crate
 /// fills in whatever the archive did not carry. The Java runtime is kept one
@@ -512,7 +523,7 @@ pub async fn mc_install(
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version = validate_version_id(&request.minecraft_version)?;
     let loader = parse_loader(request.loader.as_ref())?;
-    install_profile(&app, &state, instance_id, version, loader, false).await
+    install_profile(&app, &state, instance_id, version, loader, None).await
 }
 
 fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpec>> {
@@ -641,7 +652,7 @@ async fn install_legacy_neoforge(
     version: String,
     app_emit: AppHandle,
     instance: String,
-    claim: Arc<OperationGuard>,
+    claim: Arc<InstanceOperation>,
 ) -> LineResult<String> {
     let vanilla_dir = dir.clone();
     let emit = app_emit.clone();
@@ -724,9 +735,17 @@ async fn install_profile(
     instance_id: String,
     version: String,
     loader: Option<LoaderSpec>,
-    within_preparation: bool,
+    preparation_lease: Option<Arc<InstallLock>>,
 ) -> LineResult<McInstalled> {
-    let claim = state.begin_install(&instance_id, within_preparation)?;
+    let claim = state.begin_install(&instance_id, preparation_lease.is_some())?;
+    let lease = match preparation_lease {
+        Some(lease) => lease,
+        None => acquire_instance_lease(app, &instance_id)?,
+    };
+    let claim = Arc::new(InstanceOperation {
+        _claim: claim,
+        lease,
+    });
     let dir = game_root(app, &instance_id)?;
     let legacy = legacy_neoforge_version(&version, &loader);
     let emit_app = app.clone();
@@ -887,7 +906,7 @@ async fn resolve_java(
     preferences: &LauncherSettings,
     app: &AppHandle,
     instance_id: &str,
-    claim: &Arc<OperationGuard>,
+    claim: &Arc<InstanceOperation>,
 ) -> LineResult<PathBuf> {
     let JavaRequirement {
         major: required_major,
@@ -1009,7 +1028,7 @@ pub async fn mc_launch(
         host,
         port,
         false,
-        false,
+        None,
     )
     .await
 }
@@ -1062,7 +1081,9 @@ pub async fn mc_play(
     let (host, port) = validate_server_address(&address)?;
     // Claim the instance before any pack resolution, sync or live-file scan.
     // The inner install and launch are allowed only as part of this operation.
-    let preparation = state.begin_preparation(&instance_id)?;
+    let preparation_claim = state.begin_preparation(&instance_id)?;
+    let lease = acquire_instance_lease(&app, &instance_id)?;
+    let preparation = Arc::new((preparation_claim, lease));
     let root = app
         .path()
         .app_data_dir()
@@ -1403,7 +1424,7 @@ pub async fn mc_play(
             instance_id.clone(),
             detected.minecraft_version.clone(),
             loader,
-            true,
+            Some(Arc::clone(&preparation.1)),
         )
         .await;
         log_preparation_stage(
@@ -1447,7 +1468,7 @@ pub async fn mc_play(
         host,
         port,
         request.test_mode,
-        true,
+        Some(Arc::clone(&preparation.1)),
     )
     .await
 }
@@ -1486,14 +1507,22 @@ async fn launch_profile(
     host: String,
     port: u16,
     test_mode: bool,
-    within_preparation: bool,
+    preparation_lease: Option<Arc<InstallLock>>,
 ) -> LineResult<McGameStatus> {
     // One account per project: the nickname and the stable UUID come from it.
     let session = line.session()?;
     let username = session.username.clone();
     let uuid = player_uuid(&username);
     let stop = Arc::new(AtomicBool::new(false));
-    let claim = state.begin_start(&instance_id, within_preparation)?;
+    let claim = state.begin_start(&instance_id, preparation_lease.is_some())?;
+    let lease = match preparation_lease {
+        Some(lease) => lease,
+        None => acquire_instance_lease(app, &instance_id)?,
+    };
+    let claim = Arc::new(InstanceOperation {
+        _claim: claim,
+        lease,
+    });
 
     let started = start_game(
         app,
@@ -1545,7 +1574,7 @@ async fn start_game(
     port: u16,
     test_mode: bool,
     stop: Arc<AtomicBool>,
-    claim: &Arc<OperationGuard>,
+    claim: &Arc<InstanceOperation>,
 ) -> LineResult<McGameStatus> {
     let dir = instance_root(app, instance_id)?;
     let game_dir = dir.join("game");
@@ -1701,7 +1730,10 @@ async fn start_game(
     let monitor_app = app.clone();
     let monitor_instance = instance_id.to_string();
     let monitor_version = version_id.to_string();
+    // Keep the cross-process lease for the entire lifetime of the game.
+    let game_lease = Arc::clone(&claim.lease);
     tauri::async_runtime::spawn(async move {
+        let _game_lease = game_lease;
         let exit = loop {
             if stop.load(Ordering::Acquire) {
                 let _ = child.kill().await;
@@ -1862,6 +1894,58 @@ mod preparation_lock_tests {
         drop(start);
         drop(preparation);
         assert!(state.begin_install("server", false).is_ok());
+    }
+
+    #[test]
+    fn instance_file_lock_survives_worker_and_excludes_another_process() {
+        const CHILD_DIR: &str = "LINE_TEST_INSTANCE_LOCK_DIR";
+        const CHILD_BUSY: &str = "LINE_TEST_INSTANCE_LOCK_BUSY";
+        if let Some(dir) = std::env::var_os(CHILD_DIR) {
+            let expected_busy = std::env::var_os(CHILD_BUSY).is_some();
+            let result = InstallLock::acquire(std::path::Path::new(&dir));
+            if expected_busy {
+                assert_eq!(result.err().unwrap().code, ErrorCode::Busy);
+            } else {
+                assert!(result.is_ok());
+            }
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("line-instance-lock-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let lease = Arc::new(InstallLock::acquire(&dir).unwrap());
+        let worker_lease = Arc::clone(&lease);
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _lease = worker_lease;
+            ready_tx.send(()).unwrap();
+            finish_rx.recv().unwrap();
+        });
+        ready_rx.recv().unwrap();
+        drop(lease);
+        let check_child = |busy: bool| {
+            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .arg("instance_file_lock_survives_worker_and_excludes_another_process")
+                .arg("--test-threads=1")
+                .env(CHILD_DIR, &dir);
+            if busy {
+                command.env(CHILD_BUSY, "1");
+            } else {
+                command.env_remove(CHILD_BUSY);
+            }
+            let output = command.output().unwrap();
+            assert!(
+                output.status.success(),
+                "child failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        };
+        check_child(true);
+        finish_tx.send(()).unwrap();
+        worker.join().unwrap();
+        check_child(false);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

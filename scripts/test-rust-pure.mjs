@@ -280,6 +280,10 @@ const tests = [
   attributed("minecraft.rs", "fn early_error_releases_preparation_claim("),
   attributed(
     "minecraft.rs",
+    "fn instance_file_lock_survives_worker_and_excludes_another_process(",
+  ),
+  attributed(
+    "minecraft.rs",
     "fn install_and_start_claims_survive_detached_workers_and_release(",
   ),
   attributed(

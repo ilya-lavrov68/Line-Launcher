@@ -86,9 +86,12 @@ test("preparation claims the instance before touching its files and blocks direc
   assert.match(rust, /fn begin_start\(/);
   assert.match(
     rust,
-    /state\.begin_install\(&instance_id, within_preparation\)/,
+    /state\.begin_install\(&instance_id, preparation_lease\.is_some\(\)\)/,
   );
-  assert.match(rust, /state\.begin_start\(&instance_id, within_preparation\)/);
+  assert.match(
+    rust,
+    /state\.begin_start\(&instance_id, preparation_lease\.is_some\(\)\)/,
+  );
   assert.match(
     rust,
     /inner\.preparing\.contains\(instance_id\) && !within_preparation/,
@@ -120,4 +123,19 @@ test("blocking install and launch work retains operation claims and Java extract
   assert.match(rust, /let build_claim = Arc::clone\(claim\)/);
   assert.match(java, /let worker_temp = Arc::clone\(&temp\)/);
   assert.match(java, /let worker_lock = Arc::clone\(&lock\)/);
+});
+
+test("cooperating launcher processes hold an instance lease through sync, install, launch and game monitor", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  assert.ok(
+    play.indexOf("acquire_instance_lease(&app, &instance_id)?") <
+      play.indexOf("pack::sync_game_dir("),
+  );
+  assert.match(play, /Some\(Arc::clone\(&preparation\.1\)\)/);
+  assert.match(rust, /None => acquire_instance_lease\(app, &instance_id\)\?/);
+  assert.match(rust, /let game_lease = Arc::clone\(&claim\.lease\)/);
+  assert.match(rust, /let _game_lease = game_lease/);
 });

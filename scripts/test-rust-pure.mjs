@@ -149,6 +149,9 @@ const items = [
   attributed("minecraft.rs", "struct Inner {"),
   attributed("minecraft.rs", "pub struct MinecraftState {"),
   attributed("minecraft.rs", "impl MinecraftState {"),
+  attributed("minecraft.rs", "enum OperationKind {"),
+  attributed("minecraft.rs", "struct OperationGuard {"),
+  attributed("minecraft.rs", "impl Drop for OperationGuard {"),
   attributed("minecraft.rs", "struct PreparationGuard {"),
   attributed("minecraft.rs", "impl Drop for PreparationGuard {"),
   attributed("minecraft.rs", "fn busy("),
@@ -275,6 +278,14 @@ const tests = [
     "fn preparation_refuses_existing_install_start_or_running_game(",
   ),
   attributed("minecraft.rs", "fn early_error_releases_preparation_claim("),
+  attributed(
+    "minecraft.rs",
+    "fn install_and_start_claims_survive_detached_workers_and_release(",
+  ),
+  attributed(
+    "minecraft.rs",
+    "fn nested_operation_claims_do_not_bypass_other_active_operations(",
+  ),
   attributed(
     "minecraft.rs",
     "fn blocking_worker_keeps_claim_after_awaiter_drops_it(",

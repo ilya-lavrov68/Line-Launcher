@@ -195,6 +195,48 @@ impl MinecraftState {
             instance_id: instance_id.to_string(),
         }))
     }
+
+    fn begin_install(
+        &self,
+        instance_id: &str,
+        within_preparation: bool,
+    ) -> LineResult<Arc<OperationGuard>> {
+        let mut inner = self.lock()?;
+        if inner.running.contains_key(instance_id)
+            || inner.starting.contains(instance_id)
+            || inner.installing.contains(instance_id)
+            || (inner.preparing.contains(instance_id) && !within_preparation)
+        {
+            return Err(busy());
+        }
+        inner.installing.insert(instance_id.to_string());
+        Ok(Arc::new(OperationGuard {
+            inner: Arc::clone(&self.inner),
+            instance_id: instance_id.to_string(),
+            kind: OperationKind::Install,
+        }))
+    }
+
+    fn begin_start(
+        &self,
+        instance_id: &str,
+        within_preparation: bool,
+    ) -> LineResult<Arc<OperationGuard>> {
+        let mut inner = self.lock()?;
+        if inner.installing.contains(instance_id)
+            || inner.running.contains_key(instance_id)
+            || inner.starting.contains(instance_id)
+            || (inner.preparing.contains(instance_id) && !within_preparation)
+        {
+            return Err(busy());
+        }
+        inner.starting.insert(instance_id.to_string());
+        Ok(Arc::new(OperationGuard {
+            inner: Arc::clone(&self.inner),
+            instance_id: instance_id.to_string(),
+            kind: OperationKind::Start,
+        }))
+    }
 }
 
 /// Held from before pack resolution and sync until the whole play/prepare call
@@ -208,6 +250,34 @@ impl Drop for PreparationGuard {
     fn drop(&mut self) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.preparing.remove(&self.instance_id);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum OperationKind {
+    Install,
+    Start,
+}
+
+/// A claim is released only when both the async owner and all detached workers finish.
+struct OperationGuard {
+    inner: Arc<Mutex<Inner>>,
+    instance_id: String,
+    kind: OperationKind,
+}
+
+impl Drop for OperationGuard {
+    fn drop(&mut self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            match self.kind {
+                OperationKind::Install => {
+                    inner.installing.remove(&self.instance_id);
+                }
+                OperationKind::Start => {
+                    inner.starting.remove(&self.instance_id);
+                }
+            }
         }
     }
 }
@@ -571,11 +641,14 @@ async fn install_legacy_neoforge(
     version: String,
     app_emit: AppHandle,
     instance: String,
+    claim: Arc<OperationGuard>,
 ) -> LineResult<String> {
     let vanilla_dir = dir.clone();
     let emit = app_emit.clone();
     let emit_instance = instance.clone();
+    let worker_claim = Arc::clone(&claim);
     tokio::task::spawn_blocking(move || {
+        let _worker_claim = worker_claim;
         let mut report = move |event: ProgressEvent| {
             let _ = emit.emit(
                 MC_INSTALL_EVENT,
@@ -602,9 +675,12 @@ async fn install_legacy_neoforge(
         &preferences,
         app,
         &instance,
+        &claim,
     )
     .await?;
+    let worker_claim = Arc::clone(&claim);
     tokio::task::spawn_blocking(move || -> LineResult<String> {
+        let _worker_claim = worker_claim;
         use mc_launcher_core::net::download::{execute_plan, DownloadPlan, DownloadTask};
         use mc_launcher_core::install::loader::{run_loader_installer, InstallerInvocation};
         use mc_launcher_core::loader::LoaderKind;
@@ -650,64 +726,52 @@ async fn install_profile(
     loader: Option<LoaderSpec>,
     within_preparation: bool,
 ) -> LineResult<McInstalled> {
-    {
-        let mut inner = state.lock()?;
-        if inner.running.contains_key(&instance_id)
-            || inner.starting.contains(&instance_id)
-            || (inner.preparing.contains(&instance_id) && !within_preparation)
-        {
-            return Err(busy());
-        }
-        if !inner.installing.insert(instance_id.clone()) {
-            return Err(busy());
-        }
-    }
-
-    let dir = match game_root(app, &instance_id) {
-        Ok(dir) => dir,
-        Err(error) => {
-            if let Ok(mut inner) = state.lock() {
-                inner.installing.remove(&instance_id);
-            }
-            return Err(error);
-        }
-    };
+    let claim = state.begin_install(&instance_id, within_preparation)?;
+    let dir = game_root(app, &instance_id)?;
     let legacy = legacy_neoforge_version(&version, &loader);
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
     let installed = match legacy {
         Err(error) => Err(error),
         Ok(Some(legacy_version)) => {
-            install_legacy_neoforge(app, dir, legacy_version, emit_app, emit_instance).await
+            install_legacy_neoforge(
+                app,
+                dir,
+                legacy_version,
+                emit_app,
+                emit_instance,
+                Arc::clone(&claim),
+            )
+            .await
         }
-        Ok(None) => tokio::task::spawn_blocking(move || -> LineResult<String> {
-            let launcher = Launcher::new(dir);
-            let request = InstallRequest {
-                minecraft_version: version,
-                loader,
-                // The facade does not bundle Java; the runtime is resolved below
-                // through `LaunchOptions::java_executable`.
-                java: JavaInstallPolicy::Auto,
-            };
-            let mut reporter = move |event: ProgressEvent| {
-                let _ = emit_app.emit(
-                    MC_INSTALL_EVENT,
-                    progress_dto(&emit_instance, &event, false),
-                );
-            };
-            let result = launcher
-                .install_with_progress(request, &mut reporter)
-                .map_err(mc_error)?;
-            Ok(result.version_id)
-        })
-        .await
-        .map_err(|_| join_error())
-        .and_then(|result| result),
+        Ok(None) => {
+            let worker_claim = Arc::clone(&claim);
+            tokio::task::spawn_blocking(move || -> LineResult<String> {
+                let _worker_claim = worker_claim;
+                let launcher = Launcher::new(dir);
+                let request = InstallRequest {
+                    minecraft_version: version,
+                    loader,
+                    // The facade does not bundle Java; the runtime is resolved below
+                    // through `LaunchOptions::java_executable`.
+                    java: JavaInstallPolicy::Auto,
+                };
+                let mut reporter = move |event: ProgressEvent| {
+                    let _ = emit_app.emit(
+                        MC_INSTALL_EVENT,
+                        progress_dto(&emit_instance, &event, false),
+                    );
+                };
+                let result = launcher
+                    .install_with_progress(request, &mut reporter)
+                    .map_err(mc_error)?;
+                Ok(result.version_id)
+            })
+            .await
+            .map_err(|_| join_error())
+            .and_then(|result| result)
+        }
     };
-
-    if let Ok(mut inner) = state.lock() {
-        inner.installing.remove(&instance_id);
-    }
     let version_id = installed?;
     let _ = app.emit(
         MC_INSTALL_EVENT,
@@ -823,6 +887,7 @@ async fn resolve_java(
     preferences: &LauncherSettings,
     app: &AppHandle,
     instance_id: &str,
+    claim: &Arc<OperationGuard>,
 ) -> LineResult<PathBuf> {
     let JavaRequirement {
         major: required_major,
@@ -890,7 +955,9 @@ async fn resolve_java(
     }
     let owned_dir = dir.to_path_buf();
     let owned_component = component.clone();
+    let worker_claim = Arc::clone(claim);
     tokio::task::spawn_blocking(move || -> LineResult<()> {
+        let _worker_claim = worker_claim;
         runtime::install_jvm_runtime(&owned_component, &owned_dir, &CallbackDict::default())
             .map_err(|error| java_install_error(error.as_ref(), required_major, selected_major))
     })
@@ -1426,16 +1493,7 @@ async fn launch_profile(
     let username = session.username.clone();
     let uuid = player_uuid(&username);
     let stop = Arc::new(AtomicBool::new(false));
-    {
-        let mut inner = state.lock()?;
-        if inner.installing.contains(&instance_id)
-            || inner.running.contains_key(&instance_id)
-            || (inner.preparing.contains(&instance_id) && !within_preparation)
-            || !inner.starting.insert(instance_id.clone())
-        {
-            return Err(busy());
-        }
-    }
+    let claim = state.begin_start(&instance_id, within_preparation)?;
 
     let started = start_game(
         app,
@@ -1448,11 +1506,11 @@ async fn launch_profile(
         port,
         test_mode,
         stop,
+        &claim,
     )
     .await;
-    if let Ok(mut inner) = state.lock() {
-        inner.starting.remove(&instance_id);
-        if started.is_err() {
+    if started.is_err() {
+        if let Ok(mut inner) = state.lock() {
             inner.running.remove(&instance_id);
         }
     }
@@ -1487,6 +1545,7 @@ async fn start_game(
     port: u16,
     test_mode: bool,
     stop: Arc<AtomicBool>,
+    claim: &Arc<OperationGuard>,
 ) -> LineResult<McGameStatus> {
     let dir = instance_root(app, instance_id)?;
     let game_dir = dir.join("game");
@@ -1505,8 +1564,10 @@ async fn start_game(
 
     let load_dir = game_dir.clone();
     let load_id = version_id.to_string();
+    let load_claim = Arc::clone(claim);
     let (version, component, required_major, quick_play) = tokio::task::spawn_blocking(
         move || -> LineResult<(VersionJson, Option<String>, u16, bool)> {
+            let _worker_claim = load_claim;
             let launcher = Launcher::new(load_dir);
             let version = launcher.load_version(&load_id).map_err(mc_error)?;
             let (component, major) = match &version.java_version {
@@ -1539,6 +1600,7 @@ async fn start_game(
         &preferences,
         app,
         instance_id,
+        claim,
     )
     .await?;
 
@@ -1547,7 +1609,9 @@ async fn start_game(
     let account_uuid = uuid.to_string();
     let window = (preferences.window_width, preferences.window_height);
     let join_host = host.to_string();
+    let build_claim = Arc::clone(claim);
     let command = tokio::task::spawn_blocking(move || -> LineResult<LaunchCommand> {
+        let _worker_claim = build_claim;
         let launcher = Launcher::new(build_dir);
         let options = LaunchOptions {
             account: Account::Offline {
@@ -1754,6 +1818,50 @@ mod preparation_lock_tests {
         finish_tx.send(()).unwrap();
         worker.join().unwrap();
         assert!(state.begin_preparation("server").is_ok());
+    }
+
+    #[test]
+    fn install_and_start_claims_survive_detached_workers_and_release() {
+        for install in [true, false] {
+            let state = MinecraftState::default();
+            let claim = if install {
+                state.begin_install("server", false).unwrap()
+            } else {
+                state.begin_start("server", false).unwrap()
+            };
+            let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+            let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+            let worker_claim = Arc::clone(&claim);
+            let worker = std::thread::spawn(move || {
+                let _claim = worker_claim;
+                ready_tx.send(()).unwrap();
+                finish_rx.recv().unwrap();
+            });
+            ready_rx.recv().unwrap();
+            drop(claim);
+            assert!(state.begin_preparation("server").is_err());
+            assert!(state.begin_install("server", false).is_err());
+            assert!(state.begin_start("server", false).is_err());
+            finish_tx.send(()).unwrap();
+            worker.join().unwrap();
+            assert!(state.begin_preparation("server").is_ok());
+        }
+    }
+
+    #[test]
+    fn nested_operation_claims_do_not_bypass_other_active_operations() {
+        let state = MinecraftState::default();
+        let preparation = state.begin_preparation("server").unwrap();
+        assert!(state.begin_install("server", false).is_err());
+        assert!(state.begin_start("server", false).is_err());
+        let install = state.begin_install("server", true).unwrap();
+        assert!(state.begin_start("server", true).is_err());
+        drop(install);
+        let start = state.begin_start("server", true).unwrap();
+        assert!(state.begin_install("server", true).is_err());
+        drop(start);
+        drop(preparation);
+        assert!(state.begin_install("server", false).is_ok());
     }
 
     #[test]

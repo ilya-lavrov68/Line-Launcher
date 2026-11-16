@@ -82,25 +82,16 @@ test("preparation claims the instance before touching its files and blocks direc
     play.indexOf("state.begin_preparation(&instance_id)?") <
       play.indexOf("pack::sync_game_dir("),
   );
-  const install = rust.slice(
-    rust.indexOf("async fn install_profile("),
-    rust.indexOf("pub async fn mc_list_installed("),
-  );
+  assert.match(rust, /fn begin_install\(/);
+  assert.match(rust, /fn begin_start\(/);
   assert.match(
-    install,
-    /inner\.preparing\.contains\(&instance_id\) && !within_preparation/,
+    rust,
+    /state\.begin_install\(&instance_id, within_preparation\)/,
   );
-  assert.ok(
-    install.indexOf("inner.installing.insert(") <
-      install.indexOf("game_root(app, &instance_id)"),
-  );
-  const launch = rust.slice(
-    rust.indexOf("async fn launch_profile("),
-    rust.indexOf("async fn start_game("),
-  );
+  assert.match(rust, /state\.begin_start\(&instance_id, within_preparation\)/);
   assert.match(
-    launch,
-    /inner\.preparing\.contains\(&instance_id\) && !within_preparation/,
+    rust,
+    /inner\.preparing\.contains\(instance_id\) && !within_preparation/,
   );
   assert.match(rust, /impl Drop for PreparationGuard/);
 });
@@ -120,4 +111,13 @@ test("the live sync blocking worker retains the preparation claim when its await
   );
   const sync = play.indexOf("pack::sync_game_dir(", hold);
   assert.ok(clone >= 0 && worker > clone && hold > worker && sync > hold);
+});
+
+test("blocking install and launch work retains operation claims and Java extraction owns its staging lock", () => {
+  const java = read("src-tauri/src/line/java_auto.rs");
+  assert.match(rust, /let worker_claim = Arc::clone\(&claim\)/);
+  assert.match(rust, /let load_claim = Arc::clone\(claim\)/);
+  assert.match(rust, /let build_claim = Arc::clone\(claim\)/);
+  assert.match(java, /let worker_temp = Arc::clone\(&temp\)/);
+  assert.match(java, /let worker_lock = Arc::clone\(&lock\)/);
 });

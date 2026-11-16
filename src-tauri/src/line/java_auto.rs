@@ -6,6 +6,7 @@ use super::{install, integrity, java, pack, storage};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
@@ -250,7 +251,7 @@ pub async fn install_windows_x64(
         .parent()
         .ok_or_else(LineError::storage)?
         .to_path_buf();
-    let _lock = storage::InstallLock::acquire(&base)?;
+    let lock = Arc::new(storage::InstallLock::acquire(&base)?);
     let target = base.join(format!("temurin-{major}-windows-x64"));
     if let Some(path) = cached(&target, major).await {
         return Ok(path);
@@ -283,7 +284,7 @@ pub async fn install_windows_x64(
             true,
         ));
     }
-    let temp = tempfile::tempdir_in(&base).map_err(|e| LineError::io(&e))?;
+    let temp = Arc::new(tempfile::tempdir_in(&base).map_err(|e| LineError::io(&e))?);
     let zip_path = temp.path().join("java.zip");
     let mut file = tokio::fs::File::create(&zip_path)
         .await
@@ -324,7 +325,13 @@ pub async fn install_windows_x64(
     let staging = temp.path().join("runtime");
     let extract_path = zip_path.clone();
     let extract_dest = staging.clone();
+    // Extraction is not cancelled when its awaiter is dropped. Keep both the
+    // temporary directory and its installation lock until the worker exits.
+    let worker_temp = Arc::clone(&temp);
+    let worker_lock = Arc::clone(&lock);
     let index = tokio::task::spawn_blocking(move || {
+        let _worker_temp = worker_temp;
+        let _worker_lock = worker_lock;
         // Apply a much smaller cap than general modpacks before extraction.
         let file = std::fs::File::open(&extract_path).map_err(|e| LineError::io(&e))?;
         let mut archive = zip::ZipArchive::new(file)

@@ -110,6 +110,7 @@ pub fn find_game_prefix(paths: &[String]) -> Option<String> {
             continue;
         }
         candidates.push(format!("{top}/.minecraft/"));
+        candidates.push(format!("{top}/minecraft/"));
         candidates.push(format!("{top}/"));
     }
     candidates
@@ -347,6 +348,11 @@ mod tests {
         assert_eq!(
             find_game_prefix(&named),
             Some("MyPack/.minecraft/".to_string())
+        );
+        let prism_windows = paths(&["MyPack/mmc-pack.json", "MyPack/minecraft/mods/a.jar"]);
+        assert_eq!(
+            find_game_prefix(&prism_windows),
+            Some("MyPack/minecraft/".to_string())
         );
         let flat_named = paths(&["MyPack/mods/a.jar"]);
         assert_eq!(find_game_prefix(&flat_named), Some("MyPack/".to_string()));

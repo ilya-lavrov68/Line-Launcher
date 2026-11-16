@@ -100,6 +100,71 @@ impl PrismProfile {
         }
     }
 
+    /// Ensure a Mojang-style profile describes the same pinned components as
+    /// the Prism manifest. This is not proof that its libraries are complete.
+    pub fn verify_profile_identity(
+        &self,
+        minecraft: &str,
+        loader: Option<(LoaderChoice, &str)>,
+        has_patches: bool,
+    ) -> LineResult<()> {
+        if has_patches {
+            return Err(LineError::input("Экземпляр Prism содержит пользовательские patches; их применение пока не поддерживается."));
+        }
+        let mut selected_mc = None;
+        let mut selected_loader: Option<(LoaderChoice, &str)> = None;
+        for component in self.components.iter().filter(|c| !c.disabled) {
+            match component.uid.as_str() {
+                "net.minecraft" => {
+                    selected_mc = Some(component.version.as_deref().ok_or_else(|| {
+                        LineError::input("В mmc-pack.json не закреплена версия Minecraft.")
+                    })?);
+                }
+                "org.lwjgl" | "org.lwjgl3" => {}
+                _ => {
+                    let kind = Self::loader(component).ok_or_else(|| LineError::input(format!(
+                        "Компонент Prism {} пока не поддерживается; запуск остановлен, чтобы не пропустить его.", component.uid
+                    )))?;
+                    let version = component.version.as_deref().ok_or_else(|| {
+                        LineError::input("В mmc-pack.json не закреплена версия загрузчика.")
+                    })?;
+                    if selected_loader.replace((kind, version)).is_some() {
+                        return Err(LineError::input(
+                            "В экземпляре Prism указано несколько загрузчиков.",
+                        ));
+                    }
+                }
+            }
+        }
+        if selected_mc != Some(minecraft) {
+            return Err(LineError::input(
+                "Версия Minecraft в профиле не совпадает с mmc-pack.json.",
+            ));
+        }
+        let same = match (selected_loader, loader) {
+            (None, None) => true,
+            (Some((expected_kind, expected)), Some((actual_kind, actual)))
+                if expected_kind == actual_kind =>
+            {
+                // Forge-family profile coordinates can prefix the Minecraft version.
+                if matches!(expected_kind, LoaderChoice::Forge | LoaderChoice::NeoForge) {
+                    let prefix = format!("{minecraft}-");
+                    expected.strip_prefix(&prefix).unwrap_or(expected)
+                        == actual.strip_prefix(&prefix).unwrap_or(actual)
+                } else {
+                    expected == actual
+                }
+            }
+            _ => false,
+        };
+        if !same {
+            return Err(LineError::input(
+                "Загрузчик или его версия в профиле не совпадает с mmc-pack.json.",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn summary(&self) -> String {
         let active: Vec<_> = self.components.iter().filter(|c| !c.disabled).collect();
         let minecraft = active.iter().find(|c| c.uid == "net.minecraft");
@@ -162,6 +227,38 @@ mod tests {
             assert!(PrismProfile::parse(bytes).is_err());
         }
         assert!(PrismProfile::parse(&vec![b' '; MAX_METADATA_BYTES + 1]).is_err());
+    }
+
+    #[test]
+    fn identity_check_refuses_mismatches_unknown_components_and_patches() {
+        let profile = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.neoforged","version":"47.1.106"},{"uid":"org.lwjgl3","version":"3.3.1"}]}"#).unwrap();
+        assert!(profile
+            .verify_profile_identity(
+                "1.20.1",
+                Some((LoaderChoice::NeoForge, "1.20.1-47.1.106")),
+                false
+            )
+            .is_ok());
+        assert!(profile
+            .verify_profile_identity("1.20.1", None, false)
+            .is_err());
+        assert!(profile
+            .verify_profile_identity("1.20.1", Some((LoaderChoice::Forge, "47.1.106")), false)
+            .is_err());
+        assert!(profile
+            .verify_profile_identity("1.20.2", Some((LoaderChoice::NeoForge, "47.1.106")), false)
+            .is_err());
+        assert!(profile
+            .verify_profile_identity("1.20.1", Some((LoaderChoice::NeoForge, "47.1.106")), true)
+            .is_err());
+        let custom = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"example.custom","version":"1.0"}]}"#).unwrap();
+        assert!(custom
+            .verify_profile_identity("1.20.1", None, false)
+            .is_err());
+        let unpinned = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","cachedVersion":"1.20.1"}]}"#).unwrap();
+        assert!(unpinned
+            .verify_profile_identity("1.20.1", None, false)
+            .is_err());
     }
 
     #[test]

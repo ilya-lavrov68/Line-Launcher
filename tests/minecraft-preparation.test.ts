@@ -68,3 +68,39 @@ test("progress is phase-specific and reports completed files without false aggre
       detail.indexOf('data-testid="source-line"'),
   );
 });
+
+test("preparation claims the instance before touching its files and blocks direct install or launch", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  assert.ok(
+    play.indexOf("state.begin_preparation(&instance_id)?") <
+      play.indexOf("pack::effective_server("),
+  );
+  assert.ok(
+    play.indexOf("state.begin_preparation(&instance_id)?") <
+      play.indexOf("pack::sync_game_dir("),
+  );
+  const install = rust.slice(
+    rust.indexOf("async fn install_profile("),
+    rust.indexOf("pub async fn mc_list_installed("),
+  );
+  assert.match(
+    install,
+    /inner\.preparing\.contains\(&instance_id\) && !within_preparation/,
+  );
+  assert.ok(
+    install.indexOf("inner.installing.insert(") <
+      install.indexOf("game_root(app, &instance_id)"),
+  );
+  const launch = rust.slice(
+    rust.indexOf("async fn launch_profile("),
+    rust.indexOf("async fn start_game("),
+  );
+  assert.match(
+    launch,
+    /inner\.preparing\.contains\(&instance_id\) && !within_preparation/,
+  );
+  assert.match(rust, /impl Drop for PreparationGuard/);
+});

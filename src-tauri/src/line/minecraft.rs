@@ -159,6 +159,7 @@ struct Inner {
     running: HashMap<String, Running>,
     installing: HashSet<String>,
     starting: HashSet<String>,
+    preparing: HashSet<String>,
 }
 
 /// Separate from `LineState`: provider builds are keyed by server id and carry a
@@ -177,6 +178,37 @@ impl MinecraftState {
                 false,
             )
         })
+    }
+
+    fn begin_preparation(&self, instance_id: &str) -> LineResult<PreparationGuard<'_>> {
+        let mut inner = self.lock()?;
+        if inner.preparing.contains(instance_id)
+            || inner.installing.contains(instance_id)
+            || inner.starting.contains(instance_id)
+            || inner.running.contains_key(instance_id)
+        {
+            return Err(busy());
+        }
+        inner.preparing.insert(instance_id.to_string());
+        Ok(PreparationGuard {
+            state: self,
+            instance_id: instance_id.to_string(),
+        })
+    }
+}
+
+/// Held from before pack resolution and sync until the whole play/prepare call
+/// returns, including every error and the confirmation-required return.
+struct PreparationGuard<'a> {
+    state: &'a MinecraftState,
+    instance_id: String,
+}
+
+impl Drop for PreparationGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut inner) = self.state.lock() {
+            inner.preparing.remove(&self.instance_id);
+        }
     }
 }
 
@@ -410,7 +442,7 @@ pub async fn mc_install(
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version = validate_version_id(&request.minecraft_version)?;
     let loader = parse_loader(request.loader.as_ref())?;
-    install_profile(&app, &state, instance_id, version, loader).await
+    install_profile(&app, &state, instance_id, version, loader, false).await
 }
 
 fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpec>> {
@@ -616,11 +648,14 @@ async fn install_profile(
     instance_id: String,
     version: String,
     loader: Option<LoaderSpec>,
+    within_preparation: bool,
 ) -> LineResult<McInstalled> {
-    let dir = game_root(app, &instance_id)?;
     {
         let mut inner = state.lock()?;
-        if inner.running.contains_key(&instance_id) || inner.starting.contains(&instance_id) {
+        if inner.running.contains_key(&instance_id)
+            || inner.starting.contains(&instance_id)
+            || (inner.preparing.contains(&instance_id) && !within_preparation)
+        {
             return Err(busy());
         }
         if !inner.installing.insert(instance_id.clone()) {
@@ -628,6 +663,15 @@ async fn install_profile(
         }
     }
 
+    let dir = match game_root(app, &instance_id) {
+        Ok(dir) => dir,
+        Err(error) => {
+            if let Ok(mut inner) = state.lock() {
+                inner.installing.remove(&instance_id);
+            }
+            return Err(error);
+        }
+    };
     let legacy = legacy_neoforge_version(&version, &loader);
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
@@ -898,6 +942,7 @@ pub async fn mc_launch(
         host,
         port,
         false,
+        false,
     )
     .await
 }
@@ -948,6 +993,9 @@ pub async fn mc_play(
             )
         })?;
     let (host, port) = validate_server_address(&address)?;
+    // Claim the instance before any pack resolution, sync or live-file scan.
+    // The inner install and launch are allowed only as part of this operation.
+    let _preparation = state.begin_preparation(&instance_id)?;
     let root = app
         .path()
         .app_data_dir()
@@ -1284,6 +1332,7 @@ pub async fn mc_play(
             instance_id.clone(),
             detected.minecraft_version.clone(),
             loader,
+            true,
         )
         .await;
         log_preparation_stage(
@@ -1327,6 +1376,7 @@ pub async fn mc_play(
         host,
         port,
         request.test_mode,
+        true,
     )
     .await
 }
@@ -1365,6 +1415,7 @@ async fn launch_profile(
     host: String,
     port: u16,
     test_mode: bool,
+    within_preparation: bool,
 ) -> LineResult<McGameStatus> {
     // One account per project: the nickname and the stable UUID come from it.
     let session = line.session()?;
@@ -1375,6 +1426,7 @@ async fn launch_profile(
         let mut inner = state.lock()?;
         if inner.installing.contains(&instance_id)
             || inner.running.contains_key(&instance_id)
+            || (inner.preparing.contains(&instance_id) && !within_preparation)
             || !inner.starting.insert(instance_id.clone())
         {
             return Err(busy());
@@ -1659,6 +1711,65 @@ pub async fn mc_status(
             message: None,
         },
     })
+}
+
+#[cfg(test)]
+mod preparation_lock_tests {
+    use super::*;
+
+    #[test]
+    fn preparation_claim_is_exclusive_per_instance_and_released_on_drop() {
+        let state = MinecraftState::default();
+        let first = state.begin_preparation("server-one").unwrap();
+        std::thread::scope(|scope| {
+            let other = scope.spawn(|| state.begin_preparation("server-one").is_err());
+            assert!(other.join().unwrap());
+        });
+        let other_instance = state.begin_preparation("server-two").unwrap();
+        drop(other_instance);
+        drop(first);
+        assert!(state.begin_preparation("server-one").is_ok());
+    }
+
+    #[test]
+    fn preparation_refuses_existing_install_start_or_running_game() {
+        let state = MinecraftState::default();
+        {
+            let mut inner = state.lock().unwrap();
+            inner.installing.insert("server".into());
+        }
+        assert!(state.begin_preparation("server").is_err());
+        {
+            let mut inner = state.lock().unwrap();
+            inner.installing.remove("server");
+            inner.starting.insert("server".into());
+        }
+        assert!(state.begin_preparation("server").is_err());
+        {
+            let mut inner = state.lock().unwrap();
+            inner.starting.remove("server");
+            inner.running.insert(
+                "server".into(),
+                Running {
+                    stop: Arc::new(AtomicBool::new(false)),
+                    version_id: "1.20.1".into(),
+                    started_at: 1,
+                },
+            );
+        }
+        assert!(state.begin_preparation("server").is_err());
+    }
+
+    #[test]
+    fn early_error_releases_preparation_claim() {
+        fn fail_after_claim(state: &MinecraftState) -> LineResult<()> {
+            let _guard = state.begin_preparation("server")?;
+            Err(LineError::input("simulated error"))
+        }
+        let state = MinecraftState::default();
+        assert!(fail_after_claim(&state).is_err());
+        assert!(state.begin_preparation("server").is_ok());
+    }
 }
 
 #[cfg(test)]

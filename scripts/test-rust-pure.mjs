@@ -99,7 +99,9 @@ const shim = `
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::atomic::AtomicBool;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -143,6 +145,13 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("minecraft.rs", "struct Running {"),
+  attributed("minecraft.rs", "struct Inner {"),
+  attributed("minecraft.rs", "pub struct MinecraftState {"),
+  attributed("minecraft.rs", "impl MinecraftState {"),
+  attributed("minecraft.rs", "struct PreparationGuard<'a> {"),
+  attributed("minecraft.rs", "impl Drop for PreparationGuard<'_> {"),
+  attributed("minecraft.rs", "fn busy("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
   plain("zip_repair.rs", "pub struct ZipRepairPlan {"),
@@ -257,6 +266,15 @@ const tests = [
   installTestPrelude,
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed(
+    "minecraft.rs",
+    "fn preparation_claim_is_exclusive_per_instance_and_released_on_drop(",
+  ),
+  attributed(
+    "minecraft.rs",
+    "fn preparation_refuses_existing_install_start_or_running_game(",
+  ),
+  attributed("minecraft.rs", "fn early_error_releases_preparation_claim("),
   attributed("zip_repair.rs", "fn example("),
   attributed("zip_repair.rs", "fn only_identical_plan_is_approved("),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),

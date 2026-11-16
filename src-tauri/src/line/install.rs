@@ -648,7 +648,36 @@ pub async fn download_and_extract(
         .await;
     }
     let server = super::pack::effective_server(client, server, base).await?;
-    install_inner(client, &server, base, operation_id, cancel, sink, false).await
+    download_and_extract_resolved(client, &server, base, operation_id, cancel, sink).await
+}
+
+/// Install using a server whose archive manifest has already been resolved by
+/// the caller. Source packs still follow their normal metadata path. Keeping
+/// this separate avoids fetching pack.json twice and mixing two revisions in
+/// one preparation. Callers must resolve archive manifests before invoking it.
+pub async fn download_and_extract_resolved(
+    client: &reqwest::Client,
+    server: &Server,
+    base: &Path,
+    operation_id: &str,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+) -> LineResult<InstallReceipt> {
+    if !matches!(
+        super::source::kind_of(server)?,
+        super::source::SourceKind::Archive
+    ) {
+        return super::source::install::install_source(
+            client,
+            server,
+            base,
+            operation_id,
+            cancel,
+            sink,
+        )
+        .await;
+    }
+    install_inner(client, server, base, operation_id, cancel, sink, false).await
 }
 
 /// `repair` skips the "already installed" short circuit: the files on disk are

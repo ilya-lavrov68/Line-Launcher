@@ -11,6 +11,7 @@ const read = (file: string) =>
   readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 
 const rust = read("src-tauri/src/line/minecraft.rs");
+const install = read("src-tauri/src/line/install.rs");
 const core = read("src-tauri/src/line/minecraft_core.rs");
 const pack = read("src-tauri/src/line/pack.rs");
 const instance = read("src-tauri/src/line/instance.rs");
@@ -150,7 +151,7 @@ test("commands, state and the additive boundary are wired", () => {
   // installer. It must never open the private ticket channel or write into the
   // release itself: the live copy lives under minecraft/<instance>/game.
   assert.doesNotMatch(rust, /PrivateChannel|remove_dir_if_present/);
-  assert.match(rust, /install::download_and_extract\(/);
+  assert.match(rust, /install::download_and_extract_resolved\(/);
   assert.doesNotMatch(
     pack,
     /remove_dir_if_present|releases"\)\.join\(instance/,
@@ -232,14 +233,19 @@ test("Играть verifies-or-downloads and then joins the server in one comman
     rust.indexOf("async fn launch_profile("),
   );
   assert.match(play, /validate_server_address\(&address\)\?/);
+  assert.ok(
+    play.indexOf('"Проверка сборки на сервере…"') <
+      play.indexOf("pack::effective_server("),
+  );
+  assert.match(play, /log_preparation_stage\("pack", pack_started, false\)/);
   assert.match(play, /config\.server\(&request\.server_id\)\?/);
   assert.ok(
     play.indexOf("pack::effective_server(") <
-      play.indexOf("install::download_and_extract("),
+      play.indexOf("install::download_and_extract_resolved("),
     "pack.json must decide the revision before anything is downloaded",
   );
   for (const [earlier, later] of [
-    ["install::download_and_extract(", "pack::inspect("],
+    ["install::download_and_extract_resolved(", "pack::inspect("],
     ["pack::inspect(", "pack::sync_game_dir("],
     ["pack::sync_game_dir(", "launch_profile("],
   ]) {
@@ -248,6 +254,13 @@ test("Играть verifies-or-downloads and then joins the server in one comman
       `${earlier} must run before ${later}`,
     );
   }
+  assert.match(play, /or_else\(\|\| effective\.minecraft_version\.clone\(\)\)/);
+  assert.match(install, /pub async fn download_and_extract_resolved/);
+  const resolved = install.slice(
+    install.indexOf("pub async fn download_and_extract_resolved("),
+    install.indexOf("/// `repair`"),
+  );
+  assert.doesNotMatch(resolved, /pack::effective_server\(/);
   // The existing installer is reused, not a second downloader.
   assert.match(rust, /receipt\.already_installed/);
   assert.doesNotMatch(rust, /reqwest::blocking::Client/);

@@ -373,6 +373,20 @@ pub fn inspect(
     let loader = profile_loader(&profile);
     let inherited = text_field(&profile, "inheritsFrom").or_else(|| text_field(&profile, "jar"));
     let minecraft_version = validate_version_id(inherited.unwrap_or(&version_id))?;
+    // When the server hint names an included vanilla profile, it denotes the
+    // expected base. A unique loader for another base is not a safe fallback.
+    if let Some(hint) = hint.map(str::trim) {
+        if candidates
+            .iter()
+            .any(|(id, is_loader)| id == hint && !is_loader)
+            && version_id != hint
+            && minecraft_version != hint
+        {
+            return Err(LineError::input(
+                "Профиль загрузчика относится к другой версии Minecraft, чем указано у сервера.",
+            ));
+        }
+    }
     if let Some((profile, has_patches)) = &prism {
         profile.verify_profile_identity(
             &minecraft_version,
@@ -677,6 +691,37 @@ mod path_tests {
         };
         let error = inspect(temp.path(), &index, Some("1.20.1")).unwrap_err();
         assert!(error.message.contains("обе папки"));
+    }
+
+    #[test]
+    fn vanilla_hint_does_not_hide_the_installed_loader() {
+        let temp = tempfile::tempdir().unwrap();
+        let vanilla = temp.path().join("versions/1.20.1/1.20.1.json");
+        let loader = temp.path().join("versions/neoforge/neoforge.json");
+        std::fs::create_dir_all(vanilla.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(loader.parent().unwrap()).unwrap();
+        std::fs::write(&vanilla, br#"{"id":"1.20.1"}"#).unwrap();
+        std::fs::write(&loader, br#"{"inheritsFrom":"1.20.1","libraries":[{"name":"net.neoforged:forge:1.20.1-47.1.106"}]}"#).unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: [
+                "versions/1.20.1/1.20.1.json",
+                "versions/neoforge/neoforge.json",
+            ]
+            .into_iter()
+            .map(|path| integrity::FileEntry {
+                path: path.into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            })
+            .collect(),
+        };
+        let detected = inspect(temp.path(), &index, Some("1.20.1")).unwrap();
+        assert_eq!(detected.version_id, "neoforge");
+        assert_eq!(detected.minecraft_version, "1.20.1");
+        assert_eq!(detected.loader.unwrap().0, LoaderChoice::NeoForge);
+        std::fs::write(&loader, br#"{"inheritsFrom":"1.20.2","libraries":[{"name":"net.neoforged:forge:1.20.2-47.1.106"}]}"#).unwrap();
+        assert!(inspect(temp.path(), &index, Some("1.20.1")).is_err());
     }
 
     #[test]

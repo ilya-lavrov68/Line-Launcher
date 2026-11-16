@@ -954,13 +954,8 @@ pub async fn mc_play(
         .map_err(|_| LineError::storage())?;
     let base = server_dir(&root, &server.id)?;
 
-    // 1. What is published right now. The pinned distribution is the fallback
-    //    for providers that do not host a pack.json.
-    let effective = if server.source.is_some() {
-        server.clone()
-    } else {
-        pack::effective_server(&line.http, &server, &base).await?
-    };
+    // Show work before the first network request: fetching pack.json may be
+    // slow or fail and must not leave the player looking at an idle interface.
     emit_mc_progress(
         &app,
         &instance_id,
@@ -971,11 +966,24 @@ pub async fn mc_play(
         false,
     );
 
-    // 2. Download or verify. `download_and_extract` returns the existing receipt
-    //    untouched when its sha256 already matches, so an unchanged pack costs
-    //    one small JSON request, not a re-download.
-    // Test mode and normal play both use the same source validation and cache.
+    // 1. Resolve the archive metadata exactly once, and include it in the
+    // diagnostic duration. Source packs resolve their own metadata below.
     let pack_started = std::time::Instant::now();
+    let effective_result = if server.source.is_some() {
+        Ok(server.clone())
+    } else {
+        pack::effective_server(&line.http, &server, &base).await
+    };
+    let effective = match effective_result {
+        Ok(server) => server,
+        Err(error) => {
+            log_preparation_stage("pack", pack_started, false);
+            return Err(error);
+        }
+    };
+
+    // 2. Download or verify. The installer returns an existing matching receipt
+    // untouched, without fetching the already resolved pack.json again.
     let receipt = {
         let operation_id = Uuid::new_v4().to_string();
         let cancel = line.begin_install(&server.id, &operation_id)?;
@@ -1014,7 +1022,7 @@ pub async fn mc_play(
                 },
             );
         });
-        let installed = install::download_and_extract(
+        let installed = install::download_and_extract_resolved(
             &line.http,
             &effective,
             &base,
@@ -1053,7 +1061,7 @@ pub async fn mc_play(
     let hint = request
         .minecraft_version
         .clone()
-        .or_else(|| server.minecraft_version.clone());
+        .or_else(|| effective.minecraft_version.clone());
     let release_base = base.clone();
     let sha256 = receipt.sha256.clone();
     let instance_dir = instance_root(&app, &instance_id)?;

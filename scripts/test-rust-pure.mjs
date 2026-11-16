@@ -297,7 +297,7 @@ const tests = [
   attributed("instance.rs", "fn version_profiles_are_paired_with_their_json("),
   attributed(
     "instance.rs",
-    "fn profile_choice_prefers_the_hint_then_the_single_loader(",
+    "fn profile_choice_preserves_loader_when_hint_is_the_vanilla_base(",
   ),
   attributed(
     "instance.rs",

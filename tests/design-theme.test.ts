@@ -317,11 +317,14 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   assert.match(read("src/index.css"), /@import "@fontsource\/pacifico"/);
   assert.match(read("src/index.css"), /--font-hand: "Pacifico"/);
 
-  // The wash stays light. It used to reach 94% black, which hid the animated
-  // field the greeting is supposed to sit on.
-  assert.match(welcome, /WASH/);
-  assert.doesNotMatch(welcome, /0\.94/);
-  assert.doesNotMatch(welcome, /0\.72\)/);
+  // The same background wash stays behind every screen; the welcome fade
+  // must not remove it and make the colours look washed out afterwards.
+  const backdrop = read("src/components/line/AnimatedBackdrop.tsx");
+  assert.doesNotMatch(welcome, /WASH|style=\{\{ background/);
+  assert.match(backdrop, /data-line-backdrop-wash/);
+  assert.match(backdrop, /style=\{\{ background: BACKDROP_WASH \}\}/);
+  assert.match(backdrop, /rgba\(8,9,12,0\.28\)/);
+  assert.match(backdrop, /rgba\(8,9,12,0\.52\)/);
 });
 
 test("the animated backdrop is decoration that cannot take the window down", () => {

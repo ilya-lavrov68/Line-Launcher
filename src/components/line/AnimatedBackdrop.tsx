@@ -54,6 +54,12 @@ import {
 /** How long the old theme stays underneath while the new one fades in. */
 const CROSSFADE_MS = 600;
 
+// This was previously painted only by WelcomeScreen and faded out with the
+// greeting, washing the colours out when the rest of the interface appeared.
+// Keep the same dark wash behind *all* screens so the intro's colour persists.
+const BACKDROP_WASH =
+  "radial-gradient(120% 100% at 50% 42%, rgba(8,9,12,0.28), rgba(8,9,12,0.52) 78%)";
+
 export interface AnimatedBackdropProps {
   /**
    * The provider's own image, when there is one. Its colours are not sampled —
@@ -270,6 +276,11 @@ export default function AnimatedBackdrop({
       <div
         className="bg-background absolute inset-0 transition-opacity duration-500 ease-out"
         style={{ opacity: active.shade }}
+      />
+      <div
+        data-line-backdrop-wash
+        className="absolute inset-0"
+        style={{ background: BACKDROP_WASH }}
       />
     </div>
   );

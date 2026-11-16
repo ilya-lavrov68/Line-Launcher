@@ -139,3 +139,55 @@ test("cooperating launcher processes hold an instance lease through sync, instal
   assert.match(rust, /let game_lease = Arc::clone\(&claim\.lease\)/);
   assert.match(rust, /let _game_lease = game_lease/);
 });
+
+test("release stays locked across verified sync and stale receipts are rejected", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  const lock = play.indexOf(
+    "let release_lease = Arc::new(InstallLock::acquire(&base)?)",
+  );
+  const current = play.indexOf(
+    "install::current_receipt(&base, &server.id)",
+    lock,
+  );
+  const clone = play.indexOf("Arc::clone(&release_lease)", current);
+  const hold = play.indexOf(
+    "let _worker_release_lease = worker_release_lease",
+    clone,
+  );
+  const scan = play.indexOf("integrity::scan(&release)", hold);
+  const sync = play.indexOf("pack::sync_game_dir(", scan);
+  const release = play.indexOf("drop(release_lease)", sync);
+  assert.ok(
+    lock >= 0 &&
+      current > lock &&
+      clone > current &&
+      hold > clone &&
+      scan > hold &&
+      sync > scan &&
+      release > sync,
+  );
+  assert.match(play.slice(current, clone), /value\.sha256 == receipt\.sha256/);
+});
+
+test("ZIP extraction retains its server lock if the awaiter disappears", () => {
+  const install = read("src-tauri/src/line/install.rs");
+  const inner = install.slice(
+    install.indexOf("async fn install_inner("),
+    install.indexOf("pub async fn download_and_extract_zip("),
+  );
+  assert.match(inner, /let lock = Arc::new\(InstallLock::acquire\(base\)\?\)/);
+  assert.match(inner, /let worker_lock = Arc::clone\(&lock\)/);
+  assert.match(inner, /let _worker_lock = worker_lock/);
+});
+
+test("Minecraft status does not claim readiness after errors or while awaiting confirmation", () => {
+  assert.match(panel, /idle: t\("minecraft.notRunning"\)/);
+  assert.match(panel, /!running && error[\s\S]*?t\("minecraft.failed"\)/);
+  assert.match(
+    panel,
+    /!running && pendingRepair[\s\S]*?t\("minecraft.confirmationNeeded"\)/,
+  );
+});

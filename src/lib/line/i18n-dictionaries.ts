@@ -148,6 +148,8 @@ export const ru = {
   "install.step.cancelled": "Отменено",
 
   "minecraft.ready": "Готов к запуску",
+  "minecraft.notRunning": "Игра не запущена",
+  "minecraft.confirmationNeeded": "Требуется подтверждение",
   "minecraft.starting": "Запуск Minecraft…",
   "minecraft.running": "Игра запущена",
   "minecraft.exited": "Игра завершилась",
@@ -607,6 +609,8 @@ const en: Dictionary = {
   "install.step.cancelled": "Cancelled",
 
   "minecraft.ready": "Ready to play",
+  "minecraft.notRunning": "Game not running",
+  "minecraft.confirmationNeeded": "Confirmation required",
   "minecraft.starting": "Launching Minecraft…",
   "minecraft.running": "Game is running",
   "minecraft.exited": "Game closed",
@@ -1064,6 +1068,8 @@ const de: Dictionary = {
   "install.step.cancelled": "Abgebrochen",
 
   "minecraft.ready": "Bereit zum Starten",
+  "minecraft.notRunning": "Spiel läuft nicht",
+  "minecraft.confirmationNeeded": "Bestätigung erforderlich",
   "minecraft.starting": "Minecraft startet…",
   "minecraft.running": "Spiel läuft",
   "minecraft.exited": "Spiel beendet",
@@ -1526,6 +1532,8 @@ const fr: Dictionary = {
   "install.step.cancelled": "Annulé",
 
   "minecraft.ready": "Prêt à jouer",
+  "minecraft.notRunning": "Jeu non lancé",
+  "minecraft.confirmationNeeded": "Confirmation nécessaire",
   "minecraft.starting": "Lancement de Minecraft…",
   "minecraft.running": "Le jeu tourne",
   "minecraft.exited": "Jeu fermé",

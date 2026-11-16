@@ -53,7 +53,7 @@ type Busy = "idle" | "installing" | "launching" | "stopping";
 
 function phaseHint(t: Translator, phase: GamePhase): string {
   const hints: Record<GamePhase, string> = {
-    idle: t("minecraft.ready"),
+    idle: t("minecraft.notRunning"),
     starting: t("minecraft.starting"),
     running: t("minecraft.running"),
     exited: t("minecraft.exited"),
@@ -300,16 +300,21 @@ export default function MinecraftPanel({
           className={cn(
             "inline-flex items-center gap-1",
             running && "text-primary",
-            status?.phase === "failed" && "text-destructive",
+            (status?.phase === "failed" || (error && !running)) &&
+              "text-destructive",
           )}
         >
           <Wifi className="size-3" aria-hidden="true" />
           <span role="status">
             {working
               ? t("mc.busyPreparing")
-              : status
-                ? phaseHint(t, status.phase)
-                : t("minecraft.checking")}
+              : !running && error
+                ? t("minecraft.failed")
+                : !running && pendingRepair
+                  ? t("minecraft.confirmationNeeded")
+                  : status
+                    ? phaseHint(t, status.phase)
+                    : t("minecraft.checking")}
           </span>
         </span>
         {server.minecraft_version && (

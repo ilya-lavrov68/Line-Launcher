@@ -718,7 +718,7 @@ async fn install_inner(
 ) -> LineResult<InstallReceipt> {
     server.distribution.validate_bounds()?;
     create_private_dir(base)?;
-    let _lock = InstallLock::acquire(base)?;
+    let lock = Arc::new(InstallLock::acquire(base)?);
     // A crash may leave staging behind. Never touch releases/current.json here.
     cleanup_staging(base)?;
     if !repair {
@@ -821,7 +821,11 @@ async fn install_inner(
         let shared = cancel.clone();
         let extract_progress = progress.clone();
         let extract_sink = sink.clone();
+        // Dropping the awaiting future does not stop a blocking extraction.
+        // Keep the server lock until the worker has finished touching staging.
+        let worker_lock = Arc::clone(&lock);
         let index = tauri::async_runtime::spawn_blocking(move || {
+            let _worker_lock = worker_lock;
             extract_verified_zip(
                 &extract_path,
                 &extract_target,

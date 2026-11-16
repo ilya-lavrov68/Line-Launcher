@@ -1183,6 +1183,22 @@ pub async fn mc_play(
         );
     }
 
+    // The installer released its server lock when returning the receipt. Reclaim
+    // it before inspecting or copying the release; a concurrent update or
+    // rollback could have changed current.json in the gap.
+    let release_lease = Arc::new(InstallLock::acquire(&base)?);
+    let current = install::current_receipt(&base, &server.id);
+    if !current
+        .as_ref()
+        .is_some_and(|value| value.sha256 == receipt.sha256)
+    {
+        return Err(LineError::new(
+            ErrorCode::Busy,
+            "Сборка изменилась во время подготовки. Повторите действие.",
+            true,
+        ));
+    }
+
     emit_mc_progress(
         &app,
         &instance_id,
@@ -1208,8 +1224,10 @@ pub async fn mc_play(
     // A blocking task continues after its awaiting future is dropped. Keep its
     // claim alive until all live-file verification and synchronization has stopped.
     let worker_preparation = Arc::clone(&preparation);
+    let worker_release_lease = Arc::clone(&release_lease);
     let detected_result = tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
         let _worker_preparation = worker_preparation;
+        let _worker_release_lease = worker_release_lease;
         let release = pack::release_dir(&release_base, &sha256)?;
         let index = integrity::read_index(&release)?;
         let report = integrity::scan(&release)?;
@@ -1339,6 +1357,10 @@ pub async fn mc_play(
     if let Some(message) = scan.blocked {
         return Err(LineError::new(ErrorCode::Integrity, message, false));
     }
+
+    // The release is no longer read; allow provider updates while the
+    // separately locked live instance installs missing Minecraft components.
+    drop(release_lease);
 
     // 4. Fill only the gaps. A loader found inside the instance is used as is;
     //    one requested by the provider is installed only when none is there.

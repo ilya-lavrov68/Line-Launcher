@@ -1058,6 +1058,7 @@ pub async fn mc_play(
     let inspect_instance = instance_id.clone();
     let inspect_app = app.clone();
     let verify_started = std::time::Instant::now();
+    let audit_live_assets = request.prepare_only;
     let detected_result = tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
         let release = pack::release_dir(&release_base, &sha256)?;
         let index = integrity::read_index(&release)?;
@@ -1069,7 +1070,7 @@ pub async fn mc_play(
                 false,
             ));
         }
-        let detected = pack::inspect(&release, &index, hint.as_deref())?;
+        let mut detected = pack::inspect(&release, &index, hint.as_deref())?;
         emit_mc_progress(
             &inspect_app,
             &inspect_instance,
@@ -1115,6 +1116,25 @@ pub async fn mc_play(
                 ));
             }
         }
+        if audit_live_assets && detected.asset_inventory.is_some() {
+            if let Some(id) = &detected.asset_index_id {
+                emit_mc_progress(
+                    &inspect_app,
+                    &inspect_instance,
+                    "verify",
+                    "Проверка хешей ресурсов экземпляра…",
+                    0,
+                    None,
+                    false,
+                );
+                let bytes = pack::read_release_asset_index(&release, &detected.prefix, id)?;
+                detected.live_assets = Some(super::asset_inventory::inspect_live(
+                    &bytes,
+                    &game,
+                    |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
+                )?);
+            }
+        }
         Ok(detected)
     })
     .await
@@ -1133,6 +1153,22 @@ pub async fn mc_play(
                 Field::num("missing", inventory.missing),
                 Field::num("wrong_size", inventory.wrong_size),
                 Field::num("missing_bytes", inventory.missing_bytes),
+            ],
+        );
+    }
+
+    if let Some(inventory) = detected.live_assets {
+        use super::logger::{self, Area, Field};
+        logger::info(
+            Area::Install,
+            "live asset inventory (SHA-1)",
+            &[
+                Field::num("objects", inventory.unique_objects),
+                Field::num("matched_sha1", inventory.matched_sha1),
+                Field::num("missing", inventory.missing),
+                Field::num("wrong_size", inventory.wrong_size),
+                Field::num("wrong_hash", inventory.wrong_hash),
+                Field::num("needed_bytes", inventory.needed_bytes),
             ],
         );
     }

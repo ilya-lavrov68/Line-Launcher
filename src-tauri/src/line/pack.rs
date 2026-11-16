@@ -194,6 +194,10 @@ pub struct DetectedInstance {
     pub missing: Vec<&'static str>,
     /// Optional read-only inventory. Size matches are not SHA-1 validation.
     pub asset_inventory: Option<super::asset_inventory::AssetInventory>,
+    /// Safe index id if a verified release supplied a readable asset index.
+    pub asset_index_id: Option<String>,
+    /// Live-file audit is run only for an explicit prepare operation.
+    pub live_assets: Option<super::asset_inventory::LiveAssets>,
     /// Game-relative files the pack owns.
     pub files: Vec<String>,
 }
@@ -244,6 +248,30 @@ fn asset_index(json: &Value) -> Option<String> {
         .and_then(|index| text_field(index, "id"))
         .or_else(|| text_field(json, "assets"))
         .map(str::to_string)
+}
+
+/// Bounded read from the already-scanned immutable release, never the live game.
+pub fn read_release_asset_index(release: &Path, prefix: &str, id: &str) -> LineResult<Vec<u8>> {
+    use std::io::Read;
+    let id = validate_version_id(id)?;
+    let path = release
+        .join(prefix)
+        .join("assets/indexes")
+        .join(format!("{id}.json"));
+    if !is_real_file(&path) {
+        return Err(LineError::new(
+            ErrorCode::Integrity,
+            "Индекс ресурсов отсутствует или заменён ссылкой.",
+            false,
+        ));
+    }
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| LineError::io(&e))?
+        .take(super::asset_inventory::MAX_ASSET_INDEX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| LineError::io(&e))?;
+    Ok(bytes)
 }
 
 /// Reads the verified archive's file list and version JSONs and decides what to
@@ -368,35 +396,22 @@ pub fn inspect(
     }
     // Inventory only: do not infer content integrity from a matching size, and
     // do not use this diagnostic to trigger downloads without a repair plan.
-    let asset_inventory = assets
+    let asset_index_id = assets
         .as_deref()
         .and_then(|id| validate_version_id(id).ok())
-        .and_then(|id| {
-            let relative = format!("{prefix}assets/indexes/{id}.json");
-            if !paths.contains(&relative) {
-                return None;
-            }
-            let path = release.join(relative);
-            if !is_real_file(&path) {
-                return None;
-            }
-            use std::io::Read;
-            let mut bytes = Vec::new();
-            fs::File::open(path)
-                .ok()?
-                .take(super::asset_inventory::MAX_ASSET_INDEX_BYTES as u64 + 1)
-                .read_to_end(&mut bytes)
-                .ok()?;
-            super::asset_inventory::inventory(
-                &bytes,
-                index
-                    .files
-                    .iter()
-                    .map(|entry| (entry.path.clone(), entry.size)),
-                &prefix,
-            )
-            .ok()
-        });
+        .filter(|id| paths.contains(&format!("{prefix}assets/indexes/{id}.json")));
+    let asset_inventory = asset_index_id.as_deref().and_then(|id| {
+        let bytes = read_release_asset_index(release, &prefix, id).ok()?;
+        super::asset_inventory::inventory(
+            &bytes,
+            index
+                .files
+                .iter()
+                .map(|entry| (entry.path.clone(), entry.size)),
+            &prefix,
+        )
+        .ok()
+    });
     let missing = instance::missing_parts(&paths, &prefix, &minecraft_version, assets.as_deref());
     let files: Vec<String> = paths
         .iter()
@@ -415,6 +430,8 @@ pub fn inspect(
             == Some(true),
         missing,
         asset_inventory,
+        asset_index_id,
+        live_assets: None,
         files,
     })
 }

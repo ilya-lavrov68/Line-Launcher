@@ -1,6 +1,7 @@
-//! Narrow proof for Connector's untransformed direct nested-JAR cache.
+//! Provenance for unmodified, declared Fabric nested JARs.
 //! The caller supplies a release index that was just integrity-scanned while
-//! holding the server lock. Unknown cache entries remain blocked.
+//! holding the server lock. Connector's naming is a fast path; other mods may
+//! use the generic exact-name search. Unknown or transformed files stay blocked.
 use super::error::{LineError, LineResult};
 use super::integrity::{self, FileIndex};
 use super::pack::checked_game_path;
@@ -13,6 +14,10 @@ const MAX_PARENT: u64 = 256 * 1024 * 1024;
 const MAX_METADATA: u64 = 1024 * 1024;
 const MAX_NESTED: u64 = 128 * 1024 * 1024;
 const MAX_JAR_ENTRIES: usize = 50_000;
+const MAX_PARENT_SCAN_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_NESTED_SCAN_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_PARENT_CANDIDATES: usize = 512;
+const MAX_SCANNED_ENTRIES: usize = 250_000;
 
 /// Only direct, untransformed children of a top-level provider mod are covered.
 /// No wildcard exemption for `.connector`, recursive caches or transformed jars.
@@ -28,8 +33,23 @@ fn connector_names(relative: &str) -> Option<(&str, &str)> {
     Some((parent, child))
 }
 
-#[derive(Default)]
-pub struct ParentChecks(Option<(String, Vec<u8>)>);
+pub struct ParentChecks {
+    last: Option<(String, Vec<u8>)>,
+    remaining_bytes: u64,
+    remaining_nested_bytes: u64,
+    remaining_entries: usize,
+}
+
+impl Default for ParentChecks {
+    fn default() -> Self {
+        Self {
+            last: None,
+            remaining_bytes: MAX_PARENT_SCAN_BYTES,
+            remaining_nested_bytes: MAX_NESTED_SCAN_BYTES,
+            remaining_entries: MAX_SCANNED_ENTRIES,
+        }
+    }
+}
 
 /// Returns false for anything not proved; never considers a cache path trusted
 /// merely because of its name or because it was seen on a previous run.
@@ -40,29 +60,77 @@ pub fn matches_verified_nested(
     relative: &str,
     checked: &mut ParentChecks,
 ) -> LineResult<bool> {
-    let Some((parent_name, child_name)) = connector_names(relative) else {
+    if let Some((parent_name, child_name)) = connector_names(relative) {
+        let parent = format!("mods/{parent_name}.jar");
+        return matches_parent(game, index, prefix, relative, &parent, child_name, checked);
+    }
+    // General rule, not an allowlist by mod: another generator can reuse an
+    // unmodified nested JAR under its declared basename. Require a bounded
+    // search through verified top-level parent mods and exact byte equality.
+    let Some(name) = relative
+        .strip_prefix("mods/")
+        .and_then(|v| v.rsplit('/').next())
+    else {
         return Ok(false);
     };
-    let expected_parent = format!("mods/{parent_name}.jar");
+    if !name.ends_with(".jar") || name.contains('$') {
+        return Ok(false);
+    }
+    let mut candidates = 0usize;
+    for parent in &index.files {
+        let Some(path) = parent.path.strip_prefix(prefix) else {
+            continue;
+        };
+        let Some(filename) = path.strip_prefix("mods/") else {
+            continue;
+        };
+        if filename.contains('/') || !filename.ends_with(".jar") {
+            continue;
+        }
+        candidates += 1;
+        if candidates > MAX_PARENT_CANDIDATES || checked.remaining_bytes == 0 {
+            return Ok(false);
+        }
+        if matches_parent(game, index, prefix, relative, path, name, checked)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn matches_parent(
+    game: &Path,
+    index: &FileIndex,
+    prefix: &str,
+    relative: &str,
+    expected_parent: &str,
+    child_name: &str,
+    checked: &mut ParentChecks,
+) -> LineResult<bool> {
     let mut parents = index
         .files
         .iter()
-        .filter(|entry| entry.path.strip_prefix(prefix) == Some(expected_parent.as_str()));
+        .filter(|entry| entry.path.strip_prefix(prefix) == Some(expected_parent));
     let Some(parent) = parents.next() else {
         return Ok(false);
     };
     if parents.next().is_some() {
         return Ok(false);
     }
-    let path = checked_game_path(game, &expected_parent, false)?;
+    let path = checked_game_path(game, expected_parent, false)?;
     if !is_real_file(&path) || parent.size > MAX_PARENT {
         return Ok(false);
     }
     if !checked
-        .0
+        .last
         .as_ref()
-        .is_some_and(|(name, _)| name == &expected_parent)
+        .is_some_and(|(name, _)| name == expected_parent)
     {
+        if parent.size > checked.remaining_bytes {
+            checked.remaining_bytes = 0;
+            return Ok(false);
+        }
+        checked.remaining_bytes -= parent.size;
         let file = std::fs::File::open(path).map_err(|e| LineError::io(&e))?;
         let mut bytes = Vec::new();
         file.take(MAX_PARENT + 1)
@@ -71,19 +139,21 @@ pub fn matches_verified_nested(
         if bytes.len() as u64 != parent.size
             || format!("{:x}", Sha256::digest(&bytes)) != parent.sha256
         {
-            checked.0 = None;
+            checked.last = None;
             return Ok(false);
         }
-        checked.0 = Some((expected_parent, bytes));
+        checked.last = Some((expected_parent.to_owned(), bytes));
     }
-    let bytes = &checked.0.as_ref().expect("verified parent").1;
+    let bytes = &checked.last.as_ref().expect("verified parent").1;
     let mut archive = match zip::ZipArchive::new(std::io::Cursor::new(bytes.as_slice())) {
         Ok(value) => value,
         Err(_) => return Ok(false),
     };
-    if archive.len() > MAX_JAR_ENTRIES {
+    let entry_visits = archive.len().saturating_mul(2);
+    if archive.len() > MAX_JAR_ENTRIES || entry_visits > checked.remaining_entries {
         return Ok(false);
     }
+    checked.remaining_entries -= entry_visits;
     // Reject duplicate metadata or nested paths; ZIP name lookup alone is ambiguous.
     let mut metadata_count = 0;
     for i in 0..archive.len() {
@@ -153,10 +223,12 @@ pub fn matches_verified_nested(
         Ok(value) => value,
         Err(_) => return Ok(false),
     };
-    if entry.is_dir() || entry.size() > MAX_NESTED {
+    if entry.is_dir() || entry.size() > MAX_NESTED || entry.size() > checked.remaining_nested_bytes
+    {
         return Ok(false);
     }
     let expected_size = entry.size();
+    checked.remaining_nested_bytes -= expected_size;
     let mut reader = entry.take(MAX_NESTED + 1);
     let mut hasher = Sha256::new();
     let mut total = 0u64;
@@ -274,6 +346,58 @@ mod tests {
         )
         .unwrap();
         assert!(!check("mods/.connector/temp/parent$child.jar"));
+    }
+
+    #[test]
+    fn other_generators_can_prove_declared_copies_without_a_mod_specific_rule() {
+        let temp = tempfile::tempdir().unwrap();
+        let game = temp.path();
+        std::fs::create_dir_all(game.join("mods/other-generated-cache")).unwrap();
+        let bytes = parent_jar(&[
+            (
+                "fabric.mod.json",
+                br#"{"jars":[{"file":"META-INF/jars/child.jar"}]}"#,
+            ),
+            ("META-INF/jars/child.jar", b"nested bytes"),
+        ]);
+        std::fs::write(game.join("mods/provider.jar"), &bytes).unwrap();
+        let copy = game.join("mods/other-generated-cache/child.jar");
+        std::fs::write(&copy, b"nested bytes").unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: vec![integrity::FileEntry {
+                path: "mods/provider.jar".into(),
+                sha256: format!("{:x}", Sha256::digest(&bytes)),
+                size: bytes.len() as u64,
+            }],
+        };
+        let check = |name: &str| {
+            matches_verified_nested(game, &index, "", name, &mut ParentChecks::default()).unwrap()
+        };
+        assert!(check("mods/other-generated-cache/child.jar"));
+        std::fs::write(&copy, b"nested byteS").unwrap();
+        assert!(!check("mods/other-generated-cache/child.jar"));
+        std::fs::write(
+            game.join("mods/other-generated-cache/unknown.jar"),
+            b"nested bytes",
+        )
+        .unwrap();
+        assert!(!check("mods/other-generated-cache/unknown.jar"));
+        std::fs::write(&copy, b"nested bytes").unwrap();
+        let mut exhausted = ParentChecks {
+            last: None,
+            remaining_bytes: 0,
+            remaining_nested_bytes: 0,
+            remaining_entries: 0,
+        };
+        assert!(!matches_verified_nested(
+            game,
+            &index,
+            "",
+            "mods/other-generated-cache/child.jar",
+            &mut exhausted
+        )
+        .unwrap());
     }
 
     #[test]

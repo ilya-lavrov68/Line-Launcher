@@ -16,12 +16,16 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
    durability is not guaranteed; do not claim power-loss safety or Windows
    readiness without integration testing. The local index is not authentication.
 2. **Connector-generated files:** the Minecraft launch path can now prove a
-   narrowly scoped direct nested JAR in `.connector/temp` against the current
-   scanned release index, the live parent mod's SHA-256 and its declared Fabric
-   `jars` entry, comparing the complete bytes. Unknown, modified, ambiguous,
+   direct nested JARs against the current scanned release index, the live parent
+   mod's SHA-256 and its declared Fabric `jars` entry, comparing complete bytes.
+   Connector naming has a fast path; a bounded generic search can also prove an
+   unchanged declared JAR under its original basename elsewhere in mods. Unknown, modified, ambiguous,
    recursively nested or transformed output remains blocked, not trusted or
    deleted. This covers only top-level lowercase `.jar` parent names and bounded
-   files; resource-pack-only checks and the non-Minecraft launch path remain
+   files; generic searches have a finite read budget and may block an otherwise
+   valid file in large packs when the budget is exhausted. They can add disk IO;
+   performance is unmeasured. The general consent-based quarantine UX for
+   artifacts whose provenance cannot be proved is not implemented; resource-pack-only checks and the non-Minecraft launch path remain
    strict. The ZIP-based Rust integration tests, Windows reparse/race behaviour
    and actual Connector versions still require full Cargo and real-instance
    validation. Locks coordinate cooperating processes only; external mutation

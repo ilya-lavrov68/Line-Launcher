@@ -1359,7 +1359,8 @@ pub async fn mc_play(
     let instance_dir = instance_root(&app, &instance_id)?;
     let scan_started = std::time::Instant::now();
     // The release index was just checked, and the server/instance locks still
-    // cover this scan. Only byte-identical declared direct nested jars qualify.
+    // cover this scan. Only byte-identical declared direct nested jars qualify;
+    // the generic rule also applies to other generators, not just Connector.
     let scan_base = instance_dir.clone();
     let scan_server = server.clone();
     let scan_files = detected.files.clone();

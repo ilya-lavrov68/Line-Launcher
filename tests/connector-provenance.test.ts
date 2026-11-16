@@ -16,3 +16,14 @@ test("Connector cache is checked against a scanned release and never globally al
   assert.match(connector, /actual == format!/);
   assert.match(launch, /check_live_mods_with\(game, owned, \|_\| Ok\(false\)\)/);
 });
+
+
+test("nested-JAR proof has a bounded generator-independent fallback", () => {
+  const rust = read("src-tauri/src/line/connector.rs");
+  assert.match(rust, /for parent in &index\.files/);
+  assert.match(rust, /matches_parent\(game, index, prefix, relative, path, name, checked\)/);
+  assert.match(rust, /MAX_PARENT_CANDIDATES/);
+  assert.match(rust, /MAX_PARENT_SCAN_BYTES/);
+  assert.match(rust, /MAX_NESTED_SCAN_BYTES/);
+  assert.match(rust, /MAX_SCANNED_ENTRIES/);
+});

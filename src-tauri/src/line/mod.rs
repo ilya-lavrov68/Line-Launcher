@@ -20,6 +20,7 @@ pub mod logger;
 pub mod minecraft;
 pub mod minecraft_core;
 pub mod pack;
+pub mod prism;
 pub mod resourcepack;
 pub mod rollback;
 pub mod settings;

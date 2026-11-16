@@ -4,7 +4,7 @@
 
 Providers can supply a pinned ZIP or a Modrinth/packwiz source. The installer verifies the ZIP's published digest, indexes extracted files, and verifies source files against their supplied hashes. A local index records what was installed; it does not authenticate a malicious or compromised provider. CurseForge source resolution is **not implemented**: its API and distribution restrictions must be resolved before support is promised.
 
-A Prism instance is not necessarily a complete standalone Minecraft directory: it normally describes components in `mmc-pack.json` and may rely on Prism's shared versions, assets and libraries. The current ZIP inspector reads Mojang version profiles, not Prism component metadata. For a Prism-shaped ZIP without those profiles, it now stops with a clear diagnostic even if the server provides a vanilla hint, rather than silently treating the hint as the installed loader. This is a guard, not Prism support.
+A Prism instance is not necessarily a complete standalone Minecraft directory: it normally describes components in `mmc-pack.json` and may rely on Prism's shared versions, assets and libraries. The current ZIP inspector reads Mojang version profiles, not Prism component metadata. For a Prism-shaped ZIP without those profiles, it reads the bounded `mmc-pack.json` component list and shows a diagnostic of pinned Minecraft/loader versions, then stops even if the server provides a vanilla hint rather than silently treating the hint as the installed loader. Cached versions are informational, disabled components are excluded from the summary and unknown components are retained. This is a read-only guard, not Prism installation support.
 
 ## Implementation phases
 
@@ -15,3 +15,5 @@ A Prism instance is not necessarily a complete standalone Minecraft directory: i
 5. **Windows validation:** use representative Prism exports (vanilla, Fabric, Forge, NeoForge), incomplete and complete ZIPs, Modrinth and permitted CurseForge fixtures. Exercise first install, offline/repeat, updates, tampering, corrupted or missing files, consent refusal, interruption/recovery and Connector-generated cache. Record timings and network activity; confirm no accidental reinstallation and preserve worlds/settings.
 
 No phase should treat all files observed after a first game launch as trusted; a crash, unrelated process or malicious file could contaminate that snapshot. Unknown generated artifacts require a clear actionable message, not a silent allowance or deletion.
+
+Prism metadata format researched against Prism Launcher commit `15125f168cb414384e540d6f6370f4868579145a`, `launcher/minecraft/PackProfile.cpp` and `Component.cpp`. No Prism code is copied.

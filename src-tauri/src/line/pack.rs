@@ -286,9 +286,26 @@ pub fn inspect(
         if let Some(root) = prism_root {
             let metadata = format!("{root}mmc-pack.json");
             if paths.iter().any(|path| path == &metadata) {
-                return Err(LineError::input(
-                    "Обнаружен экземпляр Prism Launcher без профиля versions. Метаданные mmc-pack.json пока не поддерживаются для установки: загрузчик не будет установлен автоматически. Используйте сборку с профилем versions или дождитесь поддержки Prism.",
-                ));
+                let metadata_path = release.join(&metadata);
+                if !is_real_file(&metadata_path) {
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        "Метаданные Prism отсутствуют или заменены ссылкой.",
+                        false,
+                    ));
+                }
+                use std::io::Read;
+                let mut bytes = Vec::new();
+                fs::File::open(&metadata_path)
+                    .map_err(|e| LineError::io(&e))?
+                    .take(256 * 1024 + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(|e| LineError::io(&e))?;
+                let profile = super::prism::PrismProfile::parse(&bytes)?;
+                return Err(LineError::input(format!(
+                    "Обнаружен экземпляр Prism Launcher без профиля versions. {} Метаданные mmc-pack.json пока не поддерживаются для установки: загрузчик не будет установлен автоматически. Дождитесь поддержки Prism.",
+                    profile.summary()
+                )));
             }
         }
     }
@@ -495,6 +512,11 @@ mod path_tests {
     #[test]
     fn prism_without_profiles_does_not_silently_fall_back_to_vanilla() {
         let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("Example")).unwrap();
+        std::fs::write(
+            temp.path().join("Example/mmc-pack.json"),
+            br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.neoforged","version":"47.1.106"}]}"#,
+        ).unwrap();
         let index = FileIndex {
             schema_version: integrity::INDEX_SCHEMA,
             files: ["Example/mmc-pack.json", "Example/.minecraft/mods/mod.jar"]
@@ -509,6 +531,7 @@ mod path_tests {
         let error = inspect(temp.path(), &index, Some("1.20.1")).unwrap_err();
         assert!(error.message.contains("Prism Launcher"));
         assert!(error.message.contains("mmc-pack.json"));
+        assert!(error.message.contains("NeoForge 47.1.106"));
     }
 
     #[test]

@@ -114,6 +114,8 @@ pub struct McPlayRequest {
     pub test_mode: bool,
     #[serde(default)]
     pub prepare_only: bool,
+    #[serde(default)]
+    pub approve_zip_repair: Option<super::zip_repair::ZipRepairPlan>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1214,7 +1216,59 @@ pub async fn mc_play(
     } else {
         None
     };
-    if !detected.missing.is_empty() || loader.is_some() || detected.generated_profile {
+    let live_asset_issues = if server.source.is_none() {
+        detected
+            .live_assets
+            .map(|inventory| inventory.missing + inventory.wrong_size + inventory.wrong_hash)
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    if !detected.missing.is_empty()
+        || loader.is_some()
+        || detected.generated_profile
+        || live_asset_issues > 0
+    {
+        // ZIP repair consent is scoped to this exact release and operation. The
+        // list describes archive hints, not an exhaustive file-level plan: the
+        // installer checks official metadata and may need additional components.
+        if server.source.is_none() {
+            let plan = super::zip_repair::ZipRepairPlan {
+                schema: 1,
+                server_id: server.id.clone(),
+                instance_id: instance_id.clone(),
+                release_sha256: receipt.sha256.clone(),
+                minecraft_version: detected.minecraft_version.clone(),
+                profile_id: detected.version_id.clone(),
+                detected_loader: detected
+                    .loader
+                    .as_ref()
+                    .map(|(kind, version)| format!("{kind:?}:{version}")),
+                requested_loader: request.loader.as_ref().map(|value| {
+                    format!("{}:{}", value.kind, value.version.as_deref().unwrap_or(""))
+                }),
+                generated_profile: detected.generated_profile,
+                install_loader: loader.is_some(),
+                missing_from_archive: detected
+                    .missing
+                    .iter()
+                    .map(|value| (*value).to_string())
+                    .collect(),
+                live_asset_issues,
+                live_asset_bytes: detected
+                    .live_assets
+                    .map(|value| value.needed_bytes)
+                    .unwrap_or(0),
+                prepare_only: request.prepare_only,
+                test_mode: request.test_mode,
+            };
+            if !plan.is_approved_by(request.approve_zip_repair.as_ref()) {
+                let mut error = LineError::new(ErrorCode::ConfirmationRequired,
+                    "Для подготовки ZIP нужны дополнительные компоненты Minecraft. Подтвердите их проверку и возможную загрузку.", false);
+                error.zip_repair = Some(Box::new(plan));
+                return Err(error);
+            }
+        }
         let loader_started = std::time::Instant::now();
         let filled_result = install_profile(
             &app,

@@ -32,5 +32,6 @@ pub mod storage;
 pub mod support;
 pub mod tray;
 pub mod wardrobe;
+pub mod zip_repair;
 
 pub const LAUNCHER_VERSION: &str = env!("CARGO_PKG_VERSION");

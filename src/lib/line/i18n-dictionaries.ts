@@ -295,6 +295,29 @@ export const ru = {
   "backdrop.azure": "Лазурная сетка",
   "backdrop.borealis": "Северное небо",
   "backdrop.pearl": "Жемчужное кольцо",
+  "zipRepair.title": "Доустановить компоненты?",
+  "zipRepair.explanation":
+    "В ZIP могут отсутствовать необходимые компоненты. Установщик проверит официальные метаданные и может скачать клиент, библиотеки и ресурсы Minecraft.",
+  "zipRepair.version": "Minecraft {version}; ревизия ZIP",
+  "zipRepair.archiveHints": "В архиве предварительно не найдены:",
+  "zipRepair.client": "Клиент Minecraft",
+  "zipRepair.libraries": "Библиотеки",
+  "zipRepair.assetIndex": "Индекс ресурсов",
+  "zipRepair.assets": "Ресурсы",
+  "zipRepair.other": "Другие компоненты",
+  "zipRepair.loader":
+    "Также может быть установлен загрузчик и необходимая ему Java.",
+  "zipRepair.liveAssets":
+    "В игровом каталоге отсутствуют или повреждены ресурсы: {count}, ориентировочно {size}.",
+  "zipRepair.unknownSize":
+    "Точный перечень и объём заранее неизвестны. Файлы, уже прошедшие проверку установщика, должны переиспользоваться.",
+  "zipRepair.java":
+    "После подтверждения приложение также может автоматически скачать Java. Отдельное подтверждение Java ещё не реализовано.",
+  "zipRepair.refusal":
+    "Без согласия доустановка не начнётся; играть пока нельзя.",
+  "zipRepair.cancel": "Не сейчас",
+  "zipRepair.declined": "Доустановка отменена. Запуск пока недоступен.",
+  "zipRepair.accept": "Проверить и доустановить",
   "settings.java": "Java",
   "settings.javaHint":
     "В режиме Minecraft вручную выбранная Java используется, если она не старше требуемой. Более новая Java может быть несовместима с модами; автоматический выбор ищет указанную версию.",
@@ -732,6 +755,29 @@ const en: Dictionary = {
   "backdrop.azure": "Azure mesh",
   "backdrop.borealis": "Northern sky",
   "backdrop.pearl": "Pearl ring",
+  "zipRepair.title": "Install missing components?",
+  "zipRepair.explanation":
+    "The ZIP may be missing required components. The installer will check official metadata and may download the Minecraft client, libraries and assets.",
+  "zipRepair.version": "Minecraft {version}; ZIP revision",
+  "zipRepair.archiveHints": "Possibly absent from the archive:",
+  "zipRepair.client": "Minecraft client",
+  "zipRepair.libraries": "Libraries",
+  "zipRepair.assetIndex": "Asset index",
+  "zipRepair.assets": "Assets",
+  "zipRepair.other": "Other components",
+  "zipRepair.loader": "A loader and its required Java may also be installed.",
+  "zipRepair.liveAssets":
+    "In the game directory, missing or damaged assets: {count}, approximately {size}.",
+  "zipRepair.unknownSize":
+    "The exact files and download size are not known in advance. Files verified by the installer should be reused.",
+  "zipRepair.java":
+    "After approval the app may also download Java automatically. Separate Java confirmation is not implemented yet.",
+  "zipRepair.refusal":
+    "Without consent, supplementary installation will not start; the game cannot start yet.",
+  "zipRepair.cancel": "Not now",
+  "zipRepair.declined":
+    "Supplementary installation cancelled. The game cannot start yet.",
+  "zipRepair.accept": "Check and install",
   "settings.java": "Java",
   "settings.javaHint":
     "In Minecraft mode, a manually selected Java is used if it meets the required minimum. A newer Java may be incompatible with mods; automatic selection looks for the specified version.",
@@ -1169,6 +1215,30 @@ const de: Dictionary = {
   "backdrop.azure": "Azurnetz",
   "backdrop.borealis": "Nordhimmel",
   "backdrop.pearl": "Perlenring",
+  "zipRepair.title": "Fehlende Komponenten installieren?",
+  "zipRepair.explanation":
+    "Im ZIP können benötigte Komponenten fehlen. Der Installer prüft offizielle Metadaten und kann Minecraft-Client, Bibliotheken und Ressourcen herunterladen.",
+  "zipRepair.version": "Minecraft {version}; ZIP-Revision",
+  "zipRepair.archiveHints": "Möglicherweise nicht im Archiv:",
+  "zipRepair.client": "Minecraft-Client",
+  "zipRepair.libraries": "Bibliotheken",
+  "zipRepair.assetIndex": "Ressourcenindex",
+  "zipRepair.assets": "Ressourcen",
+  "zipRepair.other": "Weitere Komponenten",
+  "zipRepair.loader":
+    "Ein Modloader und dessen benötigtes Java können ebenfalls installiert werden.",
+  "zipRepair.liveAssets":
+    "Fehlende oder beschädigte Ressourcen im Spielordner: {count}, etwa {size}.",
+  "zipRepair.unknownSize":
+    "Dateien und Downloadgröße sind nicht im Voraus bekannt. Vom Installer geprüfte Dateien sollten wiederverwendet werden.",
+  "zipRepair.java":
+    "Nach der Zustimmung kann die App auch Java automatisch herunterladen. Eine separate Java-Bestätigung ist noch nicht implementiert.",
+  "zipRepair.refusal":
+    "Ohne Zustimmung beginnt keine Nachinstallation; das Spiel kann noch nicht starten.",
+  "zipRepair.cancel": "Später",
+  "zipRepair.declined":
+    "Nachinstallation abgebrochen. Das Spiel kann noch nicht starten.",
+  "zipRepair.accept": "Prüfen und installieren",
   "settings.java": "Java",
   "settings.javaHint":
     "Im Minecraft-Modus wird eine manuell gewählte Java-Version verwendet, wenn sie mindestens der benötigten Version entspricht. Neuere Versionen können mit Mods inkompatibel sein; die automatische Auswahl sucht die angegebene Version.",
@@ -1604,6 +1674,30 @@ const fr: Dictionary = {
   "backdrop.azure": "Maillage azur",
   "backdrop.borealis": "Ciel du nord",
   "backdrop.pearl": "Anneau de perle",
+  "zipRepair.title": "Installer les composants manquants ?",
+  "zipRepair.explanation":
+    "Le ZIP peut manquer de composants requis. Le programme vérifiera les métadonnées officielles et pourra télécharger le client Minecraft, les bibliothèques et les ressources.",
+  "zipRepair.version": "Minecraft {version} ; révision ZIP",
+  "zipRepair.archiveHints": "Possiblement absents de l’archive :",
+  "zipRepair.client": "Client Minecraft",
+  "zipRepair.libraries": "Bibliothèques",
+  "zipRepair.assetIndex": "Index des ressources",
+  "zipRepair.assets": "Ressources",
+  "zipRepair.other": "Autres composants",
+  "zipRepair.loader":
+    "Un chargeur et la version Java nécessaire peuvent aussi être installés.",
+  "zipRepair.liveAssets":
+    "Ressources manquantes ou endommagées dans le dossier du jeu : {count}, environ {size}.",
+  "zipRepair.unknownSize":
+    "Les fichiers exacts et le volume à télécharger ne sont pas connus à l’avance. Les fichiers vérifiés devraient être réutilisés.",
+  "zipRepair.java":
+    "Après confirmation, l’application peut également télécharger Java automatiquement. Une confirmation distincte pour Java n’est pas encore disponible.",
+  "zipRepair.refusal":
+    "Sans accord, aucune installation complémentaire ne commencera et le jeu ne pourra pas encore démarrer.",
+  "zipRepair.cancel": "Plus tard",
+  "zipRepair.declined":
+    "Installation complémentaire annulée. Le jeu ne peut pas encore démarrer.",
+  "zipRepair.accept": "Vérifier et installer",
   "settings.java": "Java",
   "settings.javaHint":
     "En mode Minecraft, une version Java choisie manuellement est utilisée si elle atteint le minimum requis. Une version plus récente peut être incompatible avec des mods ; la sélection automatique cherche la version indiquée.",

@@ -145,6 +145,8 @@ const items = [
   attributed("config.rs", "pub fn validate_slug("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
+  plain("zip_repair.rs", "pub struct ZipRepairPlan {"),
+  attributed("zip_repair.rs", "impl ZipRepairPlan {"),
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
   attributed("minecraft_core.rs", "pub fn validate_version_id("),
   attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
@@ -255,8 +257,13 @@ const tests = [
   installTestPrelude,
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed("zip_repair.rs", "fn example("),
+  attributed("zip_repair.rs", "fn only_identical_plan_is_approved("),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
-  attributed("minecraft_core.rs", "fn explicit_java_must_meet_the_declared_minimum("),
+  attributed(
+    "minecraft_core.rs",
+    "fn explicit_java_must_meet_the_declared_minimum(",
+  ),
   attributed(
     "minecraft_core.rs",
     "fn server_addresses_parse_host_port_and_ipv6(",

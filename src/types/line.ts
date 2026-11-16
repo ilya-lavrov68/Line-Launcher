@@ -280,6 +280,7 @@ export type LineErrorCode =
   | "RATE_LIMITED"
   | "AUTH_REQUIRED"
   | "JAVA_REQUIRED"
+  | "CONFIRMATION_REQUIRED"
   | "INTEGRITY"
   | "UNSAFE_ARCHIVE"
   | "STORAGE"
@@ -293,6 +294,25 @@ export interface LineError {
   message: string;
   retryable: boolean;
   httpStatus?: number;
+  zipRepair?: ZipRepairPlan;
+}
+
+export interface ZipRepairPlan {
+  schema: number;
+  serverId: string;
+  instanceId: string;
+  releaseSha256: string;
+  minecraftVersion: string;
+  profileId: string;
+  detectedLoader: string | null;
+  requestedLoader: string | null;
+  generatedProfile: boolean;
+  installLoader: boolean;
+  missingFromArchive: string[];
+  liveAssetIssues: number;
+  liveAssetBytes: number;
+  prepareOnly: boolean;
+  testMode: boolean;
 }
 
 export type InstallPhase =
@@ -400,6 +420,7 @@ export function isLineError(value: unknown): value is LineError {
     "RATE_LIMITED",
     "AUTH_REQUIRED",
     "JAVA_REQUIRED",
+    "CONFIRMATION_REQUIRED",
     "INTEGRITY",
     "UNSAFE_ARCHIVE",
     "STORAGE",
@@ -486,6 +507,7 @@ export interface McPlayRequest {
   serverAddress?: string;
   testMode?: boolean;
   prepareOnly?: boolean;
+  approveZipRepair?: ZipRepairPlan;
 }
 
 /** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */

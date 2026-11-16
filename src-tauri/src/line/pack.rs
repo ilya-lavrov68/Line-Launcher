@@ -278,6 +278,20 @@ pub fn inspect(
             loader.is_some() || json.get("inheritsFrom").is_some(),
         ));
     }
+    // Prism stores the component selection beside .minecraft, usually without
+    // a Mojang versions profile in the instance. Do not mistake a provider hint
+    // for that profile: that would silently install vanilla and lose the loader.
+    if candidates.is_empty() {
+        let prism_root = prefix.strip_suffix(".minecraft/");
+        if let Some(root) = prism_root {
+            let metadata = format!("{root}mmc-pack.json");
+            if paths.iter().any(|path| path == &metadata) {
+                return Err(LineError::input(
+                    "Обнаружен экземпляр Prism Launcher без профиля versions. Метаданные mmc-pack.json пока не поддерживаются для установки: загрузчик не будет установлен автоматически. Используйте сборку с профилем versions или дождитесь поддержки Prism.",
+                ));
+            }
+        }
+    }
     // A mods-only archive has no profiles at all: then the provider's version
     // hint is the contract, and the official hosts supply the rest.
     let version_id = if candidates.is_empty() {
@@ -477,6 +491,40 @@ fn copy_file(source: &Path, target: &Path) -> LineResult<()> {
 #[cfg(test)]
 mod path_tests {
     use super::*;
+
+    #[test]
+    fn prism_without_profiles_does_not_silently_fall_back_to_vanilla() {
+        let temp = tempfile::tempdir().unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: ["Example/mmc-pack.json", "Example/.minecraft/mods/mod.jar"]
+                .into_iter()
+                .map(|path| integrity::FileEntry {
+                    path: path.into(),
+                    sha256: "0".repeat(64),
+                    size: 1,
+                })
+                .collect(),
+        };
+        let error = inspect(temp.path(), &index, Some("1.20.1")).unwrap_err();
+        assert!(error.message.contains("Prism Launcher"));
+        assert!(error.message.contains("mmc-pack.json"));
+    }
+
+    #[test]
+    fn mods_only_without_prism_metadata_keeps_existing_version_hint() {
+        let temp = tempfile::tempdir().unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: vec![integrity::FileEntry {
+                path: "mods/mod.jar".into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            }],
+        };
+        let detected = inspect(temp.path(), &index, Some("1.20.1")).unwrap();
+        assert_eq!(detected.minecraft_version, "1.20.1");
+    }
 
     #[test]
     fn checked_paths_support_nested_files_and_reject_file_parents() {

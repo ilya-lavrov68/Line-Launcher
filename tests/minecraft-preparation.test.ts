@@ -191,3 +191,21 @@ test("Minecraft status does not claim readiness after errors or while awaiting c
     /!running && pendingRepair[\s\S]*?t\("minecraft.confirmationNeeded"\)/,
   );
 });
+
+test("source installation survives caller cancellation long enough to drain writers under its lock", () => {
+  const sourceInstall = read("src-tauri/src/line/source/install.rs");
+  const state = read("src-tauri/src/line/state.rs");
+  assert.match(sourceInstall, /struct CancelSourceOnDrop/);
+  assert.match(sourceInstall, /cancel\.store\(true, Ordering::Release\)/);
+  assert.match(sourceInstall, /tokio::spawn\(work\)\.await/);
+  assert.match(
+    sourceInstall,
+    /install_source_inner\(&client, &server, &base, &operation_id, worker_cancel, &sink\)/,
+  );
+  assert.match(state, /impl Drop for InstallRegistration/);
+  assert.match(
+    state,
+    /self\.state\s*\.finish_install\(&self\.server_id, &self\.operation_id\)/,
+  );
+  assert.match(rust, /line\.register_install\(&server\.id, &operation_id\)/);
+});

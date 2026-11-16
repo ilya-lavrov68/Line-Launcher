@@ -1122,7 +1122,8 @@ pub async fn mc_play(
     // untouched, without fetching the already resolved pack.json again.
     let receipt = {
         let operation_id = Uuid::new_v4().to_string();
-        let cancel = line.begin_install(&server.id, &operation_id)?;
+        let registration = line.register_install(&server.id, &operation_id)?;
+        let cancel = registration.cancel_flag();
         let sink_app = app.clone();
         let sink_instance = instance_id.clone();
         let sink = ProgressSink::new(move |progress: InstallProgress| {
@@ -1167,7 +1168,7 @@ pub async fn mc_play(
             &sink,
         )
         .await;
-        line.finish_install(&server.id, &operation_id);
+        drop(registration);
         log_preparation_stage("pack", pack_started, installed.is_ok());
         installed?
     };

@@ -967,14 +967,15 @@ pub async fn download_and_extract_zip(
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
     let base = server_dir(&root, &server_id)?;
-    let cancel = state.begin_install(&server_id, &operation_id)?;
+    let registration = state.register_install(&server_id, &operation_id)?;
+    let cancel = registration.cancel_flag();
     let emitter = app.clone();
     let sink = ProgressSink::new(move |p| {
         let _ = emitter.emit(PROGRESS_EVENT, p);
     });
     let result =
         download_and_extract(&state.http, &server, &base, &operation_id, cancel, &sink).await;
-    state.finish_install(&server_id, &operation_id);
+    drop(registration);
     result
 }
 

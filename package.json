@@ -26,6 +26,7 @@
     "test:boot": "node scripts/ui-boot-smoke.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "screenshots:offline": "node scripts/render-screens.mjs",
+    "screenshots:gallery": "node scripts/render-gallery.mjs",
     "test:provider": "node scripts/test-provider.mjs",
     "test:wardrobe": "node scripts/test-wardrobe-provider.mjs",
     "pack:manifest": "node scripts/pack-manifest.mjs",

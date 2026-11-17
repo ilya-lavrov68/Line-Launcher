@@ -1,15 +1,34 @@
 # Verification status
 
-## Current desktop-fix pass
+## Current branch: screenshot and documentation pass
 
-**Screenshots in `docs/images/line-*.png` were produced by
-`npm run screenshots:offline`** on a machine with no browser (only
-`registry.npmjs.org` was reachable; Chromium needed libnspr4/libnss3 that no
-mirror could supply). The renderer parses the palette out of `src/index.css`
-and uses the bundled Geist TTFs, and the layout follows
-the components' own structure, but it is a token-driven vector drawing, not a
-capture of the live WebView. Re-running `npm run screenshots` on a desktop with
-Chrome replaces them with real captures at the same 1280x800 size.
+The eight gallery images in `docs/images/` were captured from current React
+components in headless Chromium at 1280×800 using `npm run screenshots`. The
+provider, Tauri commands, installed state and skin data are fixtures; the images
+are not evidence of a working Windows WebView, actual game launch or downloads.
+The obsolete connecting image was removed. Capture is staged so a failed run
+leaves the previous gallery intact if capture fails before publication; the offline token renderer writes only to
+`.offline-shots/` and is not a source of screenshots.
+
+Local checks for this pass: 389 npm tests passed (1 skipped), TypeScript and
+frontend build passed, and the dependency-free Rust subset passed 89 tests.
+Chromium UI smoke passed after correcting a test fixture that held a second
+mock installation indefinitely; boot, card drag and dock smoke passed as well.
+All these browser scenarios use a mocked backend, not Tauri or Minecraft.
+
+The current draft PR #71 remains unverified as a complete application. Local
+frontend, pure Rust and partial JSON/filesystem harness tests do not compile the
+full Tauri/Cargo graph. Previously on Windows a real BattleArmory source install
+was exercised; it does not validate the latest draft or all loaders. Current
+GitHub Actions jobs did not start: the check annotation cites failed account
+payments or a spending limit, which the account owner must resolve in Billing &
+plans. Do not read these jobs as test failures or successful code validation.
+See [INSTALLATION-AUDIT.md](INSTALLATION-AUDIT.md) for the acceptance gates.
+
+## Historical desktop-fix pass (not current status)
+
+The following text records an earlier pass, not the current state of the
+screenshots, CI, features or test counts.
 
 Design system: one palette in one `:root` block in `src/index.css`, and no
 second look. The previous build shipped two themes on one attribute
@@ -38,7 +57,7 @@ Rust suite (4 new tests) and `tests/minecraft-mode.test.ts` guards the wiring
 (pinned version, prelude import, spawn_blocking, stable UUID, heap/argument
 hardening, Java fallback order, additive boundary). **The full cargo graph is
 still not built here** — `cargo check --all-targets` on a real machine remains
-required, and the Minecraft UI screen is not implemented yet.
+required, and at that time the Minecraft UI screen was not implemented yet.
 
 Follow-up to the first Windows `cargo run`: the stop branch now aborts the IPC
 handle only inside `if let Some(task) = &ipc_task`, and the unused `Path` import

@@ -24,7 +24,7 @@ import {
  *     hazeglow refuses software renderers outright, so anything that depends on
  *     the canvas would leave those users with an empty window.
  *  3. A legibility veil whose strength is a property of the theme. Bright ramps
- *     («Ледник», «Тёплый песок») lift the top of the window enough that the
+ *     lift the top of the window enough that the
  *     title bar's caption buttons stop reading against it; dark ones need
  *     almost nothing. One global value cannot serve both.
  *

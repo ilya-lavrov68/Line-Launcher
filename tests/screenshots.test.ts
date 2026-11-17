@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const read = (file: string) =>
@@ -27,11 +27,11 @@ const SHOT_HEIGHT = 800;
 
 const SCREENS = [
   "welcome",
-  "connecting",
   "account",
   "profile",
   "servers",
   "server",
+  "minecraft",
   "wardrobe",
   "settings",
 ] as const;
@@ -51,6 +51,12 @@ test("every README screenshot is the same size", () => {
       `${file} имеет размер ${size.width}x${size.height}, а должен ${SHOT_WIDTH}x${SHOT_HEIGHT}`,
     );
   }
+});
+
+test("the gallery does not retain obsolete line screenshots", () => {
+  const names = readdirSync(new URL("../docs/images/", import.meta.url))
+    .filter((file) => /^line-.*\.png$/.test(file));
+  assert.deepEqual(new Set(names), new Set(SCREENS.map((name) => `line-${name}.png`)));
 });
 
 test("the README embeds exactly the screenshots that are checked", () => {
@@ -131,4 +137,19 @@ test("the fallback renderer cannot overwrite the gallery", () => {
   // was produced by the Playwright writer.
   const browser = read("scripts/screenshots.mjs").toString("utf8");
   assert.match(browser, /path\.join\(root, "docs\/images"\)/);
+});
+
+
+test("browser capture stages the entire gallery before publishing", () => {
+  const browser = read("scripts/screenshots.mjs").toString("utf8");
+  assert.match(browser, /mkdtempSync\(path\.join\(outDir, "\.capture-"\)\)/);
+  assert.ok(browser.indexOf("Incomplete screenshot gallery") < browser.indexOf("renameSync(path.join(staging"));
+  assert.match(browser, /rmSync\(staging, \{ recursive: true, force: true \}\)/);
+  assert.match(browser, /shot\("minecraft"\)/);
+});
+
+
+test("UI smoke holds only the first mocked installation", () => {
+  const smoke = read("scripts/ui-smoke.mjs").toString("utf8");
+  assert.match(smoke, /window\.__holdInstall = false;\s*window\.__releaseInstall\(\);/);
 });

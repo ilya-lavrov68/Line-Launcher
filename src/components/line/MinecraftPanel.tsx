@@ -27,14 +27,13 @@ import { useT, type Translator } from "@/lib/line/i18n";
  * but no component called them, so the mode was dead weight in the binary. The
  * UI is deliberately *conditional* rather than a new section of its own —
  * it renders only for a server whose provider wrote `launch_mode: "minecraft"`,
- * and those servers have no provider ZIP, so the two docks can never both be
- * on screen. A provider that does not opt in sees exactly the launcher it had
+ * and the server uses either a provider ZIP or a configured source. The two
+ * docks do not render together. A provider that does not opt in sees exactly the launcher it had
  * before this component existed.
  *
- * The whole flow is one button on purpose. `mc_play` already does resolve →
- * download-or-verify → sync → fill gaps → launch + auto-join; exposing those
- * steps separately would let a player launch a half-synced pack. The commands
- * that need a separate surface are reached from here:
+ * `mc_play` does resolve → download-or-verify → sync → request consent for
+ * ZIP gaps → install as needed → launch + auto-join. Preparation and optional
+ * test mode use the same guarded pipeline. The related commands are:
  * `mc_status` restores state after a screen change, `mc_stop` is the
  * running-game action, and
  * `mc_play` with `prepareOnly` runs the same pack preparation without launching.

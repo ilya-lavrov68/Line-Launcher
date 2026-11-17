@@ -8,9 +8,9 @@
 // generated here (gradients, not the 1x1 red pixel the smoke suite uses) so the
 // documentation shows what a configured project actually looks like.
 //
-// line-connecting.png is only captured when branding/provider.json names a
-// provider, because an unconfigured dev template shows the URL field instead.
-import { mkdirSync, readFileSync } from "node:fs";
+// Captures are staged and published only when the whole gallery succeeds.
+// The transient connecting screen is not part of the gallery.
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -77,6 +77,14 @@ function icon(from, to, letter) {
 config.servers[0].auth = {
   launch_ticket_url: "https://auth.example.com/v1/launcher/ticket",
   session_exchange_url: "https://auth.example.com/v1/launcher/exchange",
+};
+
+// Exercise the real Minecraft panel as well as the provider-game dock.
+config.servers[1] = {
+  ...config.servers[1],
+  launch_mode: "minecraft",
+  server_address: "play.example.org",
+  minecraft_version: "1.21.1",
 };
 
 const themes = [
@@ -195,6 +203,8 @@ try {
 const SOFTWARE_RENDERER =
   /swiftshader|llvmpipe|softpipe|lavapipe|basic render|software/i;
 
+const staging = mkdtempSync(path.join(outDir, ".capture-"));
+const captured = [];
 const page = await browser.newPage({
   // One size for every image, matching scripts/render-screens.mjs. The README
   // gallery looked broken when it mixed 480, 860, 1000 and 1060 tall pictures.
@@ -290,11 +300,6 @@ await page.addInitScript(
                 stale: false,
               };
         if (cmd === "fetch_line_config") {
-          // Only the connecting screenshot needs a slow fetch. In the dev
-          // template a cached config is shown first and revalidated in the
-          // background; a slow revalidation would reset the screen mid-click.
-          if (configured)
-            await new Promise((resolve) => setTimeout(resolve, 2500));
           return {
             config,
             sourceUrl: args.url,
@@ -375,7 +380,8 @@ await page.addInitScript(
           return { library: window.__library, limit: 64 };
         }
         if (cmd === "line_session") return window.__session;
-        if (cmd === "get_installed_build") return window.__installed;
+        if (cmd === "get_installed_build") return args.serverId === installed.serverId ? window.__installed : null;
+        if (cmd === "mc_status") return { instanceId: args.instanceId, phase: "idle", versionId: "1.21.1", startedAt: null, exitCode: null, message: null };
         if (cmd === "get_game_status")
           return { serverId: args.serverId, revision: 1, phase: "idle" };
         if (cmd === "list_release_history")
@@ -405,7 +411,7 @@ async function shot(name) {
   // Obsy's animated background never settles; freeze it for a stable image.
   await page.mouse.move(SHOT_WIDTH - 10, SHOT_HEIGHT - 10);
   await page.waitForTimeout(350);
-  const file = path.join(outDir, `line-${name}.png`);
+  const file = path.join(staging, `line-${name}.png`);
   await page.screenshot({ path: file, animations: "disabled" });
   const size = await page.evaluate(() => [
     window.innerWidth,
@@ -416,7 +422,8 @@ async function shot(name) {
       `viewport drifted to ${size.join("x")} while capturing ${name}`,
     );
   }
-  console.log(`docs/images/line-${name}.png`);
+  captured.push(`line-${name}.png`);
+  console.log(`staged line-${name}.png`);
 }
 
 try {
@@ -434,17 +441,6 @@ try {
   await shot("welcome");
   await page.locator("[data-line-welcome]").waitFor({ state: "detached" });
 
-  if (configured) {
-    await page
-      .getByRole("heading", { name: "Подключение к проекту" })
-      .waitFor();
-    await shot("connecting");
-  } else {
-    console.log(
-      "skip line-connecting.png: branding/provider.json is empty (dev template)",
-    );
-  }
-
   // The single sign-in gate: one account for the whole project, on a page of
   // its own — the provider's name is the heading, the card holds the form.
   await page.getByRole("heading", { level: 1 }).waitFor();
@@ -461,6 +457,11 @@ try {
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("server");
+
+  await page.getByRole("button", { name: "Все серверы" }).click();
+  await page.getByRole("button", { name: /Открыть сервер SkyBlock/ }).click();
+  await page.getByRole("button", { name: "Подготовить заранее" }).waitFor();
+  await shot("minecraft");
 
   await page.getByRole("button", { name: "Гардероб", exact: true }).click();
   await page.getByRole("heading", { name: "Локальная история" }).waitFor();
@@ -484,7 +485,14 @@ try {
     console.error("page errors:", errors);
     process.exitCode = 1;
   } else {
-    console.log("Screenshots regenerated (0 page errors)");
+    const expected = ["welcome", "account", "servers", "server", "minecraft", "wardrobe", "profile", "settings"].map((name) => `line-${name}.png`);
+    if (captured.length !== expected.length || expected.some((file) => !captured.includes(file))) {
+      throw new Error("Incomplete screenshot gallery; existing images were not replaced");
+    }
+    for (const file of captured) renameSync(path.join(staging, file), path.join(outDir, file));
+    // This transient screenshot was often stale when the template was unconfigured.
+    rmSync(path.join(outDir, "line-connecting.png"), { force: true });
+    console.log(`Published ${captured.length} screenshots (0 page errors)`);
   }
 } catch (error) {
   await page
@@ -495,4 +503,5 @@ try {
   process.exitCode = 1;
 } finally {
   await browser.close();
+  rmSync(staging, { recursive: true, force: true });
 }

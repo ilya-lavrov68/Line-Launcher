@@ -40,8 +40,9 @@ function TooltipContent({
       >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
+          data-line-glass="raised"
           className={cn(
-            "bg-popover/95 border-border/80 text-popover-foreground z-50 w-fit max-w-64 origin-(--transform-origin) rounded-lg border px-2.5 py-1.5 text-xs leading-relaxed backdrop-blur-md",
+            "border-border/80 text-popover-foreground z-50 w-fit max-w-64 origin-(--transform-origin) rounded-lg border px-2.5 py-1.5 text-xs leading-relaxed",
             className,
           )}
           {...props}

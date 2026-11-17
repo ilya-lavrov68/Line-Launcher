@@ -9,13 +9,29 @@ const minecraft = read("src/components/line/MinecraftPanel.tsx");
 const archive = read("src/components/line/ServerActionPanel.tsx");
 const shell = read("src/components/line/LineLauncher.tsx");
 
+const dock = read("src/components/line/ServerDock.tsx");
+
 test("the server action dock cannot be pushed up by a progress panel", () => {
   assert.doesNotMatch(detail, /className="mt-auto"/);
+  // The primary button carries the action and nothing else. Progress is the
+  // `ActionProgress` row, in its own element, so the two cannot be confused:
+  // a control whose label changes under the pointer has no stable meaning.
   for (const panel of [minecraft, archive]) {
-    assert.ok(
-      panel.indexOf("<ServerDockPrimary") < panel.indexOf('role="progressbar"'),
-    );
+    assert.match(panel, /<ServerDockPrimary/);
+    assert.match(panel, /<ActionProgress/);
+    // No progress attribute on the button itself — that was the music-player
+    // transport bar the design rejected.
+    assert.doesNotMatch(panel, /progress=\{/);
+    assert.doesNotMatch(panel, /indeterminate=\{/);
   }
+  // The bar exists once, in the shared row, with a real progress role so
+  // assistive technology gets the number.
+  assert.match(dock, /role="progressbar"/);
+  assert.match(dock, /aria-valuenow=/);
+  assert.match(dock, /aria-valuemin=/);
+  assert.match(dock, /aria-valuemax=/);
+  // A fixed button height keeps the dock's own height constant.
+  assert.match(dock, /h-11 w-full/);
   assert.doesNotMatch(
     read("src/components/line/ServerDock.tsx"),
     /whileTap|whileHover/,

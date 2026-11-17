@@ -178,6 +178,7 @@ const items = [
   attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
+  attributed("minecraft_core.rs", "pub fn initial_heap_mb("),
   attributed("minecraft_core.rs", "pub fn reject_dangerous_args("),
   attributed("minecraft_core.rs", "pub const DEFAULT_SERVER_PORT:"),
   attributed("minecraft_core.rs", "pub const QUICK_PLAY_MULTIPLAYER:"),

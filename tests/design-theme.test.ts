@@ -111,13 +111,28 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   for (const piece of [
     "server.name",
     'role="status"',
-    'role="progressbar"',
-    "aria-valuenow",
     't("detail.installing")',
     't("detail.play")',
   ]) {
     assert.ok(panel.includes(piece), `missing ${piece}`);
   }
+  // The progress bar is its own row, not a state of the button. Both launch
+  // modes use it, and the panel only supplies the number.
+  const primary = read("src/components/line/ServerDock.tsx");
+  for (const piece of [
+    'role="progressbar"',
+    "aria-valuenow",
+    "aria-valuemin",
+  ]) {
+    assert.ok(primary.includes(piece), `missing ${piece} in ActionProgress`);
+  }
+  assert.match(panel, /<ActionProgress[\s\S]{0,300}percent=\{/);
+  // The button itself never takes a progress value: it says what pressing it
+  // does, and that answer must not change while the pointer is over it.
+  assert.doesNotMatch(panel, /<ServerDockPrimary[\s\S]{0,400}progress=\{/);
+  // No file name is ever printed: the stage comes from the dictionary.
+  assert.doesNotMatch(panel, /progress\.label/);
+  assert.doesNotMatch(panel, /progress\.file/);
   const dock = read("src/components/line/ServerDock.tsx");
   const minecraft = read("src/components/line/MinecraftPanel.tsx");
   // Both launch modes use the same named region and primary action styling.

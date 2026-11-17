@@ -147,12 +147,13 @@ export default function SectionHeader({
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.12 }}
                 role="menu"
-                className="border-border/60 bg-popover text-popover-foreground absolute right-0 z-20 mt-1 w-56 rounded-[var(--radius-control)] border p-1 shadow-sm"
+                data-line-glass="raised"
+                className="border-border/60 text-popover-foreground absolute right-0 z-20 mt-1 w-56 rounded-[var(--radius-control)] border p-1"
               >
                 <button
                   role="menuitem"
                   type="button"
-                  className="hover:bg-accent/15 flex w-full cursor-pointer rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs"
+                  className="hover:bg-accent flex w-full cursor-pointer rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs"
                   onClick={() => {
                     setDraft(name);
                     setMenu(false);

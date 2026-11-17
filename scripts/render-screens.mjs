@@ -145,6 +145,37 @@ export function loadTokens() {
   // reading only one of them silently resolved every token to the white
   // fallback — white cards on a dark page.
   const raw = new Map([...readBlock(":root {")]);
+  // The dark palette is only what the *canvas* paints. Every panel is a
+  // `[data-line-glass]` sheet, and that rule re-points most of the palette
+  // (`--foreground`, `--fill*`, `--border`, `--primary`…) for its own subtree.
+  // Reading `:root` alone drew a design the app does not ship: white frost with
+  // ink meant for black panels. Read the glass rules too and let them win, the
+  // way the cascade does.
+  const readRule = (selector) => {
+    const start = sheet.indexOf(selector);
+    if (start < 0) throw new Error(`index.css: не найден блок ${selector}`);
+    const open = sheet.indexOf("{", start);
+    const close = sheet.indexOf("\n  }", open);
+    const found = new Map();
+    for (const line of sheet.slice(open, close).split("\n")) {
+      const decl = /^\s*(--[\w-]+):\s*([^;]+);/.exec(line);
+      if (decl) found.set(decl[1], decl[2].trim());
+    }
+    return found;
+  };
+  const resolveRoot = (name, depth = 0) => {
+    const value = raw.get(name);
+    if (!value || depth > 6) return value ?? "";
+    const ref = /^var\((--[\w-]+)(?:,\s*([^)]+))?\)$/.exec(value);
+    if (!ref) return value;
+    return resolveRoot(ref[1], depth + 1) || ref[2] || "";
+  };
+  const canvasInk = parseColor(resolveRoot("--foreground")) ?? [255, 255, 255, 1];
+  const canvasInkSoft =
+    parseColor(resolveRoot("--muted-foreground")) ?? [255, 255, 255, 1];
+  for (const rule of ['[data-line-glass] {', '[data-line-glass="raised"] {']) {
+    for (const [name, value] of readRule(rule)) raw.set(name, value);
+  }
   const resolve = (name, depth = 0) => {
     const value = raw.get(name);
     if (!value || depth > 6) return value ?? "";
@@ -172,6 +203,9 @@ export function loadTokens() {
     offline: color("--line-offline"),
     destructive: color("--destructive"),
     sidebar: color("--sidebar"),
+    // Light ink for the strips that sit on the dark canvas, not on frost.
+    canvasInk,
+    canvasInkSoft,
     popover: color("--popover"),
   };
 }
@@ -535,45 +569,49 @@ function background(ctx) {
 
 function titleBar(ctx, context, trailing) {
   const h = 44;
-  ctx.fillStyle = rgba(T.fillSubtle, 1);
-  ctx.fillRect(0, 0, SHOT_WIDTH, h);
-  ctx.strokeStyle = rgba(T.border, 0.6);
-  ctx.beginPath();
-  ctx.moveTo(0, h - 0.5);
-  ctx.lineTo(SHOT_WIDTH, h - 0.5);
-  ctx.stroke();
+  // Transparent, like `TitleBar`: it floats over the page's colour field and
+  // nothing separates it from the content but space. The inks below are the
+  // canvas palette — near-white — because this strip sits on the dark backdrop,
+  // not on a glass sheet. Filling it and using the glass ink drew a black band
+  // with black text on it.
+  const canvasInk = rgba(T.canvasInk, 1);
+  const canvasInkSoft = rgba(T.canvasInkSoft, 1);
 
   // The real mark from branding/assets/logo.svg — the same file the window
   // renders. It used to be a hand-drawn "L" bracket, which put a glyph in the
   // screenshots that the application never drew.
   brandMark(ctx, 16, 11, 22);
 
-  text(ctx, "Line Launcher", 38, 27, { size: 12, weight: 600 });
+  text(ctx, "Line Launcher", 38, 27, {
+    size: 12,
+    weight: 600,
+    color: canvasInk,
+  });
   if (context) {
     text(ctx, "/", 38 + measure(ctx, "Line Launcher", 12, 600) + 8, 27, {
       size: 12,
-      color: rgba(T.mutedForeground, 0.6),
+      color: canvasInkSoft,
     });
     text(ctx, context, 38 + measure(ctx, "Line Launcher", 12, 600) + 20, 27, {
       size: 12,
-      color: rgba(T.mutedForeground),
+      color: canvasInk,
     });
   }
   if (trailing) {
     // A ghost button: text and icon, no frame.
     const w = measure(ctx, trailing, 11, 500) + 34;
     const x = SHOT_WIDTH - w - 100;
-    icon(ctx, "sparkles", x + 9, 17, 12, rgba(T.mutedForeground));
+    icon(ctx, "sparkles", x + 9, 17, 12, canvasInkSoft);
     text(ctx, trailing, x + 25, 27, {
       size: 11,
-      color: rgba(T.mutedForeground),
+      color: canvasInkSoft,
     });
   }
   // Caption buttons.
   const cap = ["minus", "square", "x"];
   cap.forEach((name, index) => {
     const cx = SHOT_WIDTH - 128 + index * 40;
-    icon(ctx, name, cx + 12, 14, 14, rgba(T.mutedForeground, 0.9), 1.5);
+    icon(ctx, name, cx + 12, 14, 14, canvasInkSoft, 1.5);
   });
   return h;
 }
@@ -588,8 +626,10 @@ const NAV = [
 function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   const w = 208;
   ctx.save();
-  ctx.fillStyle = rgba(T.sidebar, 0.92);
-  ctx.fillRect(0, top, w, height);
+  // No panel fill: in the app the rail *is* a `[data-line-glass]` element
+  // (`SideNav`), so its background is the frost painted by `shellGlass` and the
+  // ink is the glass palette. `--sidebar` is a near-black canvas value that
+  // nothing in `src/` reads; painting it here put dark ink on a black strip.
   ctx.strokeStyle = rgba(T.border, 0.6);
   ctx.beginPath();
   ctx.moveTo(w - 0.5, top);
@@ -680,14 +720,16 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
 }
 
 function appFooter(ctx, top, height) {
-  ctx.strokeStyle = rgba(T.border, 0.5);
+  // Also on the dark canvas, below the sheets: light ink and a faint light rule,
+  // not the glass hairlines (which are dark and vanish on black).
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
   ctx.beginPath();
   ctx.moveTo(0, top);
   ctx.lineTo(SHOT_WIDTH, top);
   ctx.stroke();
   text(ctx, "Line | 0.1.0", 16, top + 15, {
     size: 9,
-    color: rgba(T.mutedForeground, 0.8),
+    color: rgba(T.canvasInkSoft, 0.8),
   });
   icon(
     ctx,
@@ -695,12 +737,12 @@ function appFooter(ctx, top, height) {
     SHOT_WIDTH - 176,
     top + 5,
     11,
-    rgba(T.mutedForeground, 0.8),
+    rgba(T.canvasInkSoft, 0.8),
     1.6,
   );
   text(ctx, "Только авторизация провайдера", SHOT_WIDTH - 160, top + 15, {
     size: 9,
-    color: rgba(T.mutedForeground, 0.8),
+    color: rgba(T.canvasInkSoft, 0.8),
   });
 }
 
@@ -714,6 +756,27 @@ function appFooter(ctx, top, height) {
  */
 function glass(ctx, x, y, w, h, radius = 18) {
   fillRound(ctx, x, y, w, h, radius, rgba(T.surfaceGlass));
+}
+
+/**
+ * The two structural sheets of the shell — the navigation rail and the main
+ * pane. Both are `[data-line-glass]` elements in the app, so they paint the
+ * white frost over the canvas. The renderer used to leave the canvas bare, and
+ * every card floated on black. Painted before the rail, so the rail's ink lands
+ * on the frost rather than under it.
+ */
+function shellGlass(ctx, top, footerH, navW) {
+  const height = SHOT_HEIGHT - top - footerH - 6;
+  fillRound(ctx, 6, top + 6, navW - 6, height, 12, rgba(T.surfaceGlass));
+  fillRound(
+    ctx,
+    navW + 2,
+    top + 6,
+    SHOT_WIDTH - navW - 8,
+    height,
+    12,
+    rgba(T.surfaceGlass),
+  );
 }
 
 function button(
@@ -803,6 +866,8 @@ function captionButtons(ctx) {
 function shell(ctx, context, { active = "servers", signedIn = false } = {}) {
   background(ctx);
   const top = titleBar(ctx, context);
+  // The sheets go under the rail, not over it.
+  shellGlass(ctx, top, FOOTER_H, NAV_WIDTH);
   const nav = sideNav(ctx, top, SHOT_HEIGHT - top - FOOTER_H, active, {
     providerName: signedIn ? "Plus In Plus Demo" : undefined,
     username: signedIn ? "Player_1" : undefined,
@@ -984,8 +1049,13 @@ function screenWelcome(ctx) {
   // The word, and only the word: a handwriting face at display size, centred on
   // the optical middle. The real screen writes it stroke by stroke; a still
   // image can only show where it ends up, so the size and the face carry it.
+  //
+  // `--canvas` ink, not `--foreground`: the greeting is `fixed inset-0` over the
+  // backdrop, outside every glass panel, so `text-foreground` resolves to the
+  // light canvas value. The glass override is dark ink for sheets, and using it
+  // here drew a black word on a dark purple field.
   ctx.save();
-  ctx.fillStyle = rgba(T.foreground);
+  ctx.fillStyle = rgba(T.canvasInk);
   ctx.font = HAND_FONT;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
@@ -1020,10 +1090,14 @@ function screenAccount(ctx) {
 
   brandMark(ctx, cx - 22, y, 44);
   y += 44 + 18;
+  // Above the card, on the dark backdrop: canvas ink. `SignInScreen` paints the
+  // wordmark and the sub-line outside the `[data-line-glass]` panel, so they
+  // resolve to `--foreground` from `:root`, not the glass override.
   text(ctx, "Plus In Plus Demo", cx, y + 18, {
     size: 24,
     weight: 600,
     align: "center",
+    color: rgba(T.canvasInk),
   });
   y += 30;
   text(
@@ -1034,7 +1108,7 @@ function screenAccount(ctx) {
     y + 2,
     {
       size: 12,
-      color: rgba(T.mutedForeground),
+      color: rgba(T.canvasInkSoft),
       align: "center",
       maxWidth: 420,
       lineHeight: 18,
@@ -1069,8 +1143,9 @@ function screenAccount(ctx) {
       weight: 500,
       color: rgba(T.mutedForeground),
     });
-    fillRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.background, 0.55));
-    strokeRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.input, 0.7), 1);
+    // Transparent with a hairline, like `Input`: it has no fill of its own, and
+    // painting `--background` here filled the fields with a grey plate.
+    strokeRound(ctx, ix, iy + 16, innerW, 38, 8, rgba(T.input, 1), 1);
     text(ctx, value || "Player_name", ix + 14, iy + 40, {
       size: 12,
       color: value ? rgba(T.foreground) : rgba(T.mutedForeground, 0.7),
@@ -1100,9 +1175,10 @@ function screenAccount(ctx) {
     maxWidth: innerW,
     lineHeight: 16,
   });
+  // Below the card, back on the backdrop.
   text(ctx, "Вход только через аккаунт проекта.", cx, y + cardH + 28, {
     size: 10,
-    color: rgba(T.mutedForeground, 0.7),
+    color: rgba(T.canvasInkSoft, 0.7),
     align: "center",
   });
 }
@@ -1212,6 +1288,7 @@ function screenServers(ctx) {
   const top = titleBar(ctx, "Plus In Plus Demo", undefined);
   const nav = 208;
   const footerH = 28;
+  shellGlass(ctx, top, footerH, nav);
   sideNav(ctx, top, SHOT_HEIGHT - top - footerH, "servers", {
     providerName: "Plus In Plus Demo",
     username: "Player_1",
@@ -1276,6 +1353,7 @@ function screenServer(ctx) {
   const top = titleBar(ctx, "Plus In Plus Demo / Survival", undefined);
   const nav = 208;
   const footerH = 28;
+  shellGlass(ctx, top, footerH, nav);
   sideNav(ctx, top, SHOT_HEIGHT - top - footerH, "servers", {
     providerName: "Plus In Plus Demo",
     username: "Player_1",
@@ -1316,10 +1394,12 @@ function screenServer(ctx) {
   y += 84;
 
   // The action dock. Same order as `ServerActionPanel`: one status row, the
-  // progress block while an install is running, the single filled action, then
-  // the sign-in footnote. No icon and no repeated name — the header directly
-  // above already carries both.
-  const dockH = 168;
+  // single filled action, then the sign-in footnote. No icon and no repeated
+  // name — the header directly above already carries both.
+  //
+  // The progress bar that used to open *under* the button is gone: the button
+  // fills with it and carries the stage in its own label (`ServerDockPrimary`).
+  const dockH = 158;
   glass(ctx, x, y, contentW, dockH, 18);
   const pad = 16;
   let rowY = y + pad;
@@ -1348,29 +1428,28 @@ function screenServer(ctx) {
   );
   rowY += 26;
 
-  // Mid-download: the bar, then the phase on the left and the percentage on
-  // the right. No title over it — the phase label is the title.
-  progressBar(ctx, x + pad, rowY + 2, contentW - pad * 2, 45);
-  text(ctx, "Скачивание", x + pad, rowY + 26, {
-    size: 9,
-    color: rgba(T.mutedForeground, 0.9),
+  // Mid-download. The bar is its own row above the button, and the button keeps
+  // saying «Отменить скачивание» — the label is the action, never the progress,
+  // and no file name appears anywhere on this screen.
+  const barW = contentW - pad * 2;
+  text(ctx, "Скачивание", x + pad, rowY + 8, {
+    size: 12,
+    color: rgba(T.mutedForeground),
   });
   const pct = "45%";
   text(
     ctx,
     pct,
-    x + contentW - pad - measure(ctx, pct, 9, 400, true),
-    rowY + 26,
-    {
-      size: 9,
-      color: rgba(T.mutedForeground, 0.9),
-      mono: true,
-    },
+    x + contentW - pad - measure(ctx, pct, 11, 400, true),
+    rowY + 8,
+    { size: 11, color: rgba(T.mutedForeground), mono: true },
   );
-  rowY += 38;
+  fillRound(ctx, x + pad, rowY + 14, barW, 6, 3, rgba(T.fill, 1));
+  fillRound(ctx, x + pad, rowY + 14, Math.round((barW * 45) / 100), 6, 3, rgba(T.primary));
+  rowY += 34;
 
-  button(ctx, x + pad, rowY, contentW - pad * 2, 44, "Играть", {
-    iconName: "play",
+  button(ctx, x + pad, rowY, barW, 44, "Отменить скачивание", {
+    iconName: "download",
     size: 13,
   });
   rowY += 54;
@@ -1384,7 +1463,7 @@ function screenServer(ctx) {
   y += dockH + 18;
   text(
     ctx,
-    "Сборка скачается целиком: архив провайдера, проверка sha256 и распаковка. Прогресс виден здесь же, меню не блокируется.",
+    "Сборка скачается целиком: архив провайдера, проверка sha256 и распаковка. Прогресс показан отдельной строкой, меню не блокируется.",
     x + 8,
     y,
     {
@@ -1628,6 +1707,7 @@ function screenSettings(ctx) {
   const top = titleBar(ctx, "Plus In Plus Demo / Настройки", undefined);
   const nav = 208;
   const footerH = 28;
+  shellGlass(ctx, top, footerH, nav);
   sideNav(ctx, top, SHOT_HEIGHT - top - footerH, "settings", {
     providerName: "Plus In Plus Demo",
     username: "Player_1",
@@ -1659,7 +1739,15 @@ function screenSettings(ctx) {
           `а футер начинается на ${footerTop}px — уменьшите высоту`,
       );
     }
-    glass(ctx, x, y, w, height, 14);
+    // Not a filled card. A settings section is a heading and a control,
+    // separated from the next by space and a hairline — `SettingsScreen` draws
+    // `border-b` and nothing else. Stacking four frost panels on the pane made
+    // the page read as a grid of boxes the app does not have.
+    ctx.strokeStyle = rgba(T.border, 0.55);
+    ctx.beginPath();
+    ctx.moveTo(x, y + height - 0.5);
+    ctx.lineTo(x + w, y + height - 0.5);
+    ctx.stroke();
     // Unframed icon at 20px, exactly what `SectionIcon` renders: no tile, no
     // border, no background.
     icon(ctx, iconName, x + 18, y + 16, 20, rgba(T.primary), 1.7);
@@ -1781,25 +1869,9 @@ function screenSettings(ctx) {
     });
   });
 
-  section("Оформление", null, "palette", 82, (bx, by, bw) => {
-    button(ctx, bx, by, 196, 30, "Оформление: новый дизайн", {
-      variant: "outline",
-      size: 10,
-      iconName: "moon",
-    });
-    text(
-      ctx,
-      "Выбор запоминается на этом компьютере и не влияет на сборки, аккаунт или настройки запуска.",
-      bx + 212,
-      by + 19,
-      {
-        size: 9,
-        color: rgba(T.mutedForeground, 0.85),
-        maxWidth: bw - 220,
-        lineHeight: 13,
-      },
-    );
-  });
+  // No appearance section: there is one design (see docs/DESIGN.md), and the
+  // settings screen has no theme switch. This renderer used to draw one, which
+  // put a control in the gallery that no player could find in the app.
 }
 
 /**

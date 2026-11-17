@@ -63,6 +63,18 @@ export const lineApi = {
    * `null` means it was already fresh and no request was made.
    */
   ensureFreshConfig: () => call<ConfigSnapshot | null>("ensure_fresh_config"),
+  /**
+   * Reveal the main window once the first frame is painted.
+   *
+   * The window is created hidden (`"visible": false`) so nobody watches the
+   * WebView's white default while the bundle boots; see `line::window`. A
+   * failure here is not an error the player can act on and the Rust side has
+   * its own fallback, so it resolves quietly.
+   */
+  showMainWindow: () =>
+    isTauri()
+      ? invoke<void>("show_main_window").catch(() => undefined)
+      : Promise.resolve(undefined),
   authenticate: (mode: AuthMode, credentials: AuthCredentials) =>
     call<AuthSessionInfo>(mode === "login" ? "line_login" : "line_register", {
       request: credentials,

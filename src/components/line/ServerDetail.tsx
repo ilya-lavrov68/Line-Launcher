@@ -407,7 +407,7 @@ export function PackCheckPanel({
         >
           {suspicious || blocked ? (
             <ShieldX
-              className="h-4 w-4 shrink-0 text-amber-400"
+              className="h-4 w-4 shrink-0 text-amber-600"
               aria-hidden="true"
             />
           ) : (
@@ -439,7 +439,7 @@ export function PackCheckPanel({
       {(blocked || suspicious) && (
         <div
           role="alert"
-          className="flex flex-col gap-1 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
+          className="flex flex-col gap-1 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-700"
         >
           <span className="font-medium">
             {blocked ? t("packs.blocked") : t("packs.found", { list: "" })}

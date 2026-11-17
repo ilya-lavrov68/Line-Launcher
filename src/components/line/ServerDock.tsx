@@ -95,13 +95,9 @@ export function ServerDockPrimary({
         onClick={onClick}
         className={cn(
           "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
-          // `--action`, not `--primary`: see `src/components/ui/button.tsx`.
-          // The accent turns to ink on glass, but the launch chip keeps its
-          // light fill — a dark launch button on white glass is a reversal of
-          // the interface, not the same button on a lighter ground.
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
-            : "bg-action text-action-foreground hover:bg-action/85",
+            : "bg-primary text-primary-foreground hover:bg-primary/85",
           // The button is disabled *because* it is working, and the base class
           // dims disabled controls to half opacity — which would fade the very
           // fill a player is watching. Keep it at full strength.
@@ -116,7 +112,7 @@ export function ServerDockPrimary({
             className={cn(
               // A wash of the label's own colour, not a second colour: the
               // button reads as filling, not as a bar laid on top of it.
-              "bg-action-foreground/25 absolute inset-y-0 left-0",
+              "bg-primary-foreground/25 absolute inset-y-0 left-0",
               indeterminate
                 ? "w-1/3"
                 : "transition-[width] duration-300 ease-[var(--ease-line)]",
@@ -130,7 +126,7 @@ export function ServerDockPrimary({
           // the movement is gone.
           <m.span
             aria-hidden="true"
-            className="bg-action-foreground/25 absolute inset-y-0 w-1/3"
+            className="bg-primary-foreground/25 absolute inset-y-0 w-1/3"
             animate={{ x: ["-100%", "300%"] }}
             transition={{
               duration: 1.4,

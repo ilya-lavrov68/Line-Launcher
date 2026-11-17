@@ -340,13 +340,8 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   assert.doesNotMatch(welcome, /WASH|style=\{\{ background/);
   assert.match(backdrop, /data-line-backdrop-wash/);
   assert.match(backdrop, /style=\{\{ background: BACKDROP_WASH \}\}/);
-  // The wash is mixed from `--background`, not from a literal near-black: it
-  // sits over the artwork to keep copy legible, so it has to follow the page.
-  // While the window was dark both were the same value; on the light page a
-  // hard-coded black wash dragged the field back to grey.
-  assert.match(backdrop, /color-mix\(in oklab, var\(--background\) 28%/);
-  assert.match(backdrop, /color-mix\(in oklab, var\(--background\) 52%/);
-  assert.doesNotMatch(backdrop, /rgba\(8,9,12,0\.(28|52)\)/);
+  assert.match(backdrop, /rgba\(8,9,12,0\.28\)/);
+  assert.match(backdrop, /rgba\(8,9,12,0\.52\)/);
 });
 
 test("the animated backdrop is decoration that cannot take the window down", () => {
@@ -640,33 +635,48 @@ test("signing out does not flash a connection error before the gate", () => {
   );
 });
 
-test("the glass is translucent white and every pane reads from one token", () => {
-  // One token for every pane. A previous merge left `[data-line-glass="main"]`
-  // and `"sidebar"` pointing at `--surface-shell-glass`, a variable nothing
-  // declared — the panes rendered with no fill at all while the rule looked
-  // perfectly reasonable in the file.
-  const surface = /--glass-surface:\s*rgba\(251, 252, 254, 0\.(\d+)\)/.exec(
-    indexCss,
-  );
-  assert.ok(surface, "--glass-surface must be an rgba triple");
-  const alpha = Number(`0.${surface[1]}`);
-  assert.ok(
-    alpha > 0.5 && alpha < 0.8,
-    `the fill must stay translucent and still read as white glass, got ${alpha}`,
-  );
-  assert.doesNotMatch(
-    indexCss,
-    /var\(--surface-shell-glass\)/,
-    "a pane points at a token nothing declares",
-  );
-  for (const slot of ["--surface-glass", "--surface-shell-glass"]) {
-    if (slot === "--surface-shell-glass") continue;
-    assert.match(indexCss, new RegExp(`${slot}:`), `${slot} must stay defined`);
-  }
+test("only the two shell tiles are white glass; everything else keeps the dark pane", () => {
+  // The brief was narrow: the two large shell tiles are what separate the
+  // interface from the background, so *they* go white. Both wider readings have
+  // already shipped once and were rejected:
+  //
+  //   - painting the shared pane white *and* the page too turned the whole
+  //     window into one white sheet and erased the separation the tiles exist
+  //     for;
+  //   - the state before that left `--surface-shell-glass` at 9 % white, which
+  //     over `#08090c` composites to nearly black — the tiles stayed dark.
+  //
+  // So the ground stays `#08090c`, the tiles are white and translucent, and
+  // nothing else changes.
   assert.match(
     indexCss,
-    /\[data-line-glass\]\s*\{\s*background:\s*var\(--glass-surface\)/,
+    /--background:\s*#08090c/,
+    "the page ground stays dark; only the tiles are white",
   );
+
+  // The shell tiles are white, strong enough to read as white over the dark
+  // ground, and still translucent.
+  const shell = /--surface-shell-glass:\s*rgba\(250, 251, 253, 0\.(\d+)\)/.exec(
+    indexCss,
+  );
+  assert.ok(shell, "--surface-shell-glass must be a white rgba triple");
+  const alpha = Number(`0.${shell[1]}`);
+  assert.ok(
+    alpha >= 0.6 && alpha < 0.9,
+    `the tile must read as white glass and stay translucent, got ${alpha}`,
+  );
+
+  for (const slot of ["--surface-glass", "--surface-shell-glass"]) {
+    assert.match(indexCss, new RegExp(`${slot}:`), `${slot} must stay defined`);
+  }
+
+  // Exactly the two shell tiles are re-pointed to the white token.
+  assert.match(
+    indexCss,
+    /\[data-line-glass="main"\],\s*\n\s*\[data-line-glass="sidebar"\]\s*\{\s*\n\s*background:\s*var\(--surface-shell-glass\)/,
+    "main and sidebar, and only those, get the white tile fill",
+  );
+
   assert.match(
     read("src/components/line/LineLauncher.tsx"),
     /<main\s+data-line-glass="main"/,
@@ -678,12 +688,5 @@ test("the glass is translucent white and every pane reads from one token", () =>
   assert.match(
     read("src/components/line/ServerDock.tsx"),
     /data-line-glass="dock"/,
-  );
-  // Opting out of transparency still has to land on the light sheet, not on
-  // the old near-black: a dark fill behind ink meant for white glass is
-  // unreadable in exactly the setting that asked for solidity.
-  assert.match(
-    indexCss,
-    /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*\[data-line-glass\]\s*\{\s*background:\s*#f4f5f7/,
   );
 });

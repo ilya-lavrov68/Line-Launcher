@@ -82,9 +82,14 @@ const HAZE_DEFER_MS = 350;
 
 // This was previously painted only by WelcomeScreen and faded out with the
 // greeting, washing the colours out when the rest of the interface appeared.
-// Keep the same dark wash behind *all* screens so the intro's colour persists.
+// Keep the same wash behind *all* screens so the intro's colour persists.
+//
+// It is mixed from `--background` rather than from a literal near-black: the
+// wash exists to keep copy legible over the artwork, so it has to follow the
+// page. Hard-coded black was correct while the window was dark; on the light
+// page it darkened the field back towards grey and undid the glass.
 const BACKDROP_WASH =
-  "radial-gradient(120% 100% at 50% 42%, rgba(8,9,12,0.28), rgba(8,9,12,0.52) 78%)";
+  "radial-gradient(120% 100% at 50% 42%, color-mix(in oklab, var(--background) 28%, transparent), color-mix(in oklab, var(--background) 52%, transparent) 78%)";
 
 export interface AnimatedBackdropProps {
   /**

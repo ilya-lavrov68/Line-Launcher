@@ -201,9 +201,11 @@ export function loadTokens() {
     fillSubtle: color("--fill-subtle"),
     fillHover: color("--fill-hover"),
     surfaceGlass: color("--surface-glass"),
-    // The two shell tiles are the pale ones; everything nested keeps the dark
-    // pane above. Read as a pair so the renderer cannot drift from the CSS.
-    surfaceShellGlass: color("--surface-shell-glass"),
+    // Same pane for the shell and for what sits on it. There used to be a
+    // second token here; when it was folded into the shared one this lookup had
+    // no fallback and `parseColor("")` returned white, so every panel rendered
+    // as a white board while the CSS was correctly dark. Read the shared token.
+    surfaceShellGlass: color("--surface-glass"),
     online: color("--line-online"),
     update: color("--line-update"),
     offline: color("--line-offline"),

@@ -127,7 +127,7 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   ]) {
     assert.ok(primary.includes(piece), `missing ${piece} in ServerDockPrimary`);
   }
-  assert.match(panel, /<ServerDockPrimary[\s\S]{0,300}progress=\{/);
+  assert.match(panel, /<ServerDockPrimary[\s\S]{0,600}progress=\{/);
   assert.match(panel, /progressLabel=/);
   // Ни отдельного прогресса, ни имени файла: стадия — из словаря.
   assert.doesNotMatch(panel, /<ActionProgress/);
@@ -647,52 +647,42 @@ test("signing out does not flash a connection error before the gate", () => {
   );
 });
 
-test("panes are a translucent white tint, not solid white boards", () => {
-  // Modelled on tryliner's own tokens (see their `src/app/globals.css`):
+test("panes are a darkening tint over the moving backdrop", () => {
+  // The brief, in the user's words: «должна быть чуть затемняющая панель как
+  // было в одном фиксе старом» — a pane that *darkens* what is behind it, not a
+  // white sheet and not an opaque panel. That state is in this repo's history
+  // (`rgba(10, 12, 16, 0.45)` over `#08090c`), and both rejected readings are
+  // recorded so they cannot come back:
   //
-  //   --bg-canvas: #e4e4e7          the page is light
-  //   --bg-glass:  rgba(255,255,255,0.55)   panes are a *tint* on it
+  //   - a white 0.55–0.82 sheet turned the panels into white boards that hid
+  //     the animated backdrop the window is built around;
+  //   - lightening `--background` too flattened the whole window to one colour.
   //
-  // and their DESIGN.md: «Surfaces are translucent tints with blur, not opaque
-  // grey panels» plus «Glass only on the outer container; never nest glass in
-  // glass».
-  //
-  // Three earlier attempts each broke one part of that and were rejected:
-  //   - recolouring every pane white turned the window into one white sheet;
-  //   - lightening only the shell tiles left them at 9 % white, i.e. still dark;
-  //   - a 0.72–0.82 fill made the panes solid white boards.
-  //
-  // The invariant that survives all three: the page is light, the pane is a
-  // *tint* strong enough to read as white and weak enough to let the page show.
+  // What the pane must do: keep the dark ground, be translucent enough for the
+  // backdrop's colour to read through it, and stay dark.
   assert.match(
     indexCss,
-    /--background:\s*#e4e4e7/,
-    "the page ground is the light canvas Liner uses",
+    /--background:\s*#08090c/,
+    "the ground stays dark; the backdrop paints over it",
   );
 
-  const glass = /--glass-surface:\s*rgba\(255, 255, 255, 0\.(\d+)\)/.exec(
+  const pane = /--glass-surface:\s*rgba\((\d+), (\d+), (\d+), 0\.(\d+)\)/.exec(
     indexCss,
   );
-  assert.ok(glass, "--glass-surface must be a white rgba triple");
-  const alpha = Number(`0.${glass[1]}`);
+  assert.ok(pane, "--glass-surface must be an rgba quadruple");
+  const [r, g, b] = [Number(pane[1]), Number(pane[2]), Number(pane[3])];
+  const alpha = Number(`0.${pane[4]}`);
   assert.ok(
-    alpha >= 0.45 && alpha <= 0.62,
-    `a pane must be a tint, not a board — got ${alpha} (Liner sits at 0.55)`,
+    r < 60 && g < 60 && b < 60,
+    `a pane must darken, not whiten — got rgb(${r}, ${g}, ${b})`,
+  );
+  assert.ok(
+    alpha > 0.3 && alpha < 0.65,
+    `the pane must be translucent enough to show the backdrop, got ${alpha}`,
   );
 
-  // One tint for every pane. A second, denser fill is how “white board” crept
-  // back in; the strong variant stays close to the base one.
-  const strong =
-    /--glass-surface-strong:\s*rgba\(255, 255, 255, 0\.(\d+)\)/.exec(indexCss);
-  assert.ok(strong, "--glass-surface-strong must stay a white rgba triple");
-  assert.ok(
-    Number(`0.${strong[1]}`) <= 0.8,
-    "the raised variant must not become an opaque sheet",
-  );
-
-  // The panes no longer re-point the palette per subtree: one `:root` palette
-  // serves the page and everything painted on it. This is what keeps a pane
-  // from turning into a white board carrying its own inverted ink.
+  // The panes no longer re-point the palette per subtree, so no pane carries a
+  // second, inverted ink.
   const glassRule = /\[data-line-glass\]\s*\{([\s\S]*?)\n  \}/.exec(indexCss);
   assert.ok(glassRule, "the [data-line-glass] rule must exist");
   assert.match(
@@ -704,6 +694,13 @@ test("panes are a translucent white tint, not solid white boards", () => {
     glassRule[1],
     /--foreground:\s*var\(--glass-ink\)/,
     "the pane must not flip the ink per subtree",
+  );
+
+  // Light text: the pane is dark, so the ink is near-white.
+  assert.match(
+    indexCss,
+    /--foreground:\s*oklch\(0\.9[0-9]/,
+    "the ink is light, because the ground is dark",
   );
 
   assert.match(

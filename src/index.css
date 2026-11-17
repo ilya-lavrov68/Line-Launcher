@@ -23,76 +23,23 @@
 
 :root {
   --radius: 12px;
-  --background: #e4e4e7;
-  --foreground: #18181b;
+  --background: #08090c;
+  --foreground: oklch(0.97 0.002 250);
   --card: transparent;
-  --card-foreground: #18181b;
-  --popover: #ffffff;
-  --popover-foreground: #18181b;
-  /* The palette is fixed and dark; the *surface* on top of it is frost.
-   *
-   * Every panel (rail, catalogue, dock, dialogs) is a white sheet with a heavy
-   * blur over the moving backdrop, the way tryliner's glass reads, not a black
-   * translucent box. That inverts the contrast inside those panels: text on a
-   * 55% white sheet cannot stay near-white, or the whole window turns into
-   * white-on-white. So the text tokens move to ink for everything painted
-   * *inside* a panel, and `[data-line-glass]` restores them for its subtree.
-   * The bare canvas between the panels keeps the dark palette, because the
-   * backdrop is the colourful part and the 6px gutters are what show it.
-   *
-   * Two values, one place: the panel fill and the ink it implies. */
-  /* Not the 0.55 of Liner's floating pill. That value is tuned for a *light*
-   * canvas: 55% white over `#e4e4e7` still composites to a near-white sheet.
-   * This canvas is `#08090c`, so the same 55% lands on mid-grey and every panel
-   * reads as smoke rather than frosted glass. Liner's own panel token —
-   * `--surface-glass: rgba(245,245,247,0.92)` — is the one that describes a
-   * surface you read text on, and it is the one used here. The remaining 18%
-   * is what keeps the backdrop visible through the sheet. */
-  /* Liner's `--bg-glass`: a *tint*, not a sheet. The brief was "плитки белые,
-   * но не сплошные" — 0.82 white over a light ground is a solid white board,
-   * which is exactly what kept looking wrong. 0.55 lets the page read through
-   * the pane, the way tryliner's own panels do (see their globals.css:
-   * `--bg-glass: rgba(255,255,255,0.55)` over `#e4e4e7`). */
-  --glass-surface: rgba(255, 255, 255, 0.55);
-  --glass-surface-strong: rgba(255, 255, 255, 0.72);
-  --glass-ink: oklch(0.21 0.008 265);
-  --glass-ink-soft: oklch(0.42 0.01 265);
-  --glass-ink-faint: oklch(0.52 0.01 265);
-  --glass-hairline: rgba(17, 20, 28, 0.1);
-  --glass-fill-subtle: rgba(17, 20, 28, 0.045);
-  --glass-fill: rgba(17, 20, 28, 0.07);
-  --glass-fill-hover: rgba(17, 20, 28, 0.1);
-  --glass-fill-strong: rgba(17, 20, 28, 0.14);
-  --glass-border: rgba(17, 20, 28, 0.12);
-  /* 0.5, not 0.16. `--input` draws the boundary of a text field, which WCAG
-   * counts as a UI component: 3:1 against what it sits on. On the dark canvas
-   * 16 % ink was enough separation; on the white frost it measured 1.38:1 and
-   * the fields dissolved into the sheet. 0.5 measures 3.11:1. */
-  --glass-input: rgba(17, 20, 28, 0.5);
-  /* Fully opaque, because the two consumers throw most of it away: the Button
-   * paints `ring-ring/50` and `input`/`select` paint `color-mix(… 40%,
-   * transparent)`. A 45 % token left those at 1.65:1 and 1.48:1 on the frost —
-   * a focus ring nobody can see, on the one surface this redesign introduced.
-   * At 100 % they measure 3.35:1 and 2.57:1; the field boundary itself carries
-   * the rest through `--glass-input`, which is 3.11:1. */
-  --glass-ring: oklch(0.36 0.03 265);
-
+  --card-foreground: oklch(0.97 0.002 250);
+  --popover: #14161b;
+  --popover-foreground: oklch(0.97 0.002 250);
   /* White, not mint. The accent is neutral on purpose: green belongs to state
    * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
    * primary button look like a success message. */
-  /* Liner's `--btn-primary-bg: #18181b` / `--btn-primary-text: #fff`. A
-   * near-white chip on a light pane has no edge and no weight; the filled
-   * action is the one dark thing on the screen. The *fill that grows inside it*
-   * is a light tint on this dark plate, so the progress reads without adding a
-   * second colour. */
-  --primary: #18181b;
-  --primary-foreground: #ffffff;
-  --secondary: rgba(0, 0, 0, 0.05);
-  --secondary-foreground: rgba(0, 0, 0, 0.65);
-  --muted: rgba(0, 0, 0, 0.05);
-  --muted-foreground: rgba(0, 0, 0, 0.55);
-  --accent: rgba(0, 0, 0, 0.08);
-  --accent-foreground: #18181b;
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.16 0.004 286.32);
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: oklch(0.9 0.002 250);
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: oklch(0.72 0.006 250);
+  --accent: rgba(255, 255, 255, 0.08);
+  --accent-foreground: oklch(0.98 0.002 250);
   --destructive: oklch(0.66 0.21 22);
   /* The red behind a destructive *button*, which is not the same job as the red
    * of an error line. An error is read as text, so it needs lightness; a button
@@ -101,16 +48,16 @@
    * than a red. Kept separate from `--destructive` so fixing the button does not
    * darken «Не удалось подключиться» along with it. */
   --destructive-strong: oklch(0.55 0.24 27);
-  --border: rgba(0, 0, 0, 0.1);
-  --input: rgba(0, 0, 0, 0.14);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
   --ring: oklch(0.92 0.004 286.32 / 45%);
-  --sidebar: #f5f5f7;
-  --sidebar-foreground: #18181b;
+  --sidebar: #0d0f13;
+  --sidebar-foreground: oklch(0.97 0.002 250);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: rgba(0, 0, 0, 0.07);
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: oklch(0.98 0.002 250);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: var(--ring);
   /* The glyph *on* a destructive fill — and it stays red, because the whole
    * button is meant to read as red, not as a red square with a white cross on
@@ -122,21 +69,23 @@
    * looked pink, closer to a white cross than a red one. */
   --destructive-foreground: oklch(0.78 0.17 22);
 
-  /* Keep controls and nested panels on the original dark glass. Only the two
-   * large shell panes receive a subtle translucent white tint below; changing
-   * the shared surface would wash out the entire interface and its controls. */
+  /* ── the quiet-fill ladder and the glass surface ──
+   *
+   * The glass is translucent on purpose: the colour of the window lives in the
+   * backdrop, and a panel is a pane in front of it, not a hole cut through it.
+   * 0.45 is dark enough for body copy to hold its contrast over any part of the
+   * haze and light enough that the haze still reads through — an earlier 0.82
+   * turned every panel into opaque grey and left the colour visible only in the
+   * 6px gaps, which looked like a broken window instead of a designed one.
+   * The blur in the `[data-line-glass]` rule below does the rest. */
   --fill-subtle: rgba(255, 255, 255, 0.045);
   --fill: rgba(255, 255, 255, 0.07);
   --fill-hover: rgba(255, 255, 255, 0.1);
   --fill-strong: rgba(255, 255, 255, 0.14);
+  /* One fill, one name. `--glass-surface` is the token `[data-line-glass]`
+   * reads; `--surface-glass` stays as its alias so nothing that still names the
+   * old slot points at a value that no longer exists. */
   --surface-glass: var(--glass-surface);
-  /* 0.09 was 9 % white over `#08090c`, which composites to nearly black — the
-   * two shell tiles read as dark panes, not as the pale glass they were meant
-   * to be. 0.72 is the tint that actually looks like white frosted glass while
-   * the backdrop's colour still moves behind it. Nothing else changes: the
-   * shared `--surface-glass` stays dark for controls and nested cards, and the
-   * page stays `#08090c`. */
-  --surface-shell-glass: var(--glass-surface);
   --line-hairline: rgba(255, 255, 255, 0.1);
   --line-accent: var(--primary);
   --line-online: oklch(0.8 0.17 155);
@@ -164,8 +113,32 @@
    * `AnimatedBackdrop` paints on WebGL, not a painted CSS gradient. This token
    * stays the flat colour underneath it, and the whole backdrop under reduced
    * motion or without WebGL2. */
-  --line-canvas: #e4e4e7;
+  --line-canvas: #08090c;
+
+  /* Glass: a dark pane over the moving backdrop — the state this design had
+   * before it was inverted. `rgba(10,12,16,0.45)` lets the colour field read
+   * through the panel while keeping light text legible on it, which is the
+   * «чуть затемняющая панель» the brief asks for. Not white: a white pane on
+   * a dark window is a board, and it hides the backdrop the design is built
+   * around. */
+  --glass-surface: rgba(10, 12, 16, 0.45);
+  --glass-surface-strong: rgba(10, 12, 16, 0.6);
+  --glass-ink: oklch(0.97 0.002 250);
+  --glass-ink-soft: oklch(0.72 0.006 250);
+  --glass-ink-faint: oklch(0.62 0.006 250);
+  --glass-hairline: rgba(255, 255, 255, 0.1);
+  --glass-fill-subtle: rgba(255, 255, 255, 0.045);
+  --glass-fill: rgba(255, 255, 255, 0.07);
+  --glass-fill-hover: rgba(255, 255, 255, 0.1);
+  --glass-fill-strong: rgba(255, 255, 255, 0.14);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-input: rgba(255, 255, 255, 0.14);
+  --glass-ring: oklch(0.92 0.004 286.32 / 45%);
+  --glass-online: oklch(0.8 0.17 155);
+  --glass-offline: oklch(0.66 0.02 250);
+  --glass-update: oklch(0.82 0.15 85);
 }
+
 
 /* Tailwind v4: expose the slots as utilities (`bg-fill`, `bg-fill-hover`,
  * `bg-surface-glass`, `text-line-online`, `rounded-item`, `rounded-panel`).
@@ -264,13 +237,13 @@
    * mesh's edges through the text. */
   [data-line-glass] {
     background: var(--glass-surface);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(40px) saturate(160%);
+    -webkit-backdrop-filter: blur(40px) saturate(160%);
     /* No token re-pointing here. tryliner's rule is «glass only on the outer
-     * container; never nest glass in glass» — and flipping `--foreground`,
-     * `--primary` and the whole fill ladder per subtree is what made every
-     * pane a white board with its own inverted palette. One palette in `:root`
-     * now serves both the page and the panes painted on it. */
+     * container; never nest glass in glass» — flipping the whole palette per
+     * subtree is what made every pane a board with its own inverted ink. One
+     * palette in `:root` serves both the page and the panes painted on it;
+     * what a pane changes is its *fill*, not the ink. */
   }
 
   /* A floating surface (menu, dialog, preview popover): the same frost, denser,
@@ -279,15 +252,6 @@
     background: var(--glass-surface-strong);
     backdrop-filter: blur(48px) saturate(170%);
     -webkit-backdrop-filter: blur(48px) saturate(170%);
-  }
-
-  /* Only the main shell tiles get the pale glass treatment. The tint is not
-   * opaque white: the backdrop and its colours remain visible underneath. */
-  [data-line-glass="main"],
-  [data-line-glass="sidebar"] {
-    background: var(--surface-shell-glass);
-    backdrop-filter: blur(32px) saturate(150%);
-    -webkit-backdrop-filter: blur(32px) saturate(150%);
   }
 
   /* The action dock: one continuous surface, no separate header block. */
@@ -508,8 +472,13 @@
    * palette — a white list over a dark popover, or a black one over a frosted
    * panel. Both are the same two values the surfaces use. */
   select:not([data-line-select]) option {
-    background: #f4f5f7;
-    color: var(--glass-ink);
+    /* The native option list is painted by the OS and ignores most CSS, but an
+     * explicit background keeps Windows from opening a menu in the other
+     * palette. Dark, like the popover it drops from — the light value here was
+     * left over from the version where the window was white, and it opened a
+     * white list over a dark panel. */
+    background: #14161b;
+    color: var(--foreground);
   }
 }
 
@@ -526,7 +495,11 @@
 
 @media (prefers-reduced-transparency: reduce) {
   [data-line-glass] {
-    background: #f4f5f7;
+    /* A solid pane for anyone who asked the OS for it — but a *dark* one.
+     * `#f4f5f7` came from the version where the window was light; on the dark
+     * ground it would put a white slab over the backdrop and put light text on
+     * it. Same family as the translucent pane, just opaque. */
+    background: #14161b;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

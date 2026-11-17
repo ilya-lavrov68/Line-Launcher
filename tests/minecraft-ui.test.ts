@@ -183,6 +183,16 @@ test("Minecraft dock keeps actions and errors prominent, with explanations on de
   assert.match(details, /t\("mc\.testModeHint"\)/);
   assert.match(details, /t\("mc\.onlineMode"\)/);
   assert.match(panel, /role="alert"/);
-  assert.match(panel, /role="progressbar"/);
+  // Прогресс — это сама кнопка (её заливка), как play/pause у Liner. Отдельной
+  // строки нет, и имя скачиваемого файла не печатается: эта метка менялась
+  // много раз в секунду.
+  assert.match(panel, /<ServerDockPrimary[\s\S]{0,300}progress=\{/);
+  assert.doesNotMatch(panel, /progress\.label/);
+  assert.doesNotMatch(panel, /<ActionProgress/);
+  const dock = read("src/components/line/ServerDock.tsx");
+  assert.match(dock, /role="progressbar"/);
+  assert.match(dock, /aria-valuenow=/);
+  // Стадия без измеримого итога ходит, а не врёт нулём.
+  assert.match(dock, /indeterminate/);
   assert.doesNotMatch(detail, /t\("source\.hint"\)/);
 });

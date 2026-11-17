@@ -139,9 +139,9 @@ export default function ServerActionPanel({
   const unavailable = availability !== "ready";
 
   const statusText = useMemo(() => {
-    // While an install runs, the caption under the bar already reads
-    // «Скачивание … 45%». Repeating the same two facts in the status row above
-    // it was the third copy of one number on a single screen.
+    // While an install runs, the row below the status names the stage and the
+    // percentage; the status row stays one word, so the two do not say the same
+    // thing twice on one screen.
     if (installing && progress) return t("detail.installing");
     if (phase === "starting" && status?.message) return status.message;
     if (phase === "exited" && typeof status?.exitCode === "number") {
@@ -197,10 +197,18 @@ export default function ServerActionPanel({
         )}
       </div>
 
+      {/* Одна кнопка на весь док. Пока идёт загрузка, её заливка и есть
+          прогресс — подпись при этом остаётся действием («Отменить
+          скачивание»), поэтому ничего не прыгает и второй полосы нет. */}
       <div className="flex items-center gap-2">
         <ServerDockPrimary
           disabled={!canPress}
           active={active}
+          progress={installing && progress ? percent : null}
+          indeterminate={installing && Boolean(progress) && percent === null}
+          progressLabel={
+            progress ? installPhaseLabel(t, progress.phase) : undefined
+          }
           onClick={installing && onCancel ? onCancel : onPrimary}
         >
           {installing ? (
@@ -215,63 +223,6 @@ export default function ServerActionPanel({
           <span>{primaryLabel(t, phase)}</span>
         </ServerDockPrimary>
       </div>
-
-      <AnimatePresence initial={false}>
-        {installing && (
-          <m.div
-            key="progress"
-            initial={reducedMotion ? false : { opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={reducedMotion ? undefined : { opacity: 0, height: 0 }}
-            transition={{
-              duration: reducedMotion ? 0 : 0.18,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="overflow-hidden"
-          >
-            <div className="flex flex-col gap-2">
-              <div
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={percent ?? undefined}
-                aria-label={t("detail.installing")}
-                className="bg-fill relative h-2 w-full overflow-hidden rounded-full"
-              >
-                {/* Determinate while the installer reports a percentage,
-                    indeterminate (a quiet sweep) when it only knows bytes. */}
-                {percent === null ? (
-                  <m.div
-                    className="bg-primary/60 absolute inset-y-0 w-1/3 rounded-full"
-                    animate={
-                      reducedMotion ? undefined : { x: ["-40%", "260%"] }
-                    }
-                    transition={{
-                      duration: 1.4,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ) : (
-                  <m.div
-                    className="bg-primary absolute inset-y-0 left-0 rounded-full"
-                    initial={false}
-                    animate={{ width: `${percent}%` }}
-                    transition={{
-                      duration: reducedMotion ? 0 : 0.2,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  />
-                )}
-              </div>
-              <div className="text-muted-foreground flex items-center justify-between font-mono text-[12px]">
-                <span>{installPhaseLabel(t, progress!.phase)}</span>
-                <span>{percent === null ? "…" : `${percent}%`}</span>
-              </div>
-            </div>
-          </m.div>
-        )}
-      </AnimatePresence>
 
       <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />

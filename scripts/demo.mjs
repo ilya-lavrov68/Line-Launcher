@@ -267,7 +267,7 @@ if (battleArmory) {
   });
   writeFileSync(configPath, `${JSON.stringify(example, null, 2)}\n`);
   console.log(
-    "BattleArmory включён для теста: сервер на 127.0.0.1 не предоставляется; выбирайте «Тестовый режим».",
+    "BattleArmory включён для теста: сервер на 127.0.0.1 не предоставляется; выбирайте «Запуск без сервера».",
   );
 }
 

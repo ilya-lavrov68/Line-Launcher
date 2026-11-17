@@ -110,7 +110,9 @@ export default function ServerCard({
               onError={() => setBannerFailed(true)}
             />
             {/* The state chip floats on the artwork: it is the one place on the
-                card where a readable label beats another row of text. */}
+                card where a readable label beats another row of text. It keeps
+                its own dark scrim — the card *under* it is frosted white, and a
+                white chip on a white sheet would disappear into the card. */}
             {state && (
               <span className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[12px] font-medium text-white backdrop-blur-sm">
                 {state.tone === "busy" ? (

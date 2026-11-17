@@ -71,7 +71,16 @@ fn build(app: &AppHandle, state: &LineState) -> LineResult<String> {
         session_user: user.as_deref(),
         instances: &instances,
     };
-    Ok(diagnostics::render(&summary, &lines))
+    let mut bundle = diagnostics::render(&summary, &lines);
+    // A machine that resets under load leaves its evidence in the System log,
+    // not in anything the launcher writes. Appending it here means the one
+    // button a player is asked to press already answers the question a support
+    // volunteer would otherwise have to ask twice.
+    if let Some(section) = super::hardware::section() {
+        bundle.push_str("\n-- неожиданные перезагрузки --\n");
+        bundle.push_str(&section);
+    }
+    Ok(bundle)
 }
 
 /// Newest log file first, up to the bundle's cap. Reading the whole file is

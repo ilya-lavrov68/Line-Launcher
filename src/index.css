@@ -29,6 +29,49 @@
   --card-foreground: oklch(0.97 0.002 250);
   --popover: #14161b;
   --popover-foreground: oklch(0.97 0.002 250);
+  /* The palette is fixed and dark; the *surface* on top of it is frost.
+   *
+   * Every panel (rail, catalogue, dock, dialogs) is a white sheet with a heavy
+   * blur over the moving backdrop, the way tryliner's glass reads, not a black
+   * translucent box. That inverts the contrast inside those panels: text on a
+   * 55% white sheet cannot stay near-white, or the whole window turns into
+   * white-on-white. So the text tokens move to ink for everything painted
+   * *inside* a panel, and `[data-line-glass]` restores them for its subtree.
+   * The bare canvas between the panels keeps the dark palette, because the
+   * backdrop is the colourful part and the 6px gutters are what show it.
+   *
+   * Two values, one place: the panel fill and the ink it implies. */
+  /* Not the 0.55 of Liner's floating pill. That value is tuned for a *light*
+   * canvas: 55% white over `#e4e4e7` still composites to a near-white sheet.
+   * This canvas is `#08090c`, so the same 55% lands on mid-grey and every panel
+   * reads as smoke rather than frosted glass. Liner's own panel token —
+   * `--surface-glass: rgba(245,245,247,0.92)` — is the one that describes a
+   * surface you read text on, and it is the one used here. The remaining 18%
+   * is what keeps the backdrop visible through the sheet. */
+  --glass-surface: rgba(250, 251, 253, 0.82);
+  --glass-surface-strong: rgba(252, 253, 255, 0.92);
+  --glass-ink: oklch(0.21 0.008 265);
+  --glass-ink-soft: oklch(0.42 0.01 265);
+  --glass-ink-faint: oklch(0.52 0.01 265);
+  --glass-hairline: rgba(17, 20, 28, 0.1);
+  --glass-fill-subtle: rgba(17, 20, 28, 0.045);
+  --glass-fill: rgba(17, 20, 28, 0.07);
+  --glass-fill-hover: rgba(17, 20, 28, 0.1);
+  --glass-fill-strong: rgba(17, 20, 28, 0.14);
+  --glass-border: rgba(17, 20, 28, 0.12);
+  /* 0.5, not 0.16. `--input` draws the boundary of a text field, which WCAG
+   * counts as a UI component: 3:1 against what it sits on. On the dark canvas
+   * 16 % ink was enough separation; on the white frost it measured 1.38:1 and
+   * the fields dissolved into the sheet. 0.5 measures 3.11:1. */
+  --glass-input: rgba(17, 20, 28, 0.5);
+  /* Fully opaque, because the two consumers throw most of it away: the Button
+   * paints `ring-ring/50` and `input`/`select` paint `color-mix(… 40%,
+   * transparent)`. A 45 % token left those at 1.65:1 and 1.48:1 on the frost —
+   * a focus ring nobody can see, on the one surface this redesign introduced.
+   * At 100 % they measure 3.35:1 and 2.57:1; the field boundary itself carries
+   * the rest through `--glass-input`, which is 3.11:1. */
+  --glass-ring: oklch(0.36 0.03 265);
+
   /* White, not mint. The accent is neutral on purpose: green belongs to state
    * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
    * primary button look like a success message. */
@@ -71,18 +114,18 @@
 
   /* ── the quiet-fill ladder and the glass surface ──
    *
-   * The glass is translucent on purpose: the colour of the window lives in the
-   * backdrop, and a panel is a pane in front of it, not a hole cut through it.
-   * 0.45 is dark enough for body copy to hold its contrast over any part of the
-   * haze and light enough that the haze still reads through — an earlier 0.82
-   * turned every panel into opaque grey and left the colour visible only in the
-   * 6px gaps, which looked like a broken window instead of a designed one.
-   * The blur in the `[data-line-glass]` rule below does the rest. */
+   * These are the values *outside* a panel (the bare canvas, the gaps between
+   * sheets, anything painted before a [`data-line-glass`] ancestor appears).
+   * The values that matter are the scoped ones inside the panel rule below:
+   * `--glass-fill-*`. The ladder here stays with the dark palette so nothing
+   * on the canvas silently turns black-on-black. */
   --fill-subtle: rgba(255, 255, 255, 0.045);
   --fill: rgba(255, 255, 255, 0.07);
   --fill-hover: rgba(255, 255, 255, 0.1);
   --fill-strong: rgba(255, 255, 255, 0.14);
-  --surface-glass: rgba(10, 12, 16, 0.45);
+  /* Kept for compatibility with anything that still reads the old slot; the
+   * panel rule paints the white frost directly from `--glass-surface`. */
+  --surface-glass: var(--glass-surface);
   --line-hairline: rgba(255, 255, 255, 0.1);
   --line-accent: var(--primary);
   --line-online: oklch(0.8 0.17 155);
@@ -183,6 +226,14 @@
   --color-line-online: var(--line-online);
   --color-line-offline: var(--line-offline);
   --color-line-update: var(--line-update);
+  /* Frost tokens, for the few places that need to draw *on* a panel without
+   * relying on the scoped override below (an inner control, a hover step). */
+  --color-glass-surface: var(--glass-surface);
+  --color-glass-surface-strong: var(--glass-surface-strong);
+  --color-glass-ink: var(--glass-ink);
+  --color-glass-ink-soft: var(--glass-ink-soft);
+  --color-glass-ink-faint: var(--glass-ink-faint);
+  --color-glass-hairline: var(--glass-hairline);
   --radius-control: var(--radius-control);
   --radius-item: var(--radius-item);
   --radius-panel: var(--radius-panel);
@@ -200,15 +251,73 @@
    * Blur is back, and only because the backdrop came back: with an animated
    * colour field behind the window, a translucent panel without it shows the
    * mesh's edges through the text. A 20px blur turns that into depth. */
+  /* ── the frost surface ─────────────────────────────────────────────────
+   *
+   * Every panel in the window is one material: a white sheet at a little over
+   * half opacity with a heavy blur behind it. The colour behind the glass is
+   * therefore always visible — it is the whole point of a blurred panel, and it
+   * is where the difference between this and a black translucent box is read.
+   * (The old value was `rgba(10, 12, 16, 0.45)` with a 20px blur: the haze
+   * underneath came through as grey, and over a dark backdrop the panels were
+   * indistinguishable from the page. Something moved, but nothing was glass.)
+   *
+   * Blur radius is 40px, twice the old one, and saturation is pushed up: a
+   * white sheet at this opacity flattens what is under it, and the saturation
+   * is what keeps the haze reading as colour rather than as grey light.
+   *
+   * The token block below is not decoration. Text over a white sheet must be
+   * ink, so the panel re-points `--foreground` and the two quiet text slots at
+   * their glass equivalents *for its own subtree*. Components keep writing
+   * `text-foreground`/`text-muted-foreground` and get the readable colour for
+   * the surface they are on; the bare canvas between panels keeps the dark
+   * palette. Colours only — geometry, radii and focus rings are untouched.
+   *
+   * The fill ladder moves with them, for the same reason: `bg-fill-subtle` is
+   * "one step off the surface", and one step off a white sheet is a dark wash,
+   * not a lighter one.
+   *
+   * No box-shadow: a drop shadow on a sheet over a moving field reads as grime
+   * along the edge. Depth is the blur and the fill ladder. */
   [data-line-glass] {
-    background: var(--surface-glass);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    /* No box-shadow, by decision. Every panel here is a translucent sheet over a
-     * moving colour field: a drop shadow on that reads as grime along the sheet's
-     * edge, and a 1px inset highlight draws a second border inside the real one.
-     * Depth comes from the fill ladder and the blur, which were doing the work
-     * anyway. */
+    background: var(--glass-surface);
+    backdrop-filter: blur(40px) saturate(160%);
+    -webkit-backdrop-filter: blur(40px) saturate(160%);
+    --foreground: var(--glass-ink);
+    --card-foreground: var(--glass-ink);
+    --popover-foreground: var(--glass-ink);
+    --muted-foreground: var(--glass-ink-soft);
+    --secondary-foreground: var(--glass-ink);
+    --accent-foreground: var(--glass-ink);
+    --sidebar-foreground: var(--glass-ink);
+    --fill-subtle: var(--glass-fill-subtle);
+    --fill: var(--glass-fill);
+    --fill-hover: var(--glass-fill-hover);
+    --fill-strong: var(--glass-fill-strong);
+    --border: var(--glass-border);
+    --input: var(--glass-input);
+    --line-hairline: var(--glass-hairline);
+    --ring: var(--glass-ring);
+    /* The accent follows the surface for the same reason. On the dark canvas
+     * `--primary` is near-white (a white chip on black); on a white sheet it has
+     * to be ink, and the glyph *on* it has to be near-white. Everything that
+     * reads these two slots — the filled Button, the Switch's checked track and
+     * thumb, the progress fill, the slider range, the active nav row — flips
+     * with them and no component needs a second colour. */
+    --primary: var(--glass-ink);
+    --primary-foreground: oklch(0.98 0.002 250);
+    /* These three are hover tints on the dark palette; a white wash on a white
+     * sheet is invisible, so inside the glass they are dark washes. */
+    --muted: var(--glass-fill);
+    --accent: var(--glass-fill-hover);
+    --secondary: var(--glass-fill);
+  }
+
+  /* A floating surface (menu, dialog, preview popover): the same frost, denser,
+   * because it overlaps content instead of a backdrop. */
+  [data-line-glass="raised"] {
+    background: var(--glass-surface-strong);
+    backdrop-filter: blur(48px) saturate(170%);
+    -webkit-backdrop-filter: blur(48px) saturate(170%);
   }
 
   /* The action dock: one continuous surface, no separate header block. */
@@ -424,11 +533,13 @@
     box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 40%, transparent);
   }
 
-  /* The option list itself is painted by the OS and ignores most CSS, but a
-   * dark background keeps Windows from opening a white menu over the app. */
+  /* The option list itself is painted by the OS and ignores most CSS, but an
+   * explicit background keeps Windows from opening a menu in the *other*
+   * palette — a white list over a dark popover, or a black one over a frosted
+   * panel. Both are the same two values the surfaces use. */
   select:not([data-line-select]) option {
-    background: #14161b;
-    color: var(--foreground);
+    background: #f4f5f7;
+    color: var(--glass-ink);
   }
 }
 
@@ -445,7 +556,7 @@
 
 @media (prefers-reduced-transparency: reduce) {
   [data-line-glass] {
-    background: #14161b;
+    background: #f4f5f7;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

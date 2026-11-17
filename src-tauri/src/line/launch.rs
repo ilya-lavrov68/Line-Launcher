@@ -6,6 +6,7 @@ use super::install::current_receipt;
 use super::ipc::{PrivateChannel, TicketGrant};
 use super::java;
 use super::launch_manifest::read_optional;
+use super::minecraft_core;
 use super::state::LineState;
 use super::storage::{create_private_dir, is_real_dir, is_real_file, server_dir, InstallLock};
 use serde::{Deserialize, Serialize};
@@ -211,7 +212,14 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
     let mut args = vec![
         spec.java.to_string_lossy().into_owned(),
         format!("-Xmx{heap}M"),
-        format!("-Xms{heap}M"),
+        // Not `-Xms{heap}M`. Pinning the initial heap to the maximum makes the
+        // JVM commit the whole heap as one block before the first class loads;
+        // on Windows that bursts the page file while the game, the WebView and
+        // the GPU driver are starting, and on an XMP/EXPO-tuned machine the
+        // stress can end in a hard reset — which lands in the firmware, not in
+        // a blue screen. A small initial heap grows into `-Xmx` on demand, the
+        // way the JDK and every other launcher do it. See `initial_heap_mb`.
+        format!("-Xms{}M", minecraft_core::initial_heap_mb(heap)),
         // Vanilla's world generation needs a larger thread stack than the JVM
         // default on several platforms; without it the game dies with a
         // StackOverflowError during chunk loading.
@@ -1358,6 +1366,9 @@ mod tests {
     fn command_contains_channel_not_secret_and_automatic_heap() {
         let args = build_java_command(&spec()).unwrap();
         assert!(args.contains(&"-Xmx8192M".to_owned()));
+        // The initial heap grows into the maximum instead of committing it at
+        // process start (see `initial_heap_mb`).
+        assert!(args.contains(&"-Xms2048M".to_owned()));
         let game_dir = args.iter().position(|a| a == "--gameDir").unwrap();
         assert_eq!(args[game_dir + 1], abs("game").to_string_lossy());
         assert!(args

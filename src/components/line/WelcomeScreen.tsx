@@ -13,6 +13,17 @@ import { useEffect } from "react";
  * It covers the launcher, so it has no chrome of its own — no title bar, no
  * rail, no panel. Only the word over the same colour field used by the rest
  * of the launcher; the greeting does not change the backdrop on exit.
+ *
+ * ## Why it is shorter than it used to be
+ *
+ * The greeting is a fixed-length prologue, and every millisecond of it is a
+ * millisecond the player spends *not* looking at their servers. A first-run
+ * install adds an unavoidable multi-second download on top of that; making the
+ * greeting statue-still for almost two seconds before it could begin was the
+ * single most-reported part of "the launcher takes forever to open". The stroke
+ * is now a quick, decisive sweep — it still reads as a pen, because what makes
+ * it a pen is the hard edge and the speed curve, not the duration — and the
+ * finished word is held only long enough to be recognised.
  */
 export interface WelcomeScreenProps {
   /** Runs when the word has been written and the hold has elapsed. */
@@ -22,13 +33,13 @@ export interface WelcomeScreenProps {
 }
 
 /** How long the nib takes to cross the word, in seconds. */
-const DRAW_DURATION = 1.15;
+const DRAW_DURATION = 0.72;
 /** Shortest time the greeting may stay on screen, motion or not. */
-const REDUCED_MIN_MS = 1500;
+const REDUCED_MIN_MS = 900;
 
 export default function WelcomeScreen({
   onDone,
-  holdMs = 620,
+  holdMs = 380,
 }: WelcomeScreenProps) {
   const reduced = useReducedMotion();
   // Not translated, on purpose: it is a wordmark — the greeting itself, not a
@@ -61,7 +72,7 @@ export default function WelcomeScreen({
       initial={{ opacity: 1 }}
       exit={{
         opacity: 0,
-        transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
+        transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] },
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
     >

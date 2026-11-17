@@ -13,6 +13,7 @@
         "center": true,
         "fullscreen": false,
         "decorations": false,
+        "visible": false,
         "title": "Line Launcher"
       }
     ]

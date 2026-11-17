@@ -9,6 +9,7 @@ pub mod diagnostics;
 pub mod download_bucket;
 pub mod download_limit;
 pub mod error;
+pub mod hardware;
 pub mod http;
 pub mod install;
 pub mod instance;
@@ -37,6 +38,7 @@ pub mod storage;
 pub mod support;
 pub mod tray;
 pub mod wardrobe;
+pub mod window;
 pub mod zip_repair;
 
 pub const LAUNCHER_VERSION: &str = env!("CARGO_PKG_VERSION");

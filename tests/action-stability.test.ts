@@ -9,13 +9,31 @@ const minecraft = read("src/components/line/MinecraftPanel.tsx");
 const archive = read("src/components/line/ServerActionPanel.tsx");
 const shell = read("src/components/line/LineLauncher.tsx");
 
+const dock = read("src/components/line/ServerDock.tsx");
+
 test("the server action dock cannot be pushed up by a progress panel", () => {
   assert.doesNotMatch(detail, /className="mt-auto"/);
+  // Одна кнопка на весь док, как play/pause у Liner: пока идёт работа, её
+  // заливка растёт, а подпись остаётся действием. Второй строки прогресса нет.
   for (const panel of [minecraft, archive]) {
-    assert.ok(
-      panel.indexOf("<ServerDockPrimary") < panel.indexOf('role="progressbar"'),
-    );
+    assert.match(panel, /<ServerDockPrimary/);
+    assert.match(panel, /progress=\{/);
+    // Между работой прогресс выключен — иначе кнопка навсегда осталась бы
+    // полосой.
+    assert.match(panel, /progress=\{[\s\S]{0,60}?\bnull\b/);
+    // Ни отдельного компонента-полосы, ни блока под кнопкой.
+    assert.doesNotMatch(panel, /<ActionProgress/);
+    assert.doesNotMatch(panel, /role="progressbar"/);
+    // Имя файла не печатается нигде.
+    assert.doesNotMatch(panel, /progress\.label/);
   }
+  // Полоса — часть кнопки, с настоящей ролью прогресса для скринридера.
+  assert.match(dock, /role="progressbar"/);
+  assert.match(dock, /aria-valuenow=/);
+  assert.match(dock, /aria-valuemin=/);
+  assert.match(dock, /aria-valuemax=/);
+  // Высота кнопки фиксирована: док не меняет высоту при смене стадии.
+  assert.match(dock, /h-11 w-full/);
   assert.doesNotMatch(
     read("src/components/line/ServerDock.tsx"),
     /whileTap|whileHover/,

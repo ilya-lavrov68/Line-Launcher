@@ -228,7 +228,7 @@ export default function ServerList({
       {stale && (
         <p
           role="status"
-          className="flex items-start gap-2 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-300"
+          className="flex items-start gap-2 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-700"
         >
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t("servers.staleBody")}</span>

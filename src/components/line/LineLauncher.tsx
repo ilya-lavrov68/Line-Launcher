@@ -23,17 +23,16 @@ import type {
   GameStatus,
   ReleaseHistory,
 } from "@/types/line";
-import AboutDialog from "./AboutDialog";
 import Attribution from "./Attribution";
 import ConfigUrlInput from "./ConfigUrlInput";
 import ConnectingScreen from "./ConnectingScreen";
 import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import AnimatedBackdrop from "./AnimatedBackdrop";
-import ProfileScreen from "./ProfileScreen";
 import SignInScreen from "./SignInScreen";
 import ServerDetail from "./ServerDetail";
 import DownloadWidget from "./DownloadWidget";
+import { lazyScreen } from "./lazy-screen";
 import {
   assignServer,
   normalizeLayout,
@@ -42,10 +41,8 @@ import {
 } from "@/lib/line/server-layout";
 import ServerList from "./ServerList";
 import { ServerCatalogRail } from "./ServerCatalogRail";
-import SettingsScreen from "./SettingsScreen";
 import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
-import WardrobeScreen from "./WardrobeScreen";
 import WelcomeScreen from "./WelcomeScreen";
 import {
   closeWindow,
@@ -60,6 +57,23 @@ import {
   SkeletonServerGrid,
   SkeletonSettings,
 } from "@/components/line/Skeleton";
+
+/**
+ * Screens whose code is not in the startup bundle.
+ *
+ * The catalogue, the sign-in page and the shell itself stay eager — they are
+ * what the window opens on. Everything below is a destination the player has to
+ * ask for, and each one arrives as its own chunk on the first visit: the
+ * wardrobe alone drags `skinview3d` (half a megabyte) in, and charging every
+ * launch for it was most of what "the launcher takes ages to open" was.
+ *
+ * `lazyScreen` keeps the panel geometry while the chunk loads, so this is not
+ * visible as a blank frame.
+ */
+const SettingsScreen = lazyScreen(() => import("./SettingsScreen"));
+const WardrobeScreen = lazyScreen(() => import("./WardrobeScreen"));
+const ProfileScreen = lazyScreen(() => import("./ProfileScreen"));
+const AboutDialog = lazyScreen(() => import("./AboutDialog"));
 
 type Screen = "config" | "account" | "servers" | "detail";
 

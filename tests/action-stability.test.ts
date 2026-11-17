@@ -19,11 +19,8 @@ test("the server action dock cannot be pushed up by a progress panel", () => {
     assert.match(panel, /<ServerDockPrimary/);
     assert.match(panel, /progress=\{/);
   }
-  assert.match(read("src/components/line/ServerDock.tsx"), /role="progressbar"/);
-  assert.doesNotMatch(
-    read("src/components/line/ServerDock.tsx"),
-    /whileTap|whileHover/,
-  );
+  assert.match(dock, /role="progressbar"/);
+  assert.doesNotMatch(dock, /whileTap|whileHover/);
   assert.doesNotMatch(
     read("src/components/ui/button.tsx"),
     /active:not-aria-\[haspopup\]:translate-y-px/,

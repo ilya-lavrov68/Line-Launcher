@@ -191,8 +191,14 @@ export function loadTokens() {
     background: color("--background"),
     // `--line-canvas` is `#08090c`: one flat value under the backdrop.
     canvas: color("--line-canvas"),
-    foreground: color("--foreground"),
-    mutedForeground: color("--muted-foreground"),
+    // Everything the renderer draws with the *default* ink lands on the light
+    // shell pane (the rail, the page area, cards inside them), because the
+    // shell is where the content is. So the defaults are the shell inks; the
+    // strips that sit directly on the dark field (title bar, footer, sign-in
+    // captions) ask for `canvasInk` explicitly.
+    foreground: parseColor(resolve("--glass-shell-ink")) ?? [33, 33, 36, 1],
+    mutedForeground:
+      parseColor(resolve("--glass-shell-ink-soft")) ?? [97, 100, 107, 1],
     primary: color("--primary"),
     primaryForeground: color("--primary-foreground"),
     border: color("--border"),
@@ -200,12 +206,14 @@ export function loadTokens() {
     fill: color("--fill"),
     fillSubtle: color("--fill-subtle"),
     fillHover: color("--fill-hover"),
-    surfaceGlass: color("--surface-glass"),
-    // Same pane for the shell and for what sits on it. There used to be a
-    // second token here; when it was folded into the shared one this lookup had
-    // no fallback and `parseColor("")` returned white, so every panel rendered
-    // as a white board while the CSS was correctly dark. Read the shared token.
-    surfaceShellGlass: color("--surface-glass"),
+    // Two panes, because the design has two: `--glass-surface` is the dark
+    // tint everything nested sits on, `--glass-surface-shell` is the light grey
+    // frosted sheet of the rail and the page area. The shell one is read with
+    // an explicit fallback — a missing token used to give `parseColor("")` →
+    // white, so every panel rendered as a white board while the CSS was right.
+    surfaceGlass: color("--glass-surface"),
+    surfaceShellGlass:
+      parseColor(resolve("--glass-surface-shell")) ?? [228, 230, 234, 0.62],
     online: color("--line-online"),
     update: color("--line-update"),
     offline: color("--line-offline"),
@@ -214,6 +222,17 @@ export function loadTokens() {
     // Light ink for the strips that sit on the dark canvas, not on frost.
     canvasInk,
     canvasInkSoft,
+    // Dark ink for everything painted *on* the light shell pane. The shell sets
+    // `--foreground` from `--glass-shell-ink` (see the rule in index.css), so
+    // the renderer reads the same token the app does.
+    shellInk: parseColor(resolve("--glass-shell-ink")) ?? [33, 33, 36, 1],
+    shellInkSoft: parseColor(resolve("--glass-shell-ink-soft")) ?? [97, 100, 107, 1],
+    shellOnline:
+      parseColor(resolve("--glass-shell-online")) ?? [42, 110, 78, 1],
+    shellUpdate:
+      parseColor(resolve("--glass-shell-update")) ?? [122, 90, 34, 1],
+    shellError:
+      parseColor(resolve("--glass-shell-error")) ?? [150, 55, 55, 1],
     popover: color("--popover"),
   };
 }
@@ -568,11 +587,39 @@ function icon(ctx, name, x, y, size, color, width = 1.75) {
 
 // ───────────────────────────── shell ─────────────────────────────
 
+/**
+ * The window field under the glass.
+ *
+ * This is the «Медный куст» backdrop (`id: "copper"` in
+ * `src/lib/line/backdrops.ts`), not the flat canvas: a copper blob around a
+ * steel core over a deep navy ground. The live app paints it with a WebGL
+ * shader; here it is the same palette as radial pools, which is what the
+ * offline renderer has always been — a token-and-palette approximation.
+ *
+ * Values come from that file: `palette: ["#1d2c44", "#5b6f8a", "#a9a39c",
+ * "#f58220", "#ea4f08"]`, `background: "#000000"`, `shade: 0.42`.
+ */
 function background(ctx) {
-  // One flat colour, exactly like `--line-canvas`. The two accent glows that
-  // used to be painted here are what made the window look hazy.
-  ctx.fillStyle = rgba(T.canvas);
+  ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
+
+  const glow = (x, y, w, h, colour, alpha) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) / 2);
+    g.addColorStop(0, colour);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(x - w / 2, y - h / 2, w, h);
+    ctx.globalAlpha = 1;
+  };
+
+  // The blob's centre and size from the config: `center: [0.402, 0.419]`,
+  // `size: [0.631, 0.88]`. Steel core first, copper around it.
+  glow(SHOT_WIDTH * 0.402, SHOT_HEIGHT * 0.419, 1100, 1000, "#a9a39c", 0.95);
+  glow(SHOT_WIDTH * 0.28, SHOT_HEIGHT * 0.33, 900, 840, "#5b6f8a", 0.9);
+  glow(SHOT_WIDTH * 0.66, SHOT_HEIGHT * 0.66, 900, 820, "#1d2c44", 0.9);
+  glow(SHOT_WIDTH * 0.5, SHOT_HEIGHT * 0.26, 700, 640, "#f58220", 0.62);
+  glow(SHOT_WIDTH * 0.2, SHOT_HEIGHT * 0.74, 660, 600, "#ea4f08", 0.5);
 }
 
 function titleBar(ctx, context, trailing) {
@@ -654,19 +701,22 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   NAV.forEach((item, index) => {
     const y = top + 52 + index * 36;
     const isActive = active === item.id;
-    if (isActive) fillRound(ctx, 8, y, w - 16, 32, 8, rgba(T.fill, 1));
+    // On the light shell pane the ink is dark: `--glass-shell-ink`. The rail is
+    // inside `[data-line-glass="sidebar"]`, which re-points `--foreground` to
+    // exactly this value in the app.
+    if (isActive) fillRound(ctx, 8, y, w - 16, 32, 8, "rgba(0,0,0,0.07)");
     icon(
       ctx,
       item.icon,
       18,
       y + 8,
       16,
-      isActive ? rgba(T.foreground) : rgba(T.mutedForeground),
+      isActive ? rgba(T.shellInk) : rgba(T.shellInkSoft),
     );
     text(ctx, item.label, 42, y + 21, {
       size: 12,
       weight: 500,
-      color: isActive ? rgba(T.foreground) : rgba(T.mutedForeground),
+      color: isActive ? rgba(T.shellInk) : rgba(T.shellInkSoft),
     });
   });
 
@@ -763,7 +813,11 @@ function appFooter(ctx, top, height) {
  * not ship.
  */
 function glass(ctx, x, y, w, h, radius = 18) {
-  fillRound(ctx, x, y, w, h, radius, rgba(T.surfaceGlass));
+  // A card inside the light shell pane. The dark tint (`--glass-surface`) is
+  // for panes sitting straight on the backdrop; inside the shell the card is a
+  // slightly denser *light* sheet, or the dark tint would punch a hole in the
+  // pane and the ink on it would disappear.
+  fillRound(ctx, x, y, w, h, radius, "rgba(255,255,255,0.55)");
 }
 
 /**
@@ -775,9 +829,8 @@ function glass(ctx, x, y, w, h, radius = 18) {
  */
 function shellGlass(ctx, top, footerH, navW) {
   const height = SHOT_HEIGHT - top - footerH - 6;
-  // `--surface-shell-glass`, not `--surface-glass`: only the rail and the main
-  // pane are white tiles. Cards, dialogs and controls inside them keep the
-  // dark pane, and so does everything the renderer paints with `glass()`.
+  // The two shell panes are light grey frosted glass over the field; cards
+  // and controls inside them keep the dark pane (`glass()`).
   fillRound(ctx, 6, top + 6, navW - 6, height, 12, rgba(T.surfaceShellGlass));
   fillRound(
     ctx,
@@ -1536,7 +1589,7 @@ function screenWardrobe(ctx) {
   const fieldW = (w - 40 - 24) / 2;
   const field = (fx, label, placeholder) => {
     text(ctx, label, fx, iy + 10, { size: 10, color: rgba(T.mutedForeground) });
-    fillRound(ctx, fx, iy + 18, fieldW, 32, 8, rgba(T.background, 0.5));
+    fillRound(ctx, fx, iy + 18, fieldW, 32, 8, "rgba(255,255,255,0.55)");
     strokeRound(ctx, fx, iy + 18, fieldW, 32, 8, rgba(T.border), 1);
     text(ctx, placeholder, fx + 10, iy + 39, {
       size: 11,
@@ -1580,7 +1633,7 @@ function screenWardrobe(ctx) {
     size: 10,
     color: rgba(T.mutedForeground),
   });
-  fillRound(ctx, x + 20, iy + 18, w - 40, 32, 8, rgba(T.background, 0.5));
+  fillRound(ctx, x + 20, iy + 18, w - 40, 32, 8, "rgba(255,255,255,0.55)");
   strokeRound(ctx, x + 20, iy + 18, w - 40, 32, 8, rgba(T.border), 1);
   text(ctx, "Classic — широкие руки (4 px)", x + 30, iy + 39, { size: 11 });
   icon(
@@ -1804,7 +1857,10 @@ function screenSettings(ctx) {
       ctx.arc(bx + (bw - 96) * 0.66, trackY + 3, 9, 0, Math.PI * 2);
       ctx.fillStyle = rgba(T.primary);
       ctx.fill();
-      ctx.strokeStyle = rgba(T.background);
+      // The thumb's ring is the *pane* colour, so it reads as a handle cut out
+      // of the sheet. `--background` is the page behind the panes now, which is
+      // near-black — a black ring around a white thumb on a light pane.
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
       ctx.lineWidth = 2;
       ctx.stroke();
       text(ctx, "1024", bx, by + 56, {
@@ -1831,11 +1887,12 @@ function screenSettings(ctx) {
     "cpu",
     116,
     (bx, by) => {
-      fillRound(ctx, bx, by, 300, 30, 8, rgba(T.online, 0.1));
-      icon(ctx, "check", bx + 12, by + 8, 13, rgba(T.online), 2.4);
+      // A verified row on the light pane: the green has to be the dark one.
+      fillRound(ctx, bx, by, 300, 30, 8, rgba(T.shellOnline, 0.1));
+      icon(ctx, "check", bx + 12, by + 8, 13, rgba(T.shellOnline), 2.4);
       text(ctx, "Java 25.0.3 проверена и выбрана", bx + 32, by + 20, {
         size: 10,
-        color: rgba(T.online),
+        color: rgba(T.shellOnline),
       });
       button(ctx, bx + 316, by, 150, 30, "Проверить и выбрать", {
         variant: "outline",
@@ -1869,14 +1926,14 @@ function screenSettings(ctx) {
       size: 10,
       color: rgba(T.mutedForeground),
     });
-    fillRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
+    fillRound(ctx, bx, rowY + 14, 96, 28, 8, "rgba(255,255,255,0.6)");
     strokeRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.border), 1);
     text(ctx, "1280", bx + 10, rowY + 33, { size: 11, mono: true });
     text(ctx, "Высота", bx + 112, rowY + 8, {
       size: 10,
       color: rgba(T.mutedForeground),
     });
-    fillRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
+    fillRound(ctx, bx + 112, rowY + 14, 96, 28, 8, "rgba(255,255,255,0.6)");
     strokeRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.border), 1);
     text(ctx, "800", bx + 122, rowY + 33, { size: 11, mono: true });
     button(ctx, bx + 224, rowY + 12, 130, 30, "Применить размер", {

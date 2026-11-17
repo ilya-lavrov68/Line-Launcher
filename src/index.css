@@ -121,8 +121,37 @@
    * «чуть затемняющая панель» the brief asks for. Not white: a white pane on
    * a dark window is a board, and it hides the backdrop the design is built
    * around. */
+  /* The shared pane: a darkening tint. Everything that is *not* the shell —
+   * cards, the dock, rows inside a pane — sits on this. */
   --glass-surface: rgba(10, 12, 16, 0.45);
   --glass-surface-strong: rgba(10, 12, 16, 0.6);
+  /* The two shell panes: light grey frosted glass over the animated backdrop.
+   * This is the «светло-серый глассморфизм» of tryliner's sidebar and page.
+   *
+   * The value is deliberately NOT white: over the copper/indigo field a white
+   * sheet at this alpha bleaches the backdrop out. A light *grey* keeps a cool
+   * cast, so the pane reads as glass rather than as paper, and the ink on it
+   * stays dark. Alpha 0.62 is where the pane is solid enough to hold body copy
+   * and still shows the field moving behind it. */
+  /* 0.60 is the floor for legibility. The sheet is translucent, so its
+   * composite follows whatever the backdrop is doing underneath: over the dark
+   * part of the field 0.55 landed at rgb(133,138,143), where the quiet text slot
+   * could not reach 4.5:1 however dark the ink got. 0.72 holds body copy on
+   * every part of the field and still shows the copper moving behind it. */
+  --glass-surface-shell: rgba(228, 231, 236, 0.72);
+  --glass-shell-ink: oklch(0.21 0.008 265);
+  /* 0.38 measured 1.7:1 against the pane as it composites over a dark
+   * backdrop, because the sheet is translucent and the field behind it pulls
+   * the composite down. 0.28 is where the quiet slot clears 4.5:1 on the
+   * darkest the pane gets. */
+  --glass-shell-ink-soft: oklch(0.28 0.01 265);
+  /* State colours, dark enough to read on the light pane. The canvas pairs are
+   * tuned for `#08090c`; `oklch(0.8 0.17 155)` on a light sheet measures about
+   * 1.3:1, so «проверена» would be drawn in a colour the eye cannot separate
+   * from the pane it sits on. Same hues, lightness moved down. */
+  --glass-shell-online: oklch(0.42 0.13 155);
+  --glass-shell-update: oklch(0.45 0.12 70);
+  --glass-shell-error: oklch(0.5 0.18 22);
   --glass-ink: oklch(0.97 0.002 250);
   --glass-ink-soft: oklch(0.72 0.006 250);
   --glass-ink-faint: oklch(0.62 0.006 250);
@@ -246,12 +275,46 @@
      * what a pane changes is its *fill*, not the ink. */
   }
 
-  /* A floating surface (menu, dialog, preview popover): the same frost, denser,
-   * because it overlaps content instead of a backdrop. */
+  /* The two large shell panes — the rail and the page area. These are the ones
+   * that sit *on* the animated backdrop, so these are the ones that carry the
+   * glass: a light grey frosted sheet the colour field reads through, which is
+   * how tryliner's sidebar and content panes behave (their `--bg-glass` over
+   * the moving cover backdrop).
+   *
+   * `--glass-surface` is the shared, dark pane used by everything else. The
+   * shell gets its own light value, so making the shell frosted does not turn
+   * every popover into a translucent slab. */
+  [data-line-glass="main"],
+  [data-line-glass="sidebar"] {
+    background: var(--glass-surface-shell);
+    backdrop-filter: blur(40px) saturate(160%);
+    -webkit-backdrop-filter: blur(40px) saturate(160%);
+    /* The pane is light, so the ink on it must be dark. This is the *one*
+     * place the palette is re-pointed per subtree, and it is scoped to the two
+     * shell panes — the very thing that separates «light glass you read on»
+     * from «light glass with near-white text on it».
+     *
+     * The filled action is deliberately not re-pointed: `--primary` stays the
+     * near-white accent, so the launch button keeps the colour it always had
+     * instead of turning into a dark chip. */
+    --foreground: var(--glass-shell-ink);
+    --card-foreground: var(--glass-shell-ink);
+    --popover-foreground: var(--glass-shell-ink);
+    --muted-foreground: var(--glass-shell-ink-soft);
+    --secondary-foreground: var(--glass-shell-ink);
+    --accent-foreground: var(--glass-shell-ink);
+    --sidebar-foreground: var(--glass-shell-ink);
+    --sidebar-accent-foreground: var(--glass-shell-ink);
+  }
+
+  /* A floating surface (menu, dialog, preview popover): opaque on purpose.
+   * These overlap text the player is reading; a translucent panel there lets
+   * the page show through the menu that is covering it, which reads as a
+   * rendering bug. They were never the point of the brief. */
   [data-line-glass="raised"] {
-    background: var(--glass-surface-strong);
-    backdrop-filter: blur(48px) saturate(170%);
-    -webkit-backdrop-filter: blur(48px) saturate(170%);
+    background: var(--popover);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
   }
 
   /* The action dock: one continuous surface, no separate header block. */

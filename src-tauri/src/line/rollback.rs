@@ -154,6 +154,7 @@ pub fn rollback_to(
         ));
     }
     let _lock = InstallLock::acquire(base)?;
+    super::install::recover_releases(base)?;
     let history = read_history(base, server_id)?;
     let mut receipt = history
         .releases

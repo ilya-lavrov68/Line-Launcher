@@ -797,7 +797,55 @@ pub async fn pending_for(
 /// the archive path. What it does not do is call back into it: the archive path
 /// downloads one ZIP, and pretending a file list is one would mean building a
 /// ZIP just to unpack it again.
+/// Keep the installation supervisor alive if its caller is cancelled. Dropping
+/// the awaiter requests cancellation, but the supervisor drains active work
+/// before releasing the server lock or deleting staging.
+struct CancelSourceOnDrop(Option<Arc<AtomicBool>>);
+impl Drop for CancelSourceOnDrop {
+    fn drop(&mut self) {
+        if let Some(cancel) = self.0.take() {
+            cancel.store(true, Ordering::Release);
+        }
+    }
+}
+
+async fn supervise_source<T: Send + 'static>(
+    cancel: Arc<AtomicBool>,
+    work: impl std::future::Future<Output = LineResult<T>> + Send + 'static,
+) -> LineResult<T> {
+    let mut on_drop = CancelSourceOnDrop(Some(cancel));
+    let result = tokio::spawn(work).await.map_err(|_| {
+        LineError::new(
+            ErrorCode::Internal,
+            "Задача установки завершилась аварийно.",
+            true,
+        )
+    })?;
+    on_drop.0 = None;
+    result
+}
+
 pub async fn install_source(
+    client: &reqwest::Client,
+    server: &Server,
+    base: &Path,
+    operation_id: &str,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+) -> LineResult<super::super::install::InstallReceipt> {
+    let client = client.clone();
+    let server = server.clone();
+    let base = base.to_path_buf();
+    let operation_id = operation_id.to_owned();
+    let sink = sink.clone();
+    let worker_cancel = Arc::clone(&cancel);
+    supervise_source(cancel, async move {
+        install_source_inner(&client, &server, &base, &operation_id, worker_cancel, &sink).await
+    })
+    .await
+}
+
+async fn install_source_inner(
     client: &reqwest::Client,
     server: &Server,
     base: &Path,
@@ -1180,6 +1228,52 @@ fn ensure_version_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn dropped_source_caller_cancels_but_worker_retains_lock_until_finished() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().to_path_buf();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_for_caller = Arc::clone(&cancel);
+        let cancel_for_worker = Arc::clone(&cancel);
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let (finish_tx, finish_rx) = tokio::sync::oneshot::channel();
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+        let worker_dir = dir.clone();
+        let caller = tokio::spawn(async move {
+            supervise_source(cancel_for_caller, async move {
+                let _lease = InstallLock::acquire(&worker_dir)?;
+                ready_tx.send(()).unwrap();
+                let _ = finish_rx.await;
+                let cancelled = cancel_for_worker.load(Ordering::Acquire);
+                drop(_lease);
+                let _ = done_tx.send(cancelled);
+                Ok::<(), LineError>(())
+            })
+            .await
+        });
+        ready_rx.await.unwrap();
+        caller.abort();
+        let _ = caller.await;
+        assert!(cancel.load(Ordering::Acquire));
+        assert_eq!(
+            InstallLock::acquire(&dir).err().unwrap().code,
+            ErrorCode::Busy
+        );
+        finish_tx.send(()).unwrap();
+        assert!(done_rx.await.unwrap());
+        assert!(InstallLock::acquire(&dir).is_ok());
+    }
+
+    #[tokio::test]
+    async fn completed_source_caller_does_not_set_cancel_flag() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let value = supervise_source(Arc::clone(&cancel), async { Ok::<_, LineError>(42) })
+            .await
+            .unwrap();
+        assert_eq!(value, 42);
+        assert!(!cancel.load(Ordering::Acquire));
+    }
 
     /// Explicit online acceptance check; never runs as part of ordinary cargo test.
     /// It downloads third-party data into an isolated temporary directory and

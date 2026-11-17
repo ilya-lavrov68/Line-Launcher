@@ -126,7 +126,7 @@ test("a distribution can be one link, and a pin is still honoured", () => {
   assert.match(install, /struct Downloaded \{/);
   assert.match(
     install,
-    /let release = releases\.join\(&downloaded_archive\.sha256\)/,
+    /stage_replacement\(\s*&content,\s*&releases,\s*&downloaded_archive\.sha256/s,
   );
   assert.match(install, /sha256: downloaded_archive\.sha256\.clone\(\)/);
   // An unpinned size must not divide by zero into the progress bar.

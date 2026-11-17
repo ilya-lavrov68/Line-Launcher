@@ -53,6 +53,13 @@ pub fn validate_version_id(raw: &str) -> LineResult<String> {
     Ok(value.to_string())
 }
 
+/// A manually selected Java is an explicit override, but cannot be older than
+/// the game's declared minimum. A newer JVM may still be incompatible with
+/// particular loaders or mods; this is not a compatibility guarantee.
+pub fn accepts_explicit_java(required_major: u16, selected_major: u16) -> bool {
+    selected_major >= required_major && (8..=26).contains(&selected_major)
+}
+
 /// Normalises the loader selection. `None`/empty version means "latest stable".
 pub fn validate_loader(
     kind: &str,
@@ -415,6 +422,15 @@ mod tests {
         let mut legacy = vec!["--server".to_string(), "other".to_string()];
         ensure_server_join(&mut legacy, false, "host", 25565);
         assert_eq!(legacy.len(), 2, "legacy pair duplicated");
+    }
+
+    #[test]
+    fn explicit_java_must_meet_the_declared_minimum() {
+        assert!(accepts_explicit_java(17, 17));
+        assert!(accepts_explicit_java(17, 21));
+        assert!(!accepts_explicit_java(21, 17));
+        assert!(!accepts_explicit_java(8, 7));
+        assert!(!accepts_explicit_java(17, 27));
     }
 
     #[test]

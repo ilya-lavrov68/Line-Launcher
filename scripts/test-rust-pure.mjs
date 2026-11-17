@@ -99,7 +99,9 @@ const shim = `
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -143,10 +145,37 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("runtime_inventory.rs", "fn valid_sha1("),
+  attributed("repair_evidence.rs", "pub fn unresolved_archive_hints("),
+  attributed("launch.rs", "pub fn is_mod_jar("),
+  attributed("resourcepack.rs", "pub fn contains_word("),
+  attributed("connector.rs", "fn connector_names("),
+  attributed("release_swap.rs", "const SWAP_PREFIX:"),
+  attributed("release_swap.rs", "fn valid_swap_sha("),
+  attributed("release_swap.rs", "fn unsafe_swap("),
+  attributed("release_swap.rs", "pub fn recover_releases("),
+  attributed("release_swap.rs", "pub fn stage_replacement("),
+  attributed("release_swap.rs", "pub fn finish_replacement("),
+  attributed("minecraft.rs", "struct Running {"),
+  attributed("minecraft.rs", "struct Inner {"),
+  attributed("minecraft.rs", "pub struct MinecraftState {"),
+  attributed("minecraft.rs", "impl MinecraftState {"),
+  attributed("minecraft.rs", "enum OperationKind {"),
+  attributed("minecraft.rs", "struct OperationGuard {"),
+  attributed("minecraft.rs", "impl Drop for OperationGuard {"),
+  attributed("minecraft.rs", "struct PreparationGuard {"),
+  attributed("minecraft.rs", "impl Drop for PreparationGuard {"),
+  attributed("minecraft.rs", "fn busy("),
+  attributed("minecraft.rs", "fn loader_installer_command("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
+  plain("java_consent.rs", "pub struct JavaDownloadPlan {"),
+  attributed("java_consent.rs", "impl JavaDownloadPlan {"),
+  plain("zip_repair.rs", "pub struct ZipRepairPlan {"),
+  attributed("zip_repair.rs", "impl ZipRepairPlan {"),
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
   attributed("minecraft_core.rs", "pub fn validate_version_id("),
+  attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
   attributed("minecraft_core.rs", "pub fn reject_dangerous_args("),
@@ -252,9 +281,65 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
+  attributed("minecraft.rs", "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell("),
+  attributed("runtime_inventory.rs", "fn accepts_only_lowercase_sha1_digests("),
+  attributed("repair_evidence.rs", "fn only_complete_live_evidence_removes_matching_stale_hints("),
+  attributed("repair_evidence.rs", "fn unknown_hints_are_never_discarded("),
+  attributed("launch.rs", "fn mod_jar_scope_excludes_service_files_and_other_folders("),
+  attributed("resourcepack.rs", "fn keyword_search_handles_multibyte_rejected_matches_without_panicking("),
+  attributed("connector.rs", "fn narrow_cache_names_only("),
+  attributed("release_swap.rs", "fn swap_temp("),
+  attributed(
+    "release_swap.rs",
+    "fn swap_preserves_old_until_commit_and_recovers_completed_replacement(",
+  ),
+  attributed(
+    "release_swap.rs",
+    "fn swap_recovery_restores_missing_and_never_discards_backup_for_bad_target(",
+  ),
+  attributed(
+    "release_swap.rs",
+    "fn swap_failure_restores_original_and_first_install_needs_no_backup(",
+  ),
+  attributed(
+    "release_swap.rs",
+    "fn swap_rejects_symlink_target_without_touching_it(",
+  ),
   attributed("install_tests.rs", "fn rejects_cross_platform_zip_slip_and_ads("),
   attributed("java.rs", "fn parses_legacy_and_modern_java("),
+  attributed(
+    "minecraft.rs",
+    "fn preparation_claim_is_exclusive_per_instance_and_released_on_drop(",
+  ),
+  attributed(
+    "minecraft.rs",
+    "fn preparation_refuses_existing_install_start_or_running_game(",
+  ),
+  attributed("minecraft.rs", "fn early_error_releases_preparation_claim("),
+  attributed(
+    "minecraft.rs",
+    "fn instance_file_lock_survives_worker_and_excludes_another_process(",
+  ),
+  attributed(
+    "minecraft.rs",
+    "fn install_and_start_claims_survive_detached_workers_and_release(",
+  ),
+  attributed(
+    "minecraft.rs",
+    "fn nested_operation_claims_do_not_bypass_other_active_operations(",
+  ),
+  attributed(
+    "minecraft.rs",
+    "fn blocking_worker_keeps_claim_after_awaiter_drops_it(",
+  ),
+  attributed("zip_repair.rs", "fn example("),
+  attributed("zip_repair.rs", "fn only_identical_plan_is_approved("),
+  attributed("java_consent.rs", "fn consent_is_specific_to_revision_purpose_version_and_source("),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
+  attributed(
+    "minecraft_core.rs",
+    "fn explicit_java_must_meet_the_declared_minimum(",
+  ),
   attributed(
     "minecraft_core.rs",
     "fn server_addresses_parse_host_port_and_ipv6(",
@@ -288,7 +373,7 @@ const tests = [
   attributed("instance.rs", "fn version_profiles_are_paired_with_their_json("),
   attributed(
     "instance.rs",
-    "fn profile_choice_prefers_the_hint_then_the_single_loader(",
+    "fn profile_choice_preserves_loader_when_hint_is_the_vanilla_base(",
   ),
   attributed(
     "instance.rs",

@@ -14,6 +14,7 @@ pub enum ErrorCode {
     RateLimited,
     AuthRequired,
     JavaRequired,
+    ConfirmationRequired,
     Integrity,
     UnsafeArchive,
     Storage,
@@ -33,6 +34,10 @@ pub struct LineError {
     pub retryable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zip_repair: Option<Box<super::zip_repair::ZipRepairPlan>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_download: Option<Box<super::java_consent::JavaDownloadPlan>>,
 }
 
 impl LineError {
@@ -42,6 +47,8 @@ impl LineError {
             message: message.into(),
             retryable,
             http_status: None,
+            zip_repair: None,
+            java_download: None,
         }
     }
 

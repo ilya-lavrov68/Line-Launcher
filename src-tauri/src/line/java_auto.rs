@@ -6,6 +6,7 @@ use super::{install, integrity, java, pack, storage};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
@@ -239,6 +240,20 @@ async fn cached(target: &Path, major: u16) -> Option<PathBuf> {
     (runtime.major == major).then_some(runtime.path)
 }
 
+/// Reuse an already verified private runtime without contacting the network.
+/// Cooperating installers hold the same lock while replacing the cache.
+pub async fn find_cached_windows_x64(dir: &Path, major: u16) -> LineResult<Option<PathBuf>> {
+    let base = dir.join("line-java");
+    match std::fs::symlink_metadata(&base) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(LineError::io(&error)),
+        Ok(_) if !storage::is_real_dir(&base) => return Err(LineError::storage()),
+        Ok(_) => {}
+    }
+    let _lock = storage::InstallLock::acquire(&base)?;
+    Ok(cached(&base.join(format!("temurin-{major}-windows-x64")), major).await)
+}
+
 /// Install a private Java 8/17/21/25 JRE on Windows x64. Other platforms keep
 /// the existing Mojang path; the caller decides when this implementation fits.
 pub async fn install_windows_x64(
@@ -250,7 +265,7 @@ pub async fn install_windows_x64(
         .parent()
         .ok_or_else(LineError::storage)?
         .to_path_buf();
-    let _lock = storage::InstallLock::acquire(&base)?;
+    let lock = Arc::new(storage::InstallLock::acquire(&base)?);
     let target = base.join(format!("temurin-{major}-windows-x64"));
     if let Some(path) = cached(&target, major).await {
         return Ok(path);
@@ -283,7 +298,7 @@ pub async fn install_windows_x64(
             true,
         ));
     }
-    let temp = tempfile::tempdir_in(&base).map_err(|e| LineError::io(&e))?;
+    let temp = Arc::new(tempfile::tempdir_in(&base).map_err(|e| LineError::io(&e))?);
     let zip_path = temp.path().join("java.zip");
     let mut file = tokio::fs::File::create(&zip_path)
         .await
@@ -324,7 +339,13 @@ pub async fn install_windows_x64(
     let staging = temp.path().join("runtime");
     let extract_path = zip_path.clone();
     let extract_dest = staging.clone();
+    // Extraction is not cancelled when its awaiter is dropped. Keep both the
+    // temporary directory and its installation lock until the worker exits.
+    let worker_temp = Arc::clone(&temp);
+    let worker_lock = Arc::clone(&lock);
     let index = tokio::task::spawn_blocking(move || {
+        let _worker_temp = worker_temp;
+        let _worker_lock = worker_lock;
         // Apply a much smaller cap than general modpacks before extraction.
         let file = std::fs::File::open(&extract_path).map_err(|e| LineError::io(&e))?;
         let mut archive = zip::ZipArchive::new(file)

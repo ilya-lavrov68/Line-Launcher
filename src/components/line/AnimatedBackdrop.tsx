@@ -24,7 +24,7 @@ import {
  *     hazeglow refuses software renderers outright, so anything that depends on
  *     the canvas would leave those users with an empty window.
  *  3. A legibility veil whose strength is a property of the theme. Bright ramps
- *     («Ледник», «Тёплый песок») lift the top of the window enough that the
+ *     lift the top of the window enough that the
  *     title bar's caption buttons stop reading against it; dark ones need
  *     almost nothing. One global value cannot serve both.
  *
@@ -53,6 +53,12 @@ import {
 
 /** How long the old theme stays underneath while the new one fades in. */
 const CROSSFADE_MS = 600;
+
+// This was previously painted only by WelcomeScreen and faded out with the
+// greeting, washing the colours out when the rest of the interface appeared.
+// Keep the same dark wash behind *all* screens so the intro's colour persists.
+const BACKDROP_WASH =
+  "radial-gradient(120% 100% at 50% 42%, rgba(8,9,12,0.28), rgba(8,9,12,0.52) 78%)";
 
 export interface AnimatedBackdropProps {
   /**
@@ -270,6 +276,11 @@ export default function AnimatedBackdrop({
       <div
         className="bg-background absolute inset-0 transition-opacity duration-500 ease-out"
         style={{ opacity: active.shade }}
+      />
+      <div
+        data-line-backdrop-wash
+        className="absolute inset-0"
+        style={{ background: BACKDROP_WASH }}
       />
     </div>
   );

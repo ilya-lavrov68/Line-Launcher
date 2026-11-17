@@ -27,14 +27,14 @@ use super::integrity;
 use super::java;
 use super::launch::{optimal_heap_mb, player_uuid, validate_heap, GamePhase};
 use super::minecraft_core::{
-    apply_heap, ensure_server_join, has_quick_play_token, reject_dangerous_args,
-    remove_automatic_joins, validate_instance_id, validate_loader, validate_server_address,
-    validate_test_mode, validate_version_id, LoaderChoice,
+    accepts_explicit_java, apply_heap, ensure_server_join, has_quick_play_token,
+    reject_dangerous_args, remove_automatic_joins, validate_instance_id, validate_loader,
+    validate_server_address, validate_test_mode, validate_version_id, LoaderChoice,
 };
 use super::pack::{self, DetectedInstance};
 use super::settings::{self, LauncherSettings};
 use super::state::{epoch_millis, LineState};
-use super::storage::{create_private_dir, server_dir};
+use super::storage::{create_private_dir, server_dir, InstallLock};
 use super::LAUNCHER_VERSION;
 // Imported from the prelude, but not as a glob: the crate also exports a
 // one-parameter `Result` alias that would shadow `std::result::Result` here.
@@ -114,6 +114,10 @@ pub struct McPlayRequest {
     pub test_mode: bool,
     #[serde(default)]
     pub prepare_only: bool,
+    #[serde(default)]
+    pub approve_zip_repair: Option<super::zip_repair::ZipRepairPlan>,
+    #[serde(default)]
+    pub approve_java_download: Option<super::java_consent::JavaDownloadPlan>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -157,13 +161,14 @@ struct Inner {
     running: HashMap<String, Running>,
     installing: HashSet<String>,
     starting: HashSet<String>,
+    preparing: HashSet<String>,
 }
 
 /// Separate from `LineState`: provider builds are keyed by server id and carry a
 /// release sha256, which a Mojang profile does not have.
 #[derive(Default)]
 pub struct MinecraftState {
-    inner: Mutex<Inner>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl MinecraftState {
@@ -175,6 +180,107 @@ impl MinecraftState {
                 false,
             )
         })
+    }
+
+    fn begin_preparation(&self, instance_id: &str) -> LineResult<Arc<PreparationGuard>> {
+        let mut inner = self.lock()?;
+        if inner.preparing.contains(instance_id)
+            || inner.installing.contains(instance_id)
+            || inner.starting.contains(instance_id)
+            || inner.running.contains_key(instance_id)
+        {
+            return Err(busy());
+        }
+        inner.preparing.insert(instance_id.to_string());
+        Ok(Arc::new(PreparationGuard {
+            inner: Arc::clone(&self.inner),
+            instance_id: instance_id.to_string(),
+        }))
+    }
+
+    fn begin_install(
+        &self,
+        instance_id: &str,
+        within_preparation: bool,
+    ) -> LineResult<Arc<OperationGuard>> {
+        let mut inner = self.lock()?;
+        if inner.running.contains_key(instance_id)
+            || inner.starting.contains(instance_id)
+            || inner.installing.contains(instance_id)
+            || (inner.preparing.contains(instance_id) && !within_preparation)
+        {
+            return Err(busy());
+        }
+        inner.installing.insert(instance_id.to_string());
+        Ok(Arc::new(OperationGuard {
+            inner: Arc::clone(&self.inner),
+            instance_id: instance_id.to_string(),
+            kind: OperationKind::Install,
+        }))
+    }
+
+    fn begin_start(
+        &self,
+        instance_id: &str,
+        within_preparation: bool,
+    ) -> LineResult<Arc<OperationGuard>> {
+        let mut inner = self.lock()?;
+        if inner.installing.contains(instance_id)
+            || inner.running.contains_key(instance_id)
+            || inner.starting.contains(instance_id)
+            || (inner.preparing.contains(instance_id) && !within_preparation)
+        {
+            return Err(busy());
+        }
+        inner.starting.insert(instance_id.to_string());
+        Ok(Arc::new(OperationGuard {
+            inner: Arc::clone(&self.inner),
+            instance_id: instance_id.to_string(),
+            kind: OperationKind::Start,
+        }))
+    }
+}
+
+/// Held from before pack resolution and sync until the whole play/prepare call
+/// returns, including every error and the confirmation-required return.
+struct PreparationGuard {
+    inner: Arc<Mutex<Inner>>,
+    instance_id: String,
+}
+
+impl Drop for PreparationGuard {
+    fn drop(&mut self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.preparing.remove(&self.instance_id);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum OperationKind {
+    Install,
+    Start,
+}
+
+/// A claim is released only when both the async owner and all detached workers finish.
+struct OperationGuard {
+    inner: Arc<Mutex<Inner>>,
+    instance_id: String,
+    kind: OperationKind,
+}
+
+impl Drop for OperationGuard {
+    fn drop(&mut self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            match self.kind {
+                OperationKind::Install => {
+                    inner.installing.remove(&self.instance_id);
+                }
+                OperationKind::Start => {
+                    inner.starting.remove(&self.instance_id);
+                }
+            }
+        }
     }
 }
 
@@ -194,6 +300,17 @@ fn instance_root(app: &AppHandle, instance_id: &str) -> LineResult<PathBuf> {
     let dir = root.join("minecraft").join(instance_id);
     create_private_dir(&dir)?;
     Ok(dir)
+}
+
+fn acquire_instance_lease(app: &AppHandle, instance_id: &str) -> LineResult<Arc<InstallLock>> {
+    let instance = instance_root(app, instance_id)?;
+    Ok(Arc::new(InstallLock::acquire(&instance)?))
+}
+
+/// Combines the in-process claim and the cooperating-process file lock.
+struct InstanceOperation {
+    _claim: Arc<OperationGuard>,
+    lease: Arc<InstallLock>,
 }
 
 /// The live game directory. It is a plain `.minecraft`: the pack's mods, config
@@ -408,7 +525,7 @@ pub async fn mc_install(
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version = validate_version_id(&request.minecraft_version)?;
     let loader = parse_loader(request.loader.as_ref())?;
-    install_profile(&app, &state, instance_id, version, loader).await
+    install_profile(&app, &state, instance_id, version, loader, None, None).await
 }
 
 fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpec>> {
@@ -531,17 +648,80 @@ fn ensure_installer_profile(dir: &Path) -> LineResult<()> {
     }
 }
 
+/// Construct the loader installer process directly, without a shell. The Java
+/// process stays console-free on Windows; its stdout/stderr are redirected by
+/// the caller. GUI windows created independently by a third party are not covered.
+fn loader_installer_command(java: &Path, installer: &Path, game: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new(java);
+    command
+        .arg("-jar")
+        .arg(installer)
+        .arg("--installClient")
+        .arg(game);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    command
+}
+
+/// Keep diagnostics in the instance rather than opening a console or leaking
+/// installer output into UI errors. Caller holds the instance operation lock.
+fn run_quiet_loader_installer(java: &Path, installer: &Path, game: &Path) -> LineResult<()> {
+    let log_path = pack::checked_game_path(game, "logs/line-loader-install.log", true)?;
+    match std::fs::symlink_metadata(&log_path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(LineError::io(&error)),
+        Ok(_) if !super::storage::is_real_file(&log_path) => {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Файл журнала установщика не является обычным файлом.",
+                false,
+            ))
+        }
+        Ok(_) => {}
+    }
+    let log = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .map_err(|e| LineError::io(&e))?;
+    let stderr = log.try_clone().map_err(|e| LineError::io(&e))?;
+    let status = loader_installer_command(java, installer, game)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(stderr))
+        .status()
+        .map_err(|_| {
+            LineError::new(
+                ErrorCode::JavaRequired,
+                "Не удалось запустить установщик загрузчика с выбранной Java.",
+                true,
+            )
+        })?;
+    if !status.success() {
+        return Err(LineError::new(ErrorCode::Internal, "Установка загрузчика завершилась ошибкой. Подробности в game/logs/line-loader-install.log.", true));
+    }
+    Ok(())
+}
+
 async fn install_legacy_neoforge(
     app: &AppHandle,
     dir: PathBuf,
     version: String,
     app_emit: AppHandle,
     instance: String,
+    claim: Arc<InstanceOperation>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<String> {
     let vanilla_dir = dir.clone();
     let emit = app_emit.clone();
     let emit_instance = instance.clone();
+    let worker_claim = Arc::clone(&claim);
     tokio::task::spawn_blocking(move || {
+        let _worker_claim = worker_claim;
         let mut report = move |event: ProgressEvent| {
             let _ = emit.emit(
                 MC_INSTALL_EVENT,
@@ -561,16 +741,22 @@ async fn install_legacy_neoforge(
     let java = resolve_java(
         runtime_dir,
         Some("java-runtime-gamma".to_string()),
-        17,
+        JavaRequirement {
+            major: 17,
+            allow_newer_explicit: false,
+        },
         &preferences,
         app,
         &instance,
+        &claim,
+        java_consent,
+        "loader",
     )
     .await?;
+    let worker_claim = Arc::clone(&claim);
     tokio::task::spawn_blocking(move || -> LineResult<String> {
+        let _worker_claim = worker_claim;
         use mc_launcher_core::net::download::{execute_plan, DownloadPlan, DownloadTask};
-        use mc_launcher_core::install::loader::{run_loader_installer, InstallerInvocation};
-        use mc_launcher_core::loader::LoaderKind;
         use std::io::Read;
         let temp = tempfile::tempdir().map_err(|e| LineError::io(&e))?;
         let installer = temp.path().join("installer.jar");
@@ -578,7 +764,9 @@ async fn install_legacy_neoforge(
         let url = format!("https://maven.neoforged.net/releases/net/neoforged/forge/{artifact}/forge-{artifact}-installer.jar");
         let retry_app = app_emit.clone();
         let retry_instance = instance.clone();
-        let mut report = move |event: ProgressEvent| { let _ = app_emit.emit(MC_INSTALL_EVENT, progress_dto(&instance, &event, false)); };
+        let progress_app = app_emit.clone();
+        let progress_instance = instance.clone();
+        let mut report = move |event: ProgressEvent| { let _ = progress_app.emit(MC_INSTALL_EVENT, progress_dto(&progress_instance, &event, false)); };
         let plan = DownloadPlan { tasks: vec![DownloadTask { url, destination: installer.clone(), checksum: None, label: "NeoForge installer".to_string() }] };
         download_installer_with_retry(&installer, || execute_plan(&plan, &mut report), std::thread::sleep, |attempt| {
             emit_mc_progress(&retry_app, &retry_instance, "loader", &format!("NeoForge: повторная попытка {attempt} из 3"), 0, None, false);
@@ -595,7 +783,8 @@ async fn install_legacy_neoforge(
         let id = validate_version_id(id)?;
         drop(archive);
         ensure_installer_profile(&dir)?;
-        run_loader_installer(&InstallerInvocation { loader: LoaderKind::NeoForge, java_executable: java, installer_path: installer, minecraft_dir: dir.clone() }).map_err(mc_error)?;
+        emit_mc_progress(&app_emit, &instance, "loader", "Установка NeoForge…", 0, None, false);
+        run_quiet_loader_installer(&java, &installer, &dir)?;
         let launcher = Launcher::new(&dir);
         let merged = launcher.load_version(&id).map_err(mc_error)?;
         mc_launcher_core::install::client::install_version_files(&merged, &dir, &mut report).map_err(mc_error)?;
@@ -605,60 +794,71 @@ async fn install_legacy_neoforge(
 
 /// Idempotent: the crate skips files whose checksum already matches, so this is
 /// both "download" and "verify what is on disk".
+#[allow(clippy::too_many_arguments)]
 async fn install_profile(
     app: &AppHandle,
     state: &MinecraftState,
     instance_id: String,
     version: String,
     loader: Option<LoaderSpec>,
+    preparation_lease: Option<Arc<InstallLock>>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<McInstalled> {
+    let claim = state.begin_install(&instance_id, preparation_lease.is_some())?;
+    let lease = match preparation_lease {
+        Some(lease) => lease,
+        None => acquire_instance_lease(app, &instance_id)?,
+    };
+    let claim = Arc::new(InstanceOperation {
+        _claim: claim,
+        lease,
+    });
     let dir = game_root(app, &instance_id)?;
-    {
-        let mut inner = state.lock()?;
-        if inner.running.contains_key(&instance_id) || inner.starting.contains(&instance_id) {
-            return Err(busy());
-        }
-        if !inner.installing.insert(instance_id.clone()) {
-            return Err(busy());
-        }
-    }
-
     let legacy = legacy_neoforge_version(&version, &loader);
     let emit_app = app.clone();
     let emit_instance = instance_id.clone();
     let installed = match legacy {
         Err(error) => Err(error),
         Ok(Some(legacy_version)) => {
-            install_legacy_neoforge(app, dir, legacy_version, emit_app, emit_instance).await
+            install_legacy_neoforge(
+                app,
+                dir,
+                legacy_version,
+                emit_app,
+                emit_instance,
+                Arc::clone(&claim),
+                java_consent,
+            )
+            .await
         }
-        Ok(None) => tokio::task::spawn_blocking(move || -> LineResult<String> {
-            let launcher = Launcher::new(dir);
-            let request = InstallRequest {
-                minecraft_version: version,
-                loader,
-                // The facade does not bundle Java; the runtime is resolved below
-                // through `LaunchOptions::java_executable`.
-                java: JavaInstallPolicy::Auto,
-            };
-            let mut reporter = move |event: ProgressEvent| {
-                let _ = emit_app.emit(
-                    MC_INSTALL_EVENT,
-                    progress_dto(&emit_instance, &event, false),
-                );
-            };
-            let result = launcher
-                .install_with_progress(request, &mut reporter)
-                .map_err(mc_error)?;
-            Ok(result.version_id)
-        })
-        .await
-        .map_err(|_| join_error())
-        .and_then(|result| result),
+        Ok(None) => {
+            let worker_claim = Arc::clone(&claim);
+            tokio::task::spawn_blocking(move || -> LineResult<String> {
+                let _worker_claim = worker_claim;
+                let launcher = Launcher::new(dir);
+                let request = InstallRequest {
+                    minecraft_version: version,
+                    loader,
+                    // The facade does not bundle Java; the runtime is resolved below
+                    // through `LaunchOptions::java_executable`.
+                    java: JavaInstallPolicy::Auto,
+                };
+                let mut reporter = move |event: ProgressEvent| {
+                    let _ = emit_app.emit(
+                        MC_INSTALL_EVENT,
+                        progress_dto(&emit_instance, &event, false),
+                    );
+                };
+                let result = launcher
+                    .install_with_progress(request, &mut reporter)
+                    .map_err(mc_error)?;
+                Ok(result.version_id)
+            })
+            .await
+            .map_err(|_| join_error())
+            .and_then(|result| result)
+        }
     };
-
-    if let Ok(mut inner) = state.lock() {
-        inner.installing.remove(&instance_id);
-    }
     let version_id = installed?;
     let _ = app.emit(
         MC_INSTALL_EVENT,
@@ -759,20 +959,47 @@ fn java_install_error(
     result
 }
 
-/// Picks a runtime the game actually accepts: the player's verified choice,
-/// then local discovery, then Mojang's own JRE for that version.
+struct JavaRequirement {
+    major: u16,
+    allow_newer_explicit: bool,
+}
+
+/// Uses a verified explicit choice at or above the declared minimum, then
+/// discovers the exact requested major, then downloads a matching runtime.
+/// A newer explicit JVM is the player's override, not a compatibility promise.
+#[allow(clippy::too_many_arguments)]
 async fn resolve_java(
     dir: &Path,
     component: Option<String>,
-    required_major: u16,
+    requirement: JavaRequirement,
     preferences: &LauncherSettings,
     app: &AppHandle,
     instance_id: &str,
+    claim: &Arc<InstanceOperation>,
+    consent: Option<&super::java_consent::JavaConsent>,
+    purpose: &str,
 ) -> LineResult<PathBuf> {
+    let JavaRequirement {
+        major: required_major,
+        allow_newer_explicit,
+    } = requirement;
     let mut selected_major = None;
     if let Some(requested) = &preferences.java_path {
         if let Ok(runtime) = java::inspect_path(requested).await {
-            if runtime.major == required_major {
+            if runtime.major == required_major
+                || (allow_newer_explicit && accepts_explicit_java(required_major, runtime.major))
+            {
+                if runtime.major > required_major {
+                    use super::logger::{self, Area, Field};
+                    logger::info(
+                        Area::Launch,
+                        "using newer explicitly selected Java",
+                        &[
+                            Field::num("required_major", u64::from(required_major)),
+                            Field::num("selected_major", u64::from(runtime.major)),
+                        ],
+                    );
+                }
                 return Ok(runtime.path);
             }
             selected_major = Some(runtime.major);
@@ -781,12 +1008,26 @@ async fn resolve_java(
     if let Ok(runtime) = java::discover(required_major).await {
         return Ok(runtime.path);
     }
-    // Prefer a verified private JRE on Windows x64, including versions whose
-    // Mojang manifest has no runtime component. No administrator rights or
-    // system Java changes are needed.
+    // A local Mojang runtime should be reused before asking or downloading.
+    if let Some(component) = component.as_deref() {
+        if let Some(path) = runtime::get_executable_path(component, dir) {
+            if let Ok(existing) = java::inspect_path(&path.to_string_lossy()).await {
+                if existing.major == required_major {
+                    return Ok(existing.path);
+                }
+            }
+        }
+    }
+    // Private Windows runtime validation is read-only and performs no network IO.
     if cfg!(all(target_os = "windows", target_arch = "x86_64"))
         && matches!(required_major, 8 | 17 | 21 | 25)
     {
+        if let Some(path) = super::java_auto::find_cached_windows_x64(dir, required_major).await? {
+            return Ok(path);
+        }
+        if let Some(consent) = consent {
+            consent.require(required_major, purpose, "adoptium")?;
+        }
         return super::java_auto::install_windows_x64(dir, required_major, |done, total| {
             emit_mc_progress(
                 app,
@@ -803,22 +1044,18 @@ async fn resolve_java(
     let Some(component) = component else {
         return Err(LineError::new(
             ErrorCode::JavaRequired,
-            format!(
-                "Нужна Java {required_major}. Установите её или укажите путь к java.exe в настройках."
-            ),
+            format!("Нужна Java {required_major}. Установите её или укажите путь к java.exe в настройках."),
             false,
         ));
     };
-    if let Some(path) = runtime::get_executable_path(&component, dir) {
-        if let Ok(existing) = java::inspect_path(&path.to_string_lossy()).await {
-            if existing.major == required_major {
-                return Ok(existing.path);
-            }
-        }
+    if let Some(consent) = consent {
+        consent.require(required_major, purpose, "mojang")?;
     }
     let owned_dir = dir.to_path_buf();
     let owned_component = component.clone();
+    let worker_claim = Arc::clone(claim);
     tokio::task::spawn_blocking(move || -> LineResult<()> {
+        let _worker_claim = worker_claim;
         runtime::install_jvm_runtime(&owned_component, &owned_dir, &CallbackDict::default())
             .map_err(|error| java_install_error(error.as_ref(), required_major, selected_major))
     })
@@ -870,6 +1107,8 @@ pub async fn mc_launch(
         host,
         port,
         false,
+        None,
+        None,
     )
     .await
 }
@@ -920,19 +1159,19 @@ pub async fn mc_play(
             )
         })?;
     let (host, port) = validate_server_address(&address)?;
+    // Claim the instance before any pack resolution, sync or live-file scan.
+    // The inner install and launch are allowed only as part of this operation.
+    let preparation_claim = state.begin_preparation(&instance_id)?;
+    let lease = acquire_instance_lease(&app, &instance_id)?;
+    let preparation = Arc::new((preparation_claim, lease));
     let root = app
         .path()
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
     let base = server_dir(&root, &server.id)?;
 
-    // 1. What is published right now. The pinned distribution is the fallback
-    //    for providers that do not host a pack.json.
-    let effective = if server.source.is_some() {
-        server.clone()
-    } else {
-        pack::effective_server(&line.http, &server, &base).await?
-    };
+    // Show work before the first network request: fetching pack.json may be
+    // slow or fail and must not leave the player looking at an idle interface.
     emit_mc_progress(
         &app,
         &instance_id,
@@ -943,14 +1182,28 @@ pub async fn mc_play(
         false,
     );
 
-    // 2. Download or verify. `download_and_extract` returns the existing receipt
-    //    untouched when its sha256 already matches, so an unchanged pack costs
-    //    one small JSON request, not a re-download.
-    // Test mode and normal play both use the same source validation and cache.
+    // 1. Resolve the archive metadata exactly once, and include it in the
+    // diagnostic duration. Source packs resolve their own metadata below.
     let pack_started = std::time::Instant::now();
+    let effective_result = if server.source.is_some() {
+        Ok(server.clone())
+    } else {
+        pack::effective_server(&line.http, &server, &base).await
+    };
+    let effective = match effective_result {
+        Ok(server) => server,
+        Err(error) => {
+            log_preparation_stage("pack", pack_started, false);
+            return Err(error);
+        }
+    };
+
+    // 2. Download or verify. The installer returns an existing matching receipt
+    // untouched, without fetching the already resolved pack.json again.
     let receipt = {
         let operation_id = Uuid::new_v4().to_string();
-        let cancel = line.begin_install(&server.id, &operation_id)?;
+        let registration = line.register_install(&server.id, &operation_id)?;
+        let cancel = registration.cancel_flag();
         let sink_app = app.clone();
         let sink_instance = instance_id.clone();
         let sink = ProgressSink::new(move |progress: InstallProgress| {
@@ -986,7 +1239,7 @@ pub async fn mc_play(
                 },
             );
         });
-        let installed = install::download_and_extract(
+        let installed = install::download_and_extract_resolved(
             &line.http,
             &effective,
             &base,
@@ -995,10 +1248,21 @@ pub async fn mc_play(
             &sink,
         )
         .await;
-        line.finish_install(&server.id, &operation_id);
+        drop(registration);
         log_preparation_stage("pack", pack_started, installed.is_ok());
         installed?
     };
+    let java_consent = server
+        .source
+        .is_none()
+        .then(|| super::java_consent::JavaConsent {
+            server_id: server.id.clone(),
+            instance_id: instance_id.clone(),
+            release_sha256: receipt.sha256.clone(),
+            prepare_only: request.prepare_only,
+            test_mode: request.test_mode,
+            approved: request.approve_java_download.clone(),
+        });
     if receipt.already_installed {
         emit_mc_progress(
             &app,
@@ -1009,6 +1273,32 @@ pub async fn mc_play(
             None,
             false,
         );
+    }
+
+    // The installer released its server lock when returning the receipt. Reclaim
+    // it before inspecting or copying the release; a concurrent update or
+    // rollback could have changed current.json in the gap.
+    let release_lease = Arc::new(InstallLock::acquire(&base)?);
+    // A previous process can have died between the two directory renames.
+    // Recovery may hash a whole release, and must retain the lock if cancelled.
+    let recovery_lease = Arc::clone(&release_lease);
+    let recovery_base = base.clone();
+    tokio::task::spawn_blocking(move || {
+        let _lease = recovery_lease;
+        install::recover_releases(&recovery_base)
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    let current = install::current_receipt(&base, &server.id);
+    if !current
+        .as_ref()
+        .is_some_and(|value| value.sha256 == receipt.sha256)
+    {
+        return Err(LineError::new(
+            ErrorCode::Busy,
+            "Сборка изменилась во время подготовки. Повторите действие.",
+            true,
+        ));
     }
 
     emit_mc_progress(
@@ -1025,83 +1315,236 @@ pub async fn mc_play(
     let hint = request
         .minecraft_version
         .clone()
-        .or_else(|| server.minecraft_version.clone());
+        .or_else(|| effective.minecraft_version.clone());
     let release_base = base.clone();
     let sha256 = receipt.sha256.clone();
     let instance_dir = instance_root(&app, &instance_id)?;
     let inspect_instance = instance_id.clone();
     let inspect_app = app.clone();
     let verify_started = std::time::Instant::now();
-    let detected_result = tokio::task::spawn_blocking(move || -> LineResult<DetectedInstance> {
-        let release = pack::release_dir(&release_base, &sha256)?;
-        let index = integrity::read_index(&release)?;
-        let report = integrity::scan(&release)?;
-        if !report.is_clean() {
-            return Err(LineError::new(
-                ErrorCode::Integrity,
-                "Сборка изменилась после установки. Повторите установку перед запуском.",
-                false,
-            ));
-        }
-        let detected = pack::inspect(&release, &index, hint.as_deref())?;
-        emit_mc_progress(
-            &inspect_app,
-            &inspect_instance,
-            "verify",
-            "Проверка файлов экземпляра…",
-            0,
-            None,
-            false,
-        );
-        pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
-        // A release can be intact while its live mod copy was replaced.
-        // Never follow a planted mods directory or file symlink.
-        let game = instance_dir.join("game");
-        let mods = game.join("mods");
-        if mods.exists() && !super::storage::is_real_dir(&mods) {
-            return Err(LineError::new(
-                ErrorCode::Integrity,
-                "Папка mods не является обычным каталогом.",
-                false,
-            ));
-        }
-        for entry in &index.files {
-            let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
-                continue;
-            };
-            let Some(_name) = relative.strip_prefix("mods/") else {
-                continue;
-            };
-            let target = pack::checked_game_path(&game, relative, false)?;
-            if !super::storage::is_real_file(&target) {
+    let audit_live_assets = request.prepare_only;
+    let audit_runtime = server.source.is_none();
+    // A blocking task continues after its awaiting future is dropped. Keep its
+    // claim alive until all live-file verification and synchronization has stopped.
+    let worker_preparation = Arc::clone(&preparation);
+    let worker_release_lease = Arc::clone(&release_lease);
+    let detected_result = tokio::task::spawn_blocking(
+        move || -> LineResult<(DetectedInstance, integrity::FileIndex)> {
+            let _worker_preparation = worker_preparation;
+            let _worker_release_lease = worker_release_lease;
+            let release = pack::release_dir(&release_base, &sha256)?;
+            let index = integrity::read_index(&release)?;
+            let report = integrity::scan(&release)?;
+            if !report.is_clean() {
                 return Err(LineError::new(
                     ErrorCode::Integrity,
-                    format!("Файл {relative} отсутствует или заменён ссылкой."),
+                    "Сборка изменилась после установки. Повторите установку перед запуском.",
                     false,
                 ));
             }
-            let (actual, size) = integrity::hash_file(&target)?;
-            if actual != entry.sha256 || size != entry.size {
+            let mut detected = pack::inspect(&release, &index, hint.as_deref())?;
+            emit_mc_progress(
+                &inspect_app,
+                &inspect_instance,
+                "verify",
+                "Проверка файлов экземпляра…",
+                0,
+                None,
+                false,
+            );
+            pack::sync_game_dir(&release, &detected, &instance_dir, &sha256)?;
+            // A release can be intact while its live mod copy was replaced.
+            // Never follow a planted mods directory or file symlink.
+            let game = instance_dir.join("game");
+            let mods = game.join("mods");
+            if mods.exists() && !super::storage::is_real_dir(&mods) {
                 return Err(LineError::new(
                     ErrorCode::Integrity,
-                    format!("Файл {relative} изменён. Восстановите сборку."),
+                    "Папка mods не является обычным каталогом.",
                     false,
                 ));
             }
-        }
-        Ok(detected)
-    })
+            for entry in &index.files {
+                let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
+                    continue;
+                };
+                if !super::launch::is_mod_jar(relative) {
+                    continue;
+                }
+                let target = pack::checked_game_path(&game, relative, false)?;
+                if !super::storage::is_real_file(&target) {
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        format!("Файл {relative} отсутствует или заменён ссылкой."),
+                        false,
+                    ));
+                }
+                let (actual, size) = integrity::hash_file(&target)?;
+                if actual != entry.sha256 || size != entry.size {
+                    return Err(LineError::new(
+                        ErrorCode::Integrity,
+                        format!("Файл {relative} изменён. Восстановите сборку."),
+                        false,
+                    ));
+                }
+            }
+            if audit_runtime {
+                // The expected checksums come only from version JSON already
+                // present in the verified release, never from the writable game.
+                let mut profiles = Vec::new();
+                let mut ids = std::collections::BTreeSet::new();
+                ids.insert(detected.version_id.clone());
+                ids.insert(detected.minecraft_version.clone());
+                let release_game = release.join(&detected.prefix);
+                for id in ids {
+                    let relative = format!("versions/{id}/{id}.json");
+                    let indexed = format!("{}{relative}", detected.prefix);
+                    if !index.files.iter().any(|entry| entry.path == indexed) {
+                        continue;
+                    }
+                    let path = pack::checked_game_path(&release_game, &relative, false)?;
+                    if !super::storage::is_real_file(&path) {
+                        return Err(LineError::storage());
+                    }
+                    let metadata = std::fs::metadata(&path).map_err(|e| LineError::io(&e))?;
+                    if metadata.len() > 8 * 1024 * 1024 {
+                        return Err(LineError::input("JSON версии в сборке слишком большой."));
+                    }
+                    use std::io::Read;
+                    let mut bytes = Vec::new();
+                    std::fs::File::open(path)
+                        .map_err(|e| LineError::io(&e))?
+                        .take(8 * 1024 * 1024 + 1)
+                        .read_to_end(&mut bytes)
+                        .map_err(|e| LineError::io(&e))?;
+                    if bytes.len() > 8 * 1024 * 1024 {
+                        return Err(LineError::input("JSON версии в сборке слишком большой."));
+                    }
+                    profiles.push((id, bytes));
+                }
+                if !profiles.is_empty() {
+                    let borrowed: Vec<_> = profiles
+                        .iter()
+                        .map(|(id, bytes)| (id.as_str(), bytes.as_slice()))
+                        .collect();
+                    detected.live_runtime = Some(super::runtime_inventory::inspect(
+                        &borrowed,
+                        &game,
+                        |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
+                    )?);
+                }
+            }
+            // An archive hint remains true forever even after a repair. Re-audit
+            // assets on ZIP play only when that hint can be disproved with the
+            // release index; do not infer completeness from directory existence.
+            if (audit_live_assets || (audit_runtime && detected.missing.contains(&"assets")))
+                && detected.asset_inventory.is_some()
+            {
+                if let Some(id) = &detected.asset_index_id {
+                    emit_mc_progress(
+                        &inspect_app,
+                        &inspect_instance,
+                        "verify",
+                        "Проверка хешей ресурсов экземпляра…",
+                        0,
+                        None,
+                        false,
+                    );
+                    let bytes = pack::read_release_asset_index(&release, &detected.prefix, id)?;
+                    use sha2::{Digest, Sha256};
+                    let mut digest = Sha256::new();
+                    // Domain-separated, deterministic records; the inventory iterates
+                    // unique hashes in sorted order. Preview stays bounded for IPC.
+                    digest.update(b"line-asset-issues-v1\0");
+                    let mut preview = Vec::new();
+                    detected.live_assets = Some(super::asset_inventory::inspect_live(
+                        &bytes,
+                        &game,
+                        |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
+                        |hash, size, reason| {
+                            digest.update(hash.as_bytes());
+                            digest.update(size.to_be_bytes());
+                            digest.update(reason.as_bytes());
+                            digest.update(b"\0");
+                            if preview.len() < 32 {
+                                preview.push(format!("assets/objects/{}/{}", &hash[..2], hash));
+                            }
+                        },
+                    )?);
+                    detected.live_asset_digest = Some(format!("{:x}", digest.finalize()));
+                    detected.live_asset_preview = preview;
+                }
+            }
+            Ok((detected, index))
+        },
+    )
     .await
     .map_err(|_| join_error())
     .and_then(|result| result);
     log_preparation_stage("verify_and_sync", verify_started, detected_result.is_ok());
-    let detected: DetectedInstance = detected_result?;
+    let (detected, verified_index) = detected_result?;
+    if let Some(inventory) = detected.asset_inventory {
+        use super::logger::{self, Area, Field};
+        logger::info(
+            Area::Install,
+            "release asset inventory (sizes only)",
+            &[
+                Field::num("objects", inventory.unique_objects),
+                Field::num("present_by_size", inventory.present_by_size),
+                Field::num("missing", inventory.missing),
+                Field::num("wrong_size", inventory.wrong_size),
+                Field::num("missing_bytes", inventory.missing_bytes),
+            ],
+        );
+    }
+
+    if let Some(inventory) = detected.live_assets {
+        use super::logger::{self, Area, Field};
+        logger::info(
+            Area::Install,
+            "live asset inventory (SHA-1)",
+            &[
+                Field::num("objects", inventory.unique_objects),
+                Field::num("matched_sha1", inventory.matched_sha1),
+                Field::num("missing", inventory.missing),
+                Field::num("wrong_size", inventory.wrong_size),
+                Field::num("wrong_hash", inventory.wrong_hash),
+                Field::num("needed_bytes", inventory.needed_bytes),
+            ],
+        );
+    }
 
     // Check the directory actually used by Minecraft, not the archive server's
     // separate game/ directory. Never start Java when a keyword was found.
     let instance_dir = instance_root(&app, &instance_id)?;
     let scan_started = std::time::Instant::now();
-    let scan_result = super::launch::scan_packs(&instance_dir, &server, &detected.files);
+    // The release index was just checked, and the server/instance locks still
+    // cover this scan. Only byte-identical declared direct nested jars qualify;
+    // the generic rule also applies to other generators, not just Connector.
+    let scan_base = instance_dir.clone();
+    let scan_server = server.clone();
+    let scan_files = detected.files.clone();
+    let scan_prefix = detected.prefix.clone();
+    let scan_preparation = Arc::clone(&preparation);
+    let scan_lease = Arc::clone(&release_lease);
+    let scan_result = tokio::task::spawn_blocking(move || {
+        let _preparation = scan_preparation;
+        let _lease = scan_lease;
+        let game = scan_base.join("game");
+        let mut checked = super::connector::ParentChecks::default();
+        super::launch::scan_packs_with(&scan_base, &scan_server, &scan_files, |relative| {
+            super::connector::matches_verified_nested(
+                &game,
+                &verified_index,
+                &scan_prefix,
+                relative,
+                &mut checked,
+            )
+        })
+    })
+    .await
+    .map_err(|_| join_error())
+    .and_then(|result| result);
     log_preparation_stage(
         "pack_safety",
         scan_started,
@@ -1113,6 +1556,10 @@ pub async fn mc_play(
     if let Some(message) = scan.blocked {
         return Err(LineError::new(ErrorCode::Integrity, message, false));
     }
+
+    // The release is no longer read; allow provider updates while the
+    // separately locked live instance installs missing Minecraft components.
+    drop(release_lease);
 
     // 4. Fill only the gaps. A loader found inside the instance is used as is;
     //    one requested by the provider is installed only when none is there.
@@ -1138,7 +1585,102 @@ pub async fn mc_play(
     } else {
         None
     };
-    if !detected.missing.is_empty() || loader.is_some() || detected.generated_profile {
+    let live_asset_issues = if server.source.is_none() {
+        detected
+            .live_assets
+            .map(|inventory| inventory.missing + inventory.wrong_size + inventory.wrong_hash)
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    // A verified live client/asset set supersedes stale archive-only hints.
+    // Everything without complete evidence remains conservative and still
+    // prompts. This does not establish completeness of libraries or natives.
+    let verified_client = detected.live_runtime.as_ref().is_some_and(|inventory| {
+        inventory
+            .verified_clients
+            .contains(&detected.minecraft_version)
+    });
+    let verified_assets = detected.live_assets.is_some_and(|inventory| {
+        inventory.missing == 0 && inventory.wrong_size == 0 && inventory.wrong_hash == 0
+    });
+    let unresolved_hints = if server.source.is_none() {
+        super::repair_evidence::unresolved_archive_hints(
+            &detected.missing,
+            verified_client,
+            verified_assets,
+        )
+    } else {
+        detected.missing.clone()
+    };
+    let live_runtime_issues = detected
+        .live_runtime
+        .as_ref()
+        .map(|value| value.missing + value.wrong_size + value.wrong_hash)
+        .unwrap_or(0);
+    if !unresolved_hints.is_empty()
+        || live_runtime_issues > 0
+        || loader.is_some()
+        || detected.generated_profile
+        || live_asset_issues > 0
+    {
+        // ZIP repair consent is scoped to this exact release and operation. The
+        // list describes archive hints, not an exhaustive file-level plan: the
+        // installer checks official metadata and may need additional components.
+        if server.source.is_none() {
+            let plan = super::zip_repair::ZipRepairPlan {
+                schema: 1,
+                server_id: server.id.clone(),
+                instance_id: instance_id.clone(),
+                release_sha256: receipt.sha256.clone(),
+                minecraft_version: detected.minecraft_version.clone(),
+                profile_id: detected.version_id.clone(),
+                detected_loader: detected
+                    .loader
+                    .as_ref()
+                    .map(|(kind, version)| format!("{kind:?}:{version}")),
+                requested_loader: request.loader.as_ref().map(|value| {
+                    format!("{}:{}", value.kind, value.version.as_deref().unwrap_or(""))
+                }),
+                generated_profile: detected.generated_profile,
+                install_loader: loader.is_some(),
+                missing_from_archive: unresolved_hints
+                    .iter()
+                    .map(|value| (*value).to_string())
+                    .collect(),
+                live_asset_issues,
+                live_asset_digest: detected.live_asset_digest.clone(),
+                live_asset_preview: detected.live_asset_preview.clone(),
+                live_runtime_issues,
+                live_runtime_files: detected
+                    .live_runtime
+                    .as_ref()
+                    .map(|value| value.issues.clone())
+                    .unwrap_or_default(),
+                live_runtime_bytes: detected
+                    .live_runtime
+                    .as_ref()
+                    .map(|value| value.needed_bytes)
+                    .unwrap_or(0),
+                live_runtime_skipped: detected
+                    .live_runtime
+                    .as_ref()
+                    .map(|value| value.skipped)
+                    .unwrap_or(0),
+                live_asset_bytes: detected
+                    .live_assets
+                    .map(|value| value.needed_bytes)
+                    .unwrap_or(0),
+                prepare_only: request.prepare_only,
+                test_mode: request.test_mode,
+            };
+            if !plan.is_approved_by(request.approve_zip_repair.as_ref()) {
+                let mut error = LineError::new(ErrorCode::ConfirmationRequired,
+                    "Для подготовки ZIP нужны дополнительные компоненты Minecraft. Подтвердите их проверку и возможную загрузку.", false);
+                error.zip_repair = Some(Box::new(plan));
+                return Err(error);
+            }
+        }
         let loader_started = std::time::Instant::now();
         let filled_result = install_profile(
             &app,
@@ -1146,6 +1688,8 @@ pub async fn mc_play(
             instance_id.clone(),
             detected.minecraft_version.clone(),
             loader,
+            Some(Arc::clone(&preparation.1)),
+            java_consent.as_ref(),
         )
         .await;
         log_preparation_stage(
@@ -1189,6 +1733,8 @@ pub async fn mc_play(
         host,
         port,
         request.test_mode,
+        Some(Arc::clone(&preparation.1)),
+        java_consent.as_ref(),
     )
     .await
 }
@@ -1227,21 +1773,23 @@ async fn launch_profile(
     host: String,
     port: u16,
     test_mode: bool,
+    preparation_lease: Option<Arc<InstallLock>>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<McGameStatus> {
     // One account per project: the nickname and the stable UUID come from it.
     let session = line.session()?;
     let username = session.username.clone();
     let uuid = player_uuid(&username);
     let stop = Arc::new(AtomicBool::new(false));
-    {
-        let mut inner = state.lock()?;
-        if inner.installing.contains(&instance_id)
-            || inner.running.contains_key(&instance_id)
-            || !inner.starting.insert(instance_id.clone())
-        {
-            return Err(busy());
-        }
-    }
+    let claim = state.begin_start(&instance_id, preparation_lease.is_some())?;
+    let lease = match preparation_lease {
+        Some(lease) => lease,
+        None => acquire_instance_lease(app, &instance_id)?,
+    };
+    let claim = Arc::new(InstanceOperation {
+        _claim: claim,
+        lease,
+    });
 
     let started = start_game(
         app,
@@ -1254,11 +1802,12 @@ async fn launch_profile(
         port,
         test_mode,
         stop,
+        &claim,
+        java_consent,
     )
     .await;
-    if let Ok(mut inner) = state.lock() {
-        inner.starting.remove(&instance_id);
-        if started.is_err() {
+    if started.is_err() {
+        if let Ok(mut inner) = state.lock() {
             inner.running.remove(&instance_id);
         }
     }
@@ -1270,10 +1819,18 @@ async fn launch_profile(
                 McGameStatus {
                     instance_id,
                     version_id,
-                    phase: GamePhase::Failed,
+                    phase: if error.code == ErrorCode::ConfirmationRequired {
+                        GamePhase::Idle
+                    } else {
+                        GamePhase::Failed
+                    },
                     started_at: None,
                     exit_code: None,
-                    message: Some(error.message.clone()),
+                    message: if error.code == ErrorCode::ConfirmationRequired {
+                        None
+                    } else {
+                        Some(error.message.clone())
+                    },
                 },
             );
             Err(error)
@@ -1293,6 +1850,8 @@ async fn start_game(
     port: u16,
     test_mode: bool,
     stop: Arc<AtomicBool>,
+    claim: &Arc<InstanceOperation>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<McGameStatus> {
     let dir = instance_root(app, instance_id)?;
     let game_dir = dir.join("game");
@@ -1311,8 +1870,10 @@ async fn start_game(
 
     let load_dir = game_dir.clone();
     let load_id = version_id.to_string();
+    let load_claim = Arc::clone(claim);
     let (version, component, required_major, quick_play) = tokio::task::spawn_blocking(
         move || -> LineResult<(VersionJson, Option<String>, u16, bool)> {
+            let _worker_claim = load_claim;
             let launcher = Launcher::new(load_dir);
             let version = launcher.load_version(&load_id).map_err(mc_error)?;
             let (component, major) = match &version.java_version {
@@ -1338,10 +1899,16 @@ async fn start_game(
     let java_path = resolve_java(
         &dir,
         component,
-        required_major,
+        JavaRequirement {
+            major: required_major,
+            allow_newer_explicit: true,
+        },
         &preferences,
         app,
         instance_id,
+        claim,
+        java_consent,
+        "launch",
     )
     .await?;
 
@@ -1350,7 +1917,9 @@ async fn start_game(
     let account_uuid = uuid.to_string();
     let window = (preferences.window_width, preferences.window_height);
     let join_host = host.to_string();
+    let build_claim = Arc::clone(claim);
     let command = tokio::task::spawn_blocking(move || -> LineResult<LaunchCommand> {
+        let _worker_claim = build_claim;
         let launcher = Launcher::new(build_dir);
         let options = LaunchOptions {
             account: Account::Offline {
@@ -1440,7 +2009,10 @@ async fn start_game(
     let monitor_app = app.clone();
     let monitor_instance = instance_id.to_string();
     let monitor_version = version_id.to_string();
+    // Keep the cross-process lease for the entire lifetime of the game.
+    let game_lease = Arc::clone(&claim.lease);
     tauri::async_runtime::spawn(async move {
+        let _game_lease = game_lease;
         let exit = loop {
             if stop.load(Ordering::Acquire) {
                 let _ = child.kill().await;
@@ -1518,6 +2090,223 @@ pub async fn mc_status(
             message: None,
         },
     })
+}
+
+#[cfg(test)]
+mod preparation_lock_tests {
+    use super::*;
+
+    #[test]
+    fn preparation_claim_is_exclusive_per_instance_and_released_on_drop() {
+        let state = MinecraftState::default();
+        let first = state.begin_preparation("server-one").unwrap();
+        std::thread::scope(|scope| {
+            let other = scope.spawn(|| state.begin_preparation("server-one").is_err());
+            assert!(other.join().unwrap());
+        });
+        let other_instance = state.begin_preparation("server-two").unwrap();
+        drop(other_instance);
+        drop(first);
+        assert!(state.begin_preparation("server-one").is_ok());
+    }
+
+    #[test]
+    fn blocking_worker_keeps_claim_after_awaiter_drops_it() {
+        let state = MinecraftState::default();
+        let guard = state.begin_preparation("server").unwrap();
+        let worker_guard = Arc::clone(&guard);
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _guard = worker_guard;
+            ready_tx.send(()).unwrap();
+            finish_rx.recv().unwrap();
+        });
+        ready_rx.recv().unwrap();
+        drop(guard); // The async caller can disappear while blocking work continues.
+        assert!(state.begin_preparation("server").is_err());
+        assert!(state.begin_preparation("other").is_ok());
+        finish_tx.send(()).unwrap();
+        worker.join().unwrap();
+        assert!(state.begin_preparation("server").is_ok());
+    }
+
+    #[test]
+    fn install_and_start_claims_survive_detached_workers_and_release() {
+        for install in [true, false] {
+            let state = MinecraftState::default();
+            let claim = if install {
+                state.begin_install("server", false).unwrap()
+            } else {
+                state.begin_start("server", false).unwrap()
+            };
+            let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+            let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+            let worker_claim = Arc::clone(&claim);
+            let worker = std::thread::spawn(move || {
+                let _claim = worker_claim;
+                ready_tx.send(()).unwrap();
+                finish_rx.recv().unwrap();
+            });
+            ready_rx.recv().unwrap();
+            drop(claim);
+            assert!(state.begin_preparation("server").is_err());
+            assert!(state.begin_install("server", false).is_err());
+            assert!(state.begin_start("server", false).is_err());
+            finish_tx.send(()).unwrap();
+            worker.join().unwrap();
+            assert!(state.begin_preparation("server").is_ok());
+        }
+    }
+
+    #[test]
+    fn nested_operation_claims_do_not_bypass_other_active_operations() {
+        let state = MinecraftState::default();
+        let preparation = state.begin_preparation("server").unwrap();
+        assert!(state.begin_install("server", false).is_err());
+        assert!(state.begin_start("server", false).is_err());
+        let install = state.begin_install("server", true).unwrap();
+        assert!(state.begin_start("server", true).is_err());
+        drop(install);
+        let start = state.begin_start("server", true).unwrap();
+        assert!(state.begin_install("server", true).is_err());
+        drop(start);
+        drop(preparation);
+        assert!(state.begin_install("server", false).is_ok());
+    }
+
+    #[test]
+    fn instance_file_lock_survives_worker_and_excludes_another_process() {
+        const CHILD_DIR: &str = "LINE_TEST_INSTANCE_LOCK_DIR";
+        const CHILD_BUSY: &str = "LINE_TEST_INSTANCE_LOCK_BUSY";
+        if let Some(dir) = std::env::var_os(CHILD_DIR) {
+            let expected_busy = std::env::var_os(CHILD_BUSY).is_some();
+            let result = InstallLock::acquire(std::path::Path::new(&dir));
+            if expected_busy {
+                assert_eq!(result.err().unwrap().code, ErrorCode::Busy);
+            } else {
+                assert!(result.is_ok());
+            }
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("line-instance-lock-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let lease = Arc::new(InstallLock::acquire(&dir).unwrap());
+        let worker_lease = Arc::clone(&lease);
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _lease = worker_lease;
+            ready_tx.send(()).unwrap();
+            finish_rx.recv().unwrap();
+        });
+        ready_rx.recv().unwrap();
+        drop(lease);
+        let check_child = |busy: bool| {
+            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .arg("instance_file_lock_survives_worker_and_excludes_another_process")
+                .arg("--test-threads=1")
+                .env(CHILD_DIR, &dir);
+            if busy {
+                command.env(CHILD_BUSY, "1");
+            } else {
+                command.env_remove(CHILD_BUSY);
+            }
+            let output = command.output().unwrap();
+            assert!(
+                output.status.success(),
+                "child failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        };
+        check_child(true);
+        finish_tx.send(()).unwrap();
+        worker.join().unwrap();
+        check_child(false);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn loader_command_passes_paths_as_distinct_arguments_without_a_shell() {
+        let command = loader_installer_command(
+            Path::new("java path/java"),
+            Path::new("installer path/setup.jar"),
+            Path::new("game path"),
+        );
+        assert_eq!(
+            command.get_program(),
+            std::ffi::OsStr::new("java path/java")
+        );
+        let args: Vec<_> = command.get_args().collect();
+        assert_eq!(
+            args,
+            [
+                std::ffi::OsStr::new("-jar"),
+                std::ffi::OsStr::new("installer path/setup.jar"),
+                std::ffi::OsStr::new("--installClient"),
+                std::ffi::OsStr::new("game path")
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn loader_log_rejects_symlink() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("logs")).unwrap();
+        let external = root.path().join("external");
+        std::fs::write(&external, b"keep").unwrap();
+        std::os::unix::fs::symlink(&external, root.path().join("logs/line-loader-install.log"))
+            .unwrap();
+        assert!(run_quiet_loader_installer(
+            Path::new("java"),
+            Path::new("installer.jar"),
+            root.path()
+        )
+        .is_err());
+        assert_eq!(std::fs::read(external).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn preparation_refuses_existing_install_start_or_running_game() {
+        let state = MinecraftState::default();
+        {
+            let mut inner = state.lock().unwrap();
+            inner.installing.insert("server".into());
+        }
+        assert!(state.begin_preparation("server").is_err());
+        {
+            let mut inner = state.lock().unwrap();
+            inner.installing.remove("server");
+            inner.starting.insert("server".into());
+        }
+        assert!(state.begin_preparation("server").is_err());
+        {
+            let mut inner = state.lock().unwrap();
+            inner.starting.remove("server");
+            inner.running.insert(
+                "server".into(),
+                Running {
+                    stop: Arc::new(AtomicBool::new(false)),
+                    version_id: "1.20.1".into(),
+                    started_at: 1,
+                },
+            );
+        }
+        assert!(state.begin_preparation("server").is_err());
+    }
+
+    #[test]
+    fn early_error_releases_preparation_claim() {
+        fn fail_after_claim(state: &MinecraftState) -> LineResult<()> {
+            let _guard = state.begin_preparation("server")?;
+            Err(LineError::input("simulated error"))
+        }
+        let state = MinecraftState::default();
+        assert!(fail_after_claim(&state).is_err());
+        assert!(state.begin_preparation("server").is_ok());
+    }
 }
 
 #[cfg(test)]

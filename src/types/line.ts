@@ -166,7 +166,7 @@ export interface LineSource {
 
 /** Provider-side resource-pack checking. Absent = the defaults. */
 export interface LineAnticheat {
-  /** Keyword scan on packs; the foreign-file list is not optional. */
+  /** Keyword scan on resource packs; mod composition is checked separately. */
   scan_resourcepacks?: boolean;
   /** Unioned with the built-in list; cannot remove a built-in word. */
   extra_keywords?: string[];
@@ -280,6 +280,7 @@ export type LineErrorCode =
   | "RATE_LIMITED"
   | "AUTH_REQUIRED"
   | "JAVA_REQUIRED"
+  | "CONFIRMATION_REQUIRED"
   | "INTEGRITY"
   | "UNSAFE_ARCHIVE"
   | "STORAGE"
@@ -293,6 +294,44 @@ export interface LineError {
   message: string;
   retryable: boolean;
   httpStatus?: number;
+  zipRepair?: ZipRepairPlan;
+  javaDownload?: JavaDownloadPlan;
+}
+
+export interface JavaDownloadPlan {
+  schema: number;
+  serverId: string;
+  instanceId: string;
+  releaseSha256: string;
+  major: number;
+  purpose: "loader" | "launch";
+  source: "adoptium" | "mojang";
+  prepareOnly: boolean;
+  testMode: boolean;
+}
+
+export interface ZipRepairPlan {
+  schema: number;
+  serverId: string;
+  instanceId: string;
+  releaseSha256: string;
+  minecraftVersion: string;
+  profileId: string;
+  detectedLoader: string | null;
+  requestedLoader: string | null;
+  generatedProfile: boolean;
+  installLoader: boolean;
+  missingFromArchive: string[];
+  liveAssetIssues: number;
+  liveAssetDigest: string | null;
+  liveAssetPreview: string[];
+  liveAssetBytes: number;
+  liveRuntimeIssues: number;
+  liveRuntimeFiles: string[];
+  liveRuntimeBytes: number;
+  liveRuntimeSkipped: number;
+  prepareOnly: boolean;
+  testMode: boolean;
 }
 
 export type InstallPhase =
@@ -400,6 +439,7 @@ export function isLineError(value: unknown): value is LineError {
     "RATE_LIMITED",
     "AUTH_REQUIRED",
     "JAVA_REQUIRED",
+    "CONFIRMATION_REQUIRED",
     "INTEGRITY",
     "UNSAFE_ARCHIVE",
     "STORAGE",
@@ -486,6 +526,8 @@ export interface McPlayRequest {
   serverAddress?: string;
   testMode?: boolean;
   prepareOnly?: boolean;
+  approveZipRepair?: ZipRepairPlan;
+  approveJavaDownload?: JavaDownloadPlan;
 }
 
 /** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */

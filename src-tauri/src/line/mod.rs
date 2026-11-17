@@ -1,6 +1,8 @@
+pub mod asset_inventory;
 pub mod auth;
 pub mod config;
 pub mod config_commands;
+mod connector;
 #[cfg(feature = "dev-provider-ca")]
 pub mod dev_ca;
 pub mod diagnostics;
@@ -14,14 +16,19 @@ pub mod integrity;
 pub mod ipc;
 pub mod java;
 pub mod java_auto;
+pub mod java_consent;
 pub mod launch;
 pub mod launch_manifest;
 pub mod logger;
 pub mod minecraft;
 pub mod minecraft_core;
 pub mod pack;
+pub mod prism;
+mod release_swap;
+mod repair_evidence;
 pub mod resourcepack;
 pub mod rollback;
+pub mod runtime_inventory;
 pub mod settings;
 pub mod skin_library;
 pub mod source;
@@ -30,5 +37,6 @@ pub mod storage;
 pub mod support;
 pub mod tray;
 pub mod wardrobe;
+pub mod zip_repair;
 
 pub const LAUNCHER_VERSION: &str = env!("CARGO_PKG_VERSION");

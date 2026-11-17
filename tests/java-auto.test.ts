@@ -49,3 +49,24 @@ test("runtime is verified, bounded, extracted safely and reused", () => {
   assert.match(auto, /runtime\.major != major/);
   assert.match(auto, /downloads_java_17_and_reuses_verified_install/);
 });
+
+test("explicit newer Java is limited to Minecraft game launch, not installer or auto-discovery", () => {
+  const minecraft = readFileSync(
+    new URL("../src-tauri/src/line/minecraft.rs", import.meta.url),
+    "utf8",
+  );
+  const resolve = minecraft.slice(
+    minecraft.indexOf("async fn resolve_java("),
+    minecraft.indexOf("fn emit_status("),
+  );
+  assert.match(resolve, /allow_newer_explicit && accepts_explicit_java/);
+  assert.match(resolve, /java::discover\(required_major\)/);
+  assert.match(resolve, /existing\.major == required_major/);
+  const installer = minecraft.slice(
+    minecraft.indexOf("async fn install_legacy_neoforge("),
+    minecraft.indexOf("async fn resolve_java("),
+  );
+  assert.match(installer, /major: 17,\s*allow_newer_explicit: false/);
+  const game = minecraft.slice(minecraft.indexOf("async fn launch_profile("));
+  assert.match(game, /major: required_major,\s*allow_newer_explicit: true/);
+});

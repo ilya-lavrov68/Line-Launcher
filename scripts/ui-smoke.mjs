@@ -937,7 +937,12 @@ try {
   await downloadWidget.getByRole("button", { name: "Открыть" }).click();
   await page.getByRole("region", { name: "Survival" }).waitFor();
   await page.getByRole("button", { name: "Все серверы", exact: true }).click();
-  await page.evaluate(() => window.__releaseInstall());
+  await page.evaluate(() => {
+    // Only the first install is deliberately held; later server installs must
+    // finish normally rather than wait on an already-resolved promise.
+    window.__holdInstall = false;
+    window.__releaseInstall();
+  });
   await downloadWidget.getByText("Подготовка завершена").waitFor();
   await downloadWidget.getByRole("button", { name: "Открыть" }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();

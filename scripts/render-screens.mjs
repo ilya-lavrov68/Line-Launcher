@@ -1,13 +1,13 @@
 // Draws the README screenshots without a browser.
 //
-//   node scripts/render-screens.mjs            # writes docs/images/line-*.png
+//   node scripts/render-screens.mjs            # writes .offline-shots/line-*.png
 //   node scripts/render-screens.mjs --check    # fails if any image is missing
 //   SHOTS_DIR=/tmp/out node scripts/render-screens.mjs
 //
 // Why this exists: `npm run screenshots` renders the real app through
 // playwright-core and is the source of truth. It needs Chrome/Edge, which some
 // build machines (and CI containers without libnss) do not have. This script is
-// the deterministic fallback: every colour is read from `src/index.css`,
+// a deterministic approximation: colours are read from `src/index.css`,
 // the same tokens the app renders with, and every screen is laid out at one fixed
 // size (1280x800) so the gallery never mixes tall and short images again.
 //

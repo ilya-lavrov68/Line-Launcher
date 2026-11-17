@@ -135,8 +135,15 @@ npx playwright-core install chromium
 npm run test:ui           # сквозной сценарий интерфейса
 npm run test:boot         # подключение при старте ровно один раз
 npm run screenshots       # обновить картинки для README (1280x800)
-npm run screenshots:offline  # то же без браузера: отрисовка токенами
+npm run screenshots:offline  # приблизительные рисунки в .offline-shots/, не снимки
 ```
+
+При изменении интерфейса, установки или поведения обновляйте связанные разделы
+README и `docs/` в том же PR. Исторические планы и результаты не являются
+подтверждением текущей ветки: текущие ограничения — в
+[INSTALLATION-AUDIT.md](INSTALLATION-AUDIT.md) и [VERIFICATION.md](VERIFICATION.md).
+Скриншоты обновляются только после успешного полного браузерного прохода; данные
+и команды Tauri при съёмке заменены тестовой заглушкой.
 
 Rust целиком:
 

@@ -177,8 +177,8 @@ test("Minecraft dock keeps actions and errors prominent, with explanations on de
   assert.match(panel, /<details className=/);
   assert.match(panel, /<summary[^>]*>[\s\S]*?t\("mc\.launchDetails"\)/);
   const details = panel.slice(
-    panel.indexOf("<details"),
-    panel.indexOf("</details>"),
+    panel.lastIndexOf("<details", panel.indexOf('t("mc.launchDetails")')),
+    panel.indexOf("</details>", panel.indexOf('t("mc.launchDetails")')),
   );
   assert.match(details, /t\("mc\.testModeHint"\)/);
   assert.match(details, /t\("mc\.onlineMode"\)/);

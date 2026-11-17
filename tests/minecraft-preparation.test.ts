@@ -68,3 +68,144 @@ test("progress is phase-specific and reports completed files without false aggre
       detail.indexOf('data-testid="source-line"'),
   );
 });
+
+test("preparation claims the instance before touching its files and blocks direct install or launch", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  assert.ok(
+    play.indexOf("state.begin_preparation(&instance_id)?") <
+      play.indexOf("pack::effective_server("),
+  );
+  assert.ok(
+    play.indexOf("state.begin_preparation(&instance_id)?") <
+      play.indexOf("pack::sync_game_dir("),
+  );
+  assert.match(rust, /fn begin_install\(/);
+  assert.match(rust, /fn begin_start\(/);
+  assert.match(
+    rust,
+    /state\.begin_install\(&instance_id, preparation_lease\.is_some\(\)\)/,
+  );
+  assert.match(
+    rust,
+    /state\.begin_start\(&instance_id, preparation_lease\.is_some\(\)\)/,
+  );
+  assert.match(
+    rust,
+    /inner\.preparing\.contains\(instance_id\) && !within_preparation/,
+  );
+  assert.match(rust, /impl Drop for PreparationGuard/);
+});
+
+test("the live sync blocking worker retains the preparation claim when its awaiter is dropped", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  const clone = play.indexOf(
+    "let worker_preparation = Arc::clone(&preparation)",
+  );
+  const worker = play.indexOf("tokio::task::spawn_blocking", clone);
+  const hold = play.indexOf(
+    "let _worker_preparation = worker_preparation",
+    worker,
+  );
+  const sync = play.indexOf("pack::sync_game_dir(", hold);
+  assert.ok(clone >= 0 && worker > clone && hold > worker && sync > hold);
+});
+
+test("blocking install and launch work retains operation claims and Java extraction owns its staging lock", () => {
+  const java = read("src-tauri/src/line/java_auto.rs");
+  assert.match(rust, /let worker_claim = Arc::clone\(&claim\)/);
+  assert.match(rust, /let load_claim = Arc::clone\(claim\)/);
+  assert.match(rust, /let build_claim = Arc::clone\(claim\)/);
+  assert.match(java, /let worker_temp = Arc::clone\(&temp\)/);
+  assert.match(java, /let worker_lock = Arc::clone\(&lock\)/);
+});
+
+test("cooperating launcher processes hold an instance lease through sync, install, launch and game monitor", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  assert.ok(
+    play.indexOf("acquire_instance_lease(&app, &instance_id)?") <
+      play.indexOf("pack::sync_game_dir("),
+  );
+  assert.match(play, /Some\(Arc::clone\(&preparation\.1\)\)/);
+  assert.match(rust, /None => acquire_instance_lease\(app, &instance_id\)\?/);
+  assert.match(rust, /let game_lease = Arc::clone\(&claim\.lease\)/);
+  assert.match(rust, /let _game_lease = game_lease/);
+});
+
+test("release stays locked across verified sync and stale receipts are rejected", () => {
+  const play = rust.slice(
+    rust.indexOf("pub async fn mc_play("),
+    rust.indexOf("async fn launch_profile("),
+  );
+  const lock = play.indexOf(
+    "let release_lease = Arc::new(InstallLock::acquire(&base)?)",
+  );
+  const current = play.indexOf(
+    "install::current_receipt(&base, &server.id)",
+    lock,
+  );
+  const clone = play.indexOf("Arc::clone(&release_lease)", current);
+  const hold = play.indexOf(
+    "let _worker_release_lease = worker_release_lease",
+    clone,
+  );
+  const scan = play.indexOf("integrity::scan(&release)", hold);
+  const sync = play.indexOf("pack::sync_game_dir(", scan);
+  const release = play.indexOf("drop(release_lease)", sync);
+  assert.ok(
+    lock >= 0 &&
+      current > lock &&
+      clone > current &&
+      hold > clone &&
+      scan > hold &&
+      sync > scan &&
+      release > sync,
+  );
+  assert.match(play.slice(current, clone), /value\.sha256 == receipt\.sha256/);
+});
+
+test("ZIP extraction retains its server lock if the awaiter disappears", () => {
+  const install = read("src-tauri/src/line/install.rs");
+  const inner = install.slice(
+    install.indexOf("async fn install_inner("),
+    install.indexOf("pub async fn download_and_extract_zip("),
+  );
+  assert.match(inner, /let lock = Arc::new\(InstallLock::acquire\(base\)\?\)/);
+  assert.match(inner, /let worker_lock = Arc::clone\(&lock\)/);
+  assert.match(inner, /let _worker_lock = worker_lock/);
+});
+
+test("Minecraft status does not claim readiness after errors or while awaiting confirmation", () => {
+  assert.match(panel, /idle: t\("minecraft.notRunning"\)/);
+  assert.match(panel, /!running && error[\s\S]*?t\("minecraft.failed"\)/);
+  assert.match(
+    panel,
+    /!running && pendingRepair[\s\S]*?t\("minecraft.confirmationNeeded"\)/,
+  );
+});
+
+test("source installation survives caller cancellation long enough to drain writers under its lock", () => {
+  const sourceInstall = read("src-tauri/src/line/source/install.rs");
+  const state = read("src-tauri/src/line/state.rs");
+  assert.match(sourceInstall, /struct CancelSourceOnDrop/);
+  assert.match(sourceInstall, /cancel\.store\(true, Ordering::Release\)/);
+  assert.match(sourceInstall, /tokio::spawn\(work\)\.await/);
+  assert.match(
+    sourceInstall,
+    /install_source_inner\(&client, &server, &base, &operation_id, worker_cancel, &sink\)/,
+  );
+  assert.match(state, /impl Drop for InstallRegistration/);
+  assert.match(
+    state,
+    /self\.state\s*\.finish_install\(&self\.server_id, &self\.operation_id\)/,
+  );
+  assert.match(rust, /line\.register_install\(&server\.id, &operation_id\)/);
+});

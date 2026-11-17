@@ -11,8 +11,8 @@ import { useEffect } from "react";
  * greeting does not have a caption.
  *
  * It covers the launcher, so it has no chrome of its own — no title bar, no
- * rail, no panel. Only the word, over the page's own colour field, which shows
- * through a wash light enough to leave the gradient visible.
+ * rail, no panel. Only the word over the same colour field used by the rest
+ * of the launcher; the greeting does not change the backdrop on exit.
  */
 export interface WelcomeScreenProps {
   /** Runs when the word has been written and the hold has elapsed. */
@@ -25,18 +25,6 @@ export interface WelcomeScreenProps {
 const DRAW_DURATION = 1.15;
 /** Shortest time the greeting may stay on screen, motion or not. */
 const REDUCED_MIN_MS = 1500;
-
-/**
- * The wash over the backdrop.
- *
- * Light on purpose. The first version went to 94% black at the edges, which is
- * not a wash — it is a lid: the animated gradient behind the greeting, the one
- * thing that makes the first second feel like this launcher, was invisible. At
- * these stops the field still reads through the middle and only the corners
- * are pulled down far enough to keep a white word crisp.
- */
-const WASH =
-  "radial-gradient(120% 100% at 50% 42%, rgba(8,9,12,0.28), rgba(8,9,12,0.52) 78%)";
 
 export default function WelcomeScreen({
   onDone,
@@ -76,7 +64,6 @@ export default function WelcomeScreen({
         transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
       }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
-      style={{ background: WASH }}
     >
       {/*
         One element, one mask — the word is never split into per-letter boxes.

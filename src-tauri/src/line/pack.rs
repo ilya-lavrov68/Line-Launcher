@@ -192,6 +192,17 @@ pub struct DetectedInstance {
     pub generated_profile: bool,
     /// Parts that must come from the official hosts (`instance::missing_parts`).
     pub missing: Vec<&'static str>,
+    /// Optional read-only inventory. Size matches are not SHA-1 validation.
+    pub asset_inventory: Option<super::asset_inventory::AssetInventory>,
+    /// Safe index id if a verified release supplied a readable asset index.
+    pub asset_index_id: Option<String>,
+    /// Live-file audit runs on prepare, or on ZIP play when archive assets are absent.
+    pub live_assets: Option<super::asset_inventory::LiveAssets>,
+    /// Digest and bounded preview of the exact set of live asset issues.
+    pub live_asset_digest: Option<String>,
+    pub live_asset_preview: Vec<String>,
+    /// Partial live SHA-1 inventory of runtime files with explicit metadata.
+    pub live_runtime: Option<super::runtime_inventory::RuntimeInventory>,
     /// Game-relative files the pack owns.
     pub files: Vec<String>,
 }
@@ -244,6 +255,30 @@ fn asset_index(json: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Bounded read from the already-scanned immutable release, never the live game.
+pub fn read_release_asset_index(release: &Path, prefix: &str, id: &str) -> LineResult<Vec<u8>> {
+    use std::io::Read;
+    let id = validate_version_id(id)?;
+    let path = release
+        .join(prefix)
+        .join("assets/indexes")
+        .join(format!("{id}.json"));
+    if !is_real_file(&path) {
+        return Err(LineError::new(
+            ErrorCode::Integrity,
+            "Индекс ресурсов отсутствует или заменён ссылкой.",
+            false,
+        ));
+    }
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| LineError::io(&e))?
+        .take(super::asset_inventory::MAX_ASSET_INDEX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| LineError::io(&e))?;
+    Ok(bytes)
+}
+
 /// Reads the verified archive's file list and version JSONs and decides what to
 /// launch. Nothing is guessed from folder names alone: the loader comes from
 /// Maven coordinates, the vanilla version from `inheritsFrom`/`jar`.
@@ -278,6 +313,55 @@ pub fn inspect(
             loader.is_some() || json.get("inheritsFrom").is_some(),
         ));
     }
+    // Prism stores its component list beside either game directory spelling.
+    // Never ignore that list when a Mojang profile happens to exist as well.
+    let prism_root = prefix
+        .strip_suffix(".minecraft/")
+        .or_else(|| prefix.strip_suffix("minecraft/"));
+    let mut prism = None;
+    if let Some(root) = prism_root {
+        let metadata = format!("{root}mmc-pack.json");
+        if paths.iter().any(|path| path == &metadata) {
+            let dot_game = format!("{root}.minecraft/");
+            let plain_game = format!("{root}minecraft/");
+            if paths.iter().any(|path| path.starts_with(&dot_game))
+                && paths.iter().any(|path| path.starts_with(&plain_game))
+            {
+                return Err(LineError::input("В архиве Prism найдены обе папки игры: minecraft и .minecraft. Уточните состав архива."));
+            }
+            let metadata_path = release.join(&metadata);
+            if !is_real_file(&metadata_path) {
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    "Метаданные Prism отсутствуют или заменены ссылкой.",
+                    false,
+                ));
+            }
+            use std::io::Read;
+            let mut bytes = Vec::new();
+            fs::File::open(&metadata_path)
+                .map_err(|e| LineError::io(&e))?
+                .take(256 * 1024 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|e| LineError::io(&e))?;
+            let profile = super::prism::PrismProfile::parse(&bytes)?;
+            let patches = format!("{root}patches/");
+            let has_patches = paths.iter().any(|path| path.starts_with(&patches));
+            if candidates.is_empty() {
+                let requirements = profile.requirements(has_patches, hint)?;
+                let lwjgl = requirements
+                    .lwjgl
+                    .as_ref()
+                    .map(|(uid, version)| format!(" {uid}: {version}."))
+                    .unwrap_or_default();
+                return Err(LineError::input(format!(
+                    "Обнаружен экземпляр Prism Launcher без профиля versions. {}{lwjgl} Метаданные mmc-pack.json пока не поддерживаются для установки: загрузчик не будет установлен автоматически. Дождитесь поддержки Prism.",
+                    profile.summary()
+                )));
+            }
+            prism = Some((profile, has_patches));
+        }
+    }
     // A mods-only archive has no profiles at all: then the provider's version
     // hint is the contract, and the official hosts supply the rest.
     let version_id = if candidates.is_empty() {
@@ -301,6 +385,43 @@ pub fn inspect(
     let loader = profile_loader(&profile);
     let inherited = text_field(&profile, "inheritsFrom").or_else(|| text_field(&profile, "jar"));
     let minecraft_version = validate_version_id(inherited.unwrap_or(&version_id))?;
+    // When the server hint names an included vanilla profile, it denotes the
+    // expected base. A unique loader for another base is not a safe fallback.
+    if let Some(hint) = hint.map(str::trim) {
+        if candidates
+            .iter()
+            .any(|(id, is_loader)| id == hint && !is_loader)
+            && version_id != hint
+            && minecraft_version != hint
+        {
+            return Err(LineError::input(
+                "Профиль загрузчика относится к другой версии Minecraft, чем указано у сервера.",
+            ));
+        }
+    }
+    if let Some((profile, has_patches)) = &prism {
+        profile.verify_profile_identity(
+            &minecraft_version,
+            loader
+                .as_ref()
+                .map(|(kind, version)| (*kind, version.as_str())),
+            *has_patches,
+        )?;
+        // LWJGL is frequently on the inherited vanilla profile rather than the
+        // loader profile. Its Prism pin must not be silently ignored.
+        let mut libraries = library_names(&read_json(&profile_path)?);
+        if minecraft_version != version_id {
+            let parent = release
+                .join(&prefix)
+                .join("versions")
+                .join(&minecraft_version)
+                .join(format!("{minecraft_version}.json"));
+            if is_real_file(&parent) {
+                libraries.extend(library_names(&read_json(&parent)?));
+            }
+        }
+        profile.verify_lwjgl(libraries.iter().map(String::as_str))?;
+    }
     // Assets are described by the vanilla profile when a loader inherits it.
     let mut assets = asset_index(&profile);
     if assets.is_none() && minecraft_version != version_id {
@@ -313,6 +434,24 @@ pub fn inspect(
             assets = asset_index(&read_json(&parent)?);
         }
     }
+    // Inventory only: do not infer content integrity from a matching size, and
+    // do not use this diagnostic to trigger downloads without a repair plan.
+    let asset_index_id = assets
+        .as_deref()
+        .and_then(|id| validate_version_id(id).ok())
+        .filter(|id| paths.contains(&format!("{prefix}assets/indexes/{id}.json")));
+    let asset_inventory = asset_index_id.as_deref().and_then(|id| {
+        let bytes = read_release_asset_index(release, &prefix, id).ok()?;
+        super::asset_inventory::inventory(
+            &bytes,
+            index
+                .files
+                .iter()
+                .map(|entry| (entry.path.clone(), entry.size)),
+            &prefix,
+        )
+        .ok()
+    });
     let missing = instance::missing_parts(&paths, &prefix, &minecraft_version, assets.as_deref());
     let files: Vec<String> = paths
         .iter()
@@ -330,6 +469,12 @@ pub fn inspect(
             .and_then(Value::as_bool)
             == Some(true),
         missing,
+        asset_inventory,
+        asset_index_id,
+        live_assets: None,
+        live_asset_digest: None,
+        live_asset_preview: Vec::new(),
+        live_runtime: None,
         files,
     })
 }
@@ -477,6 +622,198 @@ fn copy_file(source: &Path, target: &Path) -> LineResult<()> {
 #[cfg(test)]
 mod path_tests {
     use super::*;
+
+    #[test]
+    fn prism_without_profiles_does_not_silently_fall_back_to_vanilla() {
+        for (metadata, game_file) in [
+            ("Example/mmc-pack.json", "Example/.minecraft/mods/mod.jar"),
+            ("Example/mmc-pack.json", "Example/minecraft/mods/mod.jar"),
+            ("mmc-pack.json", "minecraft/mods/mod.jar"),
+            ("mmc-pack.json", ".minecraft/mods/mod.jar"),
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let path = temp.path().join(metadata);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.neoforged","version":"47.1.106"}]}"#,
+            ).unwrap();
+            let index = FileIndex {
+                schema_version: integrity::INDEX_SCHEMA,
+                files: [metadata, game_file]
+                    .into_iter()
+                    .map(|path| integrity::FileEntry {
+                        path: path.into(),
+                        sha256: "0".repeat(64),
+                        size: 1,
+                    })
+                    .collect(),
+            };
+            let error = inspect(temp.path(), &index, Some("1.20.1")).unwrap_err();
+            assert!(error.message.contains("Prism Launcher"), "{game_file}");
+            assert!(error.message.contains("mmc-pack.json"));
+            assert!(error.message.contains("NeoForge 47.1.106"));
+        }
+    }
+
+    #[test]
+    fn prism_profile_must_match_component_manifest_and_has_no_custom_patches() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("Example");
+        let version_dir = root.join("minecraft/versions/neoforge");
+        std::fs::create_dir_all(&version_dir).unwrap();
+        std::fs::write(
+            root.join("mmc-pack.json"),
+            br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.neoforged","version":"47.1.106"}]}"#,
+        ).unwrap();
+        let profile = version_dir.join("neoforge.json");
+        std::fs::write(&profile, br#"{"inheritsFrom":"1.20.1","libraries":[{"name":"net.neoforged:forge:1.20.1-47.1.106"}]}"#).unwrap();
+        let entries = [
+            "Example/mmc-pack.json",
+            "Example/minecraft/versions/neoforge/neoforge.json",
+        ];
+        let mut index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: entries
+                .into_iter()
+                .map(|path| integrity::FileEntry {
+                    path: path.into(),
+                    sha256: "0".repeat(64),
+                    size: 1,
+                })
+                .collect(),
+        };
+        let detected = inspect(temp.path(), &index, None).unwrap();
+        assert_eq!(detected.minecraft_version, "1.20.1");
+        assert_eq!(
+            detected.loader,
+            Some((LoaderChoice::NeoForge, "1.20.1-47.1.106".into()))
+        );
+        std::fs::write(&profile, br#"{"inheritsFrom":"1.20.1","libraries":[]}"#).unwrap();
+        assert!(inspect(temp.path(), &index, None).is_err());
+        index.files.push(integrity::FileEntry {
+            path: "Example/patches/custom.json".into(),
+            sha256: "0".repeat(64),
+            size: 1,
+        });
+        let error = inspect(temp.path(), &index, None).unwrap_err();
+        assert!(error.message.contains("patches"));
+    }
+
+    #[test]
+    fn prism_lwjgl_pin_is_checked_against_inherited_vanilla_profile() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("pack");
+        let versions = root.join("minecraft/versions");
+        std::fs::create_dir_all(versions.join("fabric")).unwrap();
+        std::fs::create_dir_all(versions.join("1.20.1")).unwrap();
+        std::fs::write(root.join("mmc-pack.json"), br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"net.fabricmc.fabric-loader","version":"0.15.0"},{"uid":"org.lwjgl3","version":"3.3.1"}]}"#).unwrap();
+        std::fs::write(versions.join("fabric/fabric.json"), br#"{"inheritsFrom":"1.20.1","libraries":[{"name":"net.fabricmc:fabric-loader:0.15.0"}]}"#).unwrap();
+        let parent = versions.join("1.20.1/1.20.1.json");
+        std::fs::write(
+            &parent,
+            br#"{"libraries":[{"name":"org.lwjgl:lwjgl:3.3.1"}]}"#,
+        )
+        .unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: [
+                "pack/mmc-pack.json",
+                "pack/minecraft/versions/fabric/fabric.json",
+                "pack/minecraft/versions/1.20.1/1.20.1.json",
+            ]
+            .into_iter()
+            .map(|path| integrity::FileEntry {
+                path: path.into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            })
+            .collect(),
+        };
+        assert!(inspect(temp.path(), &index, None).is_ok());
+        std::fs::write(
+            &parent,
+            br#"{"libraries":[{"name":"org.lwjgl:lwjgl:3.3.2"}]}"#,
+        )
+        .unwrap();
+        assert!(inspect(temp.path(), &index, None)
+            .unwrap_err()
+            .message
+            .contains("LWJGL"));
+        std::fs::write(&parent, br#"{"libraries":[]}"#).unwrap();
+        assert!(inspect(temp.path(), &index, None)
+            .unwrap_err()
+            .message
+            .contains("LWJGL"));
+    }
+
+    #[test]
+    fn prism_with_two_game_directories_is_not_guessed() {
+        let temp = tempfile::tempdir().unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: [
+                "mmc-pack.json",
+                ".minecraft/mods/a.jar",
+                "minecraft/mods/b.jar",
+            ]
+            .into_iter()
+            .map(|path| integrity::FileEntry {
+                path: path.into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            })
+            .collect(),
+        };
+        let error = inspect(temp.path(), &index, Some("1.20.1")).unwrap_err();
+        assert!(error.message.contains("обе папки"));
+    }
+
+    #[test]
+    fn vanilla_hint_does_not_hide_the_installed_loader() {
+        let temp = tempfile::tempdir().unwrap();
+        let vanilla = temp.path().join("versions/1.20.1/1.20.1.json");
+        let loader = temp.path().join("versions/neoforge/neoforge.json");
+        std::fs::create_dir_all(vanilla.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(loader.parent().unwrap()).unwrap();
+        std::fs::write(&vanilla, br#"{"id":"1.20.1"}"#).unwrap();
+        std::fs::write(&loader, br#"{"inheritsFrom":"1.20.1","libraries":[{"name":"net.neoforged:forge:1.20.1-47.1.106"}]}"#).unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: [
+                "versions/1.20.1/1.20.1.json",
+                "versions/neoforge/neoforge.json",
+            ]
+            .into_iter()
+            .map(|path| integrity::FileEntry {
+                path: path.into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            })
+            .collect(),
+        };
+        let detected = inspect(temp.path(), &index, Some("1.20.1")).unwrap();
+        assert_eq!(detected.version_id, "neoforge");
+        assert_eq!(detected.minecraft_version, "1.20.1");
+        assert_eq!(detected.loader.unwrap().0, LoaderChoice::NeoForge);
+        std::fs::write(&loader, br#"{"inheritsFrom":"1.20.2","libraries":[{"name":"net.neoforged:forge:1.20.2-47.1.106"}]}"#).unwrap();
+        assert!(inspect(temp.path(), &index, Some("1.20.1")).is_err());
+    }
+
+    #[test]
+    fn mods_only_without_prism_metadata_keeps_existing_version_hint() {
+        let temp = tempfile::tempdir().unwrap();
+        let index = FileIndex {
+            schema_version: integrity::INDEX_SCHEMA,
+            files: vec![integrity::FileEntry {
+                path: "mods/mod.jar".into(),
+                sha256: "0".repeat(64),
+                size: 1,
+            }],
+        };
+        let detected = inspect(temp.path(), &index, Some("1.20.1")).unwrap();
+        assert_eq!(detected.minecraft_version, "1.20.1");
+    }
 
     #[test]
     fn checked_paths_support_nested_files_and_reject_file_parents() {

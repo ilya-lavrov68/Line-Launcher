@@ -592,8 +592,19 @@ pub fn installed_receipt(base: &Path, server: &Server) -> Option<InstallReceipt>
     Some(receipt)
 }
 
+/// Recover interrupted release swaps. Caller holds the server InstallLock.
+pub fn recover_releases(base: &Path) -> LineResult<()> {
+    super::release_swap::recover_releases(base, |release| {
+        Ok(
+            super::storage::is_real_file(&release.join(super::integrity::COMPLETE_MARKER))
+                && super::integrity::scan(release).is_ok_and(|report| report.is_clean()),
+        )
+    })
+}
+
 /// Remove only launcher-owned staging directories. Caller holds InstallLock.
 pub fn cleanup_staging(base: &Path) -> LineResult<()> {
+    recover_releases(base)?;
     let entries = match fs::read_dir(base) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -648,7 +659,36 @@ pub async fn download_and_extract(
         .await;
     }
     let server = super::pack::effective_server(client, server, base).await?;
-    install_inner(client, &server, base, operation_id, cancel, sink, false).await
+    download_and_extract_resolved(client, &server, base, operation_id, cancel, sink).await
+}
+
+/// Install using a server whose archive manifest has already been resolved by
+/// the caller. Source packs still follow their normal metadata path. Keeping
+/// this separate avoids fetching pack.json twice and mixing two revisions in
+/// one preparation. Callers must resolve archive manifests before invoking it.
+pub async fn download_and_extract_resolved(
+    client: &reqwest::Client,
+    server: &Server,
+    base: &Path,
+    operation_id: &str,
+    cancel: Arc<AtomicBool>,
+    sink: &ProgressSink,
+) -> LineResult<InstallReceipt> {
+    if !matches!(
+        super::source::kind_of(server)?,
+        super::source::SourceKind::Archive
+    ) {
+        return super::source::install::install_source(
+            client,
+            server,
+            base,
+            operation_id,
+            cancel,
+            sink,
+        )
+        .await;
+    }
+    install_inner(client, server, base, operation_id, cancel, sink, false).await
 }
 
 /// `repair` skips the "already installed" short circuit: the files on disk are
@@ -689,7 +729,7 @@ async fn install_inner(
 ) -> LineResult<InstallReceipt> {
     server.distribution.validate_bounds()?;
     create_private_dir(base)?;
-    let _lock = InstallLock::acquire(base)?;
+    let lock = Arc::new(InstallLock::acquire(base)?);
     // A crash may leave staging behind. Never touch releases/current.json here.
     cleanup_staging(base)?;
     if !repair {
@@ -792,7 +832,11 @@ async fn install_inner(
         let shared = cancel.clone();
         let extract_progress = progress.clone();
         let extract_sink = sink.clone();
+        // Dropping the awaiting future does not stop a blocking extraction.
+        // Keep the server lock until the worker has finished touching staging.
+        let worker_lock = Arc::clone(&lock);
         let index = tauri::async_runtime::spawn_blocking(move || {
+            let _worker_lock = worker_lock;
             extract_verified_zip(
                 &extract_path,
                 &extract_target,
@@ -837,10 +881,11 @@ async fn install_inner(
         // provider pinned a digest; when they are not, the measured one is the
         // only one that describes what is on disk — and it is what every later
         // launch and rollback compares against.
-        let release = releases.join(&downloaded_archive.sha256);
-        remove_dir_if_present(&release)?;
-        fs::rename(&content, &release).map_err(|e| LineError::io(&e))?;
-        sync_directory(&releases)?;
+        let had_previous = super::release_swap::stage_replacement(
+            &content,
+            &releases,
+            &downloaded_archive.sha256,
+        )?;
         let receipt = InstallReceipt {
             server_id: server.id.clone(),
             version: server.version.clone(),
@@ -848,12 +893,16 @@ async fn install_inner(
             installed_at: epoch_millis(),
             already_installed: false,
         };
-        // Immutable release directories + atomic pointer avoid renaming a live
-        // game directory (especially important on Windows). Failed publish keeps
-        // current.json pointing to the previous complete release.
+        // Publish only after the replacement is fully staged. If interrupted,
+        // the previous directory is recoverable under the server lock.
         let bytes = serde_json::to_vec(&receipt).map_err(|_| LineError::storage())?;
         atomic_write(&base.join("current.json"), &bytes)?;
         super::rollback::record_release(base, &receipt)?;
+        super::release_swap::finish_replacement(
+            &releases,
+            &downloaded_archive.sha256,
+            had_previous,
+        )?;
         // The command layer rejects install while a game is running. Low-level
         // callers still protect the current pointer and retention window.
         super::rollback::prune_releases(base, &server.id, None)?;
@@ -934,14 +983,15 @@ pub async fn download_and_extract_zip(
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
     let base = server_dir(&root, &server_id)?;
-    let cancel = state.begin_install(&server_id, &operation_id)?;
+    let registration = state.register_install(&server_id, &operation_id)?;
+    let cancel = registration.cancel_flag();
     let emitter = app.clone();
     let sink = ProgressSink::new(move |p| {
         let _ = emitter.emit(PROGRESS_EVENT, p);
     });
     let result =
         download_and_extract(&state.http, &server, &base, &operation_id, cancel, &sink).await;
-    state.finish_install(&server_id, &operation_id);
+    drop(registration);
     result
 }
 

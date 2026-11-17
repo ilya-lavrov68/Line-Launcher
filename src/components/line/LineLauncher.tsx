@@ -830,8 +830,8 @@ export default function LineLauncher() {
           <div className="bg-background text-foreground relative flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
             {/* The haze is the only colour field in the design; every surface
                 above it is glass. It is decoration and nothing depends on it:
-                without WebGL2 or with reduced motion the window falls back to
-                the flat canvas and stays exactly as legible. */}
+                without WebGL2 it keeps the CSS colour field; reduced motion
+                stops animation without removing the field. */}
             <AnimatedBackdrop
               imageUrl={selected?.banner_url}
               themeId={settings?.settings.backdrop ?? undefined}

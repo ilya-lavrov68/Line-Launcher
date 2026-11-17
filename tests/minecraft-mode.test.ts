@@ -11,6 +11,7 @@ const read = (file: string) =>
   readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 
 const rust = read("src-tauri/src/line/minecraft.rs");
+const install = read("src-tauri/src/line/install.rs");
 const core = read("src-tauri/src/line/minecraft_core.rs");
 const pack = read("src-tauri/src/line/pack.rs");
 const instance = read("src-tauri/src/line/instance.rs");
@@ -106,8 +107,9 @@ test("Java prefers a valid local runtime, then Windows Temurin or Mojang", () =>
   const order = [
     "java::inspect_path(requested)",
     "java::discover(required_major)",
-    "java_auto::install_windows_x64",
     "runtime::get_executable_path(",
+    "java_auto::find_cached_windows_x64",
+    "java_auto::install_windows_x64",
     "runtime::install_jvm_runtime(",
   ].map((needle) => resolve.indexOf(needle));
   for (const [index, at] of order.entries()) {
@@ -121,8 +123,8 @@ test("Java prefers a valid local runtime, then Windows Temurin or Mojang", () =>
     /let probed = java::inspect_path\(&path\.to_string_lossy\(\)\)\.await\?;/,
   );
   assert.match(resolve, /probed\.major != required_major/);
-  // Auto is a placeholder in the facade; the real work is resolve_java.
-  assert.match(rust, /The facade does not bundle Java/);
+  assert.match(resolve, /consent\.require\(required_major, purpose, "adoptium"\)/);
+  assert.match(resolve, /consent\.require\(required_major, purpose, "mojang"\)/);
 });
 
 test("commands, state and the additive boundary are wired", () => {
@@ -150,7 +152,7 @@ test("commands, state and the additive boundary are wired", () => {
   // installer. It must never open the private ticket channel or write into the
   // release itself: the live copy lives under minecraft/<instance>/game.
   assert.doesNotMatch(rust, /PrivateChannel|remove_dir_if_present/);
-  assert.match(rust, /install::download_and_extract\(/);
+  assert.match(rust, /install::download_and_extract_resolved\(/);
   assert.doesNotMatch(
     pack,
     /remove_dir_if_present|releases"\)\.join\(instance/,
@@ -232,14 +234,19 @@ test("Играть verifies-or-downloads and then joins the server in one comman
     rust.indexOf("async fn launch_profile("),
   );
   assert.match(play, /validate_server_address\(&address\)\?/);
+  assert.ok(
+    play.indexOf('"Проверка сборки на сервере…"') <
+      play.indexOf("pack::effective_server("),
+  );
+  assert.match(play, /log_preparation_stage\("pack", pack_started, false\)/);
   assert.match(play, /config\.server\(&request\.server_id\)\?/);
   assert.ok(
     play.indexOf("pack::effective_server(") <
-      play.indexOf("install::download_and_extract("),
+      play.indexOf("install::download_and_extract_resolved("),
     "pack.json must decide the revision before anything is downloaded",
   );
   for (const [earlier, later] of [
-    ["install::download_and_extract(", "pack::inspect("],
+    ["install::download_and_extract_resolved(", "pack::inspect("],
     ["pack::inspect(", "pack::sync_game_dir("],
     ["pack::sync_game_dir(", "launch_profile("],
   ]) {
@@ -248,6 +255,13 @@ test("Играть verifies-or-downloads and then joins the server in one comman
       `${earlier} must run before ${later}`,
     );
   }
+  assert.match(play, /or_else\(\|\| effective\.minecraft_version\.clone\(\)\)/);
+  assert.match(install, /pub async fn download_and_extract_resolved/);
+  const resolved = install.slice(
+    install.indexOf("pub async fn download_and_extract_resolved("),
+    install.indexOf("/// `repair`"),
+  );
+  assert.doesNotMatch(resolved, /pack::effective_server\(/);
   // The existing installer is reused, not a second downloader.
   assert.match(rust, /receipt\.already_installed/);
   assert.doesNotMatch(rust, /reqwest::blocking::Client/);
@@ -371,7 +385,7 @@ test("the loader inside the instance wins over the provider's request", () => {
   assert.match(play, /else if detected\.loader\.is_none\(\)/);
   assert.match(play, /loader_spec\(\s*kind,/);
   // Only the gaps are fetched, and the pack's own profile is what launches.
-  assert.match(play, /if !detected\.missing\.is_empty\(\)/);
+  assert.match(play, /if !unresolved_hints\.is_empty\(\)/);
   assert.match(
     play,
     /let mut launch_version = detected\.version_id\.clone\(\);/,
@@ -392,7 +406,7 @@ test("test mode is provider-controlled and reuses the normal verified launch pat
   assert.match(play, /validate_test_mode\(/);
   assert.match(play, /server\.test_mode_enabled/);
   assert.match(play, /integrity::scan\(&release\)/);
-  assert.match(play, /scan_packs\(/);
+  assert.match(play, /scan_packs_with\(/);
   assert.doesNotMatch(
     play,
     /if request\.test_mode \{\s*install::current_receipt/,

@@ -125,7 +125,7 @@ test("a provider may add words but cannot remove the built-in ones", () => {
 test("the scan only reads render JSON, not image pixels or ordinary prose", () => {
   const body = rust.slice(
     rust.indexOf("pub fn reads_text"),
-    rust.indexOf("/// Every pack under"),
+    rust.indexOf("/// Every ZIP or unpacked pack"),
   );
   assert.match(body, /models\//);
   assert.match(body, /blockstates\//);
@@ -190,19 +190,13 @@ test("the pack check runs before Java exists, not after", () => {
   assert.match(body, /if let Some\(message\) = scan\.blocked/);
 });
 
-test("a disabled keyword scan cannot disable the foreign-file check", () => {
-  // The switch exists for packs whose text legitimately says "xray". It must not
-  // become "turn off the anticheat": the release-side check keeps running.
+test("disabling keyword scans leaves mod composition checking enabled", () => {
   const body = launchRust.slice(
-    launchRust.indexOf("pub fn scan_packs"),
+    launchRust.indexOf("pub fn scan_packs_with"),
     launchRust.indexOf("pub async fn launch_game"),
   );
-  const offBranch = body.slice(body.indexOf("if !settings.scan_resourcepacks"));
-  assert.match(offBranch, /foreign_packs|scan_all/);
-  assert.ok(
-    offBranch.indexOf("scan_all") < offBranch.indexOf("return Ok"),
-    "the foreign check must run before the early return",
-  );
+  assert.ok(body.indexOf("check_live_mods_with") < body.indexOf("if !settings.scan_resourcepacks"));
+  assert.match(body.slice(body.indexOf("if !settings.scan_resourcepacks")), /blocked: None/);
 });
 
 test("the anticheat block is optional and its limits are enforced", () => {
@@ -225,8 +219,9 @@ test("default settings enable keyword checks and owned packs are scanned", () =>
     rust.indexOf("pub fn scan_all("),
     rust.indexOf("pub struct ForeignPack"),
   );
-  assert.match(scan, /foreign_packs\(game, &\[\]\)/);
-  assert.match(scan, /foreign_paths\.contains\(&relative\)/);
+  assert.match(scan, /fs::read_dir\(&packs\)/);
+  assert.doesNotMatch(scan, /foreign_paths/);
+  assert.match(scan, /Ok\(\(findings, Vec::new\(\)\)\)/);
   assert.match(scan, /scan_pack\(&relative, &path, &words\)/);
 });
 
@@ -271,4 +266,14 @@ test("the resource scan skips prose across mods and keeps checking render assets
     rust,
     /translations_do_not_trigger_but_other_pack_content_still_does/,
   );
+});
+
+
+test("mods are checked for missing and extra JARs, not keyword content or service data", () => {
+  const scan = launchRust.slice(launchRust.indexOf("pub fn is_mod_jar"), launchRust.indexOf("/// Result of the resource-pack check"));
+  assert.match(scan, /ends_with\("\.jar"\)/);
+  assert.match(scan, /!is_real_file\(&target\)/);
+  assert.match(scan, /!is_mod_jar\(&relative\)/);
+  assert.doesNotMatch(scan, /keywords\(|CHEAT_WORDS|scan_pack\(/);
+  assert.match(rust, /fn scan_folder\(/);
 });

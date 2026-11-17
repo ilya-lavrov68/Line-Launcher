@@ -15,6 +15,29 @@ pub fn epoch_millis() -> u64 {
         .as_millis() as u64
 }
 
+/// Releases the in-memory operation even if the calling future is dropped.
+/// Its cancellation flag also asks any surviving worker to stop safely.
+pub struct InstallRegistration<'a> {
+    state: &'a LineState,
+    server_id: String,
+    operation_id: String,
+    cancel: Arc<AtomicBool>,
+}
+
+impl InstallRegistration<'_> {
+    pub fn cancel_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.cancel)
+    }
+}
+
+impl Drop for InstallRegistration<'_> {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Release);
+        self.state
+            .finish_install(&self.server_id, &self.operation_id);
+    }
+}
+
 /// Private backend state. Debug output and IPC serialization cannot expose the token.
 #[derive(Clone)]
 pub struct ProviderSession {
@@ -318,6 +341,21 @@ impl LineState {
         Ok(cancel)
     }
 
+    /// Registers an install until its caller completes or is cancelled.
+    pub fn register_install<'a>(
+        &'a self,
+        server_id: &str,
+        operation_id: &str,
+    ) -> LineResult<InstallRegistration<'a>> {
+        let cancel = self.begin_install(server_id, operation_id)?;
+        Ok(InstallRegistration {
+            state: self,
+            server_id: server_id.to_owned(),
+            operation_id: operation_id.to_owned(),
+            cancel,
+        })
+    }
+
     pub fn finish_install(&self, server_id: &str, operation_id: &str) {
         if let Ok(mut inner) = self.lock() {
             inner.installations.remove(server_id);
@@ -527,6 +565,17 @@ mod tests {
         assert!(state.cancel("operation-1").unwrap());
         state.finish_install("survival", "operation-1");
         assert!(state.begin_install("survival", "operation-3").is_ok());
+    }
+
+    #[test]
+    fn install_registration_releases_and_cancels_on_drop() {
+        let state = LineState::new().unwrap();
+        let registration = state.register_install("server", "one").unwrap();
+        let cancel = registration.cancel_flag();
+        assert!(state.begin_install("server", "two").is_err());
+        drop(registration);
+        assert!(cancel.load(Ordering::Acquire));
+        assert!(state.begin_install("server", "two").is_ok());
     }
 
     #[test]

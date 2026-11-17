@@ -110,6 +110,7 @@ pub fn find_game_prefix(paths: &[String]) -> Option<String> {
             continue;
         }
         candidates.push(format!("{top}/.minecraft/"));
+        candidates.push(format!("{top}/minecraft/"));
         candidates.push(format!("{top}/"));
     }
     candidates
@@ -141,8 +142,9 @@ pub fn version_profile_ids(paths: &[String], prefix: &str) -> Vec<String> {
 /// Picks the profile to launch. `candidates` carries "is this a loader profile"
 /// alongside each id, which the caller learns from the JSON itself.
 ///
-/// Order: the provider's explicit hint, then a single loader profile, then a
-/// single profile of any kind. Anything else is an error naming the candidates
+/// Order: a hint naming a loader profile, then a single loader profile, then a
+/// vanilla hint or single profile when no loaders exist. A base Minecraft hint
+/// must not silently suppress a loader. Anything else is an error naming candidates
 /// rather than a coin flip that could launch vanilla without the mods.
 pub fn choose_version(
     candidates: &[(String, bool)],
@@ -153,11 +155,14 @@ pub fn choose_version(
             "В сборке нет папки versions/<версия>/<версия>.json. Пришлите instance целиком, вместе с versions.",
         ));
     }
-    if let Some(hint) = preferred {
-        let hint = hint.trim();
-        if let Some((id, _)) = candidates.iter().find(|(id, _)| id == hint) {
-            return Ok(id.clone());
-        }
+    // minecraft_version is commonly the vanilla base version, not an explicit
+    // instruction to ignore an installed loader. A matching loader hint is
+    // authoritative; otherwise prefer a single loader over a vanilla profile.
+    let preferred_candidate = preferred
+        .map(str::trim)
+        .and_then(|hint| candidates.iter().find(|(id, _)| id == hint));
+    if let Some((id, true)) = preferred_candidate {
+        return Ok(id.clone());
     }
     let loaders: Vec<&String> = candidates
         .iter()
@@ -167,8 +172,13 @@ pub fn choose_version(
     if loaders.len() == 1 {
         return Ok(loaders[0].clone());
     }
-    if candidates.len() == 1 {
-        return Ok(candidates[0].0.clone());
+    if loaders.is_empty() {
+        if let Some((id, _)) = preferred_candidate {
+            return Ok(id.clone());
+        }
+        if candidates.len() == 1 {
+            return Ok(candidates[0].0.clone());
+        }
     }
     let names: Vec<&str> = candidates.iter().map(|(id, _)| id.as_str()).collect();
     Err(LineError::input(format!(
@@ -348,6 +358,11 @@ mod tests {
             find_game_prefix(&named),
             Some("MyPack/.minecraft/".to_string())
         );
+        let prism_windows = paths(&["MyPack/mmc-pack.json", "MyPack/minecraft/mods/a.jar"]);
+        assert_eq!(
+            find_game_prefix(&prism_windows),
+            Some("MyPack/minecraft/".to_string())
+        );
         let flat_named = paths(&["MyPack/mods/a.jar"]);
         assert_eq!(find_game_prefix(&flat_named), Some("MyPack/".to_string()));
         assert_eq!(find_game_prefix(&paths(&["readme.txt"])), None);
@@ -373,13 +388,13 @@ mod tests {
     }
 
     #[test]
-    fn profile_choice_prefers_the_hint_then_the_single_loader() {
+    fn profile_choice_preserves_loader_when_hint_is_the_vanilla_base() {
         let vanilla = ("1.21.1".to_string(), false);
         let fabric = ("fabric-loader-0.16.9".to_string(), true);
         let candidates = vec![vanilla.clone(), fabric.clone()];
         assert_eq!(
             choose_version(&candidates, Some("1.21.1")).unwrap(),
-            "1.21.1"
+            "fabric-loader-0.16.9"
         );
         assert_eq!(
             choose_version(&candidates, None).unwrap(),
@@ -389,8 +404,15 @@ mod tests {
             choose_version(std::slice::from_ref(&vanilla), None).unwrap(),
             "1.21.1"
         );
-        // Two loaders and no hint: refuse rather than launch the wrong mods.
+        // A loader hint disambiguates, but a vanilla hint does not.
         let second = ("quilt-0.26".to_string(), true);
+        assert_eq!(
+            choose_version(&[fabric.clone(), second.clone()], Some("quilt-0.26")).unwrap(),
+            "quilt-0.26"
+        );
+        assert!(
+            choose_version(&[vanilla, fabric.clone(), second.clone()], Some("1.21.1")).is_err()
+        );
         let error = choose_version(&[fabric, second], None).unwrap_err();
         assert!(error.message.contains("несколько профилей"));
         assert!(error.message.contains("minecraft_version"));

@@ -1,7 +1,9 @@
 //! Discover a local Java runtime, or verify an explicit player-selected path.
 //! Candidates are executed with `-version` before use; only absolute executable
 //! files are accepted. Provider JSON never supplies a path. Symlinks are resolved once and the target must still be a
-//! regular `java` executable. The selected major must match the manifest.
+//! regular `java` executable. Callers determine version compatibility: provider
+//! manifest launches require an exact major; Minecraft mode supports explicit
+//! newer JVM overrides while automatic discovery still uses the requested major.
 use super::error::{ErrorCode, LineError, LineResult};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

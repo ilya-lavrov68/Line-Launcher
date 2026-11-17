@@ -185,7 +185,10 @@ test("Minecraft dock keeps actions and errors prominent, with explanations on de
   assert.match(panel, /role="alert"/);
   // The dock's button is the loader: it takes the number, not a {label,percent}
   // object, and the label travelled into `progressLabel`.
-  assert.match(panel, /progress=\{working \? percent : null\}/);
+  // The fill starts at zero and grows by real work; a stage without a
+  // denominator holds a third at the left instead of sweeping.
+  assert.match(panel, /progress=\{working \? \(percent \?\? 0\) : null\}/);
+  assert.match(panel, /indeterminate=\{working && percent === null\}/);
   assert.match(panel, /progressLabel=\{/);
   assert.match(
     read("src/components/line/ServerDock.tsx"),

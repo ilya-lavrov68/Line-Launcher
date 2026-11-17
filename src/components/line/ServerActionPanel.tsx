@@ -204,8 +204,12 @@ export default function ServerActionPanel({
         <ServerDockPrimary
           disabled={!canPress}
           active={active}
-          progress={installing && progress ? percent : null}
-          indeterminate={installing && Boolean(progress) && percent === null}
+          // The fill follows the real percentage of files/bytes done, from the
+          // left edge. `indeterminate` is only for a stage that genuinely has
+          // no denominator — and even then it does not "run": it holds a third
+          // of the surface at the left, so the button still reads as filling.
+          progress={installing && progress ? (percent ?? 0) : null}
+          indeterminate={false}
           progressLabel={
             progress ? installPhaseLabel(t, progress.phase) : undefined
           }

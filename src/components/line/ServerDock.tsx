@@ -81,7 +81,6 @@ export function ServerDockPrimary({
   progressLabel?: string;
   onClick: () => void;
 }) {
-  const reducedMotion = useReducedMotion();
   const busy = progress !== null || indeterminate;
   const clamped =
     progress === null ? null : Math.max(0, Math.min(100, Math.round(progress)));
@@ -121,35 +120,22 @@ export function ServerDockPrimary({
               // A wash of the label's own colour, not a second colour: the
               // button reads as filling, not as a bar laid on top of it.
               //
-              // `/12`, which is Liner's own value for a progress tint on a
-              // dark surface (`rgba(255,255,255,0.12)` in `MiniPlayer.tsx`).
-              // At a quarter white the growing area read as a grey slab cut
-              // into the button — «посредственно» was fair: the eye saw a
-              // second rectangle, not a surface filling.
+              // `/12` of the *ink* on the accent plate. Liner's 12 % is white
+              // on a dark surface (`MiniPlayer.tsx`); here the plate is the
+              // near-white accent, so the tint that reads is the dark one. At a
+              // quarter white the growing area read as a grey slab cut into the
+              // button — «посредственно» was fair.
               "bg-primary-foreground/12 absolute inset-0 origin-left",
               !indeterminate &&
                 "transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
             )}
-            style={
-              indeterminate
-                ? undefined
-                : { transform: `scaleX(${(clamped ?? 0) / 100})` }
-            }
-          />
-        )}
-        {indeterminate && !reducedMotion && (
-          // No number to show, so the wash sweeps instead of standing still.
-          // Reduced motion keeps a static third — the state stays visible, only
-          // the movement is gone.
-          // The sweep also enters from the left edge, not from the middle.
-          <m.span
-            aria-hidden="true"
-            className="bg-primary-foreground/25 absolute inset-y-0 left-0 w-1/3"
-            animate={{ x: ["-100%", "300%"] }}
-            transition={{
-              duration: 1.4,
-              repeat: Infinity,
-              ease: "easeInOut",
+            style={{
+              // Always a scale from the left edge. A stage with no denominator
+              // holds a third of the surface instead of sweeping: the button
+              // never looks like something is running past it, only like it is
+              // filled this far. Sweeping was the «просто бегает» the brief
+              // rejected.
+              transform: `scaleX(${indeterminate ? 1 / 3 : (clamped ?? 0) / 100})`,
             }}
           />
         )}

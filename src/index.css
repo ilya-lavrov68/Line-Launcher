@@ -125,39 +125,51 @@
    * cards, the dock, rows inside a pane — sits on this. */
   --glass-surface: rgba(10, 12, 16, 0.45);
   --glass-surface-strong: rgba(10, 12, 16, 0.6);
-  /* The two shell panes: light grey frosted glass over the animated backdrop.
-   * This is the «светло-серый глассморфизм» of tryliner's sidebar and page.
+  /* The two shell panes: a thin grey wash over the animated backdrop.
    *
-   * The value is deliberately NOT white: over the copper/indigo field a white
-   * sheet at this alpha bleaches the backdrop out. A light *grey* keeps a cool
-   * cast, so the pane reads as glass rather than as paper, and the ink on it
-   * stays dark. Alpha 0.62 is where the pane is solid enough to hold body copy
-   * and still shows the field moving behind it. */
-  /* The shell pane has to do two jobs at once: read as light glass over a
-   * moving colour field, and hold body copy wherever the field happens to be
-   * dark. Those pull in opposite directions.
+   * The first attempt was a light sheet — `rgba(230,233,238,0.66)` — and it
+   * read as painted paper, not as glass. The reason is measurable: the
+   * backdrop under the pane is almost black (measured luminance 0.014–0.088
+   * across the whole page pane; the brightest pixel behind «Медный куст» is
+   * `#252426`). Against that, a light sheet at 0.66 composites to
+   * `rgb(164,166,171)` — brighter than anything else in the window, because
+   * the colour field itself only survives in the 6px gaps around the panes.
+   * The pane was not competing with the backdrop; it was the only lit surface.
    *
-   * 0.55 lost the second job — over the dark part of a backdrop the composite
-   * fell to rgb(133,138,143), where the quiet text slot could not reach 4.5:1
-   * however dark the ink got. 0.78 lost the first: the pane read as painted
-   * paper and the backdrop disappeared.
+   * So the pane is painted *dark and thin* instead, the way tryliner's dark
+   * theme does it (`--bg-glass: rgba(70,70,70,0.2)`), and the colour field is
+   * allowed to be the brightest thing in the window again.
    *
-   * 0.68 is the balance: enough sheet for the text, enough transparency that
-   * the colour field is visibly moving behind it. */
-  --glass-surface-shell: rgba(230, 233, 238, 0.66);
-  --glass-shell-ink: oklch(0.21 0.008 265);
-  /* 0.38 measured 1.7:1 against the pane as it composites over a dark
-   * backdrop, because the sheet is translucent and the field behind it pulls
-   * the composite down. 0.28 is where the quiet slot clears 4.5:1 on the
-   * darkest the pane gets. */
-  --glass-shell-ink-soft: oklch(0.19 0.01 265);
-  /* State colours, dark enough to read on the light pane. The canvas pairs are
-   * tuned for `#08090c`; `oklch(0.8 0.17 155)` on a light sheet measures about
-   * 1.3:1, so «проверена» would be drawn in a colour the eye cannot separate
-   * from the pane it sits on. Same hues, lightness moved down. */
-  --glass-shell-online: oklch(0.42 0.13 155);
-  --glass-shell-update: oklch(0.45 0.12 70);
-  --glass-shell-error: oklch(0.5 0.18 22);
+   * Alpha and ink polarity are locked together: below 0.5 a dark ink cannot
+   * hold 4.5:1 on the composite (measured 3.47:1 at 0.45, 2.55:1 at 0.35), so
+   * the ink must flip to light.
+   *
+   * 0.13 is where the wash is *thinnest while still being a surface*: the
+   * copper reads through it, the pane still separates from the backdrop at the
+   * rounded edge, and the light ink keeps its headroom. Thinner reads as no
+   * pane at all (0.09 was tested side by side and dissolved into the field).
+   *
+   * Counter-intuitively, contrast gets *better* as the alpha drops: every bit
+   * of light grey paint lifts the composite towards the ink, so a thin wash is
+   * the darkest and friendliest ground for light text. Measured over the whole
+   * page pane, worst case across all twelve backdrops (`frost` in every case):
+   * 4.45:1 at 0.20, 5.16:1 at 0.13. */
+  --glass-surface-shell: rgba(230, 233, 238, 0.13);
+  /* Light ink now, because the pane is a dark wash — the same pairing the rest
+   * of the palette already uses for text on `#08090c`. */
+  --glass-shell-ink: oklch(0.97 0.002 250);
+  /* The quiet slot runs lighter than the canvas's own `--glass-ink-soft`
+   * (0.72) because the pane is *not* opaque: body copy can sit over a bright
+   * stop of the backdrop, and the wash only takes the edge off it. 0.92 is the
+   * step that clears 4.58:1 on the worst backdrop; 0.80 measured 2.74:1 on
+   * `frost` and had to go. */
+  --glass-shell-ink-soft: oklch(0.92 0.004 250);
+  /* State colours keep their canvas lightness: the pane is dark again, so
+   * «проверена» can be drawn in the same green it is drawn in everywhere
+   * else. */
+  --glass-shell-online: oklch(0.8 0.17 155);
+  --glass-shell-update: oklch(0.82 0.15 85);
+  --glass-shell-error: oklch(0.72 0.19 22);
   --glass-ink: oklch(0.97 0.002 250);
   --glass-ink-soft: oklch(0.72 0.006 250);
   --glass-ink-faint: oklch(0.62 0.006 250);
@@ -295,14 +307,9 @@
     background: var(--glass-surface-shell);
     backdrop-filter: blur(40px) saturate(160%);
     -webkit-backdrop-filter: blur(40px) saturate(160%);
-    /* The pane is light, so the ink on it must be dark. This is the *one*
-     * place the palette is re-pointed per subtree, and it is scoped to the two
-     * shell panes — the very thing that separates «light glass you read on»
-     * from «light glass with near-white text on it».
-     *
-     * The filled action is deliberately not re-pointed: `--primary` stays the
-     * near-white accent, so the launch button keeps the colour it always had
-     * instead of turning into a dark chip. */
+    /* The pane is a thin dark wash, so the ink on it is light. The re-point
+     * stays scoped to the two shell panes; what changed with the dark wash is
+     * only the polarity, not the reason for it. */
     --foreground: var(--glass-shell-ink);
     --card-foreground: var(--glass-shell-ink);
     --popover-foreground: var(--glass-shell-ink);
@@ -311,6 +318,9 @@
     --accent-foreground: var(--glass-shell-ink);
     --sidebar-foreground: var(--glass-shell-ink);
     --sidebar-accent-foreground: var(--glass-shell-ink);
+    /* The filled action is deliberately not re-pointed: `--primary` stays the
+     * near-white accent, so the launch button keeps the colour it always had
+     * instead of turning into a dark chip. */
   }
 
   /* A floating surface (menu, dialog, preview popover): opaque on purpose.

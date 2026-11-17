@@ -21,6 +21,8 @@ pub struct ZipRepairPlan {
     #[serde(default)]
     pub live_runtime_issues: u64,
     #[serde(default)]
+    pub live_runtime_files: Vec<String>,
+    #[serde(default)]
     pub live_runtime_bytes: u64,
     #[serde(default)]
     pub live_runtime_skipped: u64,
@@ -54,6 +56,7 @@ mod tests {
             missing_from_archive: vec!["assets".into()],
             live_asset_issues: 0,
             live_runtime_issues: 0,
+            live_runtime_files: Vec::new(),
             live_runtime_bytes: 0,
             live_runtime_skipped: 0,
             live_asset_bytes: 0,
@@ -77,6 +80,11 @@ mod tests {
         assert!(!plan.is_approved_by(Some(&changed)));
         changed = plan.clone();
         changed.live_runtime_issues = 1;
+        assert!(!plan.is_approved_by(Some(&changed)));
+        changed = plan.clone();
+        changed
+            .live_runtime_files
+            .push("missing\tsha\t3\tlibraries/example.jar".into());
         assert!(!plan.is_approved_by(Some(&changed)));
         changed = plan.clone();
         changed.install_loader = true;

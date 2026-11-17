@@ -495,7 +495,15 @@ export default function MinecraftPanel({
                 </p>
               )}
               {pendingRepair.liveRuntimeIssues > 0 && (
-                <p>{t("zipRepair.liveRuntime", { count: pendingRepair.liveRuntimeIssues, size: formatBytes(pendingRepair.liveRuntimeBytes) })}</p>
+                <>
+                  <p>{t("zipRepair.liveRuntime", { count: pendingRepair.liveRuntimeIssues, size: formatBytes(pendingRepair.liveRuntimeBytes) })}</p>
+                  <details>
+                    <summary>{t("zipRepair.runtimeFiles")}</summary>
+                    <ul className="mt-2 max-h-36 overflow-auto break-all">
+                      {pendingRepair.liveRuntimeFiles.map((entry) => <li key={entry}>{entry.split("\t").slice(3).join("\t")}</li>)}
+                    </ul>
+                  </details>
+                </>
               )}
               {pendingRepair.liveRuntimeSkipped > 0 && <p>{t("zipRepair.runtimePartial", { count: pendingRepair.liveRuntimeSkipped })}</p>}
               {pendingRepair.installLoader && <p>{t("zipRepair.loader")}</p>}
@@ -599,6 +607,7 @@ function getZipRepairPlan(cause: unknown): ZipRepairPlan | null {
     typeof value.profileId !== "string" ||
     !Array.isArray(value.missingFromArchive) ||
     !value.missingFromArchive.every((v) => typeof v === "string") ||
+    !Array.isArray(value.liveRuntimeFiles) || value.liveRuntimeFiles.length > 2000 || !value.liveRuntimeFiles.every((entry) => typeof entry === "string" && entry.length <= 1200) ||
     typeof value.liveRuntimeIssues !== "number" || !Number.isSafeInteger(value.liveRuntimeIssues) || value.liveRuntimeIssues < 0 ||
     typeof value.liveRuntimeBytes !== "number" || !Number.isSafeInteger(value.liveRuntimeBytes) || value.liveRuntimeBytes < 0 ||
     typeof value.liveRuntimeSkipped !== "number" || !Number.isSafeInteger(value.liveRuntimeSkipped) || value.liveRuntimeSkipped < 0 ||

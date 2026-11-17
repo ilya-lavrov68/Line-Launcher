@@ -1573,6 +1573,7 @@ pub async fn mc_play(
     };
     let live_runtime_issues = detected
         .live_runtime
+        .as_ref()
         .map(|value| value.missing + value.wrong_size + value.wrong_hash)
         .unwrap_or(0);
     if !detected.missing.is_empty()
@@ -1608,12 +1609,19 @@ pub async fn mc_play(
                     .collect(),
                 live_asset_issues,
                 live_runtime_issues,
+                live_runtime_files: detected
+                    .live_runtime
+                    .as_ref()
+                    .map(|value| value.issues.clone())
+                    .unwrap_or_default(),
                 live_runtime_bytes: detected
                     .live_runtime
+                    .as_ref()
                     .map(|value| value.needed_bytes)
                     .unwrap_or(0),
                 live_runtime_skipped: detected
                     .live_runtime
+                    .as_ref()
                     .map(|value| value.skipped)
                     .unwrap_or(0),
                 live_asset_bytes: detected

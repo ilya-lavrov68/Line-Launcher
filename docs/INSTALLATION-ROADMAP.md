@@ -27,3 +27,5 @@ The Minecraft path also reacquires the server release lock after installation, c
 No phase should treat all files observed after a first game launch as trusted; a crash, unrelated process or malicious file could contaminate that snapshot. Unknown generated artifacts require a clear actionable message, not a silent allowance or deletion.
 
 Prism metadata format researched against Prism Launcher commit `15125f168cb414384e540d6f6370f4868579145a`, `launcher/minecraft/PackProfile.cpp` and `Component.cpp`. No Prism code is copied.
+
+The ZIP confirmation now lists the individual missing or changed client/library paths found by the partial runtime audit. Consent also binds each listed path, reason, expected SHA-1 and size, rather than only aggregate counts. The list is capped at 2,000 entries and fails closed beyond that limit. This still does not enumerate rule-gated libraries, native classifiers, asset objects or downloads decided later by an installer, and does not make the partial plan an exact download manifest.

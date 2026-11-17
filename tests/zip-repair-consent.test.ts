@@ -64,6 +64,8 @@ test("partial runtime audit uses release profiles and prompts on verified mismat
   const consent = minecraft.slice(minecraft.indexOf("let live_runtime_issues"), minecraft.indexOf("let loader_started"));
   assert.match(consent, /live_runtime_issues > 0/);
   assert.match(consent, /live_runtime_bytes/);
+  assert.match(consent, /live_runtime_files/);
+  assert.match(panel, /pendingRepair\.liveRuntimeFiles\.map/);
   assert.match(consent, /live_runtime_skipped/);
   assert.match(panel, /zipRepair\.runtimePartial/);
 });

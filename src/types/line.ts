@@ -325,6 +325,7 @@ export interface ZipRepairPlan {
   liveAssetIssues: number;
   liveAssetBytes: number;
   liveRuntimeIssues: number;
+  liveRuntimeFiles: string[];
   liveRuntimeBytes: number;
   liveRuntimeSkipped: number;
   prepareOnly: boolean;

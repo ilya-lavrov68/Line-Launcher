@@ -83,8 +83,9 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
   inventory; repeats, traffic, large-pack timing and full Cargo/Windows behaviour
   have not been measured or validated.
 - **Repeat performance:** source files with matching provider hash and size can
-  be reused, but there are still repeated full scans and no independently
-  validated loader receipt. Measure actual network, disk and wall time before
+  be reused. ZIP archive hints for the client and assets can be resolved by a
+  fresh complete live hash audit, but library/index hints still trigger repair;
+  scans can be expensive and there is no independently validated loader receipt. Measure actual network, disk and wall time before
   merging scans or skipping verification.
 - **Windows packaging and loader console:** the Windows bundle now requests the
   offline WebView2 installer. Installer size increases and building it may need

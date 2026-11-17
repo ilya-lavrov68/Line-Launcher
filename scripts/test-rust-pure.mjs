@@ -146,6 +146,7 @@ const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
   attributed("runtime_inventory.rs", "fn valid_sha1("),
+  attributed("repair_evidence.rs", "pub fn unresolved_archive_hints("),
   attributed("launch.rs", "pub fn is_mod_jar("),
   attributed("resourcepack.rs", "pub fn contains_word("),
   attributed("connector.rs", "fn connector_names("),
@@ -282,6 +283,8 @@ const tests = [
   installTestPrelude,
   attributed("minecraft.rs", "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell("),
   attributed("runtime_inventory.rs", "fn accepts_only_lowercase_sha1_digests("),
+  attributed("repair_evidence.rs", "fn only_complete_live_evidence_removes_matching_stale_hints("),
+  attributed("repair_evidence.rs", "fn unknown_hints_are_never_discarded("),
   attributed("launch.rs", "fn mod_jar_scope_excludes_service_files_and_other_folders("),
   attributed("resourcepack.rs", "fn keyword_search_handles_multibyte_rejected_matches_without_panicking("),
   attributed("connector.rs", "fn narrow_cache_names_only("),

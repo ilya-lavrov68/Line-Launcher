@@ -196,7 +196,7 @@ pub struct DetectedInstance {
     pub asset_inventory: Option<super::asset_inventory::AssetInventory>,
     /// Safe index id if a verified release supplied a readable asset index.
     pub asset_index_id: Option<String>,
-    /// Live-file audit is run only for an explicit prepare operation.
+    /// Live-file audit runs on prepare, or on ZIP play when archive assets are absent.
     pub live_assets: Option<super::asset_inventory::LiveAssets>,
     /// Digest and bounded preview of the exact set of live asset issues.
     pub live_asset_digest: Option<String>,

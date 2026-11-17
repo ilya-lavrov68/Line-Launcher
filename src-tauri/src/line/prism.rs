@@ -231,39 +231,13 @@ impl PrismProfile {
         loader: Option<(LoaderChoice, &str)>,
         has_patches: bool,
     ) -> LineResult<()> {
-        if has_patches {
-            return Err(LineError::input("Экземпляр Prism содержит пользовательские patches; их применение пока не поддерживается."));
-        }
-        let mut selected_mc = None;
-        let mut selected_loader: Option<(LoaderChoice, &str)> = None;
-        for component in self.components.iter().filter(|c| !c.disabled) {
-            match component.uid.as_str() {
-                "net.minecraft" => {
-                    selected_mc = Some(component.version.as_deref().ok_or_else(|| {
-                        LineError::input("В mmc-pack.json не закреплена версия Minecraft.")
-                    })?);
-                }
-                "org.lwjgl" | "org.lwjgl3" => {}
-                _ => {
-                    let kind = Self::loader(component).ok_or_else(|| LineError::input(format!(
-                        "Компонент Prism {} пока не поддерживается; запуск остановлен, чтобы не пропустить его.", component.uid
-                    )))?;
-                    let version = component.version.as_deref().ok_or_else(|| {
-                        LineError::input("В mmc-pack.json не закреплена версия загрузчика.")
-                    })?;
-                    if selected_loader.replace((kind, version)).is_some() {
-                        return Err(LineError::input(
-                            "В экземпляре Prism указано несколько загрузчиков.",
-                        ));
-                    }
-                }
-            }
-        }
-        if selected_mc != Some(minecraft) {
-            return Err(LineError::input(
-                "Версия Minecraft в профиле не совпадает с mmc-pack.json.",
-            ));
-        }
+        // Use the same validation as profile-less detection; do not maintain a
+        // second, subtly different interpretation of the component list.
+        let requirements = self.requirements(has_patches, Some(minecraft))?;
+        let selected_loader = requirements
+            .loader
+            .as_ref()
+            .map(|(kind, version)| (*kind, version.as_str()));
         let same = match (selected_loader, loader) {
             (None, None) => true,
             (Some((expected_kind, expected)), Some((actual_kind, actual)))
@@ -423,6 +397,14 @@ mod tests {
             .is_err());
         let custom = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"example.custom","version":"1.0"}]}"#).unwrap();
         assert!(custom
+            .verify_profile_identity("1.20.1", None, false)
+            .is_err());
+        let unpinned_lwjgl = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"org.lwjgl3","cachedVersion":"3.3.1"}]}"#).unwrap();
+        assert!(unpinned_lwjgl
+            .verify_profile_identity("1.20.1", None, false)
+            .is_err());
+        let duplicate_lwjgl = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","version":"1.20.1"},{"uid":"org.lwjgl","version":"2.9.1"},{"uid":"org.lwjgl3","version":"3.3.1"}]}"#).unwrap();
+        assert!(duplicate_lwjgl
             .verify_profile_identity("1.20.1", None, false)
             .is_err());
         let unpinned = PrismProfile::parse(br#"{"formatVersion":1,"components":[{"uid":"net.minecraft","cachedVersion":"1.20.1"}]}"#).unwrap();

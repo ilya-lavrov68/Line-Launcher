@@ -1434,7 +1434,12 @@ pub async fn mc_play(
                     )?);
                 }
             }
-            if audit_live_assets && detected.asset_inventory.is_some() {
+            // An archive hint remains true forever even after a repair. Re-audit
+            // assets on ZIP play only when that hint can be disproved with the
+            // release index; do not infer completeness from directory existence.
+            if (audit_live_assets || (audit_runtime && detected.missing.contains(&"assets")))
+                && detected.asset_inventory.is_some()
+            {
                 if let Some(id) = &detected.asset_index_id {
                     emit_mc_progress(
                         &inspect_app,
@@ -1588,12 +1593,32 @@ pub async fn mc_play(
     } else {
         0
     };
+    // A verified live client/asset set supersedes stale archive-only hints.
+    // Everything without complete evidence remains conservative and still
+    // prompts. This does not establish completeness of libraries or natives.
+    let verified_client = detected.live_runtime.as_ref().is_some_and(|inventory| {
+        inventory
+            .verified_clients
+            .contains(&detected.minecraft_version)
+    });
+    let verified_assets = detected.live_assets.is_some_and(|inventory| {
+        inventory.missing == 0 && inventory.wrong_size == 0 && inventory.wrong_hash == 0
+    });
+    let unresolved_hints = if server.source.is_none() {
+        super::repair_evidence::unresolved_archive_hints(
+            &detected.missing,
+            verified_client,
+            verified_assets,
+        )
+    } else {
+        detected.missing.clone()
+    };
     let live_runtime_issues = detected
         .live_runtime
         .as_ref()
         .map(|value| value.missing + value.wrong_size + value.wrong_hash)
         .unwrap_or(0);
-    if !detected.missing.is_empty()
+    if !unresolved_hints.is_empty()
         || live_runtime_issues > 0
         || loader.is_some()
         || detected.generated_profile
@@ -1619,8 +1644,7 @@ pub async fn mc_play(
                 }),
                 generated_profile: detected.generated_profile,
                 install_loader: loader.is_some(),
-                missing_from_archive: detected
-                    .missing
+                missing_from_archive: unresolved_hints
                     .iter()
                     .map(|value| (*value).to_string())
                     .collect(),

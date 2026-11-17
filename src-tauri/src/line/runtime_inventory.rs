@@ -25,6 +25,8 @@ pub struct RuntimeInventory {
     /// Stable, sorted records: reason, expected SHA-1, expected size, path.
     /// They are informational consent data, never used as filesystem input.
     pub issues: Vec<String>,
+    /// Profile ids whose explicitly hashed client JAR matched live bytes.
+    pub verified_clients: Vec<String>,
 }
 
 fn invalid() -> LineError {
@@ -130,6 +132,7 @@ pub fn inspect(
         return Err(invalid());
     }
     let mut expected = BTreeMap::new();
+    let mut client_paths = BTreeMap::new();
     let mut skipped = 0u64;
     for (id, bytes) in profiles {
         let id = super::minecraft_core::validate_version_id(id)?;
@@ -138,7 +141,10 @@ pub fn inspect(
         }
         let profile: Value = serde_json::from_slice(bytes).map_err(|_| invalid())?;
         if let Some(client) = profile.get("downloads").and_then(|v| v.get("client")) {
-            if !add_artifact(&mut expected, format!("versions/{id}/{id}.jar"), client)? {
+            let path = format!("versions/{id}/{id}.jar");
+            if add_artifact(&mut expected, path.clone(), client)? {
+                client_paths.insert(path, id.clone());
+            } else {
                 skipped += 1;
             }
         }
@@ -221,6 +227,9 @@ pub fn inspect(
             "hash"
         } else {
             result.matched += 1;
+            if let Some(id) = client_paths.get(&relative) {
+                result.verified_clients.push(id.clone());
+            }
             continue;
         };
         if result.issues.len() == MAX_ISSUES {
@@ -334,6 +343,25 @@ mod tests {
             &br#"{"libraries":[{"downloads":{"artifact":{"path":"a.jar","sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":1}}},{"downloads":{"artifact":{"path":"a.jar","sha1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":1}}}]}"#[..],
         ] { assert!(inspect(&[("1.20.1", json)], temp.path(), |_| Ok(String::new())).is_err()); }
     }
+    #[test]
+    fn only_an_explicit_matching_live_client_proves_client_reuse() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("versions/1.20.1")).unwrap();
+        std::fs::write(temp.path().join("versions/1.20.1/1.20.1.jar"), b"good").unwrap();
+        let json = br#"{"downloads":{"client":{"sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":4}}}"#;
+        let good = inspect(&[("1.20.1", json)], temp.path(), |_| Ok("a".repeat(40))).unwrap();
+        assert_eq!(good.verified_clients, vec!["1.20.1"]);
+        let bad = inspect(&[("1.20.1", json)], temp.path(), |_| Ok("b".repeat(40))).unwrap();
+        assert!(bad.verified_clients.is_empty());
+        let no_hash = br#"{"downloads":{"client":{"size":4}}}"#;
+        assert!(
+            inspect(&[("1.20.1", no_hash)], temp.path(), |_| unreachable!())
+                .unwrap()
+                .verified_clients
+                .is_empty()
+        );
+    }
+
     #[test]
     fn issue_identity_changes_even_when_counts_and_sizes_match() {
         let temp = tempfile::tempdir().unwrap();

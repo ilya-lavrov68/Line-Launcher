@@ -25,6 +25,7 @@ pub mod minecraft_core;
 pub mod pack;
 pub mod prism;
 mod release_swap;
+mod repair_evidence;
 pub mod resourcepack;
 pub mod rollback;
 pub mod runtime_inventory;

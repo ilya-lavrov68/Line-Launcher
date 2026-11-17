@@ -57,7 +57,7 @@ test("dialog declines without invoking play and resumes the original action on a
 
 
 test("partial runtime audit uses release profiles and prompts on verified mismatches", () => {
-  const worker = minecraft.slice(minecraft.indexOf("if audit_runtime {"), minecraft.indexOf("if audit_live_assets &&"));
+  const worker = minecraft.slice(minecraft.indexOf("if audit_runtime {"), minecraft.indexOf("// An archive hint remains true forever"));
   assert.match(worker, /index\.files\.iter\(\)\.any/);
   assert.match(worker, /runtime_inventory::inspect/);
   assert.match(worker, /sha1_file/);
@@ -80,4 +80,15 @@ test("asset consent binds the complete ordered issue set with a bounded preview"
   assert.match(minecraft, /live_asset_digest: detected\.live_asset_digest/);
   assert.match(panel, /liveAssetPreview\.map/);
   assert.match(panel, /zipRepair\.assetPreviewLimit/);
+});
+
+
+test("verified live evidence resolves only client and asset archive hints", () => {
+  const evidence = read("src-tauri/src/line/repair_evidence.rs");
+  assert.match(evidence, /"client-jar" => !verified_client/);
+  assert.match(evidence, /"assets" => !verified_assets/);
+  assert.match(evidence, /_ => true/);
+  assert.match(minecraft, /inventory\s*\.verified_clients\s*\.contains\(&detected\.minecraft_version\)/);
+  assert.match(minecraft, /inventory\.missing == 0 && inventory\.wrong_size == 0 && inventory\.wrong_hash == 0/);
+  assert.match(minecraft, /!unresolved_hints\.is_empty\(\)/);
 });

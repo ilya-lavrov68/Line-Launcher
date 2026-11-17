@@ -183,6 +183,8 @@ test("Minecraft dock keeps actions and errors prominent, with explanations on de
   assert.match(details, /t\("mc\.testModeHint"\)/);
   assert.match(details, /t\("mc\.onlineMode"\)/);
   assert.match(panel, /role="alert"/);
-  assert.match(panel, /role="progressbar"/);
+  assert.match(panel, /progress=\{progress \?/);
+  assert.match(read("src/components/line/ServerDock.tsx"), /role="progressbar"/);
+  assert.doesNotMatch(panel, /progress\.label/);
   assert.doesNotMatch(detail, /t\("source\.hint"\)/);
 });

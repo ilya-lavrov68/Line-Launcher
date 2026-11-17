@@ -69,20 +69,15 @@
    * looked pink, closer to a white cross than a red one. */
   --destructive-foreground: oklch(0.78 0.17 22);
 
-  /* ── the quiet-fill ladder and the glass surface ──
-   *
-   * The glass is translucent on purpose: the colour of the window lives in the
-   * backdrop, and a panel is a pane in front of it, not a hole cut through it.
-   * 0.45 is dark enough for body copy to hold its contrast over any part of the
-   * haze and light enough that the haze still reads through — an earlier 0.82
-   * turned every panel into opaque grey and left the colour visible only in the
-   * 6px gaps, which looked like a broken window instead of a designed one.
-   * The blur in the `[data-line-glass]` rule below does the rest. */
+  /* Keep controls and nested panels on the original dark glass. Only the two
+   * large shell panes receive a subtle translucent white tint below; changing
+   * the shared surface would wash out the entire interface and its controls. */
   --fill-subtle: rgba(255, 255, 255, 0.045);
   --fill: rgba(255, 255, 255, 0.07);
   --fill-hover: rgba(255, 255, 255, 0.1);
   --fill-strong: rgba(255, 255, 255, 0.14);
   --surface-glass: rgba(10, 12, 16, 0.45);
+  --surface-shell-glass: rgba(255, 255, 255, 0.09);
   --line-hairline: rgba(255, 255, 255, 0.1);
   --line-accent: var(--primary);
   --line-online: oklch(0.8 0.17 155);
@@ -199,7 +194,7 @@
    *
    * Blur is back, and only because the backdrop came back: with an animated
    * colour field behind the window, a translucent panel without it shows the
-   * mesh's edges through the text. A 20px blur turns that into depth. */
+   * mesh's edges through the text. */
   [data-line-glass] {
     background: var(--surface-glass);
     backdrop-filter: blur(20px) saturate(140%);
@@ -209,6 +204,15 @@
      * edge, and a 1px inset highlight draws a second border inside the real one.
      * Depth comes from the fill ladder and the blur, which were doing the work
      * anyway. */
+  }
+
+  /* Only the main shell tiles get the pale glass treatment. The tint is not
+   * opaque white: the backdrop and its colours remain visible underneath. */
+  [data-line-glass="main"],
+  [data-line-glass="sidebar"] {
+    background: var(--surface-shell-glass);
+    backdrop-filter: blur(32px) saturate(150%);
+    -webkit-backdrop-filter: blur(32px) saturate(150%);
   }
 
   /* The action dock: one continuous surface, no separate header block. */

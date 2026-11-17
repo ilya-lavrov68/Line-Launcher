@@ -337,6 +337,7 @@ export default function MinecraftPanel({
           disabled={locked}
           active={running}
           onClick={() => void (running ? stop() : play(false))}
+          progress={progress ? { label: stageNames[progress.stage] ?? t("mc.stageWorking"), percent } : undefined}
         >
           {working || busy === "stopping" ? (
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -381,60 +382,6 @@ export default function MinecraftPanel({
           </Button>
         )}
       </div>
-
-      {/* One continuous progress line: stage label on the left, bytes on the
-          right. It is a bar rather than a spinner because a first install is
-          hundreds of megabytes and "it is working" is not enough information. */}
-      {progress && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-muted-foreground truncate text-[12px]">
-              {stageNames[progress.stage] ??
-                progress.label ??
-                t("minecraft.installing")}
-            </span>
-            {percent !== null && (
-              <span className="text-muted-foreground font-mono text-[11px]">
-                {percent}%
-              </span>
-            )}
-          </div>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent ?? undefined}
-            aria-label={t("minecraft.installing")}
-            className="bg-fill h-2 w-full overflow-hidden rounded-full"
-          >
-            <div
-              className={cn(
-                "bg-primary h-full rounded-full transition-[width] duration-200",
-                percent === null && "w-1/3 animate-pulse",
-              )}
-              style={percent === null ? undefined : { width: `${percent}%` }}
-            />
-          </div>
-          <div
-            className="text-muted-foreground flex flex-wrap justify-between gap-1 font-mono text-[11px]"
-            role="status"
-          >
-            <span>
-              {progress.filesTotal
-                ? t("mc.filesProgress", {
-                    done: progress.filesDone ?? 0,
-                    total: progress.filesTotal,
-                  })
-                : progress.receivedBytes > 0
-                  ? `${formatBytes(progress.receivedBytes)}${progress.totalBytes ? ` / ${formatBytes(progress.totalBytes)}` : ""}`
-                  : t("mc.stageWorking")}
-            </span>
-            {progress.label && !progress.filesTotal && (
-              <span className="max-w-full truncate">{progress.label}</span>
-            )}
-          </div>
-        </div>
-      )}
 
       {notice && (
         <p

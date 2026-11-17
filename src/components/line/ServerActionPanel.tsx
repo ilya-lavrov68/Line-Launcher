@@ -202,6 +202,7 @@ export default function ServerActionPanel({
           disabled={!canPress}
           active={active}
           onClick={installing && onCancel ? onCancel : onPrimary}
+          progress={installing ? { label: progress ? installPhaseLabel(t, progress.phase) : t("detail.installing"), percent } : undefined}
         >
           {installing ? (
             <CloudDownload className="size-4" aria-hidden="true" />
@@ -215,63 +216,6 @@ export default function ServerActionPanel({
           <span>{primaryLabel(t, phase)}</span>
         </ServerDockPrimary>
       </div>
-
-      <AnimatePresence initial={false}>
-        {installing && (
-          <m.div
-            key="progress"
-            initial={reducedMotion ? false : { opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={reducedMotion ? undefined : { opacity: 0, height: 0 }}
-            transition={{
-              duration: reducedMotion ? 0 : 0.18,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="overflow-hidden"
-          >
-            <div className="flex flex-col gap-2">
-              <div
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={percent ?? undefined}
-                aria-label={t("detail.installing")}
-                className="bg-fill relative h-2 w-full overflow-hidden rounded-full"
-              >
-                {/* Determinate while the installer reports a percentage,
-                    indeterminate (a quiet sweep) when it only knows bytes. */}
-                {percent === null ? (
-                  <m.div
-                    className="bg-primary/60 absolute inset-y-0 w-1/3 rounded-full"
-                    animate={
-                      reducedMotion ? undefined : { x: ["-40%", "260%"] }
-                    }
-                    transition={{
-                      duration: 1.4,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ) : (
-                  <m.div
-                    className="bg-primary absolute inset-y-0 left-0 rounded-full"
-                    initial={false}
-                    animate={{ width: `${percent}%` }}
-                    transition={{
-                      duration: reducedMotion ? 0 : 0.2,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  />
-                )}
-              </div>
-              <div className="text-muted-foreground flex items-center justify-between font-mono text-[12px]">
-                <span>{installPhaseLabel(t, progress!.phase)}</span>
-                <span>{percent === null ? "…" : `${percent}%`}</span>
-              </div>
-            </div>
-          </m.div>
-        )}
-      </AnimatePresence>
 
       <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">
         <ShieldCheck className="size-3.5 shrink-0" aria-hidden="true" />

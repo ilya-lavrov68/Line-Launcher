@@ -111,8 +111,6 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   for (const piece of [
     "server.name",
     'role="status"',
-    'role="progressbar"',
-    "aria-valuenow",
     't("detail.installing")',
     't("detail.play")',
   ]) {
@@ -125,6 +123,8 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
     assert.match(mode, /<ServerDock name=\{server\.name\}>/);
     assert.match(mode, /<ServerDockPrimary/);
   }
+  assert.match(dock, /role="progressbar"/);
+  assert.match(dock, /aria-valuenow/);
   assert.match(dock, /data-line-glass="dock"/);
   assert.match(dock, /role="region"/);
   assert.match(dock, /aria-labelledby="server-action-title"/);
@@ -616,4 +616,15 @@ test("signing out does not flash a connection error before the gate", () => {
     launcher,
     /!\(section === "servers" && screen === "config"\) &&\n\s+session &&/,
   );
+});
+
+
+test("only the main shell panes get translucent white glass", () => {
+  assert.match(indexCss, /--surface-glass:\s*rgba\(10, 12, 16, 0\.45\)/);
+  assert.match(indexCss, /--surface-shell-glass:\s*rgba\(255, 255, 255, 0\.09\)/);
+  assert.match(indexCss, /\[data-line-glass="main"\],\s*\[data-line-glass="sidebar"\]\s*\{\s*background:\s*var\(--surface-shell-glass\)/);
+  assert.match(read("src/components/line/LineLauncher.tsx"), /<main\s+data-line-glass="main"/);
+  assert.match(read("src/components/line/SideNav.tsx"), /data-line-glass="sidebar"/);
+  assert.match(read("src/components/line/ServerDock.tsx"), /data-line-glass="dock"/);
+  assert.match(indexCss, /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*\[data-line-glass\]\s*\{\s*background:\s*#14161b/);
 });

@@ -12,10 +12,10 @@ const shell = read("src/components/line/LineLauncher.tsx");
 test("the server action dock cannot be pushed up by a progress panel", () => {
   assert.doesNotMatch(detail, /className="mt-auto"/);
   for (const panel of [minecraft, archive]) {
-    assert.ok(
-      panel.indexOf("<ServerDockPrimary") < panel.indexOf('role="progressbar"'),
-    );
+    assert.match(panel, /<ServerDockPrimary/);
+    assert.match(panel, /progress=\{/);
   }
+  assert.match(read("src/components/line/ServerDock.tsx"), /role="progressbar"/);
   assert.doesNotMatch(
     read("src/components/line/ServerDock.tsx"),
     /whileTap|whileHover/,

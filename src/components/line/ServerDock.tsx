@@ -41,28 +41,38 @@ export function ServerDockPrimary({
   disabled,
   active = false,
   onClick,
+  progress,
 }: {
   children: ReactNode;
   disabled: boolean;
   active?: boolean;
   onClick: () => void;
+  progress?: { label: string; percent: number | null };
 }) {
   return (
-    <div className="min-w-0 flex-1">
+    <div className="relative min-w-0 flex-1">
       <Button
         size="lg"
         disabled={disabled}
         aria-disabled={disabled}
         onClick={onClick}
         className={cn(
-          "h-11 w-full gap-2 rounded-[var(--radius-item)] text-sm font-semibold",
+          "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
+          progress && "disabled:opacity-100",
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
             : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
       >
-        {children}
+        {progress && (
+          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/10">
+            <span className={cn("block h-full bg-black/45 transition-[width] duration-200", progress.percent === null && "w-1/3 animate-pulse motion-reduce:animate-none")} style={progress.percent === null ? undefined : { width: `${progress.percent}%` }} />
+          </span>
+        )}
+        <span className="flex min-w-0 items-center justify-center gap-2">{children}</span>
+        {progress && <span aria-hidden="true" className="truncate text-xs font-normal opacity-75">{progress.label}{progress.percent === null ? "" : ` · ${progress.percent}%`}</span>}
       </Button>
+      {progress && <span role="progressbar" aria-label={progress.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent ?? undefined} className="sr-only" />}
     </div>
   );
 }

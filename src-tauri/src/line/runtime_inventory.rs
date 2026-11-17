@@ -1,7 +1,7 @@
 //! Partial, read-only inventory of runtime artifacts in verified version JSON.
 //! This is installation integrity, not the mod/resource-pack word scanner.
-//! Only explicit SHA-1/size artifacts without platform rules are counted;
-//! absent metadata, classifiers and rule-gated libraries remain unverified.
+//! Explicit SHA-1/size artifacts with no rules or simple OS-name-only rules
+//! can be counted; complex rules, classifiers and missing metadata are skipped.
 use super::error::{ErrorCode, LineError, LineResult};
 use super::storage::{is_real_dir, is_real_file};
 use serde_json::Value;
@@ -40,6 +40,56 @@ fn valid_sha1(value: &str) -> bool {
         && value
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Evaluate only the unambiguous OS-name subset of Mojang rules. Unknown fields,
+/// architectures, OS-version regexes and feature flags remain unverified rather
+/// than guessing. Matching rules are ordered and the last match wins.
+fn simple_os_rules(rules: &Value, os: &str) -> Option<bool> {
+    let rules = rules.as_array()?;
+    // The installer treats an empty rule list like no rules.
+    if rules.is_empty() {
+        return Some(true);
+    }
+    let mut allowed = false;
+    for rule in rules {
+        let fields = rule.as_object()?;
+        if fields.keys().any(|key| key != "action" && key != "os") {
+            return None;
+        }
+        let action = match rule.get("action")?.as_str()? {
+            "allow" => true,
+            "disallow" => false,
+            _ => return None,
+        };
+        let matches = match rule.get("os") {
+            None => true,
+            Some(value) => {
+                let fields = value.as_object()?;
+                if fields.len() != 1 || !fields.contains_key("name") {
+                    return None;
+                }
+                let name = fields.get("name")?.as_str()?;
+                if !matches!(name, "windows" | "linux" | "osx") {
+                    return None;
+                }
+                name == os
+            }
+        };
+        if matches {
+            allowed = action;
+        }
+    }
+    Some(allowed)
+}
+
+fn current_os() -> Option<&'static str> {
+    match std::env::consts::OS {
+        "windows" => Some("windows"),
+        "linux" => Some("linux"),
+        "macos" => Some("osx"),
+        _ => None,
+    }
 }
 
 fn add_artifact(
@@ -98,9 +148,19 @@ pub fn inspect(
                 return Err(invalid());
             }
             for library in libraries {
-                if library.get("rules").is_some() || library.get("natives").is_some() {
+                if library.get("natives").is_some() {
                     skipped += 1;
                     continue;
+                }
+                if let Some(rules) = library.get("rules") {
+                    match current_os().and_then(|os| simple_os_rules(rules, os)) {
+                        Some(true) => {}
+                        Some(false) => continue,
+                        None => {
+                            skipped += 1;
+                            continue;
+                        }
+                    }
                 }
                 let Some(artifact) = library.get("downloads").and_then(|v| v.get("artifact"))
                 else {
@@ -191,7 +251,7 @@ mod tests {
         std::fs::create_dir_all(temp.path().join("libraries/example")).unwrap();
         std::fs::write(temp.path().join("libraries/example/good.jar"), b"good").unwrap();
         std::fs::write(temp.path().join("libraries/example/bad.jar"), b"xxxx").unwrap();
-        let json = br#"{"downloads":{"client":{"sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":7}},"libraries":[{"downloads":{"artifact":{"path":"example/good.jar","sha1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":4}}},{"downloads":{"artifact":{"path":"example/bad.jar","sha1":"cccccccccccccccccccccccccccccccccccccccc","size":4}}},{"rules":[{"action":"allow"}],"downloads":{"artifact":{"path":"example/other.jar","sha1":"dddddddddddddddddddddddddddddddddddddddd","size":4}}}]}"#;
+        let json = br#"{"downloads":{"client":{"sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":7}},"libraries":[{"downloads":{"artifact":{"path":"example/good.jar","sha1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":4}}},{"downloads":{"artifact":{"path":"example/bad.jar","sha1":"cccccccccccccccccccccccccccccccccccccccc","size":4}}},{"rules":[{"action":"allow","features":{"demo":true}}],"downloads":{"artifact":{"path":"example/other.jar","sha1":"dddddddddddddddddddddddddddddddddddddddd","size":4}}}]}"#;
         let report = inspect(&[("1.20.1", json), ("1.20.1", json)], temp.path(), |path| {
             Ok(if path.ends_with("good.jar") {
                 "b".repeat(40)
@@ -215,6 +275,56 @@ mod tests {
         assert!(report.issues[0].contains("libraries/example/bad.jar"));
         assert!(report.issues[1].contains("versions/1.20.1/1.20.1.jar"));
     }
+    #[test]
+    fn simple_platform_rules_are_ordered_and_unknown_conditions_stay_unverified() {
+        let parse = |text: &str| serde_json::from_str::<Value>(text).unwrap();
+        let rules = parse(
+            r#"[{"action":"allow"},{"action":"disallow","os":{"name":"windows"}},{"action":"allow","os":{"name":"linux"}}]"#,
+        );
+        assert_eq!(simple_os_rules(&parse("[]"), "windows"), Some(true));
+        assert_eq!(simple_os_rules(&rules, "windows"), Some(false));
+        assert_eq!(simple_os_rules(&rules, "linux"), Some(true));
+        assert_eq!(simple_os_rules(&rules, "osx"), Some(true));
+        assert_eq!(
+            simple_os_rules(
+                &parse(r#"[{"action":"allow","os":{"name":"windows"}}]"#),
+                "linux"
+            ),
+            Some(false)
+        );
+        for unsupported in [
+            r#"[{"action":"allow","os":{"name":"windows","arch":"x86"}}]"#,
+            r#"[{"action":"allow","os":{"name":"windows","version":"^10"}}]"#,
+            r#"[{"action":"allow","features":{"is_demo_user":true}}]"#,
+            r#"[{"action":"allow","os":{"name":"unknown"}}]"#,
+            r#"[{"action":"other"}]"#,
+            r#"{}"#,
+        ] {
+            assert_eq!(simple_os_rules(&parse(unsupported), "windows"), None);
+        }
+    }
+
+    #[test]
+    fn audits_applicable_rules_but_not_excluded_or_complex_ones() {
+        let temp = tempfile::tempdir().unwrap();
+        let os = current_os().unwrap();
+        let json = format!(
+            r#"{{"libraries":[
+          {{"rules":[{{"action":"allow","os":{{"name":"{os}"}}}}],"downloads":{{"artifact":{{"path":"included.jar","sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":3}}}}}},
+          {{"rules":[{{"action":"disallow"}}],"downloads":{{"artifact":{{"path":"excluded.jar","sha1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":3}}}}}},
+          {{"rules":[{{"action":"allow","features":{{"demo":true}}}}],"downloads":{{"artifact":{{"path":"unknown.jar","sha1":"cccccccccccccccccccccccccccccccccccccccc","size":3}}}}}}
+        ]}}"#
+        );
+        let report = inspect(
+            &[("1.20.1", json.as_bytes())],
+            temp.path(),
+            |_| unreachable!(),
+        )
+        .unwrap();
+        assert_eq!((report.checked, report.missing, report.skipped), (1, 1, 1));
+        assert!(report.issues[0].ends_with("libraries/included.jar"));
+    }
+
     #[test]
     fn rejects_bad_paths_and_conflicting_expectations() {
         let temp = tempfile::tempdir().unwrap();

@@ -323,6 +323,8 @@ export interface ZipRepairPlan {
   installLoader: boolean;
   missingFromArchive: string[];
   liveAssetIssues: number;
+  liveAssetDigest: string | null;
+  liveAssetPreview: string[];
   liveAssetBytes: number;
   liveRuntimeIssues: number;
   liveRuntimeFiles: string[];

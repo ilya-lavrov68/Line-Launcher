@@ -128,6 +128,7 @@ pub fn inspect_live(
     bytes: &[u8],
     game: &Path,
     mut hash_file: impl FnMut(&Path) -> LineResult<String>,
+    mut on_issue: impl FnMut(&str, u64, &str),
 ) -> LineResult<LiveAssets> {
     let expected = parse_objects(bytes)?;
     if !super::storage::is_real_dir(game) {
@@ -165,8 +166,11 @@ pub fn inspect_live(
         } else {
             None
         };
-        match meta {
-            None => result.missing += 1,
+        let reason = match meta {
+            None => {
+                result.missing += 1;
+                "missing"
+            }
             Some(_) if !super::storage::is_real_file(&path) => {
                 return Err(LineError::new(
                     super::error::ErrorCode::Integrity,
@@ -174,13 +178,20 @@ pub fn inspect_live(
                     false,
                 ))
             }
-            Some(meta) if meta.len() != size => result.wrong_size += 1,
-            Some(_) if hash_file(&path)? != hash => result.wrong_hash += 1,
+            Some(meta) if meta.len() != size => {
+                result.wrong_size += 1;
+                "size"
+            }
+            Some(_) if hash_file(&path)? != hash => {
+                result.wrong_hash += 1;
+                "hash"
+            }
             Some(_) => {
                 result.matched_sha1 += 1;
                 continue;
             }
-        }
+        };
+        on_issue(&hash, size, reason);
         result.needed_bytes = result.needed_bytes.checked_add(size).ok_or_else(invalid)?;
     }
     Ok(result)
@@ -252,15 +263,21 @@ mod tests {
         std::fs::write(root.join("assets/objects/cc").join(c), b"x").unwrap();
         let input = br#"{"objects":{"a":{"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":4},"a-again":{"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":4},"b":{"hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":4},"c":{"hash":"cccccccccccccccccccccccccccccccccccccccc","size":4},"d":{"hash":"dddddddddddddddddddddddddddddddddddddddd","size":10}}}"#;
         let mut calls = 0;
-        let actual = inspect_live(input, &root, |path| {
-            calls += 1;
-            Ok(if std::fs::read(path).unwrap() == b"good" {
-                a
-            } else {
-                "0000000000000000000000000000000000000000"
-            }
-            .to_string())
-        })
+        let mut issues = Vec::new();
+        let actual = inspect_live(
+            input,
+            &root,
+            |path| {
+                calls += 1;
+                Ok(if std::fs::read(path).unwrap() == b"good" {
+                    a
+                } else {
+                    "0000000000000000000000000000000000000000"
+                }
+                .to_string())
+            },
+            |hash, size, reason| issues.push((hash.to_owned(), size, reason.to_owned())),
+        )
         .unwrap();
         assert_eq!(
             actual,
@@ -274,7 +291,41 @@ mod tests {
             }
         );
         assert_eq!(calls, 2);
+        assert_eq!(
+            issues,
+            vec![
+                (b.to_owned(), 4, "hash".into()),
+                (c.to_owned(), 4, "size".into()),
+                ("d".repeat(40), 10, "missing".into())
+            ]
+        );
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn issue_records_distinguish_equal_counts_and_sizes_and_are_sorted() {
+        let root = tempfile::tempdir().unwrap();
+        let first = br#"{"objects":{"x":{"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":4},"y":{"hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":4}}}"#;
+        let second = br#"{"objects":{"x":{"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":4},"y":{"hash":"cccccccccccccccccccccccccccccccccccccccc","size":4}}}"#;
+        let mut a = Vec::new();
+        let mut b = Vec::new();
+        let counts_a = inspect_live(
+            first,
+            root.path(),
+            |_| unreachable!(),
+            |hash, size, reason| a.push((hash.to_owned(), size, reason.to_owned())),
+        )
+        .unwrap();
+        let counts_b = inspect_live(
+            second,
+            root.path(),
+            |_| unreachable!(),
+            |hash, size, reason| b.push((hash.to_owned(), size, reason.to_owned())),
+        )
+        .unwrap();
+        assert_eq!(counts_a, counts_b);
+        assert_ne!(a, b);
+        assert!(a[0].0 < a[1].0);
     }
 
     #[cfg(unix)]
@@ -293,7 +344,13 @@ mod tests {
         symlink(std::env::temp_dir(), root.join("assets")).unwrap();
         let input =
             br#"{"objects":{"a":{"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":4}}}"#;
-        assert!(inspect_live(input, &root, |_| panic!("must not read through a link")).is_err());
+        assert!(inspect_live(
+            input,
+            &root,
+            |_| panic!("must not read through a link"),
+            |_, _, _| {}
+        )
+        .is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
 

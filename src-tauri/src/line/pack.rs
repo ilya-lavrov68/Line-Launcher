@@ -198,6 +198,9 @@ pub struct DetectedInstance {
     pub asset_index_id: Option<String>,
     /// Live-file audit is run only for an explicit prepare operation.
     pub live_assets: Option<super::asset_inventory::LiveAssets>,
+    /// Digest and bounded preview of the exact set of live asset issues.
+    pub live_asset_digest: Option<String>,
+    pub live_asset_preview: Vec<String>,
     /// Partial live SHA-1 inventory of runtime files with explicit metadata.
     pub live_runtime: Option<super::runtime_inventory::RuntimeInventory>,
     /// Game-relative files the pack owns.
@@ -469,6 +472,8 @@ pub fn inspect(
         asset_inventory,
         asset_index_id,
         live_assets: None,
+        live_asset_digest: None,
+        live_asset_preview: Vec::new(),
         live_runtime: None,
         files,
     })

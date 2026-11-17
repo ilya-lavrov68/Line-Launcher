@@ -70,16 +70,18 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
   a locally generated index does not authenticate a malicious provider, and
   SHA-1 supplied by Minecraft metadata is not a modern anti-cheat signature.
 - **ZIP runtime inventory:** when the scanned release contains version JSON,
-  Minecraft preparation hashes live client and unruled library artifacts with
-  explicit SHA-1 and size from that JSON; missing or modified files trigger the
-  existing ZIP confirmation even if a library directory already exists. The
-  dialog reports the lower-bound count/size and skipped entries. Rules, native
-  classifiers, metadata without hashes, absent profiles and assets without a
-  usable index are not covered. This is installation integrity, not keyword
-  scanning; SHA-1 and provider-supplied metadata do not authenticate a hostile
-  provider. The summary binds counts rather than an exact file list. The
-  installer can do more than the inventory; repeats, traffic, large-pack timing
-  and full Cargo/Windows behaviour have not been measured or validated.
+  Minecraft preparation hashes live client and library artifacts with explicit
+  SHA-1 and size from that JSON, including simple OS-name-only rules; missing
+  or modified files trigger the existing ZIP confirmation even if a library directory already exists. The
+  dialog reports the lower-bound count/size, identified paths and skipped entries.
+  Complex rules, native classifiers, metadata without hashes, absent profiles
+  and assets without a usable index are not covered. This is installation
+  integrity, not keyword scanning; SHA-1 and provider-supplied metadata do not authenticate a hostile
+  provider. Consent binds identified runtime files and, when assets are audited,
+  a digest of the complete issue set; the UI previews at most 32 asset paths.
+  This is not a complete download manifest: the installer can do more than the
+  inventory; repeats, traffic, large-pack timing and full Cargo/Windows behaviour
+  have not been measured or validated.
 - **Repeat performance:** source files with matching provider hash and size can
   be reused, but there are still repeated full scans and no independently
   validated loader receipt. Measure actual network, disk and wall time before

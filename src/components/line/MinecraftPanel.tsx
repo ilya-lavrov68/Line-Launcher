@@ -487,12 +487,21 @@ export default function MinecraftPanel({
                 </>
               )}
               {pendingRepair.liveAssetIssues > 0 && (
-                <p>
-                  {t("zipRepair.liveAssets", {
-                    count: pendingRepair.liveAssetIssues,
-                    size: formatBytes(pendingRepair.liveAssetBytes),
-                  })}
-                </p>
+                <>
+                  <p>
+                    {t("zipRepair.liveAssets", {
+                      count: pendingRepair.liveAssetIssues,
+                      size: formatBytes(pendingRepair.liveAssetBytes),
+                    })}
+                  </p>
+                  <details>
+                    <summary>{t("zipRepair.assetPreview")}</summary>
+                    <ul className="mt-2 max-h-36 overflow-auto break-all">
+                      {pendingRepair.liveAssetPreview.map((path) => <li key={path}>{path}</li>)}
+                    </ul>
+                    {pendingRepair.liveAssetIssues > pendingRepair.liveAssetPreview.length && <p>{t("zipRepair.assetPreviewLimit")}</p>}
+                  </details>
+                </>
               )}
               {pendingRepair.liveRuntimeIssues > 0 && (
                 <>
@@ -611,6 +620,8 @@ function getZipRepairPlan(cause: unknown): ZipRepairPlan | null {
     typeof value.liveRuntimeIssues !== "number" || !Number.isSafeInteger(value.liveRuntimeIssues) || value.liveRuntimeIssues < 0 ||
     typeof value.liveRuntimeBytes !== "number" || !Number.isSafeInteger(value.liveRuntimeBytes) || value.liveRuntimeBytes < 0 ||
     typeof value.liveRuntimeSkipped !== "number" || !Number.isSafeInteger(value.liveRuntimeSkipped) || value.liveRuntimeSkipped < 0 ||
+    !(value.liveAssetDigest === null || (typeof value.liveAssetDigest === "string" && /^[a-f0-9]{64}$/.test(value.liveAssetDigest))) ||
+    !Array.isArray(value.liveAssetPreview) || value.liveAssetPreview.length > 32 || !value.liveAssetPreview.every((path) => typeof path === "string" && /^assets\/objects\/[a-f0-9]{2}\/[a-f0-9]{40}$/.test(path)) ||
     typeof value.liveAssetIssues !== "number" ||
     !Number.isSafeInteger(value.liveAssetIssues) ||
     value.liveAssetIssues < 0 ||

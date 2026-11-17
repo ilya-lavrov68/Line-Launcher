@@ -299,7 +299,7 @@ export const ru = {
   "backdrop.pearl": "Лунный камень",
   "zipRepair.runtimeFiles": "Файлы, найденные при проверке",
   "zipRepair.liveRuntime": "По хешам профиля отсутствуют или повреждены файлы клиента и библиотек: {count}, ориентировочно {size}.",
-  "zipRepair.runtimePartial": "Проверены не все компоненты: {count} записей с правилами или без хеша пропущено.",
+  "zipRepair.runtimePartial": "Проверены не все компоненты: {count} записей со сложными правилами, native-компонентами или без хеша пропущено.",
   "javaConsent.title": "Скачать Java?",
   "javaConsent.description": "Для этого действия нужна Java {major}. Подходящая установленная Java не найдена.",
   "javaConsent.loader": "Java нужна установщику загрузчика.",
@@ -321,6 +321,8 @@ export const ru = {
   "zipRepair.other": "Другие компоненты",
   "zipRepair.loader":
     "Также может быть установлен загрузчик и необходимая ему Java.",
+  "zipRepair.assetPreview": "Объекты ресурсов (первые 32)",
+  "zipRepair.assetPreviewLimit": "Показаны не все объекты; проверка учитывает весь список.",
   "zipRepair.liveAssets":
     "В игровом каталоге отсутствуют или повреждены ресурсы: {count}, ориентировочно {size}.",
   "zipRepair.unknownSize":
@@ -773,7 +775,7 @@ const en: Dictionary = {
   "backdrop.pearl": "Moonstone",
   "zipRepair.runtimeFiles": "Files identified by the check",
   "zipRepair.liveRuntime": "Profile hashes identify missing or damaged client and library files: {count}, approximately {size}.",
-  "zipRepair.runtimePartial": "This check is incomplete: {count} entries with rules or missing hashes were skipped.",
+  "zipRepair.runtimePartial": "This check is incomplete: {count} entries with complex rules, native components or missing hashes were skipped.",
   "javaConsent.title": "Download Java?",
   "javaConsent.description": "This action needs Java {major}; a suitable installed Java was not found.",
   "javaConsent.loader": "Java is needed by the loader installer.",
@@ -794,6 +796,8 @@ const en: Dictionary = {
   "zipRepair.assets": "Assets",
   "zipRepair.other": "Other components",
   "zipRepair.loader": "A loader and its required Java may also be installed.",
+  "zipRepair.assetPreview": "Asset objects (first 32)",
+  "zipRepair.assetPreviewLimit": "Not all objects are shown; the check covers the full list.",
   "zipRepair.liveAssets":
     "In the game directory, missing or damaged assets: {count}, approximately {size}.",
   "zipRepair.unknownSize":
@@ -1247,7 +1251,7 @@ const de: Dictionary = {
   "backdrop.pearl": "Mondstein",
   "zipRepair.runtimeFiles": "Bei der Prüfung gefundene Dateien",
   "zipRepair.liveRuntime": "Laut Profil-Hashes fehlen oder sind Client- und Bibliotheksdateien beschädigt: {count}, etwa {size}.",
-  "zipRepair.runtimePartial": "Die Prüfung ist unvollständig: {count} Einträge mit Regeln oder ohne Hash wurden übersprungen.",
+  "zipRepair.runtimePartial": "Die Prüfung ist unvollständig: {count} Einträge mit komplexen Regeln, nativen Komponenten oder ohne Hash wurden übersprungen.",
   "javaConsent.title": "Java herunterladen?",
   "javaConsent.description": "Diese Aktion benötigt Java {major}; eine passende Installation wurde nicht gefunden.",
   "javaConsent.loader": "Java wird für den Modloader-Installer benötigt.",
@@ -1269,6 +1273,8 @@ const de: Dictionary = {
   "zipRepair.other": "Weitere Komponenten",
   "zipRepair.loader":
     "Ein Modloader und dessen benötigtes Java können ebenfalls installiert werden.",
+  "zipRepair.assetPreview": "Ressourcenobjekte (erste 32)",
+  "zipRepair.assetPreviewLimit": "Nicht alle Objekte werden angezeigt; die Prüfung umfasst die gesamte Liste.",
   "zipRepair.liveAssets":
     "Fehlende oder beschädigte Ressourcen im Spielordner: {count}, etwa {size}.",
   "zipRepair.unknownSize":
@@ -1720,7 +1726,7 @@ const fr: Dictionary = {
   "backdrop.pearl": "Pierre de lune",
   "zipRepair.runtimeFiles": "Fichiers repérés lors de la vérification",
   "zipRepair.liveRuntime": "Selon les empreintes du profil, des fichiers du client et des bibliothèques manquent ou sont endommagés : {count}, environ {size}.",
-  "zipRepair.runtimePartial": "La vérification est partielle : {count} entrées avec règles ou sans empreinte ont été ignorées.",
+  "zipRepair.runtimePartial": "La vérification est partielle : {count} entrées avec règles complexes, composants natifs ou sans empreinte ont été ignorées.",
   "javaConsent.title": "Télécharger Java ?",
   "javaConsent.description": "Cette action nécessite Java {major} ; aucune installation adaptée n’a été trouvée.",
   "javaConsent.loader": "Java est nécessaire au programme d’installation du chargeur.",
@@ -1742,6 +1748,8 @@ const fr: Dictionary = {
   "zipRepair.other": "Autres composants",
   "zipRepair.loader":
     "Un chargeur et la version Java nécessaire peuvent aussi être installés.",
+  "zipRepair.assetPreview": "Objets de ressources (32 premiers)",
+  "zipRepair.assetPreviewLimit": "Tous les objets ne sont pas affichés ; la vérification couvre la liste entière.",
   "zipRepair.liveAssets":
     "Ressources manquantes ou endommagées dans le dossier du jeu : {count}, environ {size}.",
   "zipRepair.unknownSize":

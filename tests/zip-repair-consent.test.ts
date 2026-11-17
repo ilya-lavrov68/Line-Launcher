@@ -69,3 +69,15 @@ test("partial runtime audit uses release profiles and prompts on verified mismat
   assert.match(consent, /live_runtime_skipped/);
   assert.match(panel, /zipRepair\.runtimePartial/);
 });
+
+
+test("asset consent binds the complete ordered issue set with a bounded preview", () => {
+  assert.match(minecraft, /line-asset-issues-v1/);
+  assert.match(minecraft, /digest\.update\(hash\.as_bytes\(\)\)/);
+  assert.match(minecraft, /digest\.update\(size\.to_be_bytes\(\)\)/);
+  assert.match(minecraft, /digest\.update\(reason\.as_bytes\(\)\)/);
+  assert.match(minecraft, /preview\.len\(\) < 32/);
+  assert.match(minecraft, /live_asset_digest: detected\.live_asset_digest/);
+  assert.match(panel, /liveAssetPreview\.map/);
+  assert.match(panel, /zipRepair\.assetPreviewLimit/);
+});

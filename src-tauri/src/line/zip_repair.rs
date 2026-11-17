@@ -19,6 +19,10 @@ pub struct ZipRepairPlan {
     pub missing_from_archive: Vec<String>,
     pub live_asset_issues: u64,
     #[serde(default)]
+    pub live_asset_digest: Option<String>,
+    #[serde(default)]
+    pub live_asset_preview: Vec<String>,
+    #[serde(default)]
     pub live_runtime_issues: u64,
     #[serde(default)]
     pub live_runtime_files: Vec<String>,
@@ -55,6 +59,8 @@ mod tests {
             install_loader: false,
             missing_from_archive: vec!["assets".into()],
             live_asset_issues: 0,
+            live_asset_digest: None,
+            live_asset_preview: Vec::new(),
             live_runtime_issues: 0,
             live_runtime_files: Vec::new(),
             live_runtime_bytes: 0,
@@ -77,6 +83,9 @@ mod tests {
         assert!(!plan.is_approved_by(Some(&changed)));
         changed = plan.clone();
         changed.live_asset_issues = 1;
+        assert!(!plan.is_approved_by(Some(&changed)));
+        changed = plan.clone();
+        changed.live_asset_digest = Some("a".repeat(64));
         assert!(!plan.is_approved_by(Some(&changed)));
         changed = plan.clone();
         changed.live_runtime_issues = 1;

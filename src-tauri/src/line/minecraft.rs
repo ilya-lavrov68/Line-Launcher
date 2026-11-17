@@ -1446,11 +1446,28 @@ pub async fn mc_play(
                         false,
                     );
                     let bytes = pack::read_release_asset_index(&release, &detected.prefix, id)?;
+                    use sha2::{Digest, Sha256};
+                    let mut digest = Sha256::new();
+                    // Domain-separated, deterministic records; the inventory iterates
+                    // unique hashes in sorted order. Preview stays bounded for IPC.
+                    digest.update(b"line-asset-issues-v1\0");
+                    let mut preview = Vec::new();
                     detected.live_assets = Some(super::asset_inventory::inspect_live(
                         &bytes,
                         &game,
                         |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
+                        |hash, size, reason| {
+                            digest.update(hash.as_bytes());
+                            digest.update(size.to_be_bytes());
+                            digest.update(reason.as_bytes());
+                            digest.update(b"\0");
+                            if preview.len() < 32 {
+                                preview.push(format!("assets/objects/{}/{}", &hash[..2], hash));
+                            }
+                        },
                     )?);
+                    detected.live_asset_digest = Some(format!("{:x}", digest.finalize()));
+                    detected.live_asset_preview = preview;
                 }
             }
             Ok((detected, index))
@@ -1608,6 +1625,8 @@ pub async fn mc_play(
                     .map(|value| (*value).to_string())
                     .collect(),
                 live_asset_issues,
+                live_asset_digest: detected.live_asset_digest.clone(),
+                live_asset_preview: detected.live_asset_preview.clone(),
                 live_runtime_issues,
                 live_runtime_files: detected
                     .live_runtime

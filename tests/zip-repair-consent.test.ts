@@ -54,3 +54,16 @@ test("dialog declines without invoking play and resumes the original action on a
   assert.match(panel, /else void play\(plan\.testMode, plan\)/);
   assert.match(panel, /approveZipRepair: approved/);
 });
+
+
+test("partial runtime audit uses release profiles and prompts on verified mismatches", () => {
+  const worker = minecraft.slice(minecraft.indexOf("if audit_runtime {"), minecraft.indexOf("if audit_live_assets &&"));
+  assert.match(worker, /index\.files\.iter\(\)\.any/);
+  assert.match(worker, /runtime_inventory::inspect/);
+  assert.match(worker, /sha1_file/);
+  const consent = minecraft.slice(minecraft.indexOf("let live_runtime_issues"), minecraft.indexOf("let loader_started"));
+  assert.match(consent, /live_runtime_issues > 0/);
+  assert.match(consent, /live_runtime_bytes/);
+  assert.match(consent, /live_runtime_skipped/);
+  assert.match(panel, /zipRepair\.runtimePartial/);
+});

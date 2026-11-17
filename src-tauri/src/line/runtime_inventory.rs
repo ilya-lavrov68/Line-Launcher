@@ -1,0 +1,214 @@
+//! Partial, read-only inventory of runtime artifacts in verified version JSON.
+//! This is installation integrity, not the mod/resource-pack word scanner.
+//! Only explicit SHA-1/size artifacts without platform rules are counted;
+//! absent metadata, classifiers and rule-gated libraries remain unverified.
+use super::error::{ErrorCode, LineError, LineResult};
+use super::storage::{is_real_dir, is_real_file};
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::path::{Component, Path};
+
+const MAX_PROFILE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_LIBRARIES: usize = 20_000;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeInventory {
+    pub checked: u64,
+    pub matched: u64,
+    pub missing: u64,
+    pub wrong_size: u64,
+    pub wrong_hash: u64,
+    pub needed_bytes: u64,
+    pub skipped: u64,
+}
+
+fn invalid() -> LineError {
+    LineError::new(
+        ErrorCode::Integrity,
+        "Некорректные метаданные файлов Minecraft в сборке.",
+        false,
+    )
+}
+
+fn valid_sha1(value: &str) -> bool {
+    value.len() == 40
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+fn add_artifact(
+    expected: &mut BTreeMap<String, (String, u64)>,
+    path: String,
+    artifact: &Value,
+) -> LineResult<bool> {
+    let (Some(hash), Some(size)) = (
+        artifact.get("sha1").and_then(Value::as_str),
+        artifact.get("size").and_then(Value::as_u64),
+    ) else {
+        return Ok(false);
+    };
+    if !valid_sha1(hash) || super::install::safe_entry_path(&path).is_err() {
+        return Err(invalid());
+    }
+    let entry = (hash.to_owned(), size);
+    if let Some(old) = expected.insert(path, entry.clone()) {
+        if old != entry {
+            return Err(invalid());
+        }
+    }
+    Ok(true)
+}
+
+/// Profiles and their identifiers come from the independently scanned release.
+/// No URLs from the profile are fetched; the caller supplies the SHA-1 reader.
+pub fn inspect(
+    profiles: &[(&str, &[u8])],
+    game: &Path,
+    mut hash_file: impl FnMut(&Path) -> LineResult<String>,
+) -> LineResult<RuntimeInventory> {
+    if !is_real_dir(game) {
+        return Err(invalid());
+    }
+    let mut expected = BTreeMap::new();
+    let mut skipped = 0u64;
+    for (id, bytes) in profiles {
+        let id = super::minecraft_core::validate_version_id(id)?;
+        if bytes.len() > MAX_PROFILE_BYTES {
+            return Err(invalid());
+        }
+        let profile: Value = serde_json::from_slice(bytes).map_err(|_| invalid())?;
+        if let Some(client) = profile.get("downloads").and_then(|v| v.get("client")) {
+            if !add_artifact(&mut expected, format!("versions/{id}/{id}.jar"), client)? {
+                skipped += 1;
+            }
+        }
+        if let Some(libraries) = profile.get("libraries") {
+            let libraries = libraries.as_array().ok_or_else(invalid)?;
+            if libraries.len() > MAX_LIBRARIES {
+                return Err(invalid());
+            }
+            for library in libraries {
+                if library.get("rules").is_some() || library.get("natives").is_some() {
+                    skipped += 1;
+                    continue;
+                }
+                let Some(artifact) = library.get("downloads").and_then(|v| v.get("artifact"))
+                else {
+                    skipped += 1;
+                    continue;
+                };
+                let Some(path) = artifact.get("path").and_then(Value::as_str) else {
+                    skipped += 1;
+                    continue;
+                };
+                if super::install::safe_entry_path(path).is_err() {
+                    return Err(invalid());
+                }
+                if !add_artifact(&mut expected, format!("libraries/{path}"), artifact)? {
+                    skipped += 1;
+                }
+            }
+        }
+    }
+    let mut result = RuntimeInventory {
+        skipped,
+        ..Default::default()
+    };
+    for (relative, (hash, size)) in expected {
+        result.checked += 1;
+        let safe = super::install::safe_entry_path(&relative)?;
+        let mut path = game.to_path_buf();
+        let components: Vec<_> = safe.components().collect();
+        let mut missing = false;
+        for (i, component) in components.iter().enumerate() {
+            let Component::Normal(name) = component else {
+                return Err(invalid());
+            };
+            path.push(name);
+            match std::fs::symlink_metadata(&path) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    missing = true;
+                    break;
+                }
+                Err(error) => return Err(LineError::io(&error)),
+                Ok(_) if i + 1 < components.len() && !is_real_dir(&path) => return Err(invalid()),
+                Ok(_) if i + 1 == components.len() && !is_real_file(&path) => return Err(invalid()),
+                Ok(_) => {}
+            }
+        }
+        if missing {
+            result.missing += 1;
+        } else if std::fs::metadata(&path)
+            .map_err(|e| LineError::io(&e))?
+            .len()
+            != size
+        {
+            result.wrong_size += 1;
+        } else if hash_file(&path)? != hash {
+            result.wrong_hash += 1;
+        } else {
+            result.matched += 1;
+            continue;
+        }
+        result.needed_bytes = result.needed_bytes.checked_add(size).ok_or_else(invalid)?;
+    }
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn accepts_only_lowercase_sha1_digests() {
+        assert!(valid_sha1(&"a".repeat(40)));
+        assert!(!valid_sha1(&"A".repeat(40)));
+        assert!(!valid_sha1(&"a".repeat(39)));
+        assert!(!valid_sha1(&"g".repeat(40)));
+    }
+
+    #[test]
+    fn verifies_only_explicit_unruled_artifacts_and_deduplicates() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("libraries/example")).unwrap();
+        std::fs::write(temp.path().join("libraries/example/good.jar"), b"good").unwrap();
+        std::fs::write(temp.path().join("libraries/example/bad.jar"), b"xxxx").unwrap();
+        let json = br#"{"downloads":{"client":{"sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":7}},"libraries":[{"downloads":{"artifact":{"path":"example/good.jar","sha1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":4}}},{"downloads":{"artifact":{"path":"example/bad.jar","sha1":"cccccccccccccccccccccccccccccccccccccccc","size":4}}},{"rules":[{"action":"allow"}],"downloads":{"artifact":{"path":"example/other.jar","sha1":"dddddddddddddddddddddddddddddddddddddddd","size":4}}}]}"#;
+        let report = inspect(&[("1.20.1", json), ("1.20.1", json)], temp.path(), |path| {
+            Ok(if path.ends_with("good.jar") {
+                "b".repeat(40)
+            } else {
+                "e".repeat(40)
+            })
+        })
+        .unwrap();
+        assert_eq!(
+            (
+                report.checked,
+                report.matched,
+                report.missing,
+                report.wrong_hash,
+                report.needed_bytes,
+                report.skipped
+            ),
+            (3, 1, 1, 1, 11, 2)
+        );
+    }
+    #[test]
+    fn rejects_bad_paths_and_conflicting_expectations() {
+        let temp = tempfile::tempdir().unwrap();
+        for json in [
+            &br#"{"libraries":[{"downloads":{"artifact":{"path":"../escape.jar","sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":1}}}]}"#[..],
+            &br#"{"libraries":[{"downloads":{"artifact":{"path":"a.jar","sha1":"bad","size":1}}}]}"#[..],
+            &br#"{"libraries":[{"downloads":{"artifact":{"path":"a.jar","sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":1}}},{"downloads":{"artifact":{"path":"a.jar","sha1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":1}}}]}"#[..],
+        ] { assert!(inspect(&[("1.20.1", json)], temp.path(), |_| Ok(String::new())).is_err()); }
+    }
+    #[cfg(unix)]
+    #[test]
+    fn refuses_symlink_parents() {
+        let temp = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(temp.path(), temp.path().join("libraries")).unwrap();
+        let json = br#"{"libraries":[{"downloads":{"artifact":{"path":"a.jar","sha1":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":1}}}]}"#;
+        assert!(inspect(&[("1.20.1", json)], temp.path(), |_| Ok(String::new())).is_err());
+    }
+}

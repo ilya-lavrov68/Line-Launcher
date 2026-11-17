@@ -26,6 +26,7 @@ pub mod prism;
 mod release_swap;
 pub mod resourcepack;
 pub mod rollback;
+pub mod runtime_inventory;
 pub mod settings;
 pub mod skin_library;
 pub mod source;

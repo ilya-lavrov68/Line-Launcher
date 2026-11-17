@@ -1232,6 +1232,7 @@ pub async fn mc_play(
     let inspect_app = app.clone();
     let verify_started = std::time::Instant::now();
     let audit_live_assets = request.prepare_only;
+    let audit_runtime = server.source.is_none();
     // A blocking task continues after its awaiting future is dropped. Keep its
     // claim alive until all live-file verification and synchronization has stopped.
     let worker_preparation = Arc::clone(&preparation);
@@ -1294,6 +1295,52 @@ pub async fn mc_play(
                         format!("Файл {relative} изменён. Восстановите сборку."),
                         false,
                     ));
+                }
+            }
+            if audit_runtime {
+                // The expected checksums come only from version JSON already
+                // present in the verified release, never from the writable game.
+                let mut profiles = Vec::new();
+                let mut ids = std::collections::BTreeSet::new();
+                ids.insert(detected.version_id.clone());
+                ids.insert(detected.minecraft_version.clone());
+                let release_game = release.join(&detected.prefix);
+                for id in ids {
+                    let relative = format!("versions/{id}/{id}.json");
+                    let indexed = format!("{}{relative}", detected.prefix);
+                    if !index.files.iter().any(|entry| entry.path == indexed) {
+                        continue;
+                    }
+                    let path = pack::checked_game_path(&release_game, &relative, false)?;
+                    if !super::storage::is_real_file(&path) {
+                        return Err(LineError::storage());
+                    }
+                    let metadata = std::fs::metadata(&path).map_err(|e| LineError::io(&e))?;
+                    if metadata.len() > 8 * 1024 * 1024 {
+                        return Err(LineError::input("JSON версии в сборке слишком большой."));
+                    }
+                    use std::io::Read;
+                    let mut bytes = Vec::new();
+                    std::fs::File::open(path)
+                        .map_err(|e| LineError::io(&e))?
+                        .take(8 * 1024 * 1024 + 1)
+                        .read_to_end(&mut bytes)
+                        .map_err(|e| LineError::io(&e))?;
+                    if bytes.len() > 8 * 1024 * 1024 {
+                        return Err(LineError::input("JSON версии в сборке слишком большой."));
+                    }
+                    profiles.push((id, bytes));
+                }
+                if !profiles.is_empty() {
+                    let borrowed: Vec<_> = profiles
+                        .iter()
+                        .map(|(id, bytes)| (id.as_str(), bytes.as_slice()))
+                        .collect();
+                    detected.live_runtime = Some(super::runtime_inventory::inspect(
+                        &borrowed,
+                        &game,
+                        |path| mc_launcher_core::io::hash::sha1_file(path).map_err(mc_error),
+                    )?);
                 }
             }
             if audit_live_assets && detected.asset_inventory.is_some() {
@@ -1433,7 +1480,12 @@ pub async fn mc_play(
     } else {
         0
     };
+    let live_runtime_issues = detected
+        .live_runtime
+        .map(|value| value.missing + value.wrong_size + value.wrong_hash)
+        .unwrap_or(0);
     if !detected.missing.is_empty()
+        || live_runtime_issues > 0
         || loader.is_some()
         || detected.generated_profile
         || live_asset_issues > 0
@@ -1464,6 +1516,15 @@ pub async fn mc_play(
                     .map(|value| (*value).to_string())
                     .collect(),
                 live_asset_issues,
+                live_runtime_issues,
+                live_runtime_bytes: detected
+                    .live_runtime
+                    .map(|value| value.needed_bytes)
+                    .unwrap_or(0),
+                live_runtime_skipped: detected
+                    .live_runtime
+                    .map(|value| value.skipped)
+                    .unwrap_or(0),
                 live_asset_bytes: detected
                     .live_assets
                     .map(|value| value.needed_bytes)

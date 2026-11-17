@@ -297,6 +297,8 @@ export const ru = {
   "backdrop.azure": "Лазурная сетка",
   "backdrop.borealis": "Глубина океана",
   "backdrop.pearl": "Лунный камень",
+  "zipRepair.liveRuntime": "По хешам профиля отсутствуют или повреждены файлы клиента и библиотек: {count}, ориентировочно {size}.",
+  "zipRepair.runtimePartial": "Проверены не все компоненты: {count} записей с правилами или без хеша пропущено.",
   "zipRepair.title": "Доустановить компоненты?",
   "zipRepair.explanation":
     "В ZIP могут отсутствовать необходимые компоненты. Установщик проверит официальные метаданные и может скачать клиент, библиотеки и ресурсы Minecraft.",
@@ -759,6 +761,8 @@ const en: Dictionary = {
   "backdrop.azure": "Azure mesh",
   "backdrop.borealis": "Ocean depths",
   "backdrop.pearl": "Moonstone",
+  "zipRepair.liveRuntime": "Profile hashes identify missing or damaged client and library files: {count}, approximately {size}.",
+  "zipRepair.runtimePartial": "This check is incomplete: {count} entries with rules or missing hashes were skipped.",
   "zipRepair.title": "Install missing components?",
   "zipRepair.explanation":
     "The ZIP may be missing required components. The installer will check official metadata and may download the Minecraft client, libraries and assets.",
@@ -1221,6 +1225,8 @@ const de: Dictionary = {
   "backdrop.azure": "Azurnetz",
   "backdrop.borealis": "Meerestiefe",
   "backdrop.pearl": "Mondstein",
+  "zipRepair.liveRuntime": "Laut Profil-Hashes fehlen oder sind Client- und Bibliotheksdateien beschädigt: {count}, etwa {size}.",
+  "zipRepair.runtimePartial": "Die Prüfung ist unvollständig: {count} Einträge mit Regeln oder ohne Hash wurden übersprungen.",
   "zipRepair.title": "Fehlende Komponenten installieren?",
   "zipRepair.explanation":
     "Im ZIP können benötigte Komponenten fehlen. Der Installer prüft offizielle Metadaten und kann Minecraft-Client, Bibliotheken und Ressourcen herunterladen.",
@@ -1682,6 +1688,8 @@ const fr: Dictionary = {
   "backdrop.azure": "Maillage azur",
   "backdrop.borealis": "Profondeurs océanes",
   "backdrop.pearl": "Pierre de lune",
+  "zipRepair.liveRuntime": "Selon les empreintes du profil, des fichiers du client et des bibliothèques manquent ou sont endommagés : {count}, environ {size}.",
+  "zipRepair.runtimePartial": "La vérification est partielle : {count} entrées avec règles ou sans empreinte ont été ignorées.",
   "zipRepair.title": "Installer les composants manquants ?",
   "zipRepair.explanation":
     "Le ZIP peut manquer de composants requis. Le programme vérifiera les métadonnées officielles et pourra télécharger le client Minecraft, les bibliothèques et les ressources.",

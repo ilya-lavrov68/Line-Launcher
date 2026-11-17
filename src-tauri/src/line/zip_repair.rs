@@ -18,6 +18,12 @@ pub struct ZipRepairPlan {
     pub install_loader: bool,
     pub missing_from_archive: Vec<String>,
     pub live_asset_issues: u64,
+    #[serde(default)]
+    pub live_runtime_issues: u64,
+    #[serde(default)]
+    pub live_runtime_bytes: u64,
+    #[serde(default)]
+    pub live_runtime_skipped: u64,
     pub live_asset_bytes: u64,
     pub prepare_only: bool,
     pub test_mode: bool,
@@ -47,6 +53,9 @@ mod tests {
             install_loader: false,
             missing_from_archive: vec!["assets".into()],
             live_asset_issues: 0,
+            live_runtime_issues: 0,
+            live_runtime_bytes: 0,
+            live_runtime_skipped: 0,
             live_asset_bytes: 0,
             prepare_only: true,
             test_mode: false,
@@ -65,6 +74,9 @@ mod tests {
         assert!(!plan.is_approved_by(Some(&changed)));
         changed = plan.clone();
         changed.live_asset_issues = 1;
+        assert!(!plan.is_approved_by(Some(&changed)));
+        changed = plan.clone();
+        changed.live_runtime_issues = 1;
         assert!(!plan.is_approved_by(Some(&changed)));
         changed = plan.clone();
         changed.install_loader = true;

@@ -311,6 +311,9 @@ export interface ZipRepairPlan {
   missingFromArchive: string[];
   liveAssetIssues: number;
   liveAssetBytes: number;
+  liveRuntimeIssues: number;
+  liveRuntimeBytes: number;
+  liveRuntimeSkipped: number;
   prepareOnly: boolean;
   testMode: boolean;
 }

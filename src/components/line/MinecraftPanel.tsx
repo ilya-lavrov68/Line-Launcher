@@ -11,6 +11,7 @@ import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type {
   GamePhase,
+  JavaDownloadPlan,
   LineServer,
   McGameStatus,
   McInstallProgress,
@@ -82,6 +83,8 @@ export default function MinecraftPanel({
   const [pendingRepair, setPendingRepair] = useState<ZipRepairPlan | null>(
     null,
   );
+  const [pendingJava, setPendingJava] = useState<{ plan: JavaDownloadPlan; zip?: ZipRepairPlan } | null>(null);
+  const [pendingRepairJava, setPendingRepairJava] = useState<JavaDownloadPlan | undefined>();
   const mounted = useRef(true);
   const operationActive = useRef(false);
 
@@ -155,9 +158,9 @@ export default function MinecraftPanel({
   const running = status?.phase === "running" || status?.phase === "starting";
   const working = busy === "installing" || busy === "launching";
   const locked =
-    disabled || working || busy === "stopping" || pendingRepair !== null;
+    disabled || working || busy === "stopping" || pendingRepair !== null || pendingJava !== null;
 
-  async function play(testMode = false, approved?: ZipRepairPlan) {
+  async function play(testMode = false, approved?: ZipRepairPlan, approvedJava?: JavaDownloadPlan) {
     if (
       disabled ||
       working ||
@@ -182,6 +185,7 @@ export default function MinecraftPanel({
         serverId: instanceId,
         testMode,
         approveZipRepair: approved,
+        approveJavaDownload: approvedJava,
       });
       if (!mounted.current) return;
       setStatus(next);
@@ -191,7 +195,9 @@ export default function MinecraftPanel({
     } catch (cause) {
       if (!mounted.current) return;
       const plan = getZipRepairPlan(cause);
-      if (plan) setPendingRepair(plan);
+      const javaPlan = getJavaDownloadPlan(cause);
+      if (plan) { setPendingRepairJava(approvedJava); setPendingRepair(plan); }
+      else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
       else {
         if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
         setError(errorMessage(cause));
@@ -205,7 +211,7 @@ export default function MinecraftPanel({
   }
 
   /** Download and verify without launching: the same path minus the last step. */
-  async function prepare(approved?: ZipRepairPlan) {
+  async function prepare(approved?: ZipRepairPlan, approvedJava?: JavaDownloadPlan) {
     if (
       disabled ||
       working ||
@@ -230,13 +236,16 @@ export default function MinecraftPanel({
         serverId: instanceId,
         prepareOnly: true,
         approveZipRepair: approved,
+        approveJavaDownload: approvedJava,
       });
       if (!mounted.current) return;
       setNotice(t("mc.profilePrepared"));
     } catch (cause) {
       if (!mounted.current) return;
       const plan = getZipRepairPlan(cause);
-      if (plan) setPendingRepair(plan);
+      const javaPlan = getJavaDownloadPlan(cause);
+      if (plan) { setPendingRepairJava(approvedJava); setPendingRepair(plan); }
+      else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
       else {
         if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
         setError(errorMessage(cause));
@@ -510,12 +519,29 @@ export default function MinecraftPanel({
                 const plan = pendingRepair;
                 if (!plan) return;
                 setPendingRepair(null);
-                if (plan.prepareOnly) void prepare(plan);
-                else void play(plan.testMode, plan);
+                if (plan.prepareOnly) void prepare(plan, pendingRepairJava);
+                else void play(plan.testMode, plan, pendingRepairJava);
+                setPendingRepairJava(undefined);
               }}
             >
               {t("zipRepair.accept")}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingJava !== null} onOpenChange={(open) => { if (!open) { setPendingJava(null); setNotice(t("javaConsent.declined")); } }}>
+        <DialogContent className="p-5 sm:max-w-[460px]">
+          <DialogHeader><DialogTitle>{t("javaConsent.title")}</DialogTitle></DialogHeader>
+          {pendingJava && <div className="text-muted-foreground space-y-3 text-xs leading-relaxed">
+            <p>{t("javaConsent.description", { major: pendingJava.plan.major })}</p>
+            <p>{pendingJava.plan.purpose === "loader" ? t("javaConsent.loader") : t("javaConsent.launch")}</p>
+            <p>{pendingJava.plan.source === "adoptium" ? t("javaConsent.adoptium") : t("javaConsent.mojang")}</p>
+            <p>{t("javaConsent.details")}</p>
+          </div>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setPendingJava(null); setNotice(t("javaConsent.declined")); }}>{t("zipRepair.cancel")}</Button>
+            <Button onClick={() => { const pending = pendingJava; if (!pending) return; setPendingJava(null); if (pending.plan.prepareOnly) void prepare(pending.zip, pending.plan); else void play(pending.plan.testMode, pending.zip, pending.plan); }}>{t("javaConsent.accept")}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -540,6 +566,15 @@ function toLineErrorCode(cause: unknown): string | undefined {
     return typeof code === "string" ? code : undefined;
   }
   return undefined;
+}
+
+function getJavaDownloadPlan(cause: unknown): JavaDownloadPlan | null {
+  if (typeof cause !== "object" || cause === null || !("code" in cause) || cause.code !== "CONFIRMATION_REQUIRED" || !("javaDownload" in cause)) return null;
+  const plan = cause.javaDownload;
+  if (typeof plan !== "object" || plan === null) return null;
+  const value = plan as Record<string, unknown>;
+  if (value.schema !== 1 || typeof value.serverId !== "string" || typeof value.instanceId !== "string" || typeof value.releaseSha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.releaseSha256) || typeof value.major !== "number" || !Number.isInteger(value.major) || value.major < 8 || value.major > 26 || (value.purpose !== "loader" && value.purpose !== "launch") || (value.source !== "adoptium" && value.source !== "mojang") || typeof value.prepareOnly !== "boolean" || typeof value.testMode !== "boolean") return null;
+  return plan as JavaDownloadPlan;
 }
 
 function getZipRepairPlan(cause: unknown): ZipRepairPlan | null {

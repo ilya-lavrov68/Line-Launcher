@@ -41,9 +41,15 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
    discover and validate pre-existing live components without reinstalling them;
    and prompt before downloading only the actual missing components.
 4. **Consent:** the ZIP confirmation currently follows archive download, is
-   coarse and can recur; Java installation has no independent confirmation.
-   Add a revision-bound exact plan and separate Java decision before claiming
-   that refusal prevents every supplementary download.
+   coarse and can recur. For ZIP `mc_play`, launcher-owned Java downloads from
+   Adoptium or Mojang now have a separate revision-, version-, source-, purpose-
+   and operation-bound confirmation after local/cache discovery. This covers
+   `resolve_java` during launch and the explicit legacy NeoForge installer, not
+   independent calls, source installs or unverified dependency/third-party code.
+   A ZIP may already have downloaded and approved component downloads may have
+   occurred before the Java prompt. Do not claim refusal prevents every download
+   until the pinned launcher-core and loader paths, full Cargo and Windows have
+   been tested. The exact ZIP file-level plan remains unfinished.
 5. **CurseForge:** no API source implementation. Credentials, rate limiting,
    distribution rights and unavailable-file UX must be designed and tested;
    do not bypass provider restrictions or assume every file is downloadable.

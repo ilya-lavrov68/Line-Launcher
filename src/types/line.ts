@@ -295,6 +295,19 @@ export interface LineError {
   retryable: boolean;
   httpStatus?: number;
   zipRepair?: ZipRepairPlan;
+  javaDownload?: JavaDownloadPlan;
+}
+
+export interface JavaDownloadPlan {
+  schema: number;
+  serverId: string;
+  instanceId: string;
+  releaseSha256: string;
+  major: number;
+  purpose: "loader" | "launch";
+  source: "adoptium" | "mojang";
+  prepareOnly: boolean;
+  testMode: boolean;
 }
 
 export interface ZipRepairPlan {
@@ -511,6 +524,7 @@ export interface McPlayRequest {
   testMode?: boolean;
   prepareOnly?: boolean;
   approveZipRepair?: ZipRepairPlan;
+  approveJavaDownload?: JavaDownloadPlan;
 }
 
 /** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */

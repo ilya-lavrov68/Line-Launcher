@@ -240,6 +240,20 @@ async fn cached(target: &Path, major: u16) -> Option<PathBuf> {
     (runtime.major == major).then_some(runtime.path)
 }
 
+/// Reuse an already verified private runtime without contacting the network.
+/// Cooperating installers hold the same lock while replacing the cache.
+pub async fn find_cached_windows_x64(dir: &Path, major: u16) -> LineResult<Option<PathBuf>> {
+    let base = dir.join("line-java");
+    match std::fs::symlink_metadata(&base) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(LineError::io(&error)),
+        Ok(_) if !storage::is_real_dir(&base) => return Err(LineError::storage()),
+        Ok(_) => {}
+    }
+    let _lock = storage::InstallLock::acquire(&base)?;
+    Ok(cached(&base.join(format!("temurin-{major}-windows-x64")), major).await)
+}
+
 /// Install a private Java 8/17/21/25 JRE on Windows x64. Other platforms keep
 /// the existing Mojang path; the caller decides when this implementation fits.
 pub async fn install_windows_x64(

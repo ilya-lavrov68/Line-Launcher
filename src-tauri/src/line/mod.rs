@@ -16,6 +16,7 @@ pub mod integrity;
 pub mod ipc;
 pub mod java;
 pub mod java_auto;
+pub mod java_consent;
 pub mod launch;
 pub mod launch_manifest;
 pub mod logger;

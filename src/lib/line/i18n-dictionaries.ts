@@ -299,6 +299,15 @@ export const ru = {
   "backdrop.pearl": "Лунный камень",
   "zipRepair.liveRuntime": "По хешам профиля отсутствуют или повреждены файлы клиента и библиотек: {count}, ориентировочно {size}.",
   "zipRepair.runtimePartial": "Проверены не все компоненты: {count} записей с правилами или без хеша пропущено.",
+  "javaConsent.title": "Скачать Java?",
+  "javaConsent.description": "Для этого действия нужна Java {major}. Подходящая установленная Java не найдена.",
+  "javaConsent.loader": "Java нужна установщику загрузчика.",
+  "javaConsent.launch": "Java нужна для запуска игры.",
+  "javaConsent.adoptium": "Источник: Eclipse Adoptium (Temurin, Windows x64).",
+  "javaConsent.mojang": "Источник: среда выполнения Mojang.",
+  "javaConsent.details": "Точный размер заранее неизвестен. Можно отказаться и указать установленную Java в настройках.",
+  "javaConsent.declined": "Загрузка Java отменена. Действие не завершено.",
+  "javaConsent.accept": "Скачать Java",
   "zipRepair.title": "Доустановить компоненты?",
   "zipRepair.explanation":
     "В ZIP могут отсутствовать необходимые компоненты. Установщик проверит официальные метаданные и может скачать клиент, библиотеки и ресурсы Minecraft.",
@@ -316,7 +325,7 @@ export const ru = {
   "zipRepair.unknownSize":
     "Точный перечень и объём заранее неизвестны. Файлы, уже прошедшие проверку установщика, должны переиспользоваться.",
   "zipRepair.java":
-    "После подтверждения приложение также может автоматически скачать Java. Отдельное подтверждение Java ещё не реализовано.",
+    "Если потребуется загрузка Java лаунчером, для неё будет отдельный запрос. Поведение стороннего установщика загрузчика ещё проверяется.",
   "zipRepair.refusal":
     "Без согласия доустановка не начнётся; играть пока нельзя.",
   "zipRepair.cancel": "Не сейчас",
@@ -763,6 +772,15 @@ const en: Dictionary = {
   "backdrop.pearl": "Moonstone",
   "zipRepair.liveRuntime": "Profile hashes identify missing or damaged client and library files: {count}, approximately {size}.",
   "zipRepair.runtimePartial": "This check is incomplete: {count} entries with rules or missing hashes were skipped.",
+  "javaConsent.title": "Download Java?",
+  "javaConsent.description": "This action needs Java {major}; a suitable installed Java was not found.",
+  "javaConsent.loader": "Java is needed by the loader installer.",
+  "javaConsent.launch": "Java is needed to launch the game.",
+  "javaConsent.adoptium": "Source: Eclipse Adoptium (Temurin, Windows x64).",
+  "javaConsent.mojang": "Source: Mojang runtime.",
+  "javaConsent.details": "The exact size is not known yet. You can decline and select an installed Java in settings.",
+  "javaConsent.declined": "Java download cancelled. The action was not completed.",
+  "javaConsent.accept": "Download Java",
   "zipRepair.title": "Install missing components?",
   "zipRepair.explanation":
     "The ZIP may be missing required components. The installer will check official metadata and may download the Minecraft client, libraries and assets.",
@@ -779,7 +797,7 @@ const en: Dictionary = {
   "zipRepair.unknownSize":
     "The exact files and download size are not known in advance. Files verified by the installer should be reused.",
   "zipRepair.java":
-    "After approval the app may also download Java automatically. Separate Java confirmation is not implemented yet.",
+    "If the launcher needs to download Java, it will ask separately. Third-party loader installer behavior is still being checked.",
   "zipRepair.refusal":
     "Without consent, supplementary installation will not start; the game cannot start yet.",
   "zipRepair.cancel": "Not now",
@@ -1227,6 +1245,15 @@ const de: Dictionary = {
   "backdrop.pearl": "Mondstein",
   "zipRepair.liveRuntime": "Laut Profil-Hashes fehlen oder sind Client- und Bibliotheksdateien beschädigt: {count}, etwa {size}.",
   "zipRepair.runtimePartial": "Die Prüfung ist unvollständig: {count} Einträge mit Regeln oder ohne Hash wurden übersprungen.",
+  "javaConsent.title": "Java herunterladen?",
+  "javaConsent.description": "Diese Aktion benötigt Java {major}; eine passende Installation wurde nicht gefunden.",
+  "javaConsent.loader": "Java wird für den Modloader-Installer benötigt.",
+  "javaConsent.launch": "Java wird zum Starten des Spiels benötigt.",
+  "javaConsent.adoptium": "Quelle: Eclipse Adoptium (Temurin, Windows x64).",
+  "javaConsent.mojang": "Quelle: Mojang-Laufzeitumgebung.",
+  "javaConsent.details": "Die genaue Größe ist noch nicht bekannt. Alternativ kann Java in den Einstellungen gewählt werden.",
+  "javaConsent.declined": "Java-Download abgebrochen. Die Aktion wurde nicht abgeschlossen.",
+  "javaConsent.accept": "Java herunterladen",
   "zipRepair.title": "Fehlende Komponenten installieren?",
   "zipRepair.explanation":
     "Im ZIP können benötigte Komponenten fehlen. Der Installer prüft offizielle Metadaten und kann Minecraft-Client, Bibliotheken und Ressourcen herunterladen.",
@@ -1244,7 +1271,7 @@ const de: Dictionary = {
   "zipRepair.unknownSize":
     "Dateien und Downloadgröße sind nicht im Voraus bekannt. Vom Installer geprüfte Dateien sollten wiederverwendet werden.",
   "zipRepair.java":
-    "Nach der Zustimmung kann die App auch Java automatisch herunterladen. Eine separate Java-Bestätigung ist noch nicht implementiert.",
+    "Falls der Launcher Java herunterladen muss, fragt er separat. Das Verhalten externer Modloader-Installer wird noch geprüft.",
   "zipRepair.refusal":
     "Ohne Zustimmung beginnt keine Nachinstallation; das Spiel kann noch nicht starten.",
   "zipRepair.cancel": "Später",
@@ -1690,6 +1717,15 @@ const fr: Dictionary = {
   "backdrop.pearl": "Pierre de lune",
   "zipRepair.liveRuntime": "Selon les empreintes du profil, des fichiers du client et des bibliothèques manquent ou sont endommagés : {count}, environ {size}.",
   "zipRepair.runtimePartial": "La vérification est partielle : {count} entrées avec règles ou sans empreinte ont été ignorées.",
+  "javaConsent.title": "Télécharger Java ?",
+  "javaConsent.description": "Cette action nécessite Java {major} ; aucune installation adaptée n’a été trouvée.",
+  "javaConsent.loader": "Java est nécessaire au programme d’installation du chargeur.",
+  "javaConsent.launch": "Java est nécessaire au lancement du jeu.",
+  "javaConsent.adoptium": "Source : Eclipse Adoptium (Temurin, Windows x64).",
+  "javaConsent.mojang": "Source : environnement Mojang.",
+  "javaConsent.details": "La taille exacte n’est pas encore connue. Vous pouvez refuser et choisir une installation Java dans les paramètres.",
+  "javaConsent.declined": "Téléchargement Java annulé. L’action n’est pas terminée.",
+  "javaConsent.accept": "Télécharger Java",
   "zipRepair.title": "Installer les composants manquants ?",
   "zipRepair.explanation":
     "Le ZIP peut manquer de composants requis. Le programme vérifiera les métadonnées officielles et pourra télécharger le client Minecraft, les bibliothèques et les ressources.",
@@ -1707,7 +1743,7 @@ const fr: Dictionary = {
   "zipRepair.unknownSize":
     "Les fichiers exacts et le volume à télécharger ne sont pas connus à l’avance. Les fichiers vérifiés devraient être réutilisés.",
   "zipRepair.java":
-    "Après confirmation, l’application peut également télécharger Java automatiquement. Une confirmation distincte pour Java n’est pas encore disponible.",
+    "Si le lanceur doit télécharger Java, il demandera une confirmation distincte. Le comportement des installateurs tiers reste à vérifier.",
   "zipRepair.refusal":
     "Sans accord, aucune installation complémentaire ne commencera et le jeu ne pourra pas encore démarrer.",
   "zipRepair.cancel": "Plus tard",

@@ -167,6 +167,8 @@ const items = [
   attributed("minecraft.rs", "fn busy("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
+  plain("java_consent.rs", "pub struct JavaDownloadPlan {"),
+  attributed("java_consent.rs", "impl JavaDownloadPlan {"),
   plain("zip_repair.rs", "pub struct ZipRepairPlan {"),
   attributed("zip_repair.rs", "impl ZipRepairPlan {"),
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
@@ -327,6 +329,7 @@ const tests = [
   ),
   attributed("zip_repair.rs", "fn example("),
   attributed("zip_repair.rs", "fn only_identical_plan_is_approved("),
+  attributed("java_consent.rs", "fn consent_is_specific_to_revision_purpose_version_and_source("),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
   attributed(
     "minecraft_core.rs",

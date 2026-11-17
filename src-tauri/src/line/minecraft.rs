@@ -116,6 +116,8 @@ pub struct McPlayRequest {
     pub prepare_only: bool,
     #[serde(default)]
     pub approve_zip_repair: Option<super::zip_repair::ZipRepairPlan>,
+    #[serde(default)]
+    pub approve_java_download: Option<super::java_consent::JavaDownloadPlan>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -523,7 +525,7 @@ pub async fn mc_install(
     let instance_id = validate_instance_id(&request.instance_id)?;
     let version = validate_version_id(&request.minecraft_version)?;
     let loader = parse_loader(request.loader.as_ref())?;
-    install_profile(&app, &state, instance_id, version, loader, None).await
+    install_profile(&app, &state, instance_id, version, loader, None, None).await
 }
 
 fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpec>> {
@@ -653,6 +655,7 @@ async fn install_legacy_neoforge(
     app_emit: AppHandle,
     instance: String,
     claim: Arc<InstanceOperation>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<String> {
     let vanilla_dir = dir.clone();
     let emit = app_emit.clone();
@@ -687,6 +690,8 @@ async fn install_legacy_neoforge(
         app,
         &instance,
         &claim,
+        java_consent,
+        "loader",
     )
     .await?;
     let worker_claim = Arc::clone(&claim);
@@ -729,6 +734,7 @@ async fn install_legacy_neoforge(
 
 /// Idempotent: the crate skips files whose checksum already matches, so this is
 /// both "download" and "verify what is on disk".
+#[allow(clippy::too_many_arguments)]
 async fn install_profile(
     app: &AppHandle,
     state: &MinecraftState,
@@ -736,6 +742,7 @@ async fn install_profile(
     version: String,
     loader: Option<LoaderSpec>,
     preparation_lease: Option<Arc<InstallLock>>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<McInstalled> {
     let claim = state.begin_install(&instance_id, preparation_lease.is_some())?;
     let lease = match preparation_lease {
@@ -760,6 +767,7 @@ async fn install_profile(
                 emit_app,
                 emit_instance,
                 Arc::clone(&claim),
+                java_consent,
             )
             .await
         }
@@ -899,6 +907,7 @@ struct JavaRequirement {
 /// Uses a verified explicit choice at or above the declared minimum, then
 /// discovers the exact requested major, then downloads a matching runtime.
 /// A newer explicit JVM is the player's override, not a compatibility promise.
+#[allow(clippy::too_many_arguments)]
 async fn resolve_java(
     dir: &Path,
     component: Option<String>,
@@ -907,6 +916,8 @@ async fn resolve_java(
     app: &AppHandle,
     instance_id: &str,
     claim: &Arc<InstanceOperation>,
+    consent: Option<&super::java_consent::JavaConsent>,
+    purpose: &str,
 ) -> LineResult<PathBuf> {
     let JavaRequirement {
         major: required_major,
@@ -937,12 +948,26 @@ async fn resolve_java(
     if let Ok(runtime) = java::discover(required_major).await {
         return Ok(runtime.path);
     }
-    // Prefer a verified private JRE on Windows x64, including versions whose
-    // Mojang manifest has no runtime component. No administrator rights or
-    // system Java changes are needed.
+    // A local Mojang runtime should be reused before asking or downloading.
+    if let Some(component) = component.as_deref() {
+        if let Some(path) = runtime::get_executable_path(component, dir) {
+            if let Ok(existing) = java::inspect_path(&path.to_string_lossy()).await {
+                if existing.major == required_major {
+                    return Ok(existing.path);
+                }
+            }
+        }
+    }
+    // Private Windows runtime validation is read-only and performs no network IO.
     if cfg!(all(target_os = "windows", target_arch = "x86_64"))
         && matches!(required_major, 8 | 17 | 21 | 25)
     {
+        if let Some(path) = super::java_auto::find_cached_windows_x64(dir, required_major).await? {
+            return Ok(path);
+        }
+        if let Some(consent) = consent {
+            consent.require(required_major, purpose, "adoptium")?;
+        }
         return super::java_auto::install_windows_x64(dir, required_major, |done, total| {
             emit_mc_progress(
                 app,
@@ -959,18 +984,12 @@ async fn resolve_java(
     let Some(component) = component else {
         return Err(LineError::new(
             ErrorCode::JavaRequired,
-            format!(
-                "Нужна Java {required_major}. Установите её или укажите путь к java.exe в настройках."
-            ),
+            format!("Нужна Java {required_major}. Установите её или укажите путь к java.exe в настройках."),
             false,
         ));
     };
-    if let Some(path) = runtime::get_executable_path(&component, dir) {
-        if let Ok(existing) = java::inspect_path(&path.to_string_lossy()).await {
-            if existing.major == required_major {
-                return Ok(existing.path);
-            }
-        }
+    if let Some(consent) = consent {
+        consent.require(required_major, purpose, "mojang")?;
     }
     let owned_dir = dir.to_path_buf();
     let owned_component = component.clone();
@@ -1028,6 +1047,7 @@ pub async fn mc_launch(
         host,
         port,
         false,
+        None,
         None,
     )
     .await
@@ -1172,6 +1192,17 @@ pub async fn mc_play(
         log_preparation_stage("pack", pack_started, installed.is_ok());
         installed?
     };
+    let java_consent = server
+        .source
+        .is_none()
+        .then(|| super::java_consent::JavaConsent {
+            server_id: server.id.clone(),
+            instance_id: instance_id.clone(),
+            release_sha256: receipt.sha256.clone(),
+            prepare_only: request.prepare_only,
+            test_mode: request.test_mode,
+            approved: request.approve_java_download.clone(),
+        });
     if receipt.already_installed {
         emit_mc_progress(
             &app,
@@ -1547,6 +1578,7 @@ pub async fn mc_play(
             detected.minecraft_version.clone(),
             loader,
             Some(Arc::clone(&preparation.1)),
+            java_consent.as_ref(),
         )
         .await;
         log_preparation_stage(
@@ -1591,6 +1623,7 @@ pub async fn mc_play(
         port,
         request.test_mode,
         Some(Arc::clone(&preparation.1)),
+        java_consent.as_ref(),
     )
     .await
 }
@@ -1630,6 +1663,7 @@ async fn launch_profile(
     port: u16,
     test_mode: bool,
     preparation_lease: Option<Arc<InstallLock>>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<McGameStatus> {
     // One account per project: the nickname and the stable UUID come from it.
     let session = line.session()?;
@@ -1658,6 +1692,7 @@ async fn launch_profile(
         test_mode,
         stop,
         &claim,
+        java_consent,
     )
     .await;
     if started.is_err() {
@@ -1673,10 +1708,18 @@ async fn launch_profile(
                 McGameStatus {
                     instance_id,
                     version_id,
-                    phase: GamePhase::Failed,
+                    phase: if error.code == ErrorCode::ConfirmationRequired {
+                        GamePhase::Idle
+                    } else {
+                        GamePhase::Failed
+                    },
                     started_at: None,
                     exit_code: None,
-                    message: Some(error.message.clone()),
+                    message: if error.code == ErrorCode::ConfirmationRequired {
+                        None
+                    } else {
+                        Some(error.message.clone())
+                    },
                 },
             );
             Err(error)
@@ -1697,6 +1740,7 @@ async fn start_game(
     test_mode: bool,
     stop: Arc<AtomicBool>,
     claim: &Arc<InstanceOperation>,
+    java_consent: Option<&super::java_consent::JavaConsent>,
 ) -> LineResult<McGameStatus> {
     let dir = instance_root(app, instance_id)?;
     let game_dir = dir.join("game");
@@ -1752,6 +1796,8 @@ async fn start_game(
         app,
         instance_id,
         claim,
+        java_consent,
+        "launch",
     )
     .await?;
 

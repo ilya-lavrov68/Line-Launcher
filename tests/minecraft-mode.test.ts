@@ -107,8 +107,9 @@ test("Java prefers a valid local runtime, then Windows Temurin or Mojang", () =>
   const order = [
     "java::inspect_path(requested)",
     "java::discover(required_major)",
-    "java_auto::install_windows_x64",
     "runtime::get_executable_path(",
+    "java_auto::find_cached_windows_x64",
+    "java_auto::install_windows_x64",
     "runtime::install_jvm_runtime(",
   ].map((needle) => resolve.indexOf(needle));
   for (const [index, at] of order.entries()) {
@@ -122,8 +123,8 @@ test("Java prefers a valid local runtime, then Windows Temurin or Mojang", () =>
     /let probed = java::inspect_path\(&path\.to_string_lossy\(\)\)\.await\?;/,
   );
   assert.match(resolve, /probed\.major != required_major/);
-  // Auto is a placeholder in the facade; the real work is resolve_java.
-  assert.match(rust, /The facade does not bundle Java/);
+  assert.match(resolve, /consent\.require\(required_major, purpose, "adoptium"\)/);
+  assert.match(resolve, /consent\.require\(required_major, purpose, "mojang"\)/);
 });
 
 test("commands, state and the additive boundary are wired", () => {

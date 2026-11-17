@@ -50,8 +50,8 @@ test("a structured confirmation survives the API error conversion", () => {
 test("dialog declines without invoking play and resumes the original action on approval", () => {
   assert.match(panel, /if \(!open\)/);
   assert.match(panel, /zipRepair\.declined/);
-  assert.match(panel, /if \(plan\.prepareOnly\) void prepare\(plan\)/);
-  assert.match(panel, /else void play\(plan\.testMode, plan\)/);
+  assert.match(panel, /if \(plan\.prepareOnly\) void prepare\(plan, pendingRepairJava\)/);
+  assert.match(panel, /else void play\(plan\.testMode, plan, pendingRepairJava\)/);
   assert.match(panel, /approveZipRepair: approved/);
 });
 

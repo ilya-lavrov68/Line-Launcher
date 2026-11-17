@@ -57,6 +57,22 @@ test("the demo restores branding on every exit path", () => {
     demo.indexOf("const originalBrand") < demo.indexOf("brandChanged = true"),
     "the original branding must be read before it is overwritten",
   );
+  // `brandChanged` is raised *before* the write, never after it. The other
+  // order leaves a window where the file is already overwritten but `restore()`
+  // still believes it has nothing to do — kill the process there (Ctrl+C, a
+  // crash in the next step) and the demo provider's address stays baked into
+  // the template. That is exactly how a repository ended up with
+  // `https://127.0.0.1:8443/config.json` in `branding/provider.json`.
+  const flagAt = demo.indexOf("brandChanged = true");
+  const writeAt = demo.indexOf("writeFileSync(\n  brandFile,");
+  assert.ok(
+    flagAt > 0 && writeAt > 0,
+    "both the flag and the write must exist",
+  );
+  assert.ok(
+    flagAt < writeAt,
+    "the flag must be raised before the file is overwritten, not after",
+  );
   assert.match(restore, /if \(restored\) return;/);
   assert.match(restore, /writeFileSync\(brandFile, originalBrand\)/);
   assert.match(restore, /provider\.kill\(/);

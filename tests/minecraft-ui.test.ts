@@ -183,8 +183,15 @@ test("Minecraft dock keeps actions and errors prominent, with explanations on de
   assert.match(details, /t\("mc\.testModeHint"\)/);
   assert.match(details, /t\("mc\.onlineMode"\)/);
   assert.match(panel, /role="alert"/);
-  assert.match(panel, /progress=\{progress \?/);
-  assert.match(read("src/components/line/ServerDock.tsx"), /role="progressbar"/);
+  // The dock's button is the loader: it takes the number, not a {label,percent}
+  // object, and the label travelled into `progressLabel`.
+  assert.match(panel, /progress=\{working \? percent : null\}/);
+  assert.match(panel, /progressLabel=\{/);
+  assert.match(
+    read("src/components/line/ServerDock.tsx"),
+    /role="progressbar"/,
+  );
   assert.doesNotMatch(panel, /progress\.label/);
+  assert.doesNotMatch(panel, /progress\.percent/);
   assert.doesNotMatch(detail, /t\("source\.hint"\)/);
 });

@@ -70,7 +70,6 @@ export function ServerDockPrimary({
   indeterminate = false,
   progressLabel,
   onClick,
-  progress,
 }: {
   children: ReactNode;
   disabled: boolean;
@@ -81,7 +80,6 @@ export function ServerDockPrimary({
   /** Accessible name for the progress value, e.g. «Скачивание сборки». */
   progressLabel?: string;
   onClick: () => void;
-  progress?: { label: string; percent: number | null };
 }) {
   const reducedMotion = useReducedMotion();
   const busy = progress !== null || indeterminate;
@@ -141,10 +139,23 @@ export function ServerDockPrimary({
             }}
           />
         )}
-        <span className="flex min-w-0 items-center justify-center gap-2">{children}</span>
-        {progress && <span aria-hidden="true" className="truncate text-xs font-normal opacity-75">{progress.label}{progress.percent === null ? "" : ` · ${progress.percent}%`}</span>}
+        <span className="relative z-10 inline-flex min-w-0 items-center gap-2">
+          {children}
+        </span>
       </Button>
-      {progress && <span role="progressbar" aria-label={progress.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent ?? undefined} className="sr-only" />}
+      {/* Outside the button, because `button` makes its descendants
+          presentational: a progressbar inside it would be ignored by a screen
+          reader. Visually hidden — the fill above is what a player watches. */}
+      {busy && (
+        <span
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={indeterminate ? undefined : (clamped ?? 0)}
+          aria-label={progressLabel}
+          className="sr-only"
+        />
+      )}
     </div>
   );
 }

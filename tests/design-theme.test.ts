@@ -640,13 +640,50 @@ test("signing out does not flash a connection error before the gate", () => {
   );
 });
 
-
-test("only the main shell panes get translucent white glass", () => {
-  assert.match(indexCss, /--surface-glass:\s*rgba\(10, 12, 16, 0\.45\)/);
-  assert.match(indexCss, /--surface-shell-glass:\s*rgba\(255, 255, 255, 0\.09\)/);
-  assert.match(indexCss, /\[data-line-glass="main"\],\s*\[data-line-glass="sidebar"\]\s*\{\s*background:\s*var\(--surface-shell-glass\)/);
-  assert.match(read("src/components/line/LineLauncher.tsx"), /<main\s+data-line-glass="main"/);
-  assert.match(read("src/components/line/SideNav.tsx"), /data-line-glass="sidebar"/);
-  assert.match(read("src/components/line/ServerDock.tsx"), /data-line-glass="dock"/);
-  assert.match(indexCss, /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*\[data-line-glass\]\s*\{\s*background:\s*#14161b/);
+test("the glass is translucent white and every pane reads from one token", () => {
+  // One token for every pane. A previous merge left `[data-line-glass="main"]`
+  // and `"sidebar"` pointing at `--surface-shell-glass`, a variable nothing
+  // declared — the panes rendered with no fill at all while the rule looked
+  // perfectly reasonable in the file.
+  const surface = /--glass-surface:\s*rgba\(251, 252, 254, 0\.(\d+)\)/.exec(
+    indexCss,
+  );
+  assert.ok(surface, "--glass-surface must be an rgba triple");
+  const alpha = Number(`0.${surface[1]}`);
+  assert.ok(
+    alpha > 0.5 && alpha < 0.8,
+    `the fill must stay translucent and still read as white glass, got ${alpha}`,
+  );
+  assert.doesNotMatch(
+    indexCss,
+    /var\(--surface-shell-glass\)/,
+    "a pane points at a token nothing declares",
+  );
+  for (const slot of ["--surface-glass", "--surface-shell-glass"]) {
+    if (slot === "--surface-shell-glass") continue;
+    assert.match(indexCss, new RegExp(`${slot}:`), `${slot} must stay defined`);
+  }
+  assert.match(
+    indexCss,
+    /\[data-line-glass\]\s*\{\s*background:\s*var\(--glass-surface\)/,
+  );
+  assert.match(
+    read("src/components/line/LineLauncher.tsx"),
+    /<main\s+data-line-glass="main"/,
+  );
+  assert.match(
+    read("src/components/line/SideNav.tsx"),
+    /data-line-glass="sidebar"/,
+  );
+  assert.match(
+    read("src/components/line/ServerDock.tsx"),
+    /data-line-glass="dock"/,
+  );
+  // Opting out of transparency still has to land on the light sheet, not on
+  // the old near-black: a dark fill behind ink meant for white glass is
+  // unreadable in exactly the setting that asked for solidity.
+  assert.match(
+    indexCss,
+    /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*\[data-line-glass\]\s*\{\s*background:\s*#f4f5f7/,
+  );
 });

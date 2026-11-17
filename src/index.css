@@ -341,15 +341,6 @@
     -webkit-backdrop-filter: blur(48px) saturate(170%);
   }
 
-  /* Only the main shell tiles get the pale glass treatment. The tint is not
-   * opaque white: the backdrop and its colours remain visible underneath. */
-  [data-line-glass="main"],
-  [data-line-glass="sidebar"] {
-    background: var(--surface-shell-glass);
-    backdrop-filter: blur(32px) saturate(150%);
-    -webkit-backdrop-filter: blur(32px) saturate(150%);
-  }
-
   /* The action dock: one continuous surface, no separate header block. */
   [data-line-glass="dock"] {
     border-radius: var(--radius-panel);

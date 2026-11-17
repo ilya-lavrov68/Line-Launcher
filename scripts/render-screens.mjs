@@ -33,6 +33,15 @@ const outDir = path.resolve(
   process.env.SHOTS_DIR || path.join(root, ".offline-shots"),
 );
 const checkOnly = process.argv.includes("--check");
+/**
+ * True when the caller asked for the README gallery itself (`SHOTS_DIR` points
+ * at `docs/images`). The gallery has a fixed set of eight screens and a test
+ * that rejects anything else in that folder, so the transient «connecting»
+ * screen is written only to the scratch folder.
+ */
+const writingGallery =
+  Boolean(process.env.SHOTS_DIR) &&
+  path.resolve(process.env.SHOTS_DIR) === path.join(root, "docs", "images");
 
 /** Every screenshot has the same body size; the poster swaps per screen. */
 export const SHOT_WIDTH = 1280;
@@ -1545,6 +1554,157 @@ function screenServer(ctx) {
 }
 
 /**
+ * Minecraft mode. The screen a provider gets when a server is launched as a
+ * real client instead of a ZIP instance: banner, name, then one dock whose
+ * button *is* the progress.
+ *
+ * README embeds this one, and it used to be captured only by the browser
+ * writer — so every offline regeneration left the old dark picture behind while
+ * the other seven moved on. It lives here now for the same reason the rest do:
+ * one palette, no way for the gallery to drift from the theme.
+ */
+function screenMinecraft(ctx) {
+  background(ctx);
+  const top = titleBar(ctx, "SkyBlock", undefined);
+  const nav = 208;
+  const footerH = 28;
+  shellGlass(ctx, top, footerH, nav);
+  sideNav(ctx, top, SHOT_HEIGHT - top - footerH, "servers", {
+    providerName: "Plus In Plus Demo",
+    username: "Player_1",
+  });
+  appFooter(ctx, SHOT_HEIGHT - footerH, footerH);
+
+  const contentW = 672;
+  const x = nav + (SHOT_WIDTH - nav - contentW) / 2;
+  let y = top + 26;
+
+  icon(ctx, "chevron", x, y, 14, rgba(T.mutedForeground), 2);
+  text(ctx, "Все серверы", x + 20, y + 11, {
+    size: 11,
+    color: rgba(T.mutedForeground),
+  });
+  y += 34;
+
+  // Banner: the server's own artwork, not a flat block.
+  const bannerH = 200;
+  const grad = ctx.createLinearGradient(x, y, x + contentW, y + bannerH);
+  grad.addColorStop(0, "#1e3a8a");
+  grad.addColorStop(1, "#2563eb");
+  fillRound(ctx, x, y, contentW, bannerH, 14, grad);
+  ctx.save();
+  roundRect(ctx, x, y, contentW, bannerH, 14);
+  ctx.clip();
+  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  ctx.beginPath();
+  ctx.arc(x + contentW * 0.82, y + bannerH * 0.32, 110, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  ctx.beginPath();
+  ctx.arc(x + contentW * 0.16, y + bannerH * 0.78, 90, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.96)";
+  ctx.font = font(30, 700);
+  ctx.fillText("SKYBLOCK", x + contentW / 2, y + bannerH / 2 + 6);
+  ctx.textAlign = "left";
+  y += bannerH + 20;
+
+  // Name row: 64px icon, provider line, title, description.
+  fillRound(ctx, x, y, 64, 64, 12, "#1e3a8a");
+  ctx.save();
+  roundRect(ctx, x, y, 64, 64, 12);
+  ctx.clip();
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = font(28, 700);
+  ctx.textAlign = "center";
+  ctx.fillText("K", x + 32, y + 43);
+  ctx.restore();
+  ctx.textAlign = "left";
+
+  text(ctx, "Plus In Plus Demo · v2026.11.1", x + 78, y + 20, {
+    size: 10,
+    color: rgba(T.mutedForeground),
+    mono: true,
+  });
+  text(ctx, "SkyBlock", x + 78, y + 46, { size: 24, weight: 600 });
+  text(
+    ctx,
+    "Острова в пустоте: кооператив, экономика и сезонные задания.",
+    x + 78,
+    y + 64,
+    { size: 11, color: rgba(T.mutedForeground), maxWidth: contentW - 78 },
+  );
+  y += 88;
+
+  // The dock: one status line, the single filled action, the quiet links.
+  const dockH = 152;
+  glass(ctx, x, y, contentW, dockH, 18);
+  const pad = 16;
+  let rowY = y + pad;
+  icon(ctx, "wifi", x + pad, rowY - 1, 12, rgba(T.shellOnline), 2.2);
+  text(ctx, "Игра не запущена", x + pad + 18, rowY + 9, {
+    size: 12,
+    color: rgba(T.mutedForeground),
+  });
+  text(ctx, "MC 1.21.1", x + pad + 18 + measure(ctx, "Игра не запущена", 12, 400) + 12, rowY + 9, {
+    size: 10,
+    color: rgba(T.mutedForeground, 0.8),
+    mono: true,
+  });
+  rowY += 26;
+
+  const barW = contentW - pad * 2;
+  const btnH = 44;
+  fillRound(ctx, x + pad, rowY, barW, btnH, 10, rgba(T.primary));
+  const label = "Играть";
+  const labelX = x + pad + barW / 2 - measure(ctx, label, 13, 600) / 2;
+  icon(ctx, "play", labelX - 20, rowY + 15, 13, rgba(T.primaryForeground), 1.8);
+  text(ctx, label, labelX, rowY + 27, {
+    size: 13,
+    weight: 600,
+    color: rgba(T.primaryForeground),
+  });
+  rowY += btnH + 12;
+
+  // Secondary actions, as the panel lays them out.
+  const ghostW = 128;
+  fillRound(ctx, x + pad, rowY, ghostW, 26, 8, "rgba(0,0,0,0.06)");
+  strokeRound(ctx, x + pad, rowY, ghostW, 26, 8, rgba(T.border), 1);
+  icon(ctx, "gamepad", x + pad + 10, rowY + 7, 12, rgba(T.shellInk, 0.85), 1.8);
+  text(ctx, "Тестовый режим", x + pad + 28, rowY + 17, {
+    size: 10,
+    color: rgba(T.shellInk, 0.85),
+  });
+  icon(ctx, "download", x + pad + ghostW + 18, rowY + 7, 12, rgba(T.shellInk, 0.7), 1.8);
+  text(ctx, "Подготовить заранее", x + pad + ghostW + 36, rowY + 17, {
+    size: 10,
+    color: rgba(T.shellInk, 0.7),
+  });
+  rowY += 34;
+
+  icon(ctx, "chevron", x + pad, rowY + 2, 10, rgba(T.mutedForeground), 2);
+  text(ctx, "О запуске", x + pad + 16, rowY + 10, {
+    size: 10,
+    color: rgba(T.mutedForeground),
+  });
+
+  y += dockH + 18;
+
+  // Resource-pack check row, the one thing under the dock on this screen.
+  const rpW = contentW;
+  fillRound(ctx, x, y, rpW, 52, 14, "rgba(255,255,255,0.55)");
+  strokeRound(ctx, x, y, rpW, 52, 14, rgba(T.border), 1);
+  icon(ctx, "shield", x + 18, y + 19, 14, rgba(T.shellOnline), 1.8);
+  text(ctx, "Проверить ресурс-паки", x + 40, y + 25, {
+    size: 11,
+    weight: 500,
+    color: rgba(T.shellInk),
+  });
+}
+
+/**
  * Гардероб. Matches WardrobeScreen's actual stack inside a max-w-3xl column:
  * title, «Добавить скин в историю», «Локальная история» with a 3-up grid, and
  * the card that reports the automatic upload.
@@ -2071,10 +2231,14 @@ function screenProfile(ctx) {
 
 export const SCREENS = [
   ["welcome", screenWelcome],
-  ["connecting", screenConnecting],
+  // `connecting` is deliberately not in the gallery: it is a transient state
+  // the README does not show, and writing it here left a file the gallery test
+  // rejects as obsolete. It stays in the module for the browser writer.
+  ...(writingGallery ? [] : [["connecting", screenConnecting]]),
   ["account", screenAccount],
   ["servers", screenServers],
   ["server", screenServer],
+  ["minecraft", screenMinecraft],
   ["wardrobe", screenWardrobe],
   ["profile", screenProfile],
   ["settings", screenSettings],

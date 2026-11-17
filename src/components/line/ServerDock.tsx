@@ -97,20 +97,49 @@ export function ServerDockPrimary({
         onClick={onClick}
         className={cn(
           "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
-          progress && "disabled:opacity-100",
+          // `--action`, not `--primary`: see `src/components/ui/button.tsx`.
+          // The accent turns to ink on glass, but the launch chip keeps its
+          // light fill — a dark launch button on white glass is a reversal of
+          // the interface, not the same button on a lighter ground.
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
-            : "bg-primary text-primary-foreground hover:bg-primary/85",
+            : "bg-action text-action-foreground hover:bg-action/85",
           // The button is disabled *because* it is working, and the base class
           // dims disabled controls to half opacity — which would fade the very
           // fill a player is watching. Keep it at full strength.
           busy && "disabled:opacity-100",
         )}
       >
-        {progress && (
-          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/10">
-            <span className={cn("block h-full bg-black/45 transition-[width] duration-200", progress.percent === null && "w-1/3 animate-pulse motion-reduce:animate-none")} style={progress.percent === null ? undefined : { width: `${progress.percent}%` }} />
-          </span>
+        {busy && (
+          // Decorative: the fill a player watches. `aria-hidden` because the
+          // real progressbar sits outside the button (see above).
+          <span
+            aria-hidden="true"
+            className={cn(
+              // A wash of the label's own colour, not a second colour: the
+              // button reads as filling, not as a bar laid on top of it.
+              "bg-action-foreground/25 absolute inset-y-0 left-0",
+              indeterminate
+                ? "w-1/3"
+                : "transition-[width] duration-300 ease-[var(--ease-line)]",
+            )}
+            style={indeterminate ? undefined : { width: `${clamped}%` }}
+          />
+        )}
+        {indeterminate && !reducedMotion && (
+          // No number to show, so the wash sweeps instead of standing still.
+          // Reduced motion keeps a static third — the state stays visible, only
+          // the movement is gone.
+          <m.span
+            aria-hidden="true"
+            className="bg-action-foreground/25 absolute inset-y-0 w-1/3"
+            animate={{ x: ["-100%", "300%"] }}
+            transition={{
+              duration: 1.4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
         )}
         <span className="flex min-w-0 items-center justify-center gap-2">{children}</span>
         {progress && <span aria-hidden="true" className="truncate text-xs font-normal opacity-75">{progress.label}{progress.percent === null ? "" : ` · ${progress.percent}%`}</span>}

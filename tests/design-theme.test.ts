@@ -340,8 +340,13 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   assert.doesNotMatch(welcome, /WASH|style=\{\{ background/);
   assert.match(backdrop, /data-line-backdrop-wash/);
   assert.match(backdrop, /style=\{\{ background: BACKDROP_WASH \}\}/);
-  assert.match(backdrop, /rgba\(8,9,12,0\.28\)/);
-  assert.match(backdrop, /rgba\(8,9,12,0\.52\)/);
+  // The wash is mixed from `--background`, not from a literal near-black: it
+  // sits over the artwork to keep copy legible, so it has to follow the page.
+  // While the window was dark both were the same value; on the light page a
+  // hard-coded black wash dragged the field back to grey.
+  assert.match(backdrop, /color-mix\(in oklab, var\(--background\) 28%/);
+  assert.match(backdrop, /color-mix\(in oklab, var\(--background\) 52%/);
+  assert.doesNotMatch(backdrop, /rgba\(8,9,12,0\.(28|52)\)/);
 });
 
 test("the animated backdrop is decoration that cannot take the window down", () => {

@@ -23,47 +23,66 @@
 
 :root {
   --radius: 12px;
-  --background: #08090c;
-  --foreground: oklch(0.97 0.002 250);
+  --background: #e6e8ec;
+  /* The window is light now, so the canvas palette is ink, not near-white.
+   * Before, the page was `#08090c` and every text slot outside a panel was
+   * near-white; leaving those values would have put white text on a light
+   * page — the title bar, the footer and the empty states would have vanished.
+   * The panels are still frost, and still darken their own ink a step further
+   * (see `[data-line-glass]`), which is why there are two levels rather than
+   * one: the page is a light ground, the pane on top of it is lighter still. */
+  --foreground: oklch(0.21 0.008 265);
   --card: transparent;
-  --card-foreground: oklch(0.97 0.002 250);
-  --popover: #14161b;
-  --popover-foreground: oklch(0.97 0.002 250);
-  /* The palette is fixed and dark; the *surface* on top of it is frost.
+  --card-foreground: oklch(0.21 0.008 265);
+  --popover: #fbfcfd;
+  --popover-foreground: oklch(0.21 0.008 265);
+  /* The palette is fixed and light; the *surface* on top of it is frost.
    *
    * Every panel (rail, catalogue, dock, dialogs) is a white sheet with a heavy
    * blur over the moving backdrop, the way tryliner's glass reads, not a black
    * translucent box. That inverts the contrast inside those panels: text on a
-   * 55% white sheet cannot stay near-white, or the whole window turns into
-   * white-on-white. So the text tokens move to ink for everything painted
-   * *inside* a panel, and `[data-line-glass]` restores them for its subtree.
-   * The bare canvas between the panels keeps the dark palette, because the
-   * backdrop is the colourful part and the 6px gutters are what show it.
+   * white sheet cannot stay near-white, or the whole window turns into
+   * white-on-white. So the text tokens are ink for everything painted *inside*
+   * a panel, and the page between the panels keeps its own (slightly darker)
+   * ink so the title bar and the footer still read.
    *
    * Two values, one place: the panel fill and the ink it implies. */
-  /* Not the 0.55 of Liner's floating pill. That value is tuned for a *light*
-   * canvas: 55% white over `#e4e4e7` still composites to a near-white sheet.
-   * This canvas is `#08090c`, so the same 55% lands on mid-grey and every panel
-   * reads as smoke rather than frosted glass. Liner's own panel token —
-   * `--surface-glass: rgba(245,245,247,0.92)` — is the one that describes a
-   * surface you read text on, and it is the one used here. The remaining 18%
-   * is what keeps the backdrop visible through the sheet. */
-  --glass-surface: rgba(250, 251, 253, 0.82);
-  --glass-surface-strong: rgba(252, 253, 255, 0.92);
+  /* What changes is the *fill*, not the glass: the panel used to be
+   * `rgba(10,12,16,0.45)` — a black pane — and is now the same pane in white.
+   * The transparency stays, because a pane that hides the window's colour is a
+   * board, not glass: at 0.82 the backdrop showed only in the 6px gutters and
+   * every tile read as solid white.
+   *
+   * 0.66 is where the sheet is light enough to be «white glass» and still lets
+   * the hue behind it through. Below ~0.55 the composite over a dark theme
+   * drops the sheet to mid-grey, and the quiet text slot can no longer reach
+   * 4.5:1 no matter how dark the ink gets. Above ~0.80 it stops reading as
+   * glass at all.
+   *
+   * The buttons are deliberately *not* inverted any more. They keep the accent
+   * they always had (near-white fill, dark glyph); re-pointing `--primary` to
+   * ink inside the pane is what turned the launch button, the brand mark, the
+   * section icons and the active nav row black — a reversal of the interface
+   * rather than the same interface on a lighter ground. A light fill on a light
+   * sheet needs an edge instead, and it gets one from `--input` (3.2:1). */
+  --glass-surface: rgba(251, 252, 254, 0.66);
+  --glass-surface-strong: rgba(252, 253, 255, 0.84);
   --glass-ink: oklch(0.21 0.008 265);
-  --glass-ink-soft: oklch(0.42 0.01 265);
-  --glass-ink-faint: oklch(0.52 0.01 265);
+  --glass-ink-soft: oklch(0.33 0.01 265);
+  --glass-ink-faint: oklch(0.42 0.01 265);
   --glass-hairline: rgba(17, 20, 28, 0.1);
   --glass-fill-subtle: rgba(17, 20, 28, 0.045);
   --glass-fill: rgba(17, 20, 28, 0.07);
   --glass-fill-hover: rgba(17, 20, 28, 0.1);
   --glass-fill-strong: rgba(17, 20, 28, 0.14);
   --glass-border: rgba(17, 20, 28, 0.12);
-  /* 0.5, not 0.16. `--input` draws the boundary of a text field, which WCAG
+  /* 0.6, not 0.16. `--input` draws the boundary of a text field, which WCAG
    * counts as a UI component: 3:1 against what it sits on. On the dark canvas
-   * 16 % ink was enough separation; on the white frost it measured 1.38:1 and
-   * the fields dissolved into the sheet. 0.5 measures 3.11:1. */
-  --glass-input: rgba(17, 20, 28, 0.5);
+   * 16 % ink was enough separation; on the frost it measured 1.38:1 and the
+   * fields dissolved into the sheet. 0.6 measures 3.4:1 on the lightest sheet
+   * this glass can composite to. It also draws the launch button's edge: a
+   * near-white fill on a near-white pane has no boundary of its own. */
+  --glass-input: rgba(17, 20, 28, 0.6);
   /* Fully opaque, because the two consumers throw most of it away: the Button
    * paints `ring-ring/50` and `input`/`select` paint `color-mix(… 40%,
    * transparent)`. A 45 % token left those at 1.65:1 and 1.48:1 on the frost —
@@ -71,18 +90,37 @@
    * At 100 % they measure 3.35:1 and 2.57:1; the field boundary itself carries
    * the rest through `--glass-input`, which is 3.11:1. */
   --glass-ring: oklch(0.36 0.03 265);
+  /* State green, for a light sheet. `--line-online` is oklch(0.8 0.17 155) —
+   * a mint tuned for a dark canvas, and on white glass it measures 1.02:1, so
+   * «сборка онлайн» was painted in a colour the eye cannot separate from the
+   * panel it sits on. Same hue, lightness moved down until the text and its
+   * own 10% tint both clear AA. */
+  --glass-online: oklch(0.33 0.11 155);
+  --glass-offline: oklch(0.33 0.02 250);
+  --glass-update: oklch(0.33 0.11 70);
 
   /* White, not mint. The accent is neutral on purpose: green belongs to state
    * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
    * primary button look like a success message. */
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.16 0.004 286.32);
-  --secondary: rgba(255, 255, 255, 0.06);
-  --secondary-foreground: oklch(0.9 0.002 250);
-  --muted: rgba(255, 255, 255, 0.05);
-  --muted-foreground: oklch(0.72 0.006 250);
-  --accent: rgba(255, 255, 255, 0.08);
-  --accent-foreground: oklch(0.98 0.002 250);
+  /* `--primary` is the *accent*: it colours glyphs, the active nav row, the
+   * progress fill. On the dark canvas that is near-white, so it doubles as the
+   * fill of the launch button and no second token was needed.
+   *
+   * On a frosted panel the two roles split. Ink glyphs must go dark to stay
+   * readable on white glass; a dark launch button on that same glass is not the
+   * same control on a lighter ground, it is a different control — the «реверс»
+   * this file used to produce. So the filled action gets its own pair, and it
+   * keeps the accent's light fill on every surface. */
+  --primary: oklch(0.21 0.008 265);
+  --primary-foreground: oklch(0.98 0.002 250);
+  --action: oklch(0.92 0.004 286.32);
+  --action-foreground: oklch(0.16 0.004 286.32);
+  --secondary: rgba(17, 20, 28, 0.06);
+  --secondary-foreground: oklch(0.21 0.008 265);
+  --muted: rgba(17, 20, 28, 0.05);
+  --muted-foreground: oklch(0.42 0.01 265);
+  --accent: rgba(17, 20, 28, 0.07);
+  --accent-foreground: oklch(0.21 0.008 265);
   --destructive: oklch(0.66 0.21 22);
   /* The red behind a destructive *button*, which is not the same job as the red
    * of an error line. An error is read as text, so it needs lightness; a button
@@ -91,16 +129,16 @@
    * than a red. Kept separate from `--destructive` so fixing the button does not
    * darken «Не удалось подключиться» along with it. */
   --destructive-strong: oklch(0.55 0.24 27);
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.14);
-  --ring: oklch(0.92 0.004 286.32 / 45%);
-  --sidebar: #0d0f13;
-  --sidebar-foreground: oklch(0.97 0.002 250);
+  --border: rgba(17, 20, 28, 0.14);
+  --input: rgba(17, 20, 28, 0.55);
+  --ring: oklch(0.36 0.03 265 / 80%);
+  --sidebar: #f4f5f8;
+  --sidebar-foreground: oklch(0.21 0.008 265);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: rgba(255, 255, 255, 0.07);
-  --sidebar-accent-foreground: oklch(0.98 0.002 250);
-  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: rgba(17, 20, 28, 0.07);
+  --sidebar-accent-foreground: oklch(0.21 0.008 265);
+  --sidebar-border: rgba(17, 20, 28, 0.12);
   --sidebar-ring: var(--ring);
   /* The glyph *on* a destructive fill — and it stays red, because the whole
    * button is meant to read as red, not as a red square with a white cross on
@@ -112,20 +150,25 @@
    * looked pink, closer to a white cross than a red one. */
   --destructive-foreground: oklch(0.78 0.17 22);
 
-  /* Keep controls and nested panels on the original dark glass. Only the two
-   * large shell panes receive a subtle translucent white tint below; changing
-   * the shared surface would wash out the entire interface and its controls. */
-  --fill-subtle: rgba(255, 255, 255, 0.045);
-  --fill: rgba(255, 255, 255, 0.07);
-  --fill-hover: rgba(255, 255, 255, 0.1);
-  --fill-strong: rgba(255, 255, 255, 0.14);
-  --surface-glass: rgba(10, 12, 16, 0.45);
-  --surface-shell-glass: rgba(255, 255, 255, 0.09);
-  --line-hairline: rgba(255, 255, 255, 0.1);
+  /* ── the quiet-fill ladder and the glass surface ──
+   *
+   * These are the values *outside* a panel (the bare canvas, the gaps between
+   * sheets, anything painted before a [`data-line-glass`] ancestor appears).
+   * The values that matter are the scoped ones inside the panel rule below:
+   * `--glass-fill-*`. The ladder here stays with the dark palette so nothing
+   * on the canvas silently turns black-on-black. */
+  --fill-subtle: rgba(17, 20, 28, 0.045);
+  --fill: rgba(17, 20, 28, 0.07);
+  --fill-hover: rgba(17, 20, 28, 0.1);
+  --fill-strong: rgba(17, 20, 28, 0.14);
+  /* Kept for compatibility with anything that still reads the old slot; the
+   * panel rule paints the white frost directly from `--glass-surface`. */
+  --surface-glass: var(--glass-surface);
+  --line-hairline: rgba(17, 20, 28, 0.1);
   --line-accent: var(--primary);
-  --line-online: oklch(0.8 0.17 155);
-  --line-offline: oklch(0.66 0.02 250);
-  --line-update: oklch(0.82 0.15 85);
+  --line-online: oklch(0.33 0.11 155);
+  --line-offline: oklch(0.45 0.02 250);
+  --line-update: oklch(0.33 0.11 70);
   --line-error: var(--destructive);
 
   /* Shape scale: control → item → panel (tryliner's three steps). */
@@ -148,7 +191,7 @@
    * `AnimatedBackdrop` paints on WebGL, not a painted CSS gradient. This token
    * stays the flat colour underneath it, and the whole backdrop under reduced
    * motion or without WebGL2. */
-  --line-canvas: #08090c;
+  --line-canvas: #e6e8ec;
 }
 
 /* Tailwind v4: expose the slots as utilities (`bg-fill`, `bg-fill-hover`,
@@ -177,6 +220,8 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-action: var(--action);
+  --color-action-foreground: var(--action-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -263,14 +308,22 @@
     --fill-strong: var(--glass-fill-strong);
     --border: var(--glass-border);
     --input: var(--glass-input);
+    /* Inside a panel the panel *is* the background. Without this, a control
+     * that paints `bg-background` — an outline Button, the section search — drew
+     * the colour of the *page* onto the glass: a flat grey plate on a sheet it
+     * has nothing to do with. A control on glass draws its own boundary
+     * (`--input`) instead of repainting what is behind it. */
+    --background: transparent;
     --line-hairline: var(--glass-hairline);
+    /* State colours follow the surface for the same reason text does. */
+    --line-online: var(--glass-online);
+    --line-offline: var(--glass-offline);
+    --line-update: var(--glass-update);
     --ring: var(--glass-ring);
-    /* The accent follows the surface for the same reason. On the dark canvas
-     * `--primary` is near-white (a white chip on black); on a white sheet it has
-     * to be ink, and the glyph *on* it has to be near-white. Everything that
-     * reads these two slots — the filled Button, the Switch's checked track and
-     * thumb, the progress fill, the slider range, the active nav row — flips
-     * with them and no component needs a second colour. */
+    /* The accent follows the surface: near-white glyphs on the dark canvas
+     * would vanish on white glass, so inside a panel the accent *is* ink.
+     * `--action` is deliberately absent from this block — it is the fill of a
+     * control, not a tint of the surface, and it keeps its light value. */
     --primary: var(--glass-ink);
     --primary-foreground: oklch(0.98 0.002 250);
     /* These three are hover tints on the dark palette; a white wash on a white

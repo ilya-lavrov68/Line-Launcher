@@ -32,6 +32,12 @@
   },
   "bundle": {
     "active": true,
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      }
+    },
     "createUpdaterArtifacts": false,
     "targets": "all",
     "shortDescription": "Provider-configured Minecraft launcher",

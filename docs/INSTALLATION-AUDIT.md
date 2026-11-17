@@ -84,6 +84,17 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
   be reused, but there are still repeated full scans and no independently
   validated loader receipt. Measure actual network, disk and wall time before
   merging scans or skipping verification.
+- **Windows packaging and loader console:** the Windows bundle now requests the
+  offline WebView2 installer. Installer size increases and building it may need
+  Microsoft access; clean-machine NSIS/MSI installation and WebView startup are
+  untested. The launcher-owned legacy NeoForge 1.20.1 installer now uses
+  CREATE_NO_WINDOW with redirected logs; other Forge/NeoForge versions still
+  use the external core facade and may open a console. The upstream repository
+  examined at commit `838daff3e04cfd04b77796f61a6d7d68a36b8aa6` launches its
+  installer with `Command::status`; exact equivalence to the published 0.1.2
+  crate is unverified. Verify both versions on Windows before claiming a
+  general no-console guarantee. Logs can contain local paths; redact before
+  sharing.
 - **Java and loaders:** newer explicitly chosen Java can satisfy Minecraft's
   minimum, but mod requirements are not fully inspected and the whole pack may
   still be incompatible. Test Vanilla, Fabric, Quilt, Forge, NeoForge 1.20.1

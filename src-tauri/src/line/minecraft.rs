@@ -648,6 +648,65 @@ fn ensure_installer_profile(dir: &Path) -> LineResult<()> {
     }
 }
 
+/// Construct the loader installer process directly, without a shell. The Java
+/// process stays console-free on Windows; its stdout/stderr are redirected by
+/// the caller. GUI windows created independently by a third party are not covered.
+fn loader_installer_command(java: &Path, installer: &Path, game: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new(java);
+    command
+        .arg("-jar")
+        .arg(installer)
+        .arg("--installClient")
+        .arg(game);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    command
+}
+
+/// Keep diagnostics in the instance rather than opening a console or leaking
+/// installer output into UI errors. Caller holds the instance operation lock.
+fn run_quiet_loader_installer(java: &Path, installer: &Path, game: &Path) -> LineResult<()> {
+    let log_path = pack::checked_game_path(game, "logs/line-loader-install.log", true)?;
+    match std::fs::symlink_metadata(&log_path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(LineError::io(&error)),
+        Ok(_) if !super::storage::is_real_file(&log_path) => {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                "Файл журнала установщика не является обычным файлом.",
+                false,
+            ))
+        }
+        Ok(_) => {}
+    }
+    let log = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .map_err(|e| LineError::io(&e))?;
+    let stderr = log.try_clone().map_err(|e| LineError::io(&e))?;
+    let status = loader_installer_command(java, installer, game)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(stderr))
+        .status()
+        .map_err(|_| {
+            LineError::new(
+                ErrorCode::JavaRequired,
+                "Не удалось запустить установщик загрузчика с выбранной Java.",
+                true,
+            )
+        })?;
+    if !status.success() {
+        return Err(LineError::new(ErrorCode::Internal, "Установка загрузчика завершилась ошибкой. Подробности в game/logs/line-loader-install.log.", true));
+    }
+    Ok(())
+}
+
 async fn install_legacy_neoforge(
     app: &AppHandle,
     dir: PathBuf,
@@ -698,8 +757,6 @@ async fn install_legacy_neoforge(
     tokio::task::spawn_blocking(move || -> LineResult<String> {
         let _worker_claim = worker_claim;
         use mc_launcher_core::net::download::{execute_plan, DownloadPlan, DownloadTask};
-        use mc_launcher_core::install::loader::{run_loader_installer, InstallerInvocation};
-        use mc_launcher_core::loader::LoaderKind;
         use std::io::Read;
         let temp = tempfile::tempdir().map_err(|e| LineError::io(&e))?;
         let installer = temp.path().join("installer.jar");
@@ -707,7 +764,9 @@ async fn install_legacy_neoforge(
         let url = format!("https://maven.neoforged.net/releases/net/neoforged/forge/{artifact}/forge-{artifact}-installer.jar");
         let retry_app = app_emit.clone();
         let retry_instance = instance.clone();
-        let mut report = move |event: ProgressEvent| { let _ = app_emit.emit(MC_INSTALL_EVENT, progress_dto(&instance, &event, false)); };
+        let progress_app = app_emit.clone();
+        let progress_instance = instance.clone();
+        let mut report = move |event: ProgressEvent| { let _ = progress_app.emit(MC_INSTALL_EVENT, progress_dto(&progress_instance, &event, false)); };
         let plan = DownloadPlan { tasks: vec![DownloadTask { url, destination: installer.clone(), checksum: None, label: "NeoForge installer".to_string() }] };
         download_installer_with_retry(&installer, || execute_plan(&plan, &mut report), std::thread::sleep, |attempt| {
             emit_mc_progress(&retry_app, &retry_instance, "loader", &format!("NeoForge: повторная попытка {attempt} из 3"), 0, None, false);
@@ -724,7 +783,8 @@ async fn install_legacy_neoforge(
         let id = validate_version_id(id)?;
         drop(archive);
         ensure_installer_profile(&dir)?;
-        run_loader_installer(&InstallerInvocation { loader: LoaderKind::NeoForge, java_executable: java, installer_path: installer, minecraft_dir: dir.clone() }).map_err(mc_error)?;
+        emit_mc_progress(&app_emit, &instance, "loader", "Установка NeoForge…", 0, None, false);
+        run_quiet_loader_installer(&java, &installer, &dir)?;
         let launcher = Launcher::new(&dir);
         let merged = launcher.load_version(&id).map_err(mc_error)?;
         mc_launcher_core::install::client::install_version_files(&merged, &dir, &mut report).map_err(mc_error)?;
@@ -2114,6 +2174,47 @@ mod preparation_lock_tests {
         worker.join().unwrap();
         check_child(false);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn loader_command_passes_paths_as_distinct_arguments_without_a_shell() {
+        let command = loader_installer_command(
+            Path::new("java path/java"),
+            Path::new("installer path/setup.jar"),
+            Path::new("game path"),
+        );
+        assert_eq!(
+            command.get_program(),
+            std::ffi::OsStr::new("java path/java")
+        );
+        let args: Vec<_> = command.get_args().collect();
+        assert_eq!(
+            args,
+            [
+                std::ffi::OsStr::new("-jar"),
+                std::ffi::OsStr::new("installer path/setup.jar"),
+                std::ffi::OsStr::new("--installClient"),
+                std::ffi::OsStr::new("game path")
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn loader_log_rejects_symlink() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("logs")).unwrap();
+        let external = root.path().join("external");
+        std::fs::write(&external, b"keep").unwrap();
+        std::os::unix::fs::symlink(&external, root.path().join("logs/line-loader-install.log"))
+            .unwrap();
+        assert!(run_quiet_loader_installer(
+            Path::new("java"),
+            Path::new("installer.jar"),
+            root.path()
+        )
+        .is_err());
+        assert_eq!(std::fs::read(external).unwrap(), b"keep");
     }
 
     #[test]

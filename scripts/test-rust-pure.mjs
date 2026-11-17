@@ -165,6 +165,7 @@ const items = [
   attributed("minecraft.rs", "struct PreparationGuard {"),
   attributed("minecraft.rs", "impl Drop for PreparationGuard {"),
   attributed("minecraft.rs", "fn busy("),
+  attributed("minecraft.rs", "fn loader_installer_command("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
   plain("java_consent.rs", "pub struct JavaDownloadPlan {"),
@@ -279,6 +280,7 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
+  attributed("minecraft.rs", "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell("),
   attributed("runtime_inventory.rs", "fn accepts_only_lowercase_sha1_digests("),
   attributed("launch.rs", "fn mod_jar_scope_excludes_service_files_and_other_folders("),
   attributed("resourcepack.rs", "fn keyword_search_handles_multibyte_rejected_matches_without_panicking("),

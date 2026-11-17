@@ -35,33 +35,76 @@ export function ServerDock({
   );
 }
 
-/** The primary action has the same size and interaction for every launch mode. */
+/**
+ * The primary action, and — while it works — the progress display itself.
+ *
+ * ## Кнопка и есть лоадер
+ *
+ * Ссылка — плеер Liner: там одна кнопка play/pause, которая сама меняет
+ * состояние, и никакой строки «Скачивание · 45 %» рядом с ней. Первая попытка
+ * понять это закончилась подписью с процентами на кнопке, вторая — отдельной
+ * строкой прогресса под ней. Обе добавляли на экран ещё один элемент; нужен
+ * был ровно один.
+ *
+ * Поэтому кнопка не меняет подпись — она по-прежнему говорит, что произойдёт
+ * при нажатии, — а её заливка растёт слева направо по мере загрузки. Нет ни
+ * процентов текстом, ни имени файла, ни второй полосы. Стадия уже названа в
+ * строке статуса этого дока («Подготовка…»), поэтому здесь её не повторяем.
+ *
+ * ## Почему полоса отрисована в кнопке, а роль — снаружи
+ *
+ * У роли `button` в ARIA все потомки презентационные: `role="progressbar"`
+ * внутри `<button>` скринридер проигнорирует. Поэтому заливка — декоративная
+ * (`aria-hidden`), а сам `progressbar` с числом стоит рядом с кнопкой и
+ * визуально скрыт. Кнопка получает `aria-busy`, имя остаётся действием.
+ *
+ * `progress` — 0–100 или `null`. `indeterminate` — стадия без измеримого
+ * итога (разбор пакета, проверка кэша): заливка тогда ходит, а не растёт, а
+ * `aria-valuenow` не выставляется, потому что числа нет.
+ */
 export function ServerDockPrimary({
   children,
   disabled,
   active = false,
+  progress = null,
+  indeterminate = false,
+  progressLabel,
   onClick,
   progress,
 }: {
   children: ReactNode;
   disabled: boolean;
   active?: boolean;
+  /** 0–100, or `null` when nothing is running. */
+  progress?: number | null;
+  indeterminate?: boolean;
+  /** Accessible name for the progress value, e.g. «Скачивание сборки». */
+  progressLabel?: string;
   onClick: () => void;
   progress?: { label: string; percent: number | null };
 }) {
+  const reducedMotion = useReducedMotion();
+  const busy = progress !== null || indeterminate;
+  const clamped =
+    progress === null ? null : Math.max(0, Math.min(100, Math.round(progress)));
   return (
     <div className="relative min-w-0 flex-1">
       <Button
         size="lg"
         disabled={disabled}
         aria-disabled={disabled}
+        aria-busy={busy || undefined}
         onClick={onClick}
         className={cn(
           "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
           progress && "disabled:opacity-100",
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
-            : "bg-primary text-primary-foreground hover:bg-primary/90",
+            : "bg-primary text-primary-foreground hover:bg-primary/85",
+          // The button is disabled *because* it is working, and the base class
+          // dims disabled controls to half opacity — which would fade the very
+          // fill a player is watching. Keep it at full strength.
+          busy && "disabled:opacity-100",
         )}
       >
         {progress && (

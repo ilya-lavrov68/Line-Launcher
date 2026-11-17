@@ -116,6 +116,23 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   ]) {
     assert.ok(panel.includes(piece), `missing ${piece}`);
   }
+  // Кнопка — единственный индикатор: её заливка растёт, подпись остаётся
+  // действием. Роль прогресса живёт внутри той же кнопки, чтобы скринридер
+  // получал число, а на экране не появлялось второй полосы.
+  const primary = read("src/components/line/ServerDock.tsx");
+  for (const piece of [
+    'role="progressbar"',
+    "aria-valuenow",
+    "aria-valuemin",
+  ]) {
+    assert.ok(primary.includes(piece), `missing ${piece} in ServerDockPrimary`);
+  }
+  assert.match(panel, /<ServerDockPrimary[\s\S]{0,300}progress=\{/);
+  assert.match(panel, /progressLabel=/);
+  // Ни отдельного прогресса, ни имени файла: стадия — из словаря.
+  assert.doesNotMatch(panel, /<ActionProgress/);
+  assert.doesNotMatch(panel, /progress\.label/);
+  assert.doesNotMatch(panel, /progress\.file/);
   const dock = read("src/components/line/ServerDock.tsx");
   const minecraft = read("src/components/line/MinecraftPanel.tsx");
   // Both launch modes use the same named region and primary action styling.

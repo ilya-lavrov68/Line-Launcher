@@ -65,7 +65,7 @@ export default function DownloadWidget({
       aria-label={t("download.widgetTitle")}
       data-testid="download-widget"
       data-line-glass
-      className="absolute right-4 bottom-4 z-30 w-[min(22rem,calc(100%-2rem))] rounded-[var(--radius-panel)] p-3 shadow-xl"
+      className="absolute right-4 bottom-4 z-30 w-[min(22rem,calc(100%-2rem))] rounded-[var(--radius-panel)] p-3"
     >
       <div className="flex items-start gap-3">
         <Download

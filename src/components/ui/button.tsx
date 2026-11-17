@@ -8,6 +8,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // `--primary` is re-pointed per surface: near-white on the dark canvas,
+        // ink on a frosted panel (see `[data-line-glass]` in index.css). So this
+        // class is a white chip on the page and a black chip on glass without
+        // the button knowing which one it is on.
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",

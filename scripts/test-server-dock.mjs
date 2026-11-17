@@ -27,10 +27,10 @@ try {
     await page.goto(`${base}/tests/ui/server-dock/`);
     const region = page.getByRole("region", { name: "BattleArmory" });
     const play = region.getByRole("button", { name: "Играть", exact: true });
-    const testMode = region.getByRole("button", { name: "Тестовый режим" });
+    const testMode = region.getByRole("button", { name: "Запуск без сервера" });
     await play.waitFor();
     const details = region.locator("details");
-    const hint = details.getByText(/Откроется меню Minecraft/);
+    const hint = details.getByText(/Игра откроется главным меню/);
     assert.equal(await hint.isVisible(), false);
     assert.equal(await region.getByText(/Установлено профилей/).count(), 0);
     await details.locator("summary").click();

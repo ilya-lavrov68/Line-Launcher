@@ -82,8 +82,13 @@ export default function MinecraftPanel({
   const [pendingRepair, setPendingRepair] = useState<ZipRepairPlan | null>(
     null,
   );
-  const [pendingJava, setPendingJava] = useState<{ plan: JavaDownloadPlan; zip?: ZipRepairPlan } | null>(null);
-  const [pendingRepairJava, setPendingRepairJava] = useState<JavaDownloadPlan | undefined>();
+  const [pendingJava, setPendingJava] = useState<{
+    plan: JavaDownloadPlan;
+    zip?: ZipRepairPlan;
+  } | null>(null);
+  const [pendingRepairJava, setPendingRepairJava] = useState<
+    JavaDownloadPlan | undefined
+  >();
   const mounted = useRef(true);
   const operationActive = useRef(false);
 
@@ -157,9 +162,17 @@ export default function MinecraftPanel({
   const running = status?.phase === "running" || status?.phase === "starting";
   const working = busy === "installing" || busy === "launching";
   const locked =
-    disabled || working || busy === "stopping" || pendingRepair !== null || pendingJava !== null;
+    disabled ||
+    working ||
+    busy === "stopping" ||
+    pendingRepair !== null ||
+    pendingJava !== null;
 
-  async function play(testMode = false, approved?: ZipRepairPlan, approvedJava?: JavaDownloadPlan) {
+  async function play(
+    testMode = false,
+    approved?: ZipRepairPlan,
+    approvedJava?: JavaDownloadPlan,
+  ) {
     if (
       disabled ||
       working ||
@@ -195,8 +208,10 @@ export default function MinecraftPanel({
       if (!mounted.current) return;
       const plan = getZipRepairPlan(cause);
       const javaPlan = getJavaDownloadPlan(cause);
-      if (plan) { setPendingRepairJava(approvedJava); setPendingRepair(plan); }
-      else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
+      if (plan) {
+        setPendingRepairJava(approvedJava);
+        setPendingRepair(plan);
+      } else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
       else {
         if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
         setError(errorMessage(cause));
@@ -210,7 +225,10 @@ export default function MinecraftPanel({
   }
 
   /** Download and verify without launching: the same path minus the last step. */
-  async function prepare(approved?: ZipRepairPlan, approvedJava?: JavaDownloadPlan) {
+  async function prepare(
+    approved?: ZipRepairPlan,
+    approvedJava?: JavaDownloadPlan,
+  ) {
     if (
       disabled ||
       working ||
@@ -243,8 +261,10 @@ export default function MinecraftPanel({
       if (!mounted.current) return;
       const plan = getZipRepairPlan(cause);
       const javaPlan = getJavaDownloadPlan(cause);
-      if (plan) { setPendingRepairJava(approvedJava); setPendingRepair(plan); }
-      else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
+      if (plan) {
+        setPendingRepairJava(approvedJava);
+        setPendingRepair(plan);
+      } else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
       else {
         if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
         setError(errorMessage(cause));
@@ -332,10 +352,17 @@ export default function MinecraftPanel({
         )}
       </div>
 
+      {/* Одна кнопка. Пока сборка качается, она сама становится полосой
+          прогресса — как play/pause у Liner, который меняет состояние, но не
+          добавляет рядом вторую строку. Ни процента текстом, ни имени файла:
+          стадию говорит строка статуса выше. */}
       <div className="flex items-center gap-2">
         <ServerDockPrimary
           disabled={locked}
           active={running}
+          progress={working ? percent : null}
+          indeterminate={working && percent === null}
+          progressLabel={stageNames[progress?.stage ?? "task"]}
           onClick={() => void (running ? stop() : play(false))}
           progress={progress ? { label: stageNames[progress.stage] ?? t("mc.stageWorking"), percent } : undefined}
         >
@@ -346,7 +373,9 @@ export default function MinecraftPanel({
           ) : (
             <Play className="size-4 fill-current" aria-hidden="true" />
           )}
-          {running ? t("detail.stopGame") : t("detail.play")}
+          {running || busy === "stopping"
+            ? t("detail.stopGame")
+            : t("detail.play")}
         </ServerDockPrimary>
       </div>
 
@@ -443,24 +472,44 @@ export default function MinecraftPanel({
                   <details>
                     <summary>{t("zipRepair.assetPreview")}</summary>
                     <ul className="mt-2 max-h-36 overflow-auto break-all">
-                      {pendingRepair.liveAssetPreview.map((path) => <li key={path}>{path}</li>)}
+                      {pendingRepair.liveAssetPreview.map((path) => (
+                        <li key={path}>{path}</li>
+                      ))}
                     </ul>
-                    {pendingRepair.liveAssetIssues > pendingRepair.liveAssetPreview.length && <p>{t("zipRepair.assetPreviewLimit")}</p>}
+                    {pendingRepair.liveAssetIssues >
+                      pendingRepair.liveAssetPreview.length && (
+                      <p>{t("zipRepair.assetPreviewLimit")}</p>
+                    )}
                   </details>
                 </>
               )}
               {pendingRepair.liveRuntimeIssues > 0 && (
                 <>
-                  <p>{t("zipRepair.liveRuntime", { count: pendingRepair.liveRuntimeIssues, size: formatBytes(pendingRepair.liveRuntimeBytes) })}</p>
+                  <p>
+                    {t("zipRepair.liveRuntime", {
+                      count: pendingRepair.liveRuntimeIssues,
+                      size: formatBytes(pendingRepair.liveRuntimeBytes),
+                    })}
+                  </p>
                   <details>
                     <summary>{t("zipRepair.runtimeFiles")}</summary>
                     <ul className="mt-2 max-h-36 overflow-auto break-all">
-                      {pendingRepair.liveRuntimeFiles.map((entry) => <li key={entry}>{entry.split("\t").slice(3).join("\t")}</li>)}
+                      {pendingRepair.liveRuntimeFiles.map((entry) => (
+                        <li key={entry}>
+                          {entry.split("\t").slice(3).join("\t")}
+                        </li>
+                      ))}
                     </ul>
                   </details>
                 </>
               )}
-              {pendingRepair.liveRuntimeSkipped > 0 && <p>{t("zipRepair.runtimePartial", { count: pendingRepair.liveRuntimeSkipped })}</p>}
+              {pendingRepair.liveRuntimeSkipped > 0 && (
+                <p>
+                  {t("zipRepair.runtimePartial", {
+                    count: pendingRepair.liveRuntimeSkipped,
+                  })}
+                </p>
+              )}
               {pendingRepair.installLoader && <p>{t("zipRepair.loader")}</p>}
               <p>{t("zipRepair.unknownSize")}</p>
               <p>{t("zipRepair.java")}</p>
@@ -493,18 +542,62 @@ export default function MinecraftPanel({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pendingJava !== null} onOpenChange={(open) => { if (!open) { setPendingJava(null); setNotice(t("javaConsent.declined")); } }}>
+      <Dialog
+        open={pendingJava !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingJava(null);
+            setNotice(t("javaConsent.declined"));
+          }
+        }}
+      >
         <DialogContent className="p-5 sm:max-w-[460px]">
-          <DialogHeader><DialogTitle>{t("javaConsent.title")}</DialogTitle></DialogHeader>
-          {pendingJava && <div className="text-muted-foreground space-y-3 text-xs leading-relaxed">
-            <p>{t("javaConsent.description", { major: pendingJava.plan.major })}</p>
-            <p>{pendingJava.plan.purpose === "loader" ? t("javaConsent.loader") : t("javaConsent.launch")}</p>
-            <p>{pendingJava.plan.source === "adoptium" ? t("javaConsent.adoptium") : t("javaConsent.mojang")}</p>
-            <p>{t("javaConsent.details")}</p>
-          </div>}
+          <DialogHeader>
+            <DialogTitle>{t("javaConsent.title")}</DialogTitle>
+          </DialogHeader>
+          {pendingJava && (
+            <div className="text-muted-foreground space-y-3 text-xs leading-relaxed">
+              <p>
+                {t("javaConsent.description", {
+                  major: pendingJava.plan.major,
+                })}
+              </p>
+              <p>
+                {pendingJava.plan.purpose === "loader"
+                  ? t("javaConsent.loader")
+                  : t("javaConsent.launch")}
+              </p>
+              <p>
+                {pendingJava.plan.source === "adoptium"
+                  ? t("javaConsent.adoptium")
+                  : t("javaConsent.mojang")}
+              </p>
+              <p>{t("javaConsent.details")}</p>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setPendingJava(null); setNotice(t("javaConsent.declined")); }}>{t("zipRepair.cancel")}</Button>
-            <Button onClick={() => { const pending = pendingJava; if (!pending) return; setPendingJava(null); if (pending.plan.prepareOnly) void prepare(pending.zip, pending.plan); else void play(pending.plan.testMode, pending.zip, pending.plan); }}>{t("javaConsent.accept")}</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPendingJava(null);
+                setNotice(t("javaConsent.declined"));
+              }}
+            >
+              {t("zipRepair.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                const pending = pendingJava;
+                if (!pending) return;
+                setPendingJava(null);
+                if (pending.plan.prepareOnly)
+                  void prepare(pending.zip, pending.plan);
+                else
+                  void play(pending.plan.testMode, pending.zip, pending.plan);
+              }}
+            >
+              {t("javaConsent.accept")}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -532,11 +625,33 @@ function toLineErrorCode(cause: unknown): string | undefined {
 }
 
 function getJavaDownloadPlan(cause: unknown): JavaDownloadPlan | null {
-  if (typeof cause !== "object" || cause === null || !("code" in cause) || cause.code !== "CONFIRMATION_REQUIRED" || !("javaDownload" in cause)) return null;
+  if (
+    typeof cause !== "object" ||
+    cause === null ||
+    !("code" in cause) ||
+    cause.code !== "CONFIRMATION_REQUIRED" ||
+    !("javaDownload" in cause)
+  )
+    return null;
   const plan = cause.javaDownload;
   if (typeof plan !== "object" || plan === null) return null;
   const value = plan as Record<string, unknown>;
-  if (value.schema !== 1 || typeof value.serverId !== "string" || typeof value.instanceId !== "string" || typeof value.releaseSha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.releaseSha256) || typeof value.major !== "number" || !Number.isInteger(value.major) || value.major < 8 || value.major > 26 || (value.purpose !== "loader" && value.purpose !== "launch") || (value.source !== "adoptium" && value.source !== "mojang") || typeof value.prepareOnly !== "boolean" || typeof value.testMode !== "boolean") return null;
+  if (
+    value.schema !== 1 ||
+    typeof value.serverId !== "string" ||
+    typeof value.instanceId !== "string" ||
+    typeof value.releaseSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(value.releaseSha256) ||
+    typeof value.major !== "number" ||
+    !Number.isInteger(value.major) ||
+    value.major < 8 ||
+    value.major > 26 ||
+    (value.purpose !== "loader" && value.purpose !== "launch") ||
+    (value.source !== "adoptium" && value.source !== "mojang") ||
+    typeof value.prepareOnly !== "boolean" ||
+    typeof value.testMode !== "boolean"
+  )
+    return null;
   return plan as JavaDownloadPlan;
 }
 
@@ -562,12 +677,32 @@ function getZipRepairPlan(cause: unknown): ZipRepairPlan | null {
     typeof value.profileId !== "string" ||
     !Array.isArray(value.missingFromArchive) ||
     !value.missingFromArchive.every((v) => typeof v === "string") ||
-    !Array.isArray(value.liveRuntimeFiles) || value.liveRuntimeFiles.length > 2000 || !value.liveRuntimeFiles.every((entry) => typeof entry === "string" && entry.length <= 1200) ||
-    typeof value.liveRuntimeIssues !== "number" || !Number.isSafeInteger(value.liveRuntimeIssues) || value.liveRuntimeIssues < 0 ||
-    typeof value.liveRuntimeBytes !== "number" || !Number.isSafeInteger(value.liveRuntimeBytes) || value.liveRuntimeBytes < 0 ||
-    typeof value.liveRuntimeSkipped !== "number" || !Number.isSafeInteger(value.liveRuntimeSkipped) || value.liveRuntimeSkipped < 0 ||
-    !(value.liveAssetDigest === null || (typeof value.liveAssetDigest === "string" && /^[a-f0-9]{64}$/.test(value.liveAssetDigest))) ||
-    !Array.isArray(value.liveAssetPreview) || value.liveAssetPreview.length > 32 || !value.liveAssetPreview.every((path) => typeof path === "string" && /^assets\/objects\/[a-f0-9]{2}\/[a-f0-9]{40}$/.test(path)) ||
+    !Array.isArray(value.liveRuntimeFiles) ||
+    value.liveRuntimeFiles.length > 2000 ||
+    !value.liveRuntimeFiles.every(
+      (entry) => typeof entry === "string" && entry.length <= 1200,
+    ) ||
+    typeof value.liveRuntimeIssues !== "number" ||
+    !Number.isSafeInteger(value.liveRuntimeIssues) ||
+    value.liveRuntimeIssues < 0 ||
+    typeof value.liveRuntimeBytes !== "number" ||
+    !Number.isSafeInteger(value.liveRuntimeBytes) ||
+    value.liveRuntimeBytes < 0 ||
+    typeof value.liveRuntimeSkipped !== "number" ||
+    !Number.isSafeInteger(value.liveRuntimeSkipped) ||
+    value.liveRuntimeSkipped < 0 ||
+    !(
+      value.liveAssetDigest === null ||
+      (typeof value.liveAssetDigest === "string" &&
+        /^[a-f0-9]{64}$/.test(value.liveAssetDigest))
+    ) ||
+    !Array.isArray(value.liveAssetPreview) ||
+    value.liveAssetPreview.length > 32 ||
+    !value.liveAssetPreview.every(
+      (path) =>
+        typeof path === "string" &&
+        /^assets\/objects\/[a-f0-9]{2}\/[a-f0-9]{40}$/.test(path),
+    ) ||
     typeof value.liveAssetIssues !== "number" ||
     !Number.isSafeInteger(value.liveAssetIssues) ||
     value.liveAssetIssues < 0 ||

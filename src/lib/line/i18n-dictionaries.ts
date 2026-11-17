@@ -175,10 +175,10 @@ export const ru = {
   "mc.filesProgress": "Файлы: {done} / {total}",
   "mc.stageWorking": "Выполняется…",
   "mc.prepare": "Подготовить заранее",
-  "mc.testMode": "Тестовый режим",
+  "mc.testMode": "Запуск без сервера",
   "mc.launchDetails": "О запуске",
   "mc.testModeHint":
-    "Откроется меню Minecraft: создайте или выберите одиночный мир. Автоматического подключения к серверу не будет.",
+    "Игра откроется главным меню, без автоматического входа на сервер. Так игру можно проверить в одиночном мире до того, как нажимать «Играть».",
   "mc.profilePrepared": "Сборка подготовлена.",
   "mc.profiles": "Установлено профилей: {count}",
   "mc.onlineMode":
@@ -266,6 +266,8 @@ export const ru = {
   "settings.title": "Настройки",
   "settings.heapLabel": "Выделено Java",
   "settings.heapValue": "{heap} МБ",
+  "settings.memoryStability":
+    "Java получает эту память только когда она ей реально нужна, и никогда не забирает её всю сразу при запуске. Больше — не всегда лучше: если системе не хватит памяти, игра начнёт тормозить целиком. Если компьютер перезагружался сам, память — не первое, что стоит менять: сначала проверьте разгон памяти в BIOS.",
   "settings.auto": "авто",
   "settings.runtime": "Рантайм",
   "settings.javaNotFound":
@@ -298,15 +300,19 @@ export const ru = {
   "backdrop.borealis": "Глубина океана",
   "backdrop.pearl": "Лунный камень",
   "zipRepair.runtimeFiles": "Файлы, найденные при проверке",
-  "zipRepair.liveRuntime": "По хешам профиля отсутствуют или повреждены файлы клиента и библиотек: {count}, ориентировочно {size}.",
-  "zipRepair.runtimePartial": "Проверены не все компоненты: {count} записей со сложными правилами, native-компонентами или без хеша пропущено.",
+  "zipRepair.liveRuntime":
+    "По хешам профиля отсутствуют или повреждены файлы клиента и библиотек: {count}, ориентировочно {size}.",
+  "zipRepair.runtimePartial":
+    "Проверены не все компоненты: {count} записей со сложными правилами, native-компонентами или без хеша пропущено.",
   "javaConsent.title": "Скачать Java?",
-  "javaConsent.description": "Для этого действия нужна Java {major}. Подходящая установленная Java не найдена.",
+  "javaConsent.description":
+    "Для этого действия нужна Java {major}. Подходящая установленная Java не найдена.",
   "javaConsent.loader": "Java нужна установщику загрузчика.",
   "javaConsent.launch": "Java нужна для запуска игры.",
   "javaConsent.adoptium": "Источник: Eclipse Adoptium (Temurin, Windows x64).",
   "javaConsent.mojang": "Источник: среда выполнения Mojang.",
-  "javaConsent.details": "Точный размер заранее неизвестен. Можно отказаться и указать установленную Java в настройках.",
+  "javaConsent.details":
+    "Точный размер заранее неизвестен. Можно отказаться и указать установленную Java в настройках.",
   "javaConsent.declined": "Загрузка Java отменена. Действие не завершено.",
   "javaConsent.accept": "Скачать Java",
   "zipRepair.title": "Доустановить компоненты?",
@@ -322,7 +328,8 @@ export const ru = {
   "zipRepair.loader":
     "Также может быть установлен загрузчик и необходимая ему Java.",
   "zipRepair.assetPreview": "Объекты ресурсов (первые 32)",
-  "zipRepair.assetPreviewLimit": "Показаны не все объекты; проверка учитывает весь список.",
+  "zipRepair.assetPreviewLimit":
+    "Показаны не все объекты; проверка учитывает весь список.",
   "zipRepair.liveAssets":
     "В игровом каталоге отсутствуют или повреждены ресурсы: {count}, ориентировочно {size}.",
   "zipRepair.unknownSize":
@@ -650,10 +657,10 @@ const en: Dictionary = {
   "mc.filesProgress": "Files: {done} / {total}",
   "mc.stageWorking": "Working…",
   "mc.prepare": "Prepare in advance",
-  "mc.testMode": "Test mode",
+  "mc.testMode": "Launch without server",
   "mc.launchDetails": "About launching",
   "mc.testModeHint":
-    "Minecraft opens at the menu: create or select a singleplayer world. It will not automatically join the server.",
+    "The game opens at the main menu with no automatic server connection. Use it to check the client in a singleplayer world before pressing Play.",
   "mc.profilePrepared": "The pack is ready.",
   "mc.profiles": "Profiles installed: {count}",
   "mc.onlineMode":
@@ -742,6 +749,8 @@ const en: Dictionary = {
   "settings.title": "Settings",
   "settings.heapLabel": "Allocated to Java",
   "settings.heapValue": "{heap} MB",
+  "settings.memoryStability":
+    "Java takes this memory only when it actually needs it and never claims all of it at launch. More is not always better: if the system runs short, the whole game slows down. If the PC has been restarting on its own, memory is not the first thing to change — check the memory profile (XMP/EXPO) in the BIOS first.",
   "settings.auto": "auto",
   "settings.runtime": "Runtime",
   "settings.javaNotFound":
@@ -774,16 +783,21 @@ const en: Dictionary = {
   "backdrop.borealis": "Ocean depths",
   "backdrop.pearl": "Moonstone",
   "zipRepair.runtimeFiles": "Files identified by the check",
-  "zipRepair.liveRuntime": "Profile hashes identify missing or damaged client and library files: {count}, approximately {size}.",
-  "zipRepair.runtimePartial": "This check is incomplete: {count} entries with complex rules, native components or missing hashes were skipped.",
+  "zipRepair.liveRuntime":
+    "Profile hashes identify missing or damaged client and library files: {count}, approximately {size}.",
+  "zipRepair.runtimePartial":
+    "This check is incomplete: {count} entries with complex rules, native components or missing hashes were skipped.",
   "javaConsent.title": "Download Java?",
-  "javaConsent.description": "This action needs Java {major}; a suitable installed Java was not found.",
+  "javaConsent.description":
+    "This action needs Java {major}; a suitable installed Java was not found.",
   "javaConsent.loader": "Java is needed by the loader installer.",
   "javaConsent.launch": "Java is needed to launch the game.",
   "javaConsent.adoptium": "Source: Eclipse Adoptium (Temurin, Windows x64).",
   "javaConsent.mojang": "Source: Mojang runtime.",
-  "javaConsent.details": "The exact size is not known yet. You can decline and select an installed Java in settings.",
-  "javaConsent.declined": "Java download cancelled. The action was not completed.",
+  "javaConsent.details":
+    "The exact size is not known yet. You can decline and select an installed Java in settings.",
+  "javaConsent.declined":
+    "Java download cancelled. The action was not completed.",
   "javaConsent.accept": "Download Java",
   "zipRepair.title": "Install missing components?",
   "zipRepair.explanation":
@@ -797,7 +811,8 @@ const en: Dictionary = {
   "zipRepair.other": "Other components",
   "zipRepair.loader": "A loader and its required Java may also be installed.",
   "zipRepair.assetPreview": "Asset objects (first 32)",
-  "zipRepair.assetPreviewLimit": "Not all objects are shown; the check covers the full list.",
+  "zipRepair.assetPreviewLimit":
+    "Not all objects are shown; the check covers the full list.",
   "zipRepair.liveAssets":
     "In the game directory, missing or damaged assets: {count}, approximately {size}.",
   "zipRepair.unknownSize":
@@ -1123,10 +1138,10 @@ const de: Dictionary = {
   "mc.filesProgress": "Dateien: {done} / {total}",
   "mc.stageWorking": "Wird ausgeführt…",
   "mc.prepare": "Vorab vorbereiten",
-  "mc.testMode": "Testmodus",
+  "mc.testMode": "Ohne Server starten",
   "mc.launchDetails": "Zum Start",
   "mc.testModeHint":
-    "Minecraft öffnet das Menü: Erstelle oder wähle eine Einzelspielerwelt. Es wird nicht automatisch verbunden.",
+    "Das Spiel öffnet das Hauptmenü ohne automatische Serververbindung. So lässt sich der Client in einer Einzelspielerwelt prüfen, bevor du auf Spielen drückst.",
   "mc.profilePrepared": "Das Paket ist vorbereitet.",
   "mc.profiles": "Installierte Profile: {count}",
   "mc.onlineMode":
@@ -1218,6 +1233,8 @@ const de: Dictionary = {
   "settings.title": "Einstellungen",
   "settings.heapLabel": "Für Java reserviert",
   "settings.heapValue": "{heap} MB",
+  "settings.memoryStability":
+    "Java nimmt diesen Speicher nur, wenn er ihn wirklich braucht, und belegt ihn beim Start nie komplett. Mehr ist nicht immer besser: fehlt dem System Speicher, wird das ganze Spiel langsamer. Wenn der PC von selbst neu gestartet ist, ist der Speicher nicht die erste Stellschraube — prüfe zuerst das Speicherprofil (XMP/EXPO) im BIOS.",
   "settings.auto": "auto",
   "settings.runtime": "Runtime",
   "settings.javaNotFound":
@@ -1250,16 +1267,21 @@ const de: Dictionary = {
   "backdrop.borealis": "Meerestiefe",
   "backdrop.pearl": "Mondstein",
   "zipRepair.runtimeFiles": "Bei der Prüfung gefundene Dateien",
-  "zipRepair.liveRuntime": "Laut Profil-Hashes fehlen oder sind Client- und Bibliotheksdateien beschädigt: {count}, etwa {size}.",
-  "zipRepair.runtimePartial": "Die Prüfung ist unvollständig: {count} Einträge mit komplexen Regeln, nativen Komponenten oder ohne Hash wurden übersprungen.",
+  "zipRepair.liveRuntime":
+    "Laut Profil-Hashes fehlen oder sind Client- und Bibliotheksdateien beschädigt: {count}, etwa {size}.",
+  "zipRepair.runtimePartial":
+    "Die Prüfung ist unvollständig: {count} Einträge mit komplexen Regeln, nativen Komponenten oder ohne Hash wurden übersprungen.",
   "javaConsent.title": "Java herunterladen?",
-  "javaConsent.description": "Diese Aktion benötigt Java {major}; eine passende Installation wurde nicht gefunden.",
+  "javaConsent.description":
+    "Diese Aktion benötigt Java {major}; eine passende Installation wurde nicht gefunden.",
   "javaConsent.loader": "Java wird für den Modloader-Installer benötigt.",
   "javaConsent.launch": "Java wird zum Starten des Spiels benötigt.",
   "javaConsent.adoptium": "Quelle: Eclipse Adoptium (Temurin, Windows x64).",
   "javaConsent.mojang": "Quelle: Mojang-Laufzeitumgebung.",
-  "javaConsent.details": "Die genaue Größe ist noch nicht bekannt. Alternativ kann Java in den Einstellungen gewählt werden.",
-  "javaConsent.declined": "Java-Download abgebrochen. Die Aktion wurde nicht abgeschlossen.",
+  "javaConsent.details":
+    "Die genaue Größe ist noch nicht bekannt. Alternativ kann Java in den Einstellungen gewählt werden.",
+  "javaConsent.declined":
+    "Java-Download abgebrochen. Die Aktion wurde nicht abgeschlossen.",
   "javaConsent.accept": "Java herunterladen",
   "zipRepair.title": "Fehlende Komponenten installieren?",
   "zipRepair.explanation":
@@ -1274,7 +1296,8 @@ const de: Dictionary = {
   "zipRepair.loader":
     "Ein Modloader und dessen benötigtes Java können ebenfalls installiert werden.",
   "zipRepair.assetPreview": "Ressourcenobjekte (erste 32)",
-  "zipRepair.assetPreviewLimit": "Nicht alle Objekte werden angezeigt; die Prüfung umfasst die gesamte Liste.",
+  "zipRepair.assetPreviewLimit":
+    "Nicht alle Objekte werden angezeigt; die Prüfung umfasst die gesamte Liste.",
   "zipRepair.liveAssets":
     "Fehlende oder beschädigte Ressourcen im Spielordner: {count}, etwa {size}.",
   "zipRepair.unknownSize":
@@ -1601,10 +1624,10 @@ const fr: Dictionary = {
   "mc.filesProgress": "Fichiers : {done} / {total}",
   "mc.stageWorking": "En cours…",
   "mc.prepare": "Préparer à l'avance",
-  "mc.testMode": "Mode test",
+  "mc.testMode": "Lancer sans serveur",
   "mc.launchDetails": "À propos du lancement",
   "mc.testModeHint":
-    "Minecraft ouvre le menu : créez ou choisissez un monde solo. La connexion au serveur ne sera pas automatique.",
+    "Le jeu s'ouvre sur le menu principal sans connexion automatique au serveur. Utile pour vérifier le client en solo avant d'appuyer sur Jouer.",
   "mc.profilePrepared": "Le pack est prêt.",
   "mc.profiles": "Profils installés : {count}",
   "mc.onlineMode":
@@ -1692,6 +1715,8 @@ const fr: Dictionary = {
   "settings.title": "Réglages",
   "settings.heapLabel": "Alloué à Java",
   "settings.heapValue": "{heap} Mo",
+  "settings.memoryStability":
+    "Java ne prend cette mémoire que lorsqu'il en a besoin et ne la réserve jamais entièrement au lancement. Plus n'est pas toujours mieux : si le système manque de mémoire, tout le jeu ralentit. Si l'ordinateur a redémarré tout seul, la mémoire n'est pas la première chose à changer — vérifiez d'abord le profil mémoire (XMP/EXPO) dans le BIOS.",
   "settings.auto": "auto",
   "settings.runtime": "Runtime",
   "settings.javaNotFound":
@@ -1725,16 +1750,22 @@ const fr: Dictionary = {
   "backdrop.borealis": "Profondeurs océanes",
   "backdrop.pearl": "Pierre de lune",
   "zipRepair.runtimeFiles": "Fichiers repérés lors de la vérification",
-  "zipRepair.liveRuntime": "Selon les empreintes du profil, des fichiers du client et des bibliothèques manquent ou sont endommagés : {count}, environ {size}.",
-  "zipRepair.runtimePartial": "La vérification est partielle : {count} entrées avec règles complexes, composants natifs ou sans empreinte ont été ignorées.",
+  "zipRepair.liveRuntime":
+    "Selon les empreintes du profil, des fichiers du client et des bibliothèques manquent ou sont endommagés : {count}, environ {size}.",
+  "zipRepair.runtimePartial":
+    "La vérification est partielle : {count} entrées avec règles complexes, composants natifs ou sans empreinte ont été ignorées.",
   "javaConsent.title": "Télécharger Java ?",
-  "javaConsent.description": "Cette action nécessite Java {major} ; aucune installation adaptée n’a été trouvée.",
-  "javaConsent.loader": "Java est nécessaire au programme d’installation du chargeur.",
+  "javaConsent.description":
+    "Cette action nécessite Java {major} ; aucune installation adaptée n’a été trouvée.",
+  "javaConsent.loader":
+    "Java est nécessaire au programme d’installation du chargeur.",
   "javaConsent.launch": "Java est nécessaire au lancement du jeu.",
   "javaConsent.adoptium": "Source : Eclipse Adoptium (Temurin, Windows x64).",
   "javaConsent.mojang": "Source : environnement Mojang.",
-  "javaConsent.details": "La taille exacte n’est pas encore connue. Vous pouvez refuser et choisir une installation Java dans les paramètres.",
-  "javaConsent.declined": "Téléchargement Java annulé. L’action n’est pas terminée.",
+  "javaConsent.details":
+    "La taille exacte n’est pas encore connue. Vous pouvez refuser et choisir une installation Java dans les paramètres.",
+  "javaConsent.declined":
+    "Téléchargement Java annulé. L’action n’est pas terminée.",
   "javaConsent.accept": "Télécharger Java",
   "zipRepair.title": "Installer les composants manquants ?",
   "zipRepair.explanation":
@@ -1749,7 +1780,8 @@ const fr: Dictionary = {
   "zipRepair.loader":
     "Un chargeur et la version Java nécessaire peuvent aussi être installés.",
   "zipRepair.assetPreview": "Objets de ressources (32 premiers)",
-  "zipRepair.assetPreviewLimit": "Tous les objets ne sont pas affichés ; la vérification couvre la liste entière.",
+  "zipRepair.assetPreviewLimit":
+    "Tous les objets ne sont pas affichés ; la vérification couvre la liste entière.",
   "zipRepair.liveAssets":
     "Ressources manquantes ou endommagées dans le dossier du jeu : {count}, environ {size}.",
   "zipRepair.unknownSize":

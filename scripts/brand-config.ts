@@ -292,6 +292,12 @@ export const BASE_WINDOW = {
   center: true,
   fullscreen: false,
   decorations: false,
+  // The window is created hidden and revealed by the interface after its first
+  // painted frame (`line::window`); a visible window shows the WebView's white
+  // default for the whole boot. This block is copied verbatim into the branding
+  // overlay, so the flag has to live here or `brand` silently brings the white
+  // flash back.
+  visible: false,
 } as const;
 
 export function renderTauriOverlay(

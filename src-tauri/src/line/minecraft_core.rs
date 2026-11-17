@@ -97,10 +97,37 @@ pub fn validate_loader(
 /// `LaunchOptions` has no memory field: the crate copies JVM arguments from the
 /// version metadata. The player's heap therefore has to replace whatever `-Xmx`
 /// / `-Xms` the profile carried, exactly once, before the main class.
+///
+/// The initial heap is deliberately *not* pinned to the maximum.
+///
+/// It used to be: the command carried `-Xms{heap}M -Xmx{heap}M`, the pair most
+/// "how to allocate RAM to Minecraft" guides recommend. On Windows that pair
+/// means the JVM asks the OS to commit the entire heap as one block the moment
+/// the process starts — 8 GB of a 16 GB machine, in a single reservation, before
+/// any Minecraft class has loaded. On a machine whose page file is small or
+/// system-managed under memory pressure, that commit makes Windows grow the page
+/// file in one burst while the game, the WebView and the GPU driver are starting;
+/// on a machine with XMP/EXPO or a manual overclock the resulting stress is
+/// exactly what produces a hard reset — and a hard reset lands at the firmware,
+/// not at a blue screen. That is the failure mode a player describes as "I came
+/// back and the PC was in the BIOS".
+///
+/// A small initial heap grows into the maximum on demand, which is the JDK's
+/// default strategy and what every other launcher ships. It costs a few GC
+/// cycles on a very large pack and removes the startup spike entirely.
 pub fn apply_heap(args: &mut Vec<String>, heap_mb: u32) {
     args.retain(|arg| !(arg.starts_with("-Xmx") || arg.starts_with("-Xms")));
-    args.insert(0, format!("-Xms{heap_mb}M"));
+    args.insert(0, format!("-Xms{}M", initial_heap_mb(heap_mb)));
     args.insert(0, format!("-Xmx{heap_mb}M"));
+}
+
+/// The initial heap: a quarter of the maximum, between 512 MiB and 2 GiB.
+///
+/// Small enough that starting the JVM never bursts the page file, large enough
+/// that a big pack does not spend its first minutes in back-to-back young
+/// collections. Pure and unit-tested; the maximum is `heap_mb` itself.
+pub fn initial_heap_mb(heap_mb: u32) -> u32 {
+    (heap_mb / 4).clamp(512, 2048).min(heap_mb)
 }
 
 /// Version metadata is downloaded, and loader profiles are written to disk by
@@ -300,6 +327,28 @@ mod tests {
     }
 
     #[test]
+    fn heap_starts_small_and_grows_to_the_player_maximum() {
+        // More than the maximum is never requested; less than 2 GiB of maximum
+        // requests the maximum itself, so a small machine still starts.
+        assert_eq!(initial_heap_mb(8192), 2048);
+        assert_eq!(initial_heap_mb(4096), 1024);
+        assert_eq!(initial_heap_mb(1024), 512);
+        assert_eq!(initial_heap_mb(600), 512);
+        assert_eq!(initial_heap_mb(400), 400);
+        // The pair in the argument list: -Xms first, then -Xmx, and nothing
+        // from the metadata survives.
+        let mut args: Vec<String> = ["-Xmx2G", "-Xms2G", "Main", "--username", "Player"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        apply_heap(&mut args, 4096);
+        assert_eq!(&args[0], "-Xmx4096M");
+        assert_eq!(&args[1], "-Xms1024M");
+        assert_eq!(&args[2], "Main");
+        assert!(!args.iter().any(|a| a == "-Xms2G" || a == "-Xmx2G"));
+    }
+
+    #[test]
     fn test_menu_removes_join_targets_without_touching_other_flags() {
         let mut args: Vec<String> = [
             "-Xmx2G",
@@ -495,7 +544,7 @@ mod tests {
         ];
         apply_heap(&mut args, 4096);
         assert_eq!(args[0], "-Xmx4096M");
-        assert_eq!(args[1], "-Xms4096M");
+        assert_eq!(args[1], "-Xms1024M");
         assert_eq!(args.iter().filter(|a| a.starts_with("-Xmx")).count(), 1);
         assert_eq!(args.iter().filter(|a| a.starts_with("-Xms")).count(), 1);
         // Unrelated JVM flags and the main class survive untouched.

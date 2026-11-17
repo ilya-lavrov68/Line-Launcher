@@ -9,8 +9,12 @@ const minecraft = read("src/components/line/MinecraftPanel.tsx");
 const archive = read("src/components/line/ServerActionPanel.tsx");
 const shell = read("src/components/line/LineLauncher.tsx");
 
+const dock = read("src/components/line/ServerDock.tsx");
+
 test("the server action dock cannot be pushed up by a progress panel", () => {
   assert.doesNotMatch(detail, /className="mt-auto"/);
+  // Одна кнопка на весь док, как play/pause у Liner: пока идёт работа, её
+  // заливка растёт, а подпись остаётся действием. Второй строки прогресса нет.
   for (const panel of [minecraft, archive]) {
     assert.match(panel, /<ServerDockPrimary/);
     assert.match(panel, /progress=\{/);

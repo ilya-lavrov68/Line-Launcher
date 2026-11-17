@@ -433,6 +433,15 @@ export default function SettingsScreen({
             >
               {t("settings.memoryAuto")}
             </Button>
+            {/* The heap is the one setting a player is most likely to have been
+                told to "just raise" by a forum post. Raising it past what the
+                machine can spare is how a launcher starts competing with Windows
+                for RAM while the game boots — so the ceiling above is a real
+                ceiling, and this says so without a warning colour, because for
+                most players the automatic value is already right. */}
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              {t("settings.memoryStability")}
+            </p>
           </div>
         </Section>
 
@@ -501,7 +510,7 @@ export default function SettingsScreen({
               </p>
             )}
             {!javaLoading && runtimes.length === 0 && !javaSearchError && (
-              <p className="text-xs leading-relaxed text-amber-300">
+              <p className="text-xs leading-relaxed text-amber-700">
                 {t("settings.javaNotFound")}
               </p>
             )}

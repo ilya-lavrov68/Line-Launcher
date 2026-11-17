@@ -139,9 +139,9 @@ export default function ServerActionPanel({
   const unavailable = availability !== "ready";
 
   const statusText = useMemo(() => {
-    // While an install runs, the caption under the bar already reads
-    // «Скачивание … 45%». Repeating the same two facts in the status row above
-    // it was the third copy of one number on a single screen.
+    // While an install runs, the row below the status names the stage and the
+    // percentage; the status row stays one word, so the two do not say the same
+    // thing twice on one screen.
     if (installing && progress) return t("detail.installing");
     if (phase === "starting" && status?.message) return status.message;
     if (phase === "exited" && typeof status?.exitCode === "number") {
@@ -197,10 +197,18 @@ export default function ServerActionPanel({
         )}
       </div>
 
+      {/* Одна кнопка на весь док. Пока идёт загрузка, её заливка и есть
+          прогресс — подпись при этом остаётся действием («Отменить
+          скачивание»), поэтому ничего не прыгает и второй полосы нет. */}
       <div className="flex items-center gap-2">
         <ServerDockPrimary
           disabled={!canPress}
           active={active}
+          progress={installing && progress ? percent : null}
+          indeterminate={installing && Boolean(progress) && percent === null}
+          progressLabel={
+            progress ? installPhaseLabel(t, progress.phase) : undefined
+          }
           onClick={installing && onCancel ? onCancel : onPrimary}
           progress={installing ? { label: progress ? installPhaseLabel(t, progress.phase) : t("detail.installing"), percent } : undefined}
         >

@@ -23,12 +23,12 @@
 
 :root {
   --radius: 12px;
-  --background: #08090c;
-  --foreground: oklch(0.97 0.002 250);
+  --background: #e4e4e7;
+  --foreground: #18181b;
   --card: transparent;
-  --card-foreground: oklch(0.97 0.002 250);
-  --popover: #14161b;
-  --popover-foreground: oklch(0.97 0.002 250);
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
   /* The palette is fixed and dark; the *surface* on top of it is frost.
    *
    * Every panel (rail, catalogue, dock, dialogs) is a white sheet with a heavy
@@ -48,8 +48,13 @@
    * `--surface-glass: rgba(245,245,247,0.92)` — is the one that describes a
    * surface you read text on, and it is the one used here. The remaining 18%
    * is what keeps the backdrop visible through the sheet. */
-  --glass-surface: rgba(250, 251, 253, 0.82);
-  --glass-surface-strong: rgba(252, 253, 255, 0.92);
+  /* Liner's `--bg-glass`: a *tint*, not a sheet. The brief was "плитки белые,
+   * но не сплошные" — 0.82 white over a light ground is a solid white board,
+   * which is exactly what kept looking wrong. 0.55 lets the page read through
+   * the pane, the way tryliner's own panels do (see their globals.css:
+   * `--bg-glass: rgba(255,255,255,0.55)` over `#e4e4e7`). */
+  --glass-surface: rgba(255, 255, 255, 0.55);
+  --glass-surface-strong: rgba(255, 255, 255, 0.72);
   --glass-ink: oklch(0.21 0.008 265);
   --glass-ink-soft: oklch(0.42 0.01 265);
   --glass-ink-faint: oklch(0.52 0.01 265);
@@ -75,14 +80,19 @@
   /* White, not mint. The accent is neutral on purpose: green belongs to state
    * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
    * primary button look like a success message. */
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.16 0.004 286.32);
-  --secondary: rgba(255, 255, 255, 0.06);
-  --secondary-foreground: oklch(0.9 0.002 250);
-  --muted: rgba(255, 255, 255, 0.05);
-  --muted-foreground: oklch(0.72 0.006 250);
-  --accent: rgba(255, 255, 255, 0.08);
-  --accent-foreground: oklch(0.98 0.002 250);
+  /* Liner's `--btn-primary-bg: #18181b` / `--btn-primary-text: #fff`. A
+   * near-white chip on a light pane has no edge and no weight; the filled
+   * action is the one dark thing on the screen. The *fill that grows inside it*
+   * is a light tint on this dark plate, so the progress reads without adding a
+   * second colour. */
+  --primary: #18181b;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(0, 0, 0, 0.05);
+  --secondary-foreground: rgba(0, 0, 0, 0.65);
+  --muted: rgba(0, 0, 0, 0.05);
+  --muted-foreground: rgba(0, 0, 0, 0.55);
+  --accent: rgba(0, 0, 0, 0.08);
+  --accent-foreground: #18181b;
   --destructive: oklch(0.66 0.21 22);
   /* The red behind a destructive *button*, which is not the same job as the red
    * of an error line. An error is read as text, so it needs lightness; a button
@@ -91,16 +101,16 @@
    * than a red. Kept separate from `--destructive` so fixing the button does not
    * darken «Не удалось подключиться» along with it. */
   --destructive-strong: oklch(0.55 0.24 27);
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.14);
+  --border: rgba(0, 0, 0, 0.1);
+  --input: rgba(0, 0, 0, 0.14);
   --ring: oklch(0.92 0.004 286.32 / 45%);
-  --sidebar: #0d0f13;
-  --sidebar-foreground: oklch(0.97 0.002 250);
+  --sidebar: #f5f5f7;
+  --sidebar-foreground: #18181b;
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: rgba(255, 255, 255, 0.07);
-  --sidebar-accent-foreground: oklch(0.98 0.002 250);
-  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: rgba(0, 0, 0, 0.07);
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
   --sidebar-ring: var(--ring);
   /* The glyph *on* a destructive fill — and it stays red, because the whole
    * button is meant to read as red, not as a red square with a white cross on
@@ -119,14 +129,14 @@
   --fill: rgba(255, 255, 255, 0.07);
   --fill-hover: rgba(255, 255, 255, 0.1);
   --fill-strong: rgba(255, 255, 255, 0.14);
-  --surface-glass: rgba(10, 12, 16, 0.45);
+  --surface-glass: var(--glass-surface);
   /* 0.09 was 9 % white over `#08090c`, which composites to nearly black — the
    * two shell tiles read as dark panes, not as the pale glass they were meant
    * to be. 0.72 is the tint that actually looks like white frosted glass while
    * the backdrop's colour still moves behind it. Nothing else changes: the
    * shared `--surface-glass` stays dark for controls and nested cards, and the
    * page stays `#08090c`. */
-  --surface-shell-glass: rgba(250, 251, 253, 0.72);
+  --surface-shell-glass: var(--glass-surface);
   --line-hairline: rgba(255, 255, 255, 0.1);
   --line-accent: var(--primary);
   --line-online: oklch(0.8 0.17 155);
@@ -154,7 +164,7 @@
    * `AnimatedBackdrop` paints on WebGL, not a painted CSS gradient. This token
    * stays the flat colour underneath it, and the whole backdrop under reduced
    * motion or without WebGL2. */
-  --line-canvas: #08090c;
+  --line-canvas: #e4e4e7;
 }
 
 /* Tailwind v4: expose the slots as utilities (`bg-fill`, `bg-fill-hover`,
@@ -254,36 +264,13 @@
    * mesh's edges through the text. */
   [data-line-glass] {
     background: var(--glass-surface);
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
-    --foreground: var(--glass-ink);
-    --card-foreground: var(--glass-ink);
-    --popover-foreground: var(--glass-ink);
-    --muted-foreground: var(--glass-ink-soft);
-    --secondary-foreground: var(--glass-ink);
-    --accent-foreground: var(--glass-ink);
-    --sidebar-foreground: var(--glass-ink);
-    --fill-subtle: var(--glass-fill-subtle);
-    --fill: var(--glass-fill);
-    --fill-hover: var(--glass-fill-hover);
-    --fill-strong: var(--glass-fill-strong);
-    --border: var(--glass-border);
-    --input: var(--glass-input);
-    --line-hairline: var(--glass-hairline);
-    --ring: var(--glass-ring);
-    /* The accent follows the surface for the same reason. On the dark canvas
-     * `--primary` is near-white (a white chip on black); on a white sheet it has
-     * to be ink, and the glyph *on* it has to be near-white. Everything that
-     * reads these two slots — the filled Button, the Switch's checked track and
-     * thumb, the progress fill, the slider range, the active nav row — flips
-     * with them and no component needs a second colour. */
-    --primary: var(--glass-ink);
-    --primary-foreground: oklch(0.98 0.002 250);
-    /* These three are hover tints on the dark palette; a white wash on a white
-     * sheet is invisible, so inside the glass they are dark washes. */
-    --muted: var(--glass-fill);
-    --accent: var(--glass-fill-hover);
-    --secondary: var(--glass-fill);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    /* No token re-pointing here. tryliner's rule is «glass only on the outer
+     * container; never nest glass in glass» — and flipping `--foreground`,
+     * `--primary` and the whole fill ladder per subtree is what made every
+     * pane a white board with its own inverted palette. One palette in `:root`
+     * now serves both the page and the panes painted on it. */
   }
 
   /* A floating surface (menu, dialog, preview popover): the same frost, denser,

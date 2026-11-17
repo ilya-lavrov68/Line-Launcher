@@ -147,6 +147,18 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   assert.match(dock, /aria-labelledby="server-action-title"/);
   assert.match(dock, /h-11 w-full/);
   assert.match(dock, /useReducedMotion\(\)/);
+  // The fill grows from the *left edge*, the way tryliner's mini player does
+  // it: a full-size layer anchored with `transform-origin: left` and scaled on
+  // X (`MiniPlayer.tsx`: `origin-left` + `scaleX(progress)`). An element that
+  // appears from the middle — a bar with a centred width, or a scale with the
+  // default `origin-center` — is the mistake this asserts against.
+  assert.match(dock, /origin-left/);
+  assert.match(dock, /scaleX\(/, "the fill must be scaled from its left edge");
+  assert.doesNotMatch(
+    dock,
+    /\{ width: `\$\{clamped\}%` \}/,
+    "width-from-the-left was replaced by an origin-left scale",
+  );
   assert.match(dock, /ease: \[0\.22, 1, 0\.36, 1\]/);
   // No music-player leftovers: no seek/volume, no canvas visualiser, no
   // window chrome. Electron-era controls are exactly what is being removed.
@@ -635,46 +647,63 @@ test("signing out does not flash a connection error before the gate", () => {
   );
 });
 
-test("only the two shell tiles are white glass; everything else keeps the dark pane", () => {
-  // The brief was narrow: the two large shell tiles are what separate the
-  // interface from the background, so *they* go white. Both wider readings have
-  // already shipped once and were rejected:
+test("panes are a translucent white tint, not solid white boards", () => {
+  // Modelled on tryliner's own tokens (see their `src/app/globals.css`):
   //
-  //   - painting the shared pane white *and* the page too turned the whole
-  //     window into one white sheet and erased the separation the tiles exist
-  //     for;
-  //   - the state before that left `--surface-shell-glass` at 9 % white, which
-  //     over `#08090c` composites to nearly black — the tiles stayed dark.
+  //   --bg-canvas: #e4e4e7          the page is light
+  //   --bg-glass:  rgba(255,255,255,0.55)   panes are a *tint* on it
   //
-  // So the ground stays `#08090c`, the tiles are white and translucent, and
-  // nothing else changes.
+  // and their DESIGN.md: «Surfaces are translucent tints with blur, not opaque
+  // grey panels» plus «Glass only on the outer container; never nest glass in
+  // glass».
+  //
+  // Three earlier attempts each broke one part of that and were rejected:
+  //   - recolouring every pane white turned the window into one white sheet;
+  //   - lightening only the shell tiles left them at 9 % white, i.e. still dark;
+  //   - a 0.72–0.82 fill made the panes solid white boards.
+  //
+  // The invariant that survives all three: the page is light, the pane is a
+  // *tint* strong enough to read as white and weak enough to let the page show.
   assert.match(
     indexCss,
-    /--background:\s*#08090c/,
-    "the page ground stays dark; only the tiles are white",
+    /--background:\s*#e4e4e7/,
+    "the page ground is the light canvas Liner uses",
   );
 
-  // The shell tiles are white, strong enough to read as white over the dark
-  // ground, and still translucent.
-  const shell = /--surface-shell-glass:\s*rgba\(250, 251, 253, 0\.(\d+)\)/.exec(
+  const glass = /--glass-surface:\s*rgba\(255, 255, 255, 0\.(\d+)\)/.exec(
     indexCss,
   );
-  assert.ok(shell, "--surface-shell-glass must be a white rgba triple");
-  const alpha = Number(`0.${shell[1]}`);
+  assert.ok(glass, "--glass-surface must be a white rgba triple");
+  const alpha = Number(`0.${glass[1]}`);
   assert.ok(
-    alpha >= 0.6 && alpha < 0.9,
-    `the tile must read as white glass and stay translucent, got ${alpha}`,
+    alpha >= 0.45 && alpha <= 0.62,
+    `a pane must be a tint, not a board — got ${alpha} (Liner sits at 0.55)`,
   );
 
-  for (const slot of ["--surface-glass", "--surface-shell-glass"]) {
-    assert.match(indexCss, new RegExp(`${slot}:`), `${slot} must stay defined`);
-  }
+  // One tint for every pane. A second, denser fill is how “white board” crept
+  // back in; the strong variant stays close to the base one.
+  const strong =
+    /--glass-surface-strong:\s*rgba\(255, 255, 255, 0\.(\d+)\)/.exec(indexCss);
+  assert.ok(strong, "--glass-surface-strong must stay a white rgba triple");
+  assert.ok(
+    Number(`0.${strong[1]}`) <= 0.8,
+    "the raised variant must not become an opaque sheet",
+  );
 
-  // Exactly the two shell tiles are re-pointed to the white token.
+  // The panes no longer re-point the palette per subtree: one `:root` palette
+  // serves the page and everything painted on it. This is what keeps a pane
+  // from turning into a white board carrying its own inverted ink.
+  const glassRule = /\[data-line-glass\]\s*\{([\s\S]*?)\n  \}/.exec(indexCss);
+  assert.ok(glassRule, "the [data-line-glass] rule must exist");
   assert.match(
-    indexCss,
-    /\[data-line-glass="main"\],\s*\n\s*\[data-line-glass="sidebar"\]\s*\{\s*\n\s*background:\s*var\(--surface-shell-glass\)/,
-    "main and sidebar, and only those, get the white tile fill",
+    glassRule[1],
+    /background:\s*var\(--glass-surface\)/,
+    "the pane paints the shared tint",
+  );
+  assert.doesNotMatch(
+    glassRule[1],
+    /--foreground:\s*var\(--glass-ink\)/,
+    "the pane must not flip the ink per subtree",
   );
 
   assert.match(
@@ -684,9 +713,5 @@ test("only the two shell tiles are white glass; everything else keeps the dark p
   assert.match(
     read("src/components/line/SideNav.tsx"),
     /data-line-glass="sidebar"/,
-  );
-  assert.match(
-    read("src/components/line/ServerDock.tsx"),
-    /data-line-glass="dock"/,
   );
 });

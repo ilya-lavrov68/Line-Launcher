@@ -1445,7 +1445,9 @@ function screenServer(ctx) {
   ctx.save();
   roundRect(ctx, x + pad, rowY, barW, btnH, 10);
   ctx.clip();
-  ctx.fillStyle = rgba(T.primaryForeground, 0.25);
+  // От левого края, тинтом `/12` — Liner's `rgba(255,255,255,0.12)` for a
+  // progress tint on a dark surface. A denser wash read as a grey slab.
+  ctx.fillStyle = rgba(T.primaryForeground, 0.12);
   ctx.fillRect(x + pad, rowY, Math.round((barW * 45) / 100), btnH);
   ctx.restore();
   const busyLabel = "Отменить скачивание";

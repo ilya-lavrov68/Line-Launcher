@@ -170,10 +170,13 @@ export function loadTokens() {
     if (!ref) return value;
     return resolveRoot(ref[1], depth + 1) || ref[2] || "";
   };
-  const canvasInk = parseColor(resolveRoot("--foreground")) ?? [255, 255, 255, 1];
-  const canvasInkSoft =
-    parseColor(resolveRoot("--muted-foreground")) ?? [255, 255, 255, 1];
-  for (const rule of ['[data-line-glass] {', '[data-line-glass="raised"] {']) {
+  const canvasInk = parseColor(resolveRoot("--foreground")) ?? [
+    255, 255, 255, 1,
+  ];
+  const canvasInkSoft = parseColor(resolveRoot("--muted-foreground")) ?? [
+    255, 255, 255, 1,
+  ];
+  for (const rule of ["[data-line-glass] {", '[data-line-glass="raised"] {']) {
     for (const [name, value] of readRule(rule)) raw.set(name, value);
   }
   const resolve = (name, depth = 0) => {
@@ -1397,9 +1400,8 @@ function screenServer(ctx) {
   // single filled action, then the sign-in footnote. No icon and no repeated
   // name — the header directly above already carries both.
   //
-  // The progress bar that used to open *under* the button is gone: the button
-  // fills with it and carries the stage in its own label (`ServerDockPrimary`).
-  const dockH = 158;
+  // Ни строки прогресса под кнопкой: полоса — это сама кнопка.
+  const dockH = 132;
   glass(ctx, x, y, contentW, dockH, 18);
   const pad = 16;
   let rowY = y + pad;
@@ -1428,31 +1430,35 @@ function screenServer(ctx) {
   );
   rowY += 26;
 
-  // Mid-download. The bar is its own row above the button, and the button keeps
-  // saying «Отменить скачивание» — the label is the action, never the progress,
-  // and no file name appears anywhere on this screen.
+  // Середина загрузки: кнопка И ЕСТЬ прогресс. Её заливка выросла на 45 %,
+  // подпись осталась действием («Отменить скачивание»). Ни процента текстом,
+  // ни второй полосы, ни имени файла — как play/pause у Liner.
   const barW = contentW - pad * 2;
-  text(ctx, "Скачивание", x + pad, rowY + 8, {
-    size: 12,
-    color: rgba(T.mutedForeground),
-  });
-  const pct = "45%";
-  text(
+  const btnH = 44;
+  fillRound(ctx, x + pad, rowY, barW, btnH, 10, rgba(T.primary));
+  ctx.save();
+  roundRect(ctx, x + pad, rowY, barW, btnH, 10);
+  ctx.clip();
+  ctx.fillStyle = rgba(T.primaryForeground, 0.25);
+  ctx.fillRect(x + pad, rowY, Math.round((barW * 45) / 100), btnH);
+  ctx.restore();
+  const busyLabel = "Отменить скачивание";
+  const labelX = x + pad + barW / 2 - measure(ctx, busyLabel, 13, 600) / 2;
+  icon(
     ctx,
-    pct,
-    x + contentW - pad - measure(ctx, pct, 11, 400, true),
-    rowY + 8,
-    { size: 11, color: rgba(T.mutedForeground), mono: true },
+    "download",
+    labelX - 18,
+    rowY + 15,
+    13,
+    rgba(T.primaryForeground),
+    1.8,
   );
-  fillRound(ctx, x + pad, rowY + 14, barW, 6, 3, rgba(T.fill, 1));
-  fillRound(ctx, x + pad, rowY + 14, Math.round((barW * 45) / 100), 6, 3, rgba(T.primary));
-  rowY += 34;
-
-  button(ctx, x + pad, rowY, barW, 44, "Отменить скачивание", {
-    iconName: "download",
+  text(ctx, busyLabel, labelX, rowY + 27, {
     size: 13,
+    weight: 600,
+    color: rgba(T.primaryForeground),
   });
-  rowY += 54;
+  rowY += btnH + 10;
 
   icon(ctx, "shield", x + pad, rowY + 1, 11, rgba(T.mutedForeground, 0.9), 1.8);
   text(ctx, "Офлайн-сборка: ник аккаунта проекта.", x + pad + 16, rowY + 9, {
@@ -1463,7 +1469,7 @@ function screenServer(ctx) {
   y += dockH + 18;
   text(
     ctx,
-    "Сборка скачается целиком: архив провайдера, проверка sha256 и распаковка. Прогресс показан отдельной строкой, меню не блокируется.",
+    "Сборка скачается целиком: архив провайдера, проверка sha256 и распаковка. Ход виден по самой кнопке, меню не блокируется.",
     x + 8,
     y,
     {

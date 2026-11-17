@@ -116,21 +116,21 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   ]) {
     assert.ok(panel.includes(piece), `missing ${piece}`);
   }
-  // The progress bar is its own row, not a state of the button. Both launch
-  // modes use it, and the panel only supplies the number.
+  // Кнопка — единственный индикатор: её заливка растёт, подпись остаётся
+  // действием. Роль прогресса живёт внутри той же кнопки, чтобы скринридер
+  // получал число, а на экране не появлялось второй полосы.
   const primary = read("src/components/line/ServerDock.tsx");
   for (const piece of [
     'role="progressbar"',
     "aria-valuenow",
     "aria-valuemin",
   ]) {
-    assert.ok(primary.includes(piece), `missing ${piece} in ActionProgress`);
+    assert.ok(primary.includes(piece), `missing ${piece} in ServerDockPrimary`);
   }
-  assert.match(panel, /<ActionProgress[\s\S]{0,300}percent=\{/);
-  // The button itself never takes a progress value: it says what pressing it
-  // does, and that answer must not change while the pointer is over it.
-  assert.doesNotMatch(panel, /<ServerDockPrimary[\s\S]{0,400}progress=\{/);
-  // No file name is ever printed: the stage comes from the dictionary.
+  assert.match(panel, /<ServerDockPrimary[\s\S]{0,300}progress=\{/);
+  assert.match(panel, /progressLabel=/);
+  // Ни отдельного прогресса, ни имени файла: стадия — из словаря.
+  assert.doesNotMatch(panel, /<ActionProgress/);
   assert.doesNotMatch(panel, /progress\.label/);
   assert.doesNotMatch(panel, /progress\.file/);
   const dock = read("src/components/line/ServerDock.tsx");

@@ -13,24 +13,26 @@ const dock = read("src/components/line/ServerDock.tsx");
 
 test("the server action dock cannot be pushed up by a progress panel", () => {
   assert.doesNotMatch(detail, /className="mt-auto"/);
-  // The primary button carries the action and nothing else. Progress is the
-  // `ActionProgress` row, in its own element, so the two cannot be confused:
-  // a control whose label changes under the pointer has no stable meaning.
+  // Одна кнопка на весь док, как play/pause у Liner: пока идёт работа, её
+  // заливка растёт, а подпись остаётся действием. Второй строки прогресса нет.
   for (const panel of [minecraft, archive]) {
     assert.match(panel, /<ServerDockPrimary/);
-    assert.match(panel, /<ActionProgress/);
-    // No progress attribute on the button itself — that was the music-player
-    // transport bar the design rejected.
-    assert.doesNotMatch(panel, /progress=\{/);
-    assert.doesNotMatch(panel, /indeterminate=\{/);
+    assert.match(panel, /progress=\{/);
+    // Между работой прогресс выключен — иначе кнопка навсегда осталась бы
+    // полосой.
+    assert.match(panel, /progress=\{[\s\S]{0,60}?\bnull\b/);
+    // Ни отдельного компонента-полосы, ни блока под кнопкой.
+    assert.doesNotMatch(panel, /<ActionProgress/);
+    assert.doesNotMatch(panel, /role="progressbar"/);
+    // Имя файла не печатается нигде.
+    assert.doesNotMatch(panel, /progress\.label/);
   }
-  // The bar exists once, in the shared row, with a real progress role so
-  // assistive technology gets the number.
+  // Полоса — часть кнопки, с настоящей ролью прогресса для скринридера.
   assert.match(dock, /role="progressbar"/);
   assert.match(dock, /aria-valuenow=/);
   assert.match(dock, /aria-valuemin=/);
   assert.match(dock, /aria-valuemax=/);
-  // A fixed button height keeps the dock's own height constant.
+  // Высота кнопки фиксирована: док не меняет высоту при смене стадии.
   assert.match(dock, /h-11 w-full/);
   assert.doesNotMatch(
     read("src/components/line/ServerDock.tsx"),

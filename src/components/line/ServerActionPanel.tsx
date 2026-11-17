@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ActionProgress, ServerDock, ServerDockPrimary } from "./ServerDock";
+import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { cn } from "@/lib/utils";
 import { useT, type Translator } from "@/lib/line/i18n";
 import type { GameStatus, InstallProgress, LineServer } from "@/types/line";
@@ -197,13 +197,18 @@ export default function ServerActionPanel({
         )}
       </div>
 
-      {/* The button is the action and only the action: «Скачать», «Отменить»,
-          «Играть». Progress is the row below it, where it does not overwrite
-          the one thing the player is trying to read. */}
+      {/* Одна кнопка на весь док. Пока идёт загрузка, её заливка и есть
+          прогресс — подпись при этом остаётся действием («Отменить
+          скачивание»), поэтому ничего не прыгает и второй полосы нет. */}
       <div className="flex items-center gap-2">
         <ServerDockPrimary
           disabled={!canPress}
           active={active}
+          progress={installing && progress ? percent : null}
+          indeterminate={installing && Boolean(progress) && percent === null}
+          progressLabel={
+            progress ? installPhaseLabel(t, progress.phase) : undefined
+          }
           onClick={installing && onCancel ? onCancel : onPrimary}
         >
           {installing ? (
@@ -217,17 +222,6 @@ export default function ServerActionPanel({
           )}
           <span>{primaryLabel(t, phase)}</span>
         </ServerDockPrimary>
-      </div>
-
-      {/* Reserved, like the Minecraft dock's row: present between downloads as
-          an empty box so a phase change cannot push the footnote down. */}
-      <div className="empty:hidden">
-        {installing && progress && (
-          <ActionProgress
-            label={installPhaseLabel(t, progress.phase)}
-            percent={percent}
-          />
-        )}
       </div>
 
       <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">

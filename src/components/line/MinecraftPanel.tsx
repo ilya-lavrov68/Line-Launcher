@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ActionProgress, ServerDock, ServerDockPrimary } from "./ServerDock";
+import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type {
   GamePhase,
@@ -352,12 +352,17 @@ export default function MinecraftPanel({
         )}
       </div>
 
-      {/* The button says what pressing it does, and nothing else. It does not
-          become a progress display and it never prints a file name. */}
+      {/* Одна кнопка. Пока сборка качается, она сама становится полосой
+          прогресса — как play/pause у Liner, который меняет состояние, но не
+          добавляет рядом вторую строку. Ни процента текстом, ни имени файла:
+          стадию говорит строка статуса выше. */}
       <div className="flex items-center gap-2">
         <ServerDockPrimary
           disabled={locked}
           active={running}
+          progress={working ? percent : null}
+          indeterminate={working && percent === null}
+          progressLabel={stageNames[progress?.stage ?? "task"]}
           onClick={() => void (running ? stop() : play(false))}
         >
           {working || busy === "stopping" ? (
@@ -403,32 +408,6 @@ export default function MinecraftPanel({
             )}
             {t("mc.prepare")}
           </Button>
-        )}
-      </div>
-
-      {/* Work in progress, in one reserved row: the stage, the bar, the count.
-          Never a path — the file being fetched is in the log, where support can
-          read it, not on a button a player is trying to press. The row is
-          mounted empty between work so the panel height never jumps. */}
-      <div className="empty:hidden">
-        {progress && (
-          <ActionProgress
-            // The stage comes from the dictionary. The payload's own label is
-            // the file the downloader is on this instant — a path that changes
-            // many times a second, and the exact flicker this screen removed.
-            label={stageNames[progress.stage] ?? t("minecraft.installing")}
-            percent={percent}
-            detail={
-              progress.filesTotal
-                ? t("mc.filesProgress", {
-                    done: progress.filesDone ?? 0,
-                    total: progress.filesTotal,
-                  })
-                : progress.receivedBytes > 0
-                  ? `${formatBytes(progress.receivedBytes)}${progress.totalBytes ? ` / ${formatBytes(progress.totalBytes)}` : ""}`
-                  : t("mc.stageWorking")
-            }
-          />
         )}
       </div>
 

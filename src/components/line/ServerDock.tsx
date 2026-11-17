@@ -36,116 +36,121 @@ export function ServerDock({
 }
 
 /**
- * The primary action has the same size and interaction for every launch mode.
+ * The primary action, and — while it works — the progress display itself.
  *
- * ## The button is a button
+ * ## Кнопка и есть лоадер
  *
- * It used to double as the download display: the label was replaced by the
- * running stage, and a bar plus a file name opened underneath it. That is a
- * music player's transport bar, not an action — a control that alternates
- * between "Играть" and "Скачивание · 45%" has no stable meaning, and the file
- * name underneath changed several times a second.
+ * Ссылка — плеер Liner: там одна кнопка play/pause, которая сама меняет
+ * состояние, и никакой строки «Скачивание · 45 %» рядом с ней. Первая попытка
+ * понять это закончилась подписью с процентами на кнопке, вторая — отдельной
+ * строкой прогресса под ней. Обе добавляли на экран ещё один элемент; нужен
+ * был ровно один.
  *
- * So the label here is only ever the action. Progress lives in
- * [`ActionProgress`], a fixed-height row of the dock that does not reflow and
- * never prints a path. Nothing in this component knows a download is running.
+ * Поэтому кнопка не меняет подпись — она по-прежнему говорит, что произойдёт
+ * при нажатии, — а её заливка растёт слева направо по мере загрузки. Нет ни
+ * процентов текстом, ни имени файла, ни второй полосы. Стадия уже названа в
+ * строке статуса этого дока («Подготовка…»), поэтому здесь её не повторяем.
+ *
+ * ## Почему полоса отрисована в кнопке, а роль — снаружи
+ *
+ * У роли `button` в ARIA все потомки презентационные: `role="progressbar"`
+ * внутри `<button>` скринридер проигнорирует. Поэтому заливка — декоративная
+ * (`aria-hidden`), а сам `progressbar` с числом стоит рядом с кнопкой и
+ * визуально скрыт. Кнопка получает `aria-busy`, имя остаётся действием.
+ *
+ * `progress` — 0–100 или `null`. `indeterminate` — стадия без измеримого
+ * итога (разбор пакета, проверка кэша): заливка тогда ходит, а не растёт, а
+ * `aria-valuenow` не выставляется, потому что числа нет.
  */
 export function ServerDockPrimary({
   children,
   disabled,
   active = false,
+  progress = null,
+  indeterminate = false,
+  progressLabel,
   onClick,
 }: {
   children: ReactNode;
   disabled: boolean;
   active?: boolean;
+  /** 0–100, or `null` when nothing is running. */
+  progress?: number | null;
+  indeterminate?: boolean;
+  /** Accessible name for the progress value, e.g. «Скачивание сборки». */
+  progressLabel?: string;
   onClick: () => void;
 }) {
+  const reducedMotion = useReducedMotion();
+  const busy = progress !== null || indeterminate;
+  const clamped =
+    progress === null ? null : Math.max(0, Math.min(100, Math.round(progress)));
   return (
-    <div className="min-w-0 flex-1">
+    <div
+      className="min-w-0 flex-1"
+      // `relative` only for the visually hidden progressbar below.
+    >
       <Button
         size="lg"
         disabled={disabled}
         aria-disabled={disabled}
+        aria-busy={busy || undefined}
         onClick={onClick}
         className={cn(
-          "h-11 w-full gap-2 rounded-[var(--radius-item)] text-sm font-semibold",
+          "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
             : "bg-primary text-primary-foreground hover:bg-primary/85",
+          // The button is disabled *because* it is working, and the base class
+          // dims disabled controls to half opacity — which would fade the very
+          // fill a player is watching. Keep it at full strength.
+          busy && "disabled:opacity-100",
         )}
       >
-        <span className="inline-flex min-w-0 items-center gap-2">
+        {busy && (
+          // Decorative: the fill a player watches. `aria-hidden` because the
+          // real progressbar sits outside the button (see above).
+          <span
+            aria-hidden="true"
+            className={cn(
+              // A wash of the label's own colour, not a second colour: the
+              // button reads as filling, not as a bar laid on top of it.
+              "bg-primary-foreground/25 absolute inset-y-0 left-0",
+              indeterminate
+                ? "w-1/3"
+                : "transition-[width] duration-300 ease-[var(--ease-line)]",
+            )}
+            style={indeterminate ? undefined : { width: `${clamped}%` }}
+          />
+        )}
+        {indeterminate && !reducedMotion && (
+          // No number to show, so the wash sweeps instead of standing still.
+          // Reduced motion keeps a static third — the state stays visible, only
+          // the movement is gone.
+          <m.span
+            aria-hidden="true"
+            className="bg-primary-foreground/25 absolute inset-y-0 w-1/3"
+            animate={{ x: ["-100%", "300%"] }}
+            transition={{
+              duration: 1.4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        )}
+        <span className="relative z-10 inline-flex min-w-0 items-center gap-2">
           {children}
         </span>
       </Button>
-    </div>
-  );
-}
-
-/**
- * One quiet line for work in progress: the stage, the bar, the percentage.
- *
- * ## Why it is its own element, and why its height never changes
- *
- * The complaint was that a download "rendered on the button" and that file
- * names flashed underneath it. Both come from the same mistake: using moving
- * text as the affordance. This row answers "how far along is it" without
- * touching the button and without naming a file — the stage comes from the
- * dictionary (`mc.stageDownload` and friends), never from the payload.
- *
- * The wrapper reserves its height even when there is nothing to show
- * (`reserve` on the dock), so a stage transition cannot shift the panel: the
- * row appears where it always was.
- *
- * `percent` is `null` for a stage with no meaningful total (resolving a pack,
- * checking a cache). The bar then pulses instead of filling, and no number is
- * printed, because "0%" for work you cannot measure is a lie.
- */
-export function ActionProgress({
-  label,
-  percent,
-  detail,
-}: {
-  label: string;
-  percent: number | null;
-  /** A short non-identifying counter ("12 / 480 файлов"), never a path. */
-  detail?: string;
-}) {
-  const clamped =
-    percent === null ? null : Math.max(0, Math.min(100, Math.round(percent)));
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-muted-foreground truncate text-[12px]">
-          {label}
-        </span>
-        {clamped !== null && (
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-            {clamped}%
-          </span>
-        )}
-      </div>
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={clamped ?? undefined}
-        aria-label={label}
-        className="bg-fill h-1.5 w-full overflow-hidden rounded-full"
-      >
-        <div
-          className={cn(
-            "bg-primary h-full rounded-full transition-[width] duration-200",
-            clamped === null && "w-1/3 animate-pulse",
-          )}
-          style={clamped === null ? undefined : { width: `${clamped}%` }}
+      {busy && (
+        <span
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={indeterminate ? undefined : (clamped ?? 0)}
+          aria-label={progressLabel}
+          className="sr-only"
         />
-      </div>
-      {detail && (
-        <span className="text-muted-foreground font-mono text-[11px]">
-          {detail}
-        </span>
       )}
     </div>
   );

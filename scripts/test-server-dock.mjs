@@ -48,7 +48,7 @@ try {
     await play.click();
     await page.waitForFunction(() => window.requestCount() === 1);
     await page.evaluate(() => window.pushProgress());
-    await region.getByRole("progressbar").waitFor();
+    await region.getByRole("progressbar").waitFor({ state: "attached" });
     const afterPlay = await play.boundingBox();
     const afterTest = await testMode.boundingBox();
     for (const [before, after] of [

@@ -210,6 +210,7 @@ export default function ServerActionPanel({
             progress ? installPhaseLabel(t, progress.phase) : undefined
           }
           onClick={installing && onCancel ? onCancel : onPrimary}
+          progress={installing ? { label: progress ? installPhaseLabel(t, progress.phase) : t("detail.installing"), percent } : undefined}
         >
           {installing ? (
             <CloudDownload className="size-4" aria-hidden="true" />

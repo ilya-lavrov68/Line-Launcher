@@ -78,14 +78,19 @@ pub fn normalize_rel(raw: &str) -> Option<String> {
     Some(trimmed.to_string())
 }
 
-fn marker_present(paths: &[String], prefix: &str) -> bool {
+// The paths are sorted once per inspection. A prefix lookup then costs
+// logarithmic time rather than rescanning the entire archive for every wrapper.
+fn marker_present(paths: &[&str], prefix: &str) -> bool {
     GAME_MARKERS.iter().any(|marker| {
         let full = format!("{prefix}{marker}");
-        if marker.ends_with('/') {
-            paths.iter().any(|path| path.starts_with(&full))
-        } else {
-            paths.iter().any(|path| path == &full)
-        }
+        let index = paths.partition_point(|path| *path < full.as_str());
+        paths.get(index).is_some_and(|path| {
+            if marker.ends_with('/') {
+                path.starts_with(&full)
+            } else {
+                *path == full
+            }
+        })
     })
 }
 
@@ -93,6 +98,8 @@ fn marker_present(paths: &[String], prefix: &str) -> bool {
 /// archive root is the game directory. The candidate order is fixed so the same
 /// archive always resolves the same way, and only one wrapper level is accepted.
 pub fn find_game_prefix(paths: &[String]) -> Option<String> {
+    let mut sorted: Vec<&str> = paths.iter().map(String::as_str).collect();
+    sorted.sort_unstable();
     let mut candidates: Vec<String> = vec![
         ".minecraft/".to_string(),
         "minecraft/".to_string(),
@@ -115,7 +122,7 @@ pub fn find_game_prefix(paths: &[String]) -> Option<String> {
     }
     candidates
         .into_iter()
-        .find(|prefix| marker_present(paths, prefix))
+        .find(|prefix| marker_present(&sorted, prefix))
 }
 
 /// Every `versions/<id>/<id>.json` profile under the game directory. The id must
@@ -345,6 +352,23 @@ mod tests {
         ] {
             assert_eq!(normalize_rel(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn many_unrelated_wrappers_keep_priority_and_support_late_matches() {
+        let mut files: Vec<String> = (0..20_000)
+            .map(|i| format!("folder-{i:05}/notes.txt"))
+            .collect();
+        files.push("zz-pack/.minecraft/mods/example.jar".into());
+        assert_eq!(
+            find_game_prefix(&files),
+            Some("zz-pack/.minecraft/".to_string())
+        );
+        files.push("mods/root.jar".into());
+        assert_eq!(find_game_prefix(&files), Some(String::new()));
+        files.push(".minecraft/options.txt".into());
+        assert_eq!(find_game_prefix(&files), Some(".minecraft/".to_string()));
+        assert_eq!(find_game_prefix(&["pack/options.txt.backup".into()]), None);
     }
 
     #[test]

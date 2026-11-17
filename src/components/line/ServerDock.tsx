@@ -70,6 +70,7 @@ export function ServerDockPrimary({
   indeterminate = false,
   progressLabel,
   onClick,
+  progress,
 }: {
   children: ReactNode;
   disabled: boolean;
@@ -80,16 +81,14 @@ export function ServerDockPrimary({
   /** Accessible name for the progress value, e.g. «Скачивание сборки». */
   progressLabel?: string;
   onClick: () => void;
+  progress?: { label: string; percent: number | null };
 }) {
   const reducedMotion = useReducedMotion();
   const busy = progress !== null || indeterminate;
   const clamped =
     progress === null ? null : Math.max(0, Math.min(100, Math.round(progress)));
   return (
-    <div
-      className="min-w-0 flex-1"
-      // `relative` only for the visually hidden progressbar below.
-    >
+    <div className="relative min-w-0 flex-1">
       <Button
         size="lg"
         disabled={disabled}
@@ -142,20 +141,10 @@ export function ServerDockPrimary({
             }}
           />
         )}
-        <span className="relative z-10 inline-flex min-w-0 items-center gap-2">
-          {children}
-        </span>
+        <span className="flex min-w-0 items-center justify-center gap-2">{children}</span>
+        {progress && <span aria-hidden="true" className="truncate text-xs font-normal opacity-75">{progress.label}{progress.percent === null ? "" : ` · ${progress.percent}%`}</span>}
       </Button>
-      {busy && (
-        <span
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={indeterminate ? undefined : (clamped ?? 0)}
-          aria-label={progressLabel}
-          className="sr-only"
-        />
-      )}
+      {progress && <span role="progressbar" aria-label={progress.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent ?? undefined} className="sr-only" />}
     </div>
   );
 }

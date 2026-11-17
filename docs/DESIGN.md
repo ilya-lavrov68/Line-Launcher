@@ -37,7 +37,7 @@
 | `features/collection/ui/AlbumCard.tsx`                  | `ServerCard`                        | без обложек: логотип провайдера, `Minecraft 1.21.1`, бейдж «Установлен»; hover — тот же spring, но без зума обложки     |
 | `widgets/header/ui/Header.tsx`                          | `TitleBar` + шапка страницы         | нативный Tauri-titlebar уже есть; из tryliner берём только типографику шапки, никаких Electron drag-region              |
 | `shared/ui/Panel.tsx` (`glass` / `fill`)                | `[data-line-glass]` + `bg-fill`     | вместо React-компонента — один атрибут и CSS-правило, поэтому старая разметка остаётся валидной                         |
-| `widgets/sidebar` (стеклянная колонка)                  | `SideNav`                           | колонка — `[data-line-glass]`, то же белое стекло, что у панели контента; рамка вокруг каждой строки не нужна           |
+| `widgets/sidebar` (стеклянная колонка)                  | `SideNav`                           | полупрозрачный белый tint и размытие фона без сплошной заливки                             |
 | `shared/ui/PillTabs`, `ToggleSwitch`, `Slider`          | `ui/tabs`, `ui/switch`, `ui/slider` | не переписывались: Base UI уже даёт нужную геометрию и доступность, меняются только токены                              |
 | `features/settings/ui/controls.tsx` (`SettingSection`)  | `SettingsScreen` → `Section`        | секции остались, но без «Оформления»: тема одна, переключать нечего; секция — заголовок, волосок и отступ, не карточка  |
 | `features/auth/ui/LoginPage.tsx` (полноэкранный логин)  | `AccountScreen`                     | в лаунчере вход — часть потока провайдера, отдельный «кинематографичный» экран не нужен                                 |

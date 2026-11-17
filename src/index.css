@@ -59,8 +59,19 @@
   --glass-fill-hover: rgba(17, 20, 28, 0.1);
   --glass-fill-strong: rgba(17, 20, 28, 0.14);
   --glass-border: rgba(17, 20, 28, 0.12);
-  --glass-input: rgba(17, 20, 28, 0.16);
-  --glass-ring: oklch(0.28 0.02 265 / 45%);
+  /* 0.5, not 0.16. `--input` draws the boundary of a text field, which WCAG
+   * counts as a UI component: 3:1 against what it sits on. On the dark canvas
+   * 16 % ink was enough separation; on the white frost it measured 1.38:1 and
+   * the fields dissolved into the sheet. 0.5 measures 3.11:1. */
+  --glass-input: rgba(17, 20, 28, 0.5);
+  /* Fully opaque, because the two consumers throw most of it away: the Button
+   * paints `ring-ring/50` and `input`/`select` paint `color-mix(… 40%,
+   * transparent)`. A 45 % token left those at 1.65:1 and 1.48:1 on the frost —
+   * a focus ring nobody can see, on the one surface this redesign introduced.
+   * At 100 % they measure 3.35:1 and 2.57:1; the field boundary itself carries
+   * the rest through `--glass-input`, which is 3.11:1. */
+  --glass-ring: oklch(0.36 0.03 265);
+
   /* White, not mint. The accent is neutral on purpose: green belongs to state
    * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
    * primary button look like a success message. */

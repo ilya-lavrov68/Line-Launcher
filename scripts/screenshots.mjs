@@ -317,6 +317,12 @@ await page.addInitScript(
               // default the first run actually opens with.
               sidebarCollapsed: true,
               afterLaunch: "minimize",
+              // The gallery documents «Медный куст» (`id: "copper"` in
+              // `src/lib/line/backdrops.ts`) — the backdrop the brief asked
+              // for. Without it the mock falls back to the first preset and
+              // every picture shows a different field than the one asked
+              // about.
+              backdrop: "copper",
               windowWidth: 1280,
               windowHeight: 860,
               windowMaximized: false,

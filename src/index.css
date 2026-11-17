@@ -133,18 +133,24 @@
    * cast, so the pane reads as glass rather than as paper, and the ink on it
    * stays dark. Alpha 0.62 is where the pane is solid enough to hold body copy
    * and still shows the field moving behind it. */
-  /* 0.60 is the floor for legibility. The sheet is translucent, so its
-   * composite follows whatever the backdrop is doing underneath: over the dark
-   * part of the field 0.55 landed at rgb(133,138,143), where the quiet text slot
-   * could not reach 4.5:1 however dark the ink got. 0.72 holds body copy on
-   * every part of the field and still shows the copper moving behind it. */
-  --glass-surface-shell: rgba(228, 231, 236, 0.72);
+  /* The shell pane has to do two jobs at once: read as light glass over a
+   * moving colour field, and hold body copy wherever the field happens to be
+   * dark. Those pull in opposite directions.
+   *
+   * 0.55 lost the second job — over the dark part of a backdrop the composite
+   * fell to rgb(133,138,143), where the quiet text slot could not reach 4.5:1
+   * however dark the ink got. 0.78 lost the first: the pane read as painted
+   * paper and the backdrop disappeared.
+   *
+   * 0.68 is the balance: enough sheet for the text, enough transparency that
+   * the colour field is visibly moving behind it. */
+  --glass-surface-shell: rgba(230, 233, 238, 0.66);
   --glass-shell-ink: oklch(0.21 0.008 265);
   /* 0.38 measured 1.7:1 against the pane as it composites over a dark
    * backdrop, because the sheet is translucent and the field behind it pulls
    * the composite down. 0.28 is where the quiet slot clears 4.5:1 on the
    * darkest the pane gets. */
-  --glass-shell-ink-soft: oklch(0.28 0.01 265);
+  --glass-shell-ink-soft: oklch(0.19 0.01 265);
   /* State colours, dark enough to read on the light pane. The canvas pairs are
    * tuned for `#08090c`; `oklch(0.8 0.17 155)` on a light sheet measures about
    * 1.3:1, so «проверена» would be drawn in a colour the eye cannot separate

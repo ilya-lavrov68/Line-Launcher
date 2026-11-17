@@ -147,6 +147,18 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   assert.match(dock, /aria-labelledby="server-action-title"/);
   assert.match(dock, /h-11 w-full/);
   assert.match(dock, /useReducedMotion\(\)/);
+  // The fill grows from the *left edge*, the way tryliner's mini player does
+  // it: a full-size layer anchored with `transform-origin: left` and scaled on
+  // X (`MiniPlayer.tsx`: `origin-left` + `scaleX(progress)`). An element that
+  // appears from the middle — a bar with a centred width, or a scale with the
+  // default `origin-center` — is the mistake this asserts against.
+  assert.match(dock, /origin-left/);
+  assert.match(dock, /scaleX\(/, "the fill must be scaled from its left edge");
+  assert.doesNotMatch(
+    dock,
+    /\{ width: `\$\{clamped\}%` \}/,
+    "width-from-the-left was replaced by an origin-left scale",
+  );
   assert.match(dock, /ease: \[0\.22, 1, 0\.36, 1\]/);
   // No music-player leftovers: no seek/volume, no canvas visualiser, no
   // window chrome. Electron-era controls are exactly what is being removed.

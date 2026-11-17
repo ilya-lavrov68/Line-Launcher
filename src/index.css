@@ -80,8 +80,13 @@
   /* White, not mint. The accent is neutral on purpose: green belongs to state
    * («сервер готов», «сборка онлайн»), and an accent that shares it makes every
    * primary button look like a success message. */
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.16 0.004 286.32);
+  /* Liner's `--btn-primary-bg: #18181b` / `--btn-primary-text: #fff`. A
+   * near-white chip on a light pane has no edge and no weight; the filled
+   * action is the one dark thing on the screen. The *fill that grows inside it*
+   * is a light tint on this dark plate, so the progress reads without adding a
+   * second colour. */
+  --primary: #18181b;
+  --primary-foreground: #ffffff;
   --secondary: rgba(0, 0, 0, 0.05);
   --secondary-foreground: rgba(0, 0, 0, 0.65);
   --muted: rgba(0, 0, 0, 0.05);

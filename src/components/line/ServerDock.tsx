@@ -107,26 +107,44 @@ export function ServerDockPrimary({
         {busy && (
           // Decorative: the fill a player watches. `aria-hidden` because the
           // real progressbar sits outside the button (see above).
+          //
+          // The mechanic is tryliner's, from `MiniPlayer.tsx`: an element that
+          // covers the whole surface, anchored at the left edge with
+          // `transform-origin: left`, scaled on X. Not a bar that starts life
+          // in the middle and grows both ways — a sheet that is rolled out from
+          // the start. `width` would do the same thing visually, but scaling a
+          // fixed-size layer keeps the work on the compositor and lets the
+          // eased step match the one the player uses (`transform 600ms`).
           <span
             aria-hidden="true"
             className={cn(
               // A wash of the label's own colour, not a second colour: the
               // button reads as filling, not as a bar laid on top of it.
-              "bg-primary-foreground/25 absolute inset-y-0 left-0",
-              indeterminate
-                ? "w-1/3"
-                : "transition-[width] duration-300 ease-[var(--ease-line)]",
+              //
+              // `/12`, which is Liner's own value for a progress tint on a
+              // dark surface (`rgba(255,255,255,0.12)` in `MiniPlayer.tsx`).
+              // At a quarter white the growing area read as a grey slab cut
+              // into the button — «посредственно» was fair: the eye saw a
+              // second rectangle, not a surface filling.
+              "bg-primary-foreground/12 absolute inset-0 origin-left",
+              !indeterminate &&
+                "transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
             )}
-            style={indeterminate ? undefined : { width: `${clamped}%` }}
+            style={
+              indeterminate
+                ? undefined
+                : { transform: `scaleX(${(clamped ?? 0) / 100})` }
+            }
           />
         )}
         {indeterminate && !reducedMotion && (
           // No number to show, so the wash sweeps instead of standing still.
           // Reduced motion keeps a static third — the state stays visible, only
           // the movement is gone.
+          // The sweep also enters from the left edge, not from the middle.
           <m.span
             aria-hidden="true"
-            className="bg-primary-foreground/25 absolute inset-y-0 w-1/3"
+            className="bg-primary-foreground/25 absolute inset-y-0 left-0 w-1/3"
             animate={{ x: ["-100%", "300%"] }}
             transition={{
               duration: 1.4,

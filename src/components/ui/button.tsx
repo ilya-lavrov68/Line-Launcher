@@ -8,17 +8,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // `--action`, not `--primary`. The accent is re-pointed to ink inside a
-        // frosted panel (glyphs, the active nav row, the progress fill) — but a
-        // filled control is not a tint of the surface: pointing it at the same
-        // token turned this button black on white glass, which reads as a
-        // different control rather than the same one on a lighter ground.
-        //
-        // A light chip on a light sheet still needs an *edge*, so `--input` —
-        // the token that already means «boundary of a control here» — carries
-        // the outline at 3.2:1 while the fill stays what it always was.
-        default:
-          "border-input bg-action text-action-foreground hover:bg-action/80",
+        // `--primary` is re-pointed per surface: near-white on the dark canvas,
+        // ink on a frosted panel (see `[data-line-glass]` in index.css). So this
+        // class is a white chip on the page and a black chip on glass without
+        // the button knowing which one it is on.
+        default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

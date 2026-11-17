@@ -195,16 +195,15 @@ export function loadTokens() {
     mutedForeground: color("--muted-foreground"),
     primary: color("--primary"),
     primaryForeground: color("--primary-foreground"),
-    // The filled action has its own pair: the accent turns to ink on glass, but
-    // a filled control keeps its light fill on every surface.
-    action: color("--action"),
-    actionForeground: color("--action-foreground"),
     border: color("--border"),
     input: color("--input"),
     fill: color("--fill"),
     fillSubtle: color("--fill-subtle"),
     fillHover: color("--fill-hover"),
     surfaceGlass: color("--surface-glass"),
+    // The two shell tiles are the pale ones; everything nested keeps the dark
+    // pane above. Read as a pair so the renderer cannot drift from the CSS.
+    surfaceShellGlass: color("--surface-shell-glass"),
     online: color("--line-online"),
     update: color("--line-update"),
     offline: color("--line-offline"),
@@ -568,22 +567,9 @@ function icon(ctx, name, x, y, size, color, width = 1.75) {
 // ───────────────────────────── shell ─────────────────────────────
 
 function background(ctx) {
-  // `--line-canvas` first, then the theme's own field and its veil — the same
-  // three layers `AnimatedBackdrop` stacks. Painting the flat canvas alone was
-  // the reason the white glass in these renders looked like dead grey: a
-  // translucent pane over black is grey, and the app never has black under a
-  // panel. The field keeps the hue the player actually chose visible through
-  // the pane, which is the whole point of a glass surface.
+  // One flat colour, exactly like `--line-canvas`. The two accent glows that
+  // used to be painted here are what made the window look hazy.
   ctx.fillStyle = rgba(T.canvas);
-  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
-  paintField(ctx, 1);
-  // The legibility veil, at the default theme's own strength (aurora: 0.44).
-  // It is painted from `--background`, not from a literal: the veil is that
-  // colour at the theme's `shade`, so on a light page it *lifts* the field
-  // instead of darkening it. Hard-coding the old near-black here is what left
-  // the page at #555 while the app had already gone light.
-  const veil = rgba(T.background, 0.44);
-  ctx.fillStyle = veil;
   ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
 }
 
@@ -787,7 +773,10 @@ function glass(ctx, x, y, w, h, radius = 18) {
  */
 function shellGlass(ctx, top, footerH, navW) {
   const height = SHOT_HEIGHT - top - footerH - 6;
-  fillRound(ctx, 6, top + 6, navW - 6, height, 12, rgba(T.surfaceGlass));
+  // `--surface-shell-glass`, not `--surface-glass`: only the rail and the main
+  // pane are white tiles. Cards, dialogs and controls inside them keep the
+  // dark pane, and so does everything the renderer paints with `glass()`.
+  fillRound(ctx, 6, top + 6, navW - 6, height, 12, rgba(T.surfaceShellGlass));
   fillRound(
     ctx,
     navW + 2,
@@ -795,7 +784,7 @@ function shellGlass(ctx, top, footerH, navW) {
     SHOT_WIDTH - navW - 8,
     height,
     12,
-    rgba(T.surfaceGlass),
+    rgba(T.surfaceShellGlass),
   );
 }
 
@@ -809,12 +798,8 @@ function button(
   { variant = "primary", iconName, size = 12 } = {},
 ) {
   if (variant === "primary") {
-    // The app paints this chip with `border-input` now: a near-white fill on a
-    // near-white sheet has no edge of its own, so the control's boundary token
-    // carries the 3:1 that the fill no longer does.
-    fillRound(ctx, x, y, w, h, 10, rgba(T.action));
-    strokeRound(ctx, x, y, w, h, 10, rgba(T.input), 1);
-    const fg = rgba(T.actionForeground);
+    fillRound(ctx, x, y, w, h, 10, rgba(T.primary));
+    const fg = rgba(T.primaryForeground);
     const textWidth = measure(ctx, label, size, 600);
     const total = iconName ? textWidth + 20 : textWidth;
     let cursor = x + (w - total) / 2;
@@ -825,9 +810,8 @@ function button(
     text(ctx, label, cursor, y + h / 2 + 4.5, { size, weight: 600, color: fg });
     return;
   }
-  // No fill: inside a panel `--background` is transparent, so an outline
-  // control is its boundary and nothing else (`outline` in `Button`).
-  strokeRound(ctx, x, y, w, h, 10, rgba(T.input), 1);
+  fillRound(ctx, x, y, w, h, 10, rgba(T.fill, 0.7));
+  strokeRound(ctx, x, y, w, h, 10, rgba(T.border), 1);
   const fg = rgba(T.foreground, 0.92);
   const textWidth = measure(ctx, label, size, 500);
   const total = iconName ? textWidth + 20 : textWidth;
@@ -976,37 +960,26 @@ function paintField(ctx, strength = 1) {
     ctx.fillStyle = g;
     ctx.fillRect(x - w / 2, y - h / 2, w, h);
   };
-  // The default theme's own five stops (`aurora`: «Тихий графит»). The field
-  // used to be painted in indigo/blue/orange — a palette the app does not
-  // ship — and every render looked like a different product behind the glass.
-  // Colours here come from `backdrops.ts`, nothing is invented.
   glow(
     SHOT_WIDTH * 0.45,
     SHOT_HEIGHT * 0.36,
     1100,
     900,
-    rgba(hexRgb("586971"), 0.85 * strength),
+    rgba(hexRgb("6a3df5"), 0.5 * strength),
   );
   glow(
     SHOT_WIDTH * 0.78,
     SHOT_HEIGHT * 0.72,
     800,
     700,
-    rgba(hexRgb("81908a"), 0.7 * strength),
+    rgba(hexRgb("35aef2"), 0.34 * strength),
   );
   glow(
     SHOT_WIDTH * 0.2,
     SHOT_HEIGHT * 0.8,
     700,
     600,
-    rgba(hexRgb("514a48"), 0.55 * strength),
-  );
-  glow(
-    SHOT_WIDTH * 0.62,
-    SHOT_HEIGHT * 0.16,
-    640,
-    560,
-    rgba(hexRgb("35434b"), 0.6 * strength),
+    rgba(hexRgb("f59a22"), 0.16 * strength),
   );
 }
 
@@ -1023,12 +996,17 @@ function screenWelcome(ctx) {
   const cx = SHOT_WIDTH / 2;
   const cy = SHOT_HEIGHT / 2;
 
-  // The greeting stands on the same layers as every other screen: the canvas,
-  // the chosen theme's field and its veil. It used to be painted an indigo
-  // `#46409b` — a palette the app never ships — which is why the gallery's
-  // welcome looked like a different product *and* stayed dark after the window
-  // went light.
-  background(ctx);
+  // The field the greeting stands on.
+  //
+  // Not near-black with two bright pools on it: at the moment the greeting runs,
+  // the aurora shader has spread its colour over the whole window and the page
+  // reads as a fairly even indigo, brightest at the top left. Painting a black
+  // page and dropping glows on it is what made the offline render of this screen
+  // look nothing like the app — a bright word over a black void.
+  ctx.fillStyle = rgba(T.canvas);
+  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
+  ctx.fillStyle = rgba(hexRgb("46409b"));
+  ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
   const glow = (x, y, w, h, colour) => {
     const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) / 2);
     g.addColorStop(0, colour);
@@ -1072,11 +1050,8 @@ function screenWelcome(ctx) {
     SHOT_HEIGHT * 0.42,
     SHOT_WIDTH * 0.62,
   );
-  // Mixed from the page colour, like `BACKDROP_WASH` in the app: the wash
-  // follows the ground, so on the light page it lifts the field instead of
-  // crushing it back to grey under a black scrim.
-  wash.addColorStop(0, rgba(T.background, 0.28));
-  wash.addColorStop(1, rgba(T.background, 0.52));
+  wash.addColorStop(0, "rgba(8,9,12,0.28)");
+  wash.addColorStop(1, "rgba(8,9,12,0.52)");
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, SHOT_WIDTH, SHOT_HEIGHT);
 
@@ -1107,12 +1082,8 @@ function screenWelcome(ctx) {
  * before the launcher exists, and the drawing has to say so.
  */
 function screenAccount(ctx) {
-  // `background` paints the canvas, the theme's field and its veil — exactly
-  // what `AnimatedBackdrop` stacks behind this page. Calling `paintField`
-  // again on top laid a second, undimmed copy of the field over the first,
-  // which is what pushed the centre of this screen to near-black and left the
-  // heading at 2.3:1 against its own backdrop.
   background(ctx);
+  paintField(ctx);
   const cx = SHOT_WIDTH / 2;
   const cardW = 380;
   const x = cx - cardW / 2;
@@ -1128,10 +1099,9 @@ function screenAccount(ctx) {
 
   brandMark(ctx, cx - 22, y, 44);
   y += 44 + 18;
-  // Above the card, on the page itself: `--foreground`, not the glass override.
-  // `SignInScreen` paints the wordmark and the sub-line outside the panel, so
-  // they resolve to the canvas palette. That palette is ink now that the page is
-  // light — the old near-white value left the heading at 2.3:1 on the field.
+  // Above the card, on the dark backdrop: canvas ink. `SignInScreen` paints the
+  // wordmark and the sub-line outside the `[data-line-glass]` panel, so they
+  // resolve to `--foreground` from `:root`, not the glass override.
   text(ctx, "Plus In Plus Demo", cx, y + 18, {
     size: 24,
     weight: 600,
@@ -1471,12 +1441,11 @@ function screenServer(ctx) {
   // ни второй полосы, ни имени файла — как play/pause у Liner.
   const barW = contentW - pad * 2;
   const btnH = 44;
-  fillRound(ctx, x + pad, rowY, barW, btnH, 10, rgba(T.action));
-  strokeRound(ctx, x + pad, rowY, barW, btnH, 10, rgba(T.input), 1);
+  fillRound(ctx, x + pad, rowY, barW, btnH, 10, rgba(T.primary));
   ctx.save();
   roundRect(ctx, x + pad, rowY, barW, btnH, 10);
   ctx.clip();
-  ctx.fillStyle = rgba(T.actionForeground, 0.25);
+  ctx.fillStyle = rgba(T.primaryForeground, 0.25);
   ctx.fillRect(x + pad, rowY, Math.round((barW * 45) / 100), btnH);
   ctx.restore();
   const busyLabel = "Отменить скачивание";
@@ -1493,7 +1462,7 @@ function screenServer(ctx) {
   text(ctx, busyLabel, labelX, rowY + 27, {
     size: 13,
     weight: 600,
-    color: rgba(T.actionForeground),
+    color: rgba(T.primaryForeground),
   });
   rowY += btnH + 10;
 
@@ -1609,10 +1578,7 @@ function screenWardrobe(ctx) {
   });
   fillRound(ctx, x + 20, iy + 18, w - 40, 32, 8, rgba(T.background, 0.5));
   strokeRound(ctx, x + 20, iy + 18, w - 40, 32, 8, rgba(T.border), 1);
-  text(ctx, "Classic — широкие руки (4 px)", x + 30, iy + 39, {
-    size: 11,
-    color: rgba(T.foreground),
-  });
+  text(ctx, "Classic — широкие руки (4 px)", x + 30, iy + 39, { size: 11 });
   icon(
     ctx,
     "chevronDown",
@@ -1881,14 +1847,9 @@ function screenSettings(ctx) {
       size: 10,
       color: rgba(T.mutedForeground),
     });
-    // `Select` is transparent with a boundary, like every other control on
-    // glass — painting `--fill` under it drew a grey plate that the app does
-    // not have, and leaving the label unstyled made it inherit white ink.
-    strokeRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.input), 1);
-    text(ctx, "Оставить окно открытым", bx + 10, by + 34, {
-      size: 11,
-      color: rgba(T.foreground),
-    });
+    fillRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.fill, 0.55));
+    strokeRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.border), 1);
+    text(ctx, "Оставить окно открытым", bx + 10, by + 34, { size: 11 });
     icon(
       ctx,
       "chevronDown",
@@ -1904,23 +1865,16 @@ function screenSettings(ctx) {
       size: 10,
       color: rgba(T.mutedForeground),
     });
-    // No fill: an `Input` has none of its own — the boundary is `--input`.
-    strokeRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.input, 1), 1);
-    text(ctx, "1280", bx + 10, rowY + 33, {
-      size: 11,
-      color: rgba(T.foreground),
-      mono: true,
-    });
+    fillRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
+    strokeRound(ctx, bx, rowY + 14, 96, 28, 8, rgba(T.border), 1);
+    text(ctx, "1280", bx + 10, rowY + 33, { size: 11, mono: true });
     text(ctx, "Высота", bx + 112, rowY + 8, {
       size: 10,
       color: rgba(T.mutedForeground),
     });
-    strokeRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.input, 1), 1);
-    text(ctx, "800", bx + 122, rowY + 33, {
-      size: 11,
-      color: rgba(T.foreground),
-      mono: true,
-    });
+    fillRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.background, 0.6));
+    strokeRound(ctx, bx + 112, rowY + 14, 96, 28, 8, rgba(T.border), 1);
+    text(ctx, "800", bx + 122, rowY + 33, { size: 11, mono: true });
     button(ctx, bx + 224, rowY + 12, 130, 30, "Применить размер", {
       variant: "outline",
       size: 10,

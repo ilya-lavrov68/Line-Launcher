@@ -936,7 +936,7 @@ export default function LineLauncher() {
                   className="relative flex min-h-0 min-w-0 flex-1 flex-col"
                 >
                   <main
-                    data-line-glass
+                    data-line-glass="main"
                     className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] p-6"
                   >
                     {/* A stretched column all the way down. Pages that pin a

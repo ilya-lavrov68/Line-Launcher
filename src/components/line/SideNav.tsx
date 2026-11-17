@@ -86,7 +86,7 @@ export default function SideNav({
       transition={
         reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
       }
-      data-line-glass
+      data-line-glass="sidebar"
       className={cn(
         "relative z-20 flex min-h-0 shrink-0 flex-col",
         "rounded-[var(--radius-item)]",

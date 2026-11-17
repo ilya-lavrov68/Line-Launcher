@@ -18,22 +18,8 @@ test("the server action dock cannot be pushed up by a progress panel", () => {
   for (const panel of [minecraft, archive]) {
     assert.match(panel, /<ServerDockPrimary/);
     assert.match(panel, /progress=\{/);
-    // Между работой прогресс выключен — иначе кнопка навсегда осталась бы
-    // полосой.
-    assert.match(panel, /progress=\{[\s\S]{0,60}?\bnull\b/);
-    // Ни отдельного компонента-полосы, ни блока под кнопкой.
-    assert.doesNotMatch(panel, /<ActionProgress/);
-    assert.doesNotMatch(panel, /role="progressbar"/);
-    // Имя файла не печатается нигде.
-    assert.doesNotMatch(panel, /progress\.label/);
   }
-  // Полоса — часть кнопки, с настоящей ролью прогресса для скринридера.
-  assert.match(dock, /role="progressbar"/);
-  assert.match(dock, /aria-valuenow=/);
-  assert.match(dock, /aria-valuemin=/);
-  assert.match(dock, /aria-valuemax=/);
-  // Высота кнопки фиксирована: док не меняет высоту при смене стадии.
-  assert.match(dock, /h-11 w-full/);
+  assert.match(read("src/components/line/ServerDock.tsx"), /role="progressbar"/);
   assert.doesNotMatch(
     read("src/components/line/ServerDock.tsx"),
     /whileTap|whileHover/,

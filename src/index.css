@@ -112,20 +112,15 @@
    * looked pink, closer to a white cross than a red one. */
   --destructive-foreground: oklch(0.78 0.17 22);
 
-  /* ── the quiet-fill ladder and the glass surface ──
-   *
-   * These are the values *outside* a panel (the bare canvas, the gaps between
-   * sheets, anything painted before a [`data-line-glass`] ancestor appears).
-   * The values that matter are the scoped ones inside the panel rule below:
-   * `--glass-fill-*`. The ladder here stays with the dark palette so nothing
-   * on the canvas silently turns black-on-black. */
+  /* Keep controls and nested panels on the original dark glass. Only the two
+   * large shell panes receive a subtle translucent white tint below; changing
+   * the shared surface would wash out the entire interface and its controls. */
   --fill-subtle: rgba(255, 255, 255, 0.045);
   --fill: rgba(255, 255, 255, 0.07);
   --fill-hover: rgba(255, 255, 255, 0.1);
   --fill-strong: rgba(255, 255, 255, 0.14);
-  /* Kept for compatibility with anything that still reads the old slot; the
-   * panel rule paints the white frost directly from `--glass-surface`. */
-  --surface-glass: var(--glass-surface);
+  --surface-glass: rgba(10, 12, 16, 0.45);
+  --surface-shell-glass: rgba(255, 255, 255, 0.09);
   --line-hairline: rgba(255, 255, 255, 0.1);
   --line-accent: var(--primary);
   --line-online: oklch(0.8 0.17 155);
@@ -250,34 +245,7 @@
    *
    * Blur is back, and only because the backdrop came back: with an animated
    * colour field behind the window, a translucent panel without it shows the
-   * mesh's edges through the text. A 20px blur turns that into depth. */
-  /* ── the frost surface ─────────────────────────────────────────────────
-   *
-   * Every panel in the window is one material: a white sheet at a little over
-   * half opacity with a heavy blur behind it. The colour behind the glass is
-   * therefore always visible — it is the whole point of a blurred panel, and it
-   * is where the difference between this and a black translucent box is read.
-   * (The old value was `rgba(10, 12, 16, 0.45)` with a 20px blur: the haze
-   * underneath came through as grey, and over a dark backdrop the panels were
-   * indistinguishable from the page. Something moved, but nothing was glass.)
-   *
-   * Blur radius is 40px, twice the old one, and saturation is pushed up: a
-   * white sheet at this opacity flattens what is under it, and the saturation
-   * is what keeps the haze reading as colour rather than as grey light.
-   *
-   * The token block below is not decoration. Text over a white sheet must be
-   * ink, so the panel re-points `--foreground` and the two quiet text slots at
-   * their glass equivalents *for its own subtree*. Components keep writing
-   * `text-foreground`/`text-muted-foreground` and get the readable colour for
-   * the surface they are on; the bare canvas between panels keeps the dark
-   * palette. Colours only — geometry, radii and focus rings are untouched.
-   *
-   * The fill ladder moves with them, for the same reason: `bg-fill-subtle` is
-   * "one step off the surface", and one step off a white sheet is a dark wash,
-   * not a lighter one.
-   *
-   * No box-shadow: a drop shadow on a sheet over a moving field reads as grime
-   * along the edge. Depth is the blur and the fill ladder. */
+   * mesh's edges through the text. */
   [data-line-glass] {
     background: var(--glass-surface);
     backdrop-filter: blur(40px) saturate(160%);
@@ -318,6 +286,15 @@
     background: var(--glass-surface-strong);
     backdrop-filter: blur(48px) saturate(170%);
     -webkit-backdrop-filter: blur(48px) saturate(170%);
+  }
+
+  /* Only the main shell tiles get the pale glass treatment. The tint is not
+   * opaque white: the backdrop and its colours remain visible underneath. */
+  [data-line-glass="main"],
+  [data-line-glass="sidebar"] {
+    background: var(--surface-shell-glass);
+    backdrop-filter: blur(32px) saturate(150%);
+    -webkit-backdrop-filter: blur(32px) saturate(150%);
   }
 
   /* The action dock: one continuous surface, no separate header block. */

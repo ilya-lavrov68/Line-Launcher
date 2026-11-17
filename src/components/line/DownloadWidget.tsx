@@ -83,25 +83,6 @@ export default function DownloadWidget({
             {caption}
             {active && percent !== null ? ` · ${percent}%` : ""}
           </div>
-          {active && (
-            <div
-              role="progressbar"
-              aria-label={t("download.widgetTitle")}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={percent ?? undefined}
-              className="bg-fill mt-2 h-1.5 overflow-hidden rounded-full"
-            >
-              <div
-                className={
-                  percent === null
-                    ? "bg-primary h-full w-1/3 animate-pulse"
-                    : "bg-primary h-full transition-[width]"
-                }
-                style={percent === null ? undefined : { width: `${percent}%` }}
-              />
-            </div>
-          )}
         </div>
         {!active && (
           <Button
@@ -120,11 +101,17 @@ export default function DownloadWidget({
             {t("detail.cancelDownload")}
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={onOpen}>
+        <Button size="sm" variant="outline" onClick={onOpen} className="relative overflow-hidden">
+          {active && (
+            <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-primary/20">
+              <span className={percent === null ? "block h-full w-1/3 animate-pulse motion-reduce:animate-none bg-primary" : "block h-full bg-primary transition-[width]"} style={percent === null ? undefined : { width: `${percent}%` }} />
+            </span>
+          )}
           {t("download.open")}{" "}
           <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </Button>
       </div>
+      {active && <span role="progressbar" aria-label={t("download.widgetTitle")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined} className="sr-only" />}
     </aside>
   );
 }

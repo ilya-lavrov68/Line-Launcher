@@ -371,6 +371,7 @@ const tests = [
     "instance.rs",
     "fn game_directory_is_found_plain_wrapped_and_named(",
   ),
+  attributed("instance.rs", "fn many_unrelated_wrappers_keep_priority_and_support_late_matches("),
   attributed("instance.rs", "fn version_profiles_are_paired_with_their_json("),
   attributed(
     "instance.rs",

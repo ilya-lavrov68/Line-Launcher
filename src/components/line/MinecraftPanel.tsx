@@ -364,6 +364,7 @@ export default function MinecraftPanel({
           indeterminate={working && percent === null}
           progressLabel={stageNames[progress?.stage ?? "task"]}
           onClick={() => void (running ? stop() : play(false))}
+          progress={progress ? { label: stageNames[progress.stage] ?? t("mc.stageWorking"), percent } : undefined}
         >
           {working || busy === "stopping" ? (
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />

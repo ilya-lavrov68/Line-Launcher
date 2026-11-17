@@ -825,8 +825,9 @@ function button(
     text(ctx, label, cursor, y + h / 2 + 4.5, { size, weight: 600, color: fg });
     return;
   }
-  fillRound(ctx, x, y, w, h, 10, rgba(T.fill, 0.7));
-  strokeRound(ctx, x, y, w, h, 10, rgba(T.border), 1);
+  // No fill: inside a panel `--background` is transparent, so an outline
+  // control is its boundary and nothing else (`outline` in `Button`).
+  strokeRound(ctx, x, y, w, h, 10, rgba(T.input), 1);
   const fg = rgba(T.foreground, 0.92);
   const textWidth = measure(ctx, label, size, 500);
   const total = iconName ? textWidth + 20 : textWidth;
@@ -1608,7 +1609,10 @@ function screenWardrobe(ctx) {
   });
   fillRound(ctx, x + 20, iy + 18, w - 40, 32, 8, rgba(T.background, 0.5));
   strokeRound(ctx, x + 20, iy + 18, w - 40, 32, 8, rgba(T.border), 1);
-  text(ctx, "Classic — широкие руки (4 px)", x + 30, iy + 39, { size: 11 });
+  text(ctx, "Classic — широкие руки (4 px)", x + 30, iy + 39, {
+    size: 11,
+    color: rgba(T.foreground),
+  });
   icon(
     ctx,
     "chevronDown",
@@ -1877,9 +1881,14 @@ function screenSettings(ctx) {
       size: 10,
       color: rgba(T.mutedForeground),
     });
-    fillRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.fill, 0.55));
-    strokeRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.border), 1);
-    text(ctx, "Оставить окно открытым", bx + 10, by + 34, { size: 11 });
+    // `Select` is transparent with a boundary, like every other control on
+    // glass — painting `--fill` under it drew a grey plate that the app does
+    // not have, and leaving the label unstyled made it inherit white ink.
+    strokeRound(ctx, bx, by + 14, bw, 30, 8, rgba(T.input), 1);
+    text(ctx, "Оставить окно открытым", bx + 10, by + 34, {
+      size: 11,
+      color: rgba(T.foreground),
+    });
     icon(
       ctx,
       "chevronDown",

@@ -335,6 +335,12 @@
     --fill-strong: var(--glass-fill-strong);
     --border: var(--glass-border);
     --input: var(--glass-input);
+    /* Inside a panel the panel *is* the background. Without this, a control
+     * that paints `bg-background` — an outline Button, the section search — drew
+     * the colour of the *page* onto the glass: a flat grey plate on a sheet it
+     * has nothing to do with. A control on glass draws its own boundary
+     * (`--input`) instead of repainting what is behind it. */
+    --background: transparent;
     --line-hairline: var(--glass-hairline);
     /* State colours follow the surface for the same reason text does. */
     --line-online: var(--glass-online);

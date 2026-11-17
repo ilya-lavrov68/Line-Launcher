@@ -166,7 +166,7 @@ export interface LineSource {
 
 /** Provider-side resource-pack checking. Absent = the defaults. */
 export interface LineAnticheat {
-  /** Keyword scan on packs; the foreign-file list is not optional. */
+  /** Keyword scan on resource packs; mod composition is checked separately. */
   scan_resourcepacks?: boolean;
   /** Unioned with the built-in list; cannot remove a built-in word. */
   extra_keywords?: string[];

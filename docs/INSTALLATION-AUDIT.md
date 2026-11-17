@@ -71,6 +71,11 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
   minimum, but mod requirements are not fully inspected and the whole pack may
   still be incompatible. Test Vanilla, Fabric, Quilt, Forge, NeoForge 1.20.1
   and current NeoForge on Windows; verify loader and Java reuse.
+- **Scan scope:** live mod checks compare missing/extra JARs (not keywords),
+  while resource-pack keyword checks cover ZIPs and unpacked directories; other
+  ordinary mod-directory data is ignored. A symlink/reparse point can still
+  stop the scan. Archive and folder Rust tests need full Cargo and Windows; the
+  separate installed-release integrity check still covers all published files.
 - **UX:** progress totals may be unknown and the speed limit does not govern
   all external installers. A failure or pending confirmation must not display a
   ready state. Verify navigation, duplicate-action prevention and widget layout.

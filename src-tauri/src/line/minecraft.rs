@@ -1276,9 +1276,9 @@ pub async fn mc_play(
                 let Some(relative) = entry.path.strip_prefix(detected.prefix.as_str()) else {
                     continue;
                 };
-                let Some(_name) = relative.strip_prefix("mods/") else {
+                if !super::launch::is_mod_jar(relative) {
                     continue;
-                };
+                }
                 let target = pack::checked_game_path(&game, relative, false)?;
                 if !super::storage::is_real_file(&target) {
                     return Err(LineError::new(

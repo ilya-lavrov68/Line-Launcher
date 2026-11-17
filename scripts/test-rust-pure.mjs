@@ -145,6 +145,8 @@ pub type LineResult<T> = Result<T, LineError>;
 const installTestPrelude = "";
 const items = [
   attributed("config.rs", "pub fn validate_slug("),
+  attributed("launch.rs", "pub fn is_mod_jar("),
+  attributed("resourcepack.rs", "pub fn contains_word("),
   attributed("connector.rs", "fn connector_names("),
   attributed("release_swap.rs", "const SWAP_PREFIX:"),
   attributed("release_swap.rs", "fn valid_swap_sha("),
@@ -274,6 +276,8 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
+  attributed("launch.rs", "fn mod_jar_scope_excludes_service_files_and_other_folders("),
+  attributed("resourcepack.rs", "fn keyword_search_handles_multibyte_rejected_matches_without_panicking("),
   attributed("connector.rs", "fn narrow_cache_names_only("),
   attributed("release_swap.rs", "fn swap_temp("),
   attributed(

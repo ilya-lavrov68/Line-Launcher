@@ -586,9 +586,17 @@ async fn prepare_release(
     Ok(lease)
 }
 
-/// Block foreign files and directories in the live mods tree without deleting
-/// player data. Provider-owned nested files are valid; links and special files
-/// are never followed.
+/// Minecraft mod archives, case-insensitively; settings and cache data inside
+/// mods are not themselves mod JARs. Links are handled separately, fail closed.
+pub fn is_mod_jar(path: &str) -> bool {
+    path.strip_prefix("mods/")
+        .and_then(|name| name.rsplit('/').next())
+        .is_some_and(|name| name.to_ascii_lowercase().ends_with(".jar"))
+}
+
+/// Compare live mod JARs to the published list without inspecting their words.
+/// Non-JAR data is not treated as a mod. Links and special files are never
+/// followed, and no player files are removed.
 pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
     check_live_mods_with(game, owned, |_| Ok(false))
 }
@@ -600,7 +608,16 @@ fn check_live_mods_with(
 ) -> LineResult<()> {
     let dir = game.join("mods");
     match std::fs::symlink_metadata(&dir) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if owned.iter().any(|path| is_mod_jar(path)) {
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    "Папка mods и необходимые моды отсутствуют. Восстановите сборку.",
+                    false,
+                ));
+            }
+            return Ok(());
+        }
         Err(error) => return Err(LineError::io(&error)),
         Ok(_) if !is_real_dir(&dir) => {
             return Err(LineError::new(
@@ -612,8 +629,15 @@ fn check_live_mods_with(
         Ok(_) => {}
     }
     let mut files = std::collections::BTreeSet::new();
-    for path in owned.iter().filter(|path| path.starts_with("mods/")) {
-        super::install::safe_entry_path(path)?;
+    for path in owned.iter().filter(|path| is_mod_jar(path)) {
+        let target = super::pack::checked_game_path(game, path, false)?;
+        if !is_real_file(&target) {
+            return Err(LineError::new(
+                ErrorCode::Integrity,
+                format!("Мод {path} отсутствует или заменён ссылкой. Восстановите сборку."),
+                false,
+            ));
+        }
         files.insert(path.as_str());
     }
     let mut pending = vec![(dir, "mods".to_string())];
@@ -637,11 +661,13 @@ fn check_live_mods_with(
                 .file_type();
             if kind.is_dir() && is_real_dir(&entry.path()) {
                 pending.push((entry.path(), relative));
-            } else if kind.is_file()
-                && is_real_file(&entry.path())
-                && (files.contains(relative.as_str()) || prove(&relative)?)
-            {
-                continue;
+            } else if kind.is_file() && is_real_file(&entry.path()) {
+                if !is_mod_jar(&relative) || files.contains(relative.as_str()) || prove(&relative)?
+                {
+                    continue;
+                }
+                return Err(LineError::new(ErrorCode::Integrity,
+                    format!("В папке mods найден лишний мод: {relative}. Уберите его и повторите запуск."), false));
             } else {
                 return Err(LineError::new(ErrorCode::Integrity,
                     format!("В папке mods найден посторонний файл или каталог: {relative}. Уберите его и повторите запуск."), false));
@@ -658,19 +684,9 @@ pub struct PackScan {
     pub foreign: usize,
 }
 
-/// Checks what the game will actually load from `game/resourcepacks`.
-///
-/// Runs on the **live** directory, not the immutable release: a pack dropped
-/// into `game/` is exactly what the release scan cannot see, and it is what the
-/// game reads. Two questions, in order:
-///
-/// 1. Is every file in that folder one the provider published? (`pack-state.json`)
-/// 2. Does any of them contain a cheat keyword — in its name, its entries or the
-///    text of its models?
-///
-/// A keyword hit stops the launch. A foreign file that scans clean is reported
-/// and left alone: a player is allowed to install a HUD pack, and deleting it
-/// would be the launcher deciding it knows better about a file it did not ship.
+/// Checks mod composition, then resource-pack keywords in the live game.
+/// Provider and player resource packs are treated identically; ownership alone
+/// does not block a pack or turn it into a suspicious finding.
 pub fn scan_packs(
     base: &Path,
     server: &super::config::Server,
@@ -691,12 +707,10 @@ pub fn scan_packs_with(
     check_live_mods_with(&game, owned, prove)?;
     let settings = server.anticheat.clone().unwrap_or_default();
     if !settings.scan_resourcepacks {
-        // The hard half still runs: "nobody published this file" is not an
-        // opinion about words and cannot be switched off.
-        let (_, foreign) = super::resourcepack::scan_all(&game, owned, &settings.allow, &[])?;
+        // The mod composition check above is independent of this switch.
         return Ok(PackScan {
             blocked: None,
-            foreign: foreign.len(),
+            foreign: 0,
         });
     }
     let (findings, foreign) =
@@ -805,10 +819,7 @@ pub async fn launch_game(
             result = io => result.map_err(|_| LineError::storage())??,
             _ = wait_stop(&stop) => return Err(cancelled()),
         };
-        // What the game will load from `game/resourcepacks`, checked against what
-        // the provider actually published. Runs after the release scan (so the
-        // published side is known good) and before Java exists, so a blocked
-        // launch costs nothing but a message.
+        // Check mod composition and resource-pack keywords before starting Java.
         let owned = super::pack::owned_files(&base);
         let scan_base = base.clone();
         let scan_server = server.clone();
@@ -1121,7 +1132,7 @@ pub async fn get_game_status(
 pub struct PackCheck {
     /// Empty when nothing suspicious was found.
     pub findings: Vec<String>,
-    /// Files in `game/resourcepacks` the provider did not publish.
+    /// Retained for API compatibility; ownership is not a resource-pack finding.
     pub foreign: Vec<String>,
 }
 
@@ -1165,15 +1176,19 @@ pub async fn check_resource_packs(
         require_pack_check_install(&release_base, &server_id)?;
         let owned = super::pack::owned_files(&base);
         let settings = server.anticheat.clone().unwrap_or_default();
-        // Keywords are the provider's switch; the foreign-file list is not.
-        let extra: &[String] = if settings.scan_resourcepacks {
-            &settings.extra_keywords
-        } else {
-            &[]
-        };
         let game = instance_game_dir(&base)?;
-        let (findings, foreign) =
-            super::resourcepack::scan_all(&game, &owned, &settings.allow, extra)?;
+        if !settings.scan_resourcepacks {
+            return Ok(PackCheck {
+                findings: Vec::new(),
+                foreign: Vec::new(),
+            });
+        }
+        let (findings, foreign) = super::resourcepack::scan_all(
+            &game,
+            &owned,
+            &settings.allow,
+            &settings.extra_keywords,
+        )?;
         Ok(PackCheck {
             findings: findings
                 .hits
@@ -1213,6 +1228,36 @@ mod tests {
         // Empty directories may remain after a pack update; they load nothing.
         assert!(check_live_mods(temp.path(), &owned).is_ok());
         std::fs::write(nested.join("foreign-dir/hidden.jar"), b"foreign").unwrap();
+        assert!(check_live_mods(temp.path(), &owned).is_err());
+    }
+
+    #[test]
+    fn mod_jar_scope_excludes_service_files_and_other_folders() {
+        assert!(is_mod_jar("mods/a.jar"));
+        assert!(is_mod_jar("mods/cache/a.JAR"));
+        assert!(!is_mod_jar("mods/cache/settings.json"));
+        assert!(!is_mod_jar("mods/a.jar.disabled"));
+        assert!(!is_mod_jar("resourcepacks/a.jar"));
+    }
+
+    #[test]
+    fn mods_check_missing_and_extra_jars_not_service_data_or_words() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods = temp.path().join("mods");
+        std::fs::create_dir(&mods).unwrap();
+        std::fs::write(mods.join("xray-allowed.jar"), b"provider mod").unwrap();
+        std::fs::write(mods.join("xray-settings.json"), b"xray").unwrap();
+        let owned = vec![
+            "mods/xray-allowed.jar".to_string(),
+            "mods/missing-config.json".to_string(),
+        ];
+        assert!(check_live_mods(temp.path(), &owned).is_ok());
+        std::fs::write(mods.join("unowned.JAR"), b"unknown").unwrap();
+        assert!(check_live_mods(temp.path(), &owned).is_err());
+        std::fs::remove_file(mods.join("unowned.JAR")).unwrap();
+        std::fs::remove_file(mods.join("xray-allowed.jar")).unwrap();
+        assert!(check_live_mods(temp.path(), &owned).is_err());
+        std::fs::remove_dir_all(mods).unwrap();
         assert!(check_live_mods(temp.path(), &owned).is_err());
     }
 

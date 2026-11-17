@@ -1,28 +1,6 @@
-//! Keyword scan of resource packs, plus the list of files a pack owns.
-//!
-//! Two jobs, both before launch:
-//!
-//! 1. **Who else is in `game/resourcepacks`.** `pack-state.json` lists what the
-//!    provider published. A file in that folder which is not on the list was put
-//!    there by the player or by something else — the cheap, hard half of the
-//!    anticheat, because it needs no opinion about names.
-//! 2. **What is inside those packs.** A pack can be supplied *by* the provider
-//!    and still contain `xray` in a model name, or the player can unpack the
-//!    provider's pack, edit it and repack it under the same name. The heuristic
-//!    checks only pack names and rendering assets, not unrelated prose.
-//!
-//! What is deliberately *not* here:
-//!
-//! - **No image decoding.** Reading pixels to decide whether a texture looks
-//!   like an xray overlay is an opinion, not a check: it fires on legitimate
-//!   shaders and misses a renamed overlay. The keyword check is a heuristic,
-//!   not proof that a resource pack is safe.
-//! - **No deleting.** A hit is reported. The caller stops the launch and asks
-//!   the player, because a false positive that deletes a pack is worse than one
-//!   that blocks a launch.
-//! - **No unbounded reading.** Entry count, per-entry and total budgets match
-//!   the extractor's limits, so a crafted pack cannot turn "check the pack"
-//!   into a memory exhaustion.
+//! Keyword scan for resource packs only. Provider-owned and player-owned packs
+//! use the same registry; this module never searches mod JARs for words and
+//! never deletes player data. File and work limits bound the heuristic.
 use super::error::{ErrorCode, LineError, LineResult};
 use std::collections::BTreeSet;
 use std::fs;
@@ -127,7 +105,7 @@ pub fn contains_word(text: &str, keyword: &str) -> bool {
         if before_ok && after_ok {
             return true;
         }
-        from = start + 1;
+        from = start + lower[start..].chars().next().map_or(1, char::len_utf8);
         if from >= lower.len() {
             break;
         }
@@ -186,28 +164,24 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
     }
 
     let meta = fs::symlink_metadata(path).map_err(|e| LineError::io(&e))?;
-    if !meta.file_type().is_file() {
-        return Ok(findings);
+    if super::storage::is_real_dir(path) {
+        return scan_folder(pack, path, words, findings);
+    }
+    if !super::storage::is_real_file(path) {
+        return Err(LineError::input(
+            "Ресурс-пак является ссылкой или не является обычным файлом.",
+        ));
     }
     if meta.len() > MAX_PACK_BYTES {
-        // Not a resource pack by any measure. Reporting it as foreign is the
-        // caller's job; here there is simply nothing to read.
-        return Ok(findings);
+        return Err(LineError::input("Ресурс-пак превышает допустимый размер."));
     }
     let file = fs::File::open(path).map_err(|e| LineError::io(&e))?;
     let mut archive = match zip::ZipArchive::new(file) {
         Ok(archive) => archive,
-        // A pack that is not a ZIP (a folder, a `.disabled` text file) has no
-        // entries to scan. Its name was already checked above.
-        Err(_) => return Ok(findings),
+        Err(_) => return Err(LineError::input("Не удалось прочитать ZIP ресурс-пака.")),
     };
     if archive.len() > MAX_ENTRIES {
-        findings.hits.push(Hit {
-            pack: pack.to_owned(),
-            entry: String::new(),
-            keyword: "too-many-entries".to_owned(),
-        });
-        return Ok(findings);
+        return Err(LineError::input("В ресурс-паке слишком много файлов."));
     }
 
     let mut texts: Vec<(String, Vec<u8>)> = Vec::new();
@@ -241,21 +215,25 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
                 });
             }
         }
-        if !reads_text(&entry_name) || entry.size() > MAX_TEXT_BYTES {
+        if !reads_text(&entry_name) {
             continue;
+        }
+        if entry.size() > MAX_TEXT_BYTES {
+            return Err(LineError::input(
+                "JSON ресурс-пака превышает предел проверки.",
+            ));
         }
         let mut buffer = Vec::new();
-        if entry
+        entry
             .by_ref()
-            .take(MAX_TEXT_BYTES)
+            .take(MAX_TEXT_BYTES + 1)
             .read_to_end(&mut buffer)
-            .is_err()
-        {
-            continue;
-        }
+            .map_err(|_| LineError::input("Не удалось проверить JSON ресурс-пака."))?;
         total = total.saturating_add(buffer.len() as u64);
-        if total > MAX_TOTAL_TEXT_BYTES {
-            break;
+        if buffer.len() as u64 > MAX_TEXT_BYTES || total > MAX_TOTAL_TEXT_BYTES {
+            return Err(LineError::input(
+                "Ресурс-пак превышает предел проверки текстовых файлов.",
+            ));
         }
         texts.push((entry_name, buffer));
     }
@@ -268,6 +246,93 @@ pub fn scan_pack(pack: &str, path: &Path, words: &[String]) -> LineResult<Findin
                     entry: entry_name.clone(),
                     keyword: word.clone(),
                 });
+            }
+        }
+    }
+    findings.hits.sort();
+    findings.hits.dedup();
+    Ok(findings)
+}
+
+/// Apply the same rendering-asset rules to unpacked resource-pack folders.
+/// Never follow links or junctions, and cap entries and JSON reads.
+fn scan_folder(
+    pack: &str,
+    root: &Path,
+    words: &[String],
+    mut findings: Findings,
+) -> LineResult<Findings> {
+    let mut pending = vec![(root.to_path_buf(), String::new())];
+    let mut visited = 0usize;
+    let mut total = 0u64;
+    while let Some((dir, prefix)) = pending.pop() {
+        for entry in fs::read_dir(&dir).map_err(|e| LineError::io(&e))? {
+            let entry = entry.map_err(|e| LineError::io(&e))?;
+            visited += 1;
+            if visited > MAX_ENTRIES {
+                return Err(LineError::input("В ресурс-паке слишком много файлов."));
+            }
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| LineError::input("Некорректное имя в ресурс-паке."))?;
+            let relative = if prefix.is_empty() {
+                name
+            } else {
+                format!("{prefix}/{name}")
+            };
+            let path = entry.path();
+            if super::storage::is_real_dir(&path) {
+                pending.push((path, relative));
+                continue;
+            }
+            if !super::storage::is_real_file(&path) {
+                return Err(LineError::input(
+                    "Ресурс-пак содержит ссылку или специальный файл.",
+                ));
+            }
+            let Some(asset) = render_asset_path(&relative) else {
+                continue;
+            };
+            for word in words {
+                if contains_word(asset, word) {
+                    findings.hits.push(Hit {
+                        pack: pack.into(),
+                        entry: relative.clone(),
+                        keyword: word.clone(),
+                    });
+                }
+            }
+            let meta = fs::symlink_metadata(&path).map_err(|e| LineError::io(&e))?;
+            if !reads_text(&relative) {
+                continue;
+            }
+            if meta.len() > MAX_TEXT_BYTES {
+                return Err(LineError::input(
+                    "JSON ресурс-пака превышает предел проверки.",
+                ));
+            }
+            let mut bytes = Vec::new();
+            fs::File::open(&path)
+                .map_err(|e| LineError::io(&e))?
+                .take(MAX_TEXT_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|e| LineError::io(&e))?;
+            total = total.saturating_add(bytes.len() as u64);
+            if bytes.len() as u64 > MAX_TEXT_BYTES || total > MAX_TOTAL_TEXT_BYTES {
+                return Err(LineError::input(
+                    "Ресурс-пак превышает предел проверки текстовых файлов.",
+                ));
+            }
+            let text = String::from_utf8_lossy(&bytes);
+            for word in words {
+                if contains_word(&text, word) {
+                    findings.hits.push(Hit {
+                        pack: pack.into(),
+                        entry: relative.clone(),
+                        keyword: word.clone(),
+                    });
+                }
             }
         }
     }
@@ -314,39 +379,64 @@ pub fn reads_text(entry: &str) -> bool {
     })
 }
 
-/// Every pack under `game/resourcepacks`, whether or not the provider owns it,
-/// unless it is listed in `allow` by sha256. `allow` is hashes, not names: an
-/// exception by name is defeated by renaming the file.
+/// Every ZIP or unpacked pack under `game/resourcepacks`, regardless of owner.
+/// ZIPs on the SHA-256 allowlist are skipped. The legacy foreign result is empty.
 pub fn scan_all(
     game: &Path,
-    owned: &[String],
+    _owned: &[String],
     allow: &[String],
     extra_words: &[String],
 ) -> LineResult<(Findings, Vec<ForeignPack>)> {
     let words = keywords(extra_words);
     let mut findings = Findings::default();
-    let mut foreign = Vec::new();
-    let foreign_paths: BTreeSet<String> = foreign_packs(game, owned)?.into_iter().collect();
-    // An empty owned list enumerates every pack, including provider-owned packs.
-    for relative in foreign_packs(game, &[])? {
-        let path = game.join(&relative);
-        let sha = file_sha256(&path)?;
-        let allowed = allow.iter().any(|hash| hash.eq_ignore_ascii_case(&sha));
-        if !allowed && foreign_paths.contains(&relative) {
-            foreign.push(ForeignPack {
-                path: relative.clone(),
-                sha256: sha.clone(),
-            });
+    let packs = game.join("resourcepacks");
+    match fs::symlink_metadata(&packs) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok((findings, Vec::new()))
         }
-        if allowed {
+        Err(error) => return Err(LineError::io(&error)),
+        Ok(_) if !super::storage::is_real_dir(&packs) => {
+            return Err(LineError::input(
+                "Папка resourcepacks не является обычным каталогом.",
+            ))
+        }
+        Ok(_) => {}
+    }
+    let mut count = 0usize;
+    for entry in fs::read_dir(&packs).map_err(|e| LineError::io(&e))? {
+        let entry = entry.map_err(|e| LineError::io(&e))?;
+        count += 1;
+        if count > MAX_ENTRIES {
+            return Err(LineError::input("Слишком много ресурс-паков."));
+        }
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| LineError::input("Некорректное имя ресурс-пака."))?;
+        let relative = format!("resourcepacks/{name}");
+        let path = entry.path();
+        if !super::storage::is_real_file(&path) && !super::storage::is_real_dir(&path) {
+            return Err(LineError::input(
+                "Ресурс-пак является ссылкой или не является обычным файлом.",
+            ));
+        }
+        if super::storage::is_real_file(&path) && !name.to_ascii_lowercase().ends_with(".zip") {
             continue;
+        }
+        if super::storage::is_real_file(&path) && !allow.is_empty() {
+            let sha = file_sha256(&path)?;
+            if allow.iter().any(|hash| hash.eq_ignore_ascii_case(&sha)) {
+                continue;
+            }
         }
         let scanned = scan_pack(&relative, &path, &words)?;
         findings.hits.extend(scanned.hits);
     }
     findings.hits.sort();
     findings.hits.dedup();
-    Ok((findings, foreign))
+    // Keep the existing response field for API compatibility; resource packs
+    // are evaluated by content, not by whether the provider owns them.
+    Ok((findings, Vec::new()))
 }
 
 /// A file in `game/resourcepacks` the provider did not publish.
@@ -409,6 +499,52 @@ mod tests {
         std::os::unix::fs::symlink(external, packs.join("owned.zip")).unwrap();
         let found = foreign_packs(dir.path(), &["resourcepacks/owned.zip".into()]).unwrap();
         assert_eq!(found, vec!["resourcepacks/owned.zip"]);
+    }
+
+    #[test]
+    fn keyword_search_handles_multibyte_rejected_matches_without_panicking() {
+        assert!(!contains_word("xтестy", "тест"));
+        assert!(contains_word("xтестy тест", "тест"));
+        assert!(!contains_word("pixray", "xray"));
+        assert!(contains_word("xray-overlay", "xray"));
+    }
+
+    #[test]
+    fn packed_and_unpacked_resourcepacks_are_checked_not_other_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let packs = dir.path().join("resourcepacks");
+        fs::create_dir_all(packs.join("normal/assets/demo/models")).unwrap();
+        fs::write(
+            packs.join("normal/assets/demo/models/block.json"),
+            br#"{"name":"xray"}"#,
+        )
+        .unwrap();
+        fs::write(packs.join("xray-not-a-pack.txt"), b"xray").unwrap();
+        let (found, foreign) = scan_all(dir.path(), &[], &[], &[]).unwrap();
+        assert!(found
+            .hits
+            .iter()
+            .any(|hit| hit.pack == "resourcepacks/normal" && hit.keyword == "xray"));
+        assert!(found.hits.iter().all(|hit| !hit.pack.ends_with(".txt")));
+        assert!(foreign.is_empty());
+        fs::write(
+            packs.join("normal/assets/demo/models/block.json"),
+            br#"{"name":"ordinary"}"#,
+        )
+        .unwrap();
+        let (clean, foreign) = scan_all(dir.path(), &[], &[], &[]).unwrap();
+        assert!(clean.is_clean());
+        assert!(foreign.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unpacked_packs_never_follow_links() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = dir.path().join("resourcepacks/pack");
+        fs::create_dir_all(&pack).unwrap();
+        std::os::unix::fs::symlink(dir.path(), pack.join("linked")).unwrap();
+        assert!(scan_all(dir.path(), &[], &[], &[]).is_err());
     }
 
     #[test]

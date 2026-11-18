@@ -206,7 +206,6 @@
   --glass-update: oklch(0.82 0.15 85);
 }
 
-
 /* Tailwind v4: expose the slots as utilities (`bg-fill`, `bg-fill-hover`,
  * `bg-surface-glass`, `text-line-online`, `rounded-item`, `rounded-panel`).
  * `inline` keeps them pointing at the live variables, so a branding preset that
@@ -367,9 +366,25 @@
   }
 
   /* A frosted card inside a pane. Heavy blur is the point: it turns the moving
-   * field behind the text into a flat tone. */
+   * field behind a card into a flat tone, which is what separates a card from
+   * the pane it sits on. Every card that was «просто прозрачная» gets this,
+   * not only the ones with a lot of text on them.
+   *
+   * `background-image`, not `background`: the 3D viewer on the profile page
+   * paints its own radial gradient as a background image, and the shorthand
+   * would wipe it out. */
   [data-line-glass="frost"] {
-    background: var(--glass-surface-frost);
+    background-color: var(--glass-surface-frost);
+    background-image: none;
+    backdrop-filter: blur(48px) saturate(180%);
+    -webkit-backdrop-filter: blur(48px) saturate(180%);
+  }
+
+  /* A frosted card that brings its own tint — the active skin tile. It needs
+   * the blur (so it reads as the same kind of surface as its neighbours) but
+   * must keep its accent fill, so only the blur half of the rule applies. */
+  [data-line-glass="frost"][data-line-glass-tint] {
+    background-color: unset;
     backdrop-filter: blur(48px) saturate(180%);
     -webkit-backdrop-filter: blur(48px) saturate(180%);
   }

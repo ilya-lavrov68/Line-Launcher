@@ -574,10 +574,14 @@ export default function WardrobeScreen({
               return (
                 <li
                   key={skin.id}
+                  data-line-glass="frost"
+                  /* The active tile carries its own accent fill: it needs the
+                     blur to match its neighbours, but not the frost sheet. */
+                  {...(isActive ? { "data-line-glass-tint": "" } : {})}
                   className={
                     isActive
                       ? "bg-primary/10 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
-                      : "bg-fill/60 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
+                      : "flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
                   }
                 >
                   <div className="flex items-center gap-2">

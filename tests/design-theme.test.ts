@@ -838,9 +838,11 @@ test("cards inside a pane are frosted, not just washed over", () => {
   );
   const frost = /\[data-line-glass="frost"\]\s*\{([\s\S]*?)\n  \}/.exec(css);
   assert.ok(frost, "there must be a frost rule");
+  // `background-color`, not the `background` shorthand: the 3D viewer paints a
+  // radial gradient as its background image, and the shorthand wiped it out.
   assert.match(
     frost[1],
-    /background:\s*var\(--glass-surface-frost\)/,
+    /background-color:\s*var\(--glass-surface-frost\)/,
     "the frost rule must paint the frost surface",
   );
   const blur = /backdrop-filter:\s*blur\((\d+)px\)/.exec(frost[1]);
@@ -888,5 +890,43 @@ test("the skin placeholder cannot stretch the card around it", () => {
     preview,
     /aria-label=\{failed \? t\("skin\.previewFailed"\) : t\("skin\.none"\)\}/,
     "the placeholder must keep its accessible label for both states",
+  );
+});
+
+test("every card on a page is frosted, not only the ones with a lot of text", () => {
+  // The brief was «все карточки на main плитке», and the first attempt frosted
+  // only the four cards a human happened to name. A card with one button on it
+  // is still a card. This test names the page surfaces one by one so a new page
+  // cannot quietly ship with a plain `fill-subtle` box: the failure message says
+  // which surface lost its frost.
+  //
+  // Not cards, and deliberately excluded: inputs and labels (a frosted input
+  // under a frosted card is glass in glass), the banner image box on the server
+  // page (artwork, not a surface), the app icon tile, and dialogs — those are
+  // `raised` and must stay opaque.
+  const expected: Record<string, string> = {
+    "src/components/line/ServerCard.tsx": "a server card in the catalogue",
+    "src/components/line/Skeleton.tsx": "the loading server card",
+    "src/components/line/ServerDetail.tsx": "the pack-check card",
+    "src/components/line/SkinViewer3D.tsx": "the 3D skin viewer",
+    "src/components/line/WardrobeScreen.tsx": "the wardrobe card",
+    "src/components/line/ProfileScreen.tsx": "the profile details card",
+  };
+  for (const [file, what] of Object.entries(expected)) {
+    assert.match(
+      read(file),
+      /data-line-glass="frost"/,
+      `${what} lost its frost`,
+    );
+  }
+  assert.match(
+    read("src/components/line/WardrobeScreen.tsx"),
+    /data-line-glass="frost"[\s\S]{0,200}data-line-glass-tint/,
+    "the active skin tile must keep its accent fill and only take the blur",
+  );
+  assert.match(
+    indexCss,
+    /\[data-line-glass="frost"\]\[data-line-glass-tint\]/,
+    "there must be a rule for a frost card that brings its own tint",
   );
 });

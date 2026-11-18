@@ -203,6 +203,8 @@ Exchange endpoint и интеграция мода с сессией Minecraft �
 | [BRANDING.md](docs/BRANDING.md)         | Палитра, логотипы, адрес провайдера, иконки    |
 | [DESIGN.md](docs/DESIGN.md)             | Дизайн-система, фоны, тени, движение           |
 | [PROVIDER.md](docs/PROVIDER.md)         | Контракт API и формат `config.json`            |
+| [SESSION-MODEL-A.md](docs/SESSION-MODEL-A.md) | Сессия провайдера: ticket → сессия → проверка |
+| [LINEAUTH-AUDIT-PROMPT.md](docs/LINEAUTH-AUDIT-PROMPT.md) | Промпт аудита мода LineAuth по контракту |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Устройство, решения безопасности, roadmap      |
 | [LOGGING.md](docs/LOGGING.md)           | Логи лаунчера, диагностика, письмо в поддержку |
 | [MINECRAFT.md](docs/MINECRAFT.md)       | Режим Minecraft и его ограничения             |
@@ -218,9 +220,11 @@ Exchange endpoint и интеграция мода с сессией Minecraft �
 ветку и начинаются с явной пометки об этом: [AUDIT-2026-11.md](docs/AUDIT-2026-11.md)
 (аудит функций), [PLAN-0.12-0.15.md](docs/PLAN-0.12-0.15.md) (план обновления),
 [LAUNCHER-REFACTOR-RESEARCH.md](docs/LAUNCHER-REFACTOR-RESEARCH.md) (исследование
-исходного состояния), [SESSION-MODEL-A.md](docs/SESSION-MODEL-A.md) (спецификация
-сессии провайдера), [UI-AUDIT-ACTIONS.md](docs/UI-AUDIT-ACTIONS.md) (аудит действий).
+исходного состояния), [UI-AUDIT-ACTIONS.md](docs/UI-AUDIT-ACTIONS.md) (аудит действий).
 Текущие ограничения — всегда в VERIFICATION и INSTALLATION-AUDIT.
+
+SESSION-MODEL-A — **действующий** контракт для LineAuth, а не история: §12 в нём
+содержит сверку с кодом и список расхождений, которые надо закрыть до релиза мода.
 
 ## Данные на компьютере
 

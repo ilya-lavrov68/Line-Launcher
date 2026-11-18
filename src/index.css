@@ -125,12 +125,24 @@
    * cards, the dock, rows inside a pane — sits on this. */
   --glass-surface: rgba(10, 12, 16, 0.45);
   --glass-surface-strong: rgba(10, 12, 16, 0.6);
-  /* The sign-in card. It is the same kind of surface as the shell panes — the
-   * one large pane a screen is built around — so it follows their alpha, and the
-   * brief asked for it at half the density of the shared pane: 0.45 → 0.225.
-   * Separate from `--glass-surface` so the cards, dock and rows that sit *inside*
-   * a pane keep their weight; only the page-level plate thinned out. */
-  --glass-surface-gate: rgba(10, 12, 16, 0.225);
+  /* Frosted card: the surfaces that sit *inside* a pane — wardrobe history,
+   * profile details, the server detail blocks. Unlike the pane they sit on,
+   * these carry a lot of small text, so they need a floor a thin wash cannot
+   * give: a light frosted sheet plus a heavy blur, which is what "frost glass"
+   * means here. 0.30 keeps the field visible through it while the blur turns
+   * whatever is behind into a tone instead of a picture, so 12px mono text
+   * still has a stable ground. */
+  --glass-surface-frost: rgba(230, 233, 238, 0.3);
+  /* The sign-in card. Same kind of surface as the shell panes — the one large
+   * plate a screen is built around — so it is painted the same light grey, not
+   * the dark tint the cards inside a pane use. That was the miss the first time
+   * round: the plate was made translucent but stayed dark, while the brief said
+   * «светло-серая прозрачная».
+   *
+   * Two halvings from the original 0.45: 0.225, then half again → 0.1125. The
+   * grey needs a little more alpha than the shell's 0.065 to stay a *plate* on
+   * a screen that has no pane behind it to separate it from the backdrop. */
+  --glass-surface-gate: rgba(230, 233, 238, 0.1125);
   /* The two shell panes: a thin grey wash over the animated backdrop.
    *
    * The first attempt was a light sheet — `rgba(230,233,238,0.66)` — and it
@@ -335,12 +347,31 @@
      * instead of turning into a dark chip. */
   }
 
-  /* The sign-in gate's own plate: the pane a whole screen is built on. */
+  /* The sign-in gate's own plate: the pane a whole screen is built on. It is
+   * light, so it re-points the ink the same way the shell panes do — otherwise
+   * the form would be dark text on dark text. */
   [data-line-glass="gate"] {
     background: var(--glass-surface-gate);
     backdrop-filter: blur(40px) saturate(160%);
     -webkit-backdrop-filter: blur(40px) saturate(160%);
     scrollbar-gutter: stable;
+    --foreground: var(--glass-shell-ink);
+    --card-foreground: var(--glass-shell-ink);
+    --popover-foreground: var(--glass-shell-ink);
+    --muted-foreground: var(--glass-shell-ink-soft);
+    --secondary-foreground: var(--glass-shell-ink);
+    --accent-foreground: var(--glass-shell-ink);
+    --border: rgba(255, 255, 255, 0.16);
+    --input: rgba(255, 255, 255, 0.16);
+    --ring: rgba(255, 255, 255, 0.45);
+  }
+
+  /* A frosted card inside a pane. Heavy blur is the point: it turns the moving
+   * field behind the text into a flat tone. */
+  [data-line-glass="frost"] {
+    background: var(--glass-surface-frost);
+    backdrop-filter: blur(48px) saturate(180%);
+    -webkit-backdrop-filter: blur(48px) saturate(180%);
   }
 
   /* A floating surface (menu, dialog, preview popover): opaque on purpose.

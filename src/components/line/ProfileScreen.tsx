@@ -134,7 +134,10 @@ export default function ProfileScreen({
       )}
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_288px]">
-        <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
+        <div
+          data-line-glass="frost"
+          className="flex flex-col gap-4 rounded-[var(--radius-item)] p-4"
+        >
           <div className="flex items-start gap-3">
             <SectionIcon icon={UserRound} />
             <div className="flex min-w-0 flex-col gap-0.5">

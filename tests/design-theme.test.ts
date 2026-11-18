@@ -831,3 +831,36 @@ test("the skin placeholder cannot stretch the card around it", () => {
     "the placeholder must keep its accessible label for both states",
   );
 });
+
+test("every page-level plate is the same dark veil", () => {
+  // «Вуаль возвращается на ВСЕ главные панели, то есть ещё и main + sidebar».
+  // The rail, the page area and the sign-in plate are the same kind of surface
+  // — a whole screen is built on them — so they are one value, not two that
+  // drift apart. The failure mode this pins: the shell was left on a light
+  // `rgba(230,233,238,…)` wash while the gate became a dark veil, so the app
+  // had two different ideas of what a page plate is.
+  const css = read("src/index.css");
+  const shell =
+    /--glass-surface-shell:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(css);
+  const gate = /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(
+    css,
+  );
+  assert.ok(shell, "the shell panes must be the dark veil at 0.225");
+  assert.ok(gate, "the sign-in plate must be the same dark veil at 0.225");
+  assert.doesNotMatch(
+    css,
+    /--glass-surface-shell:\s*rgba\(230,/,
+    "the shell must not go back to the light sheet — it read as painted paper",
+  );
+  // The blank line between them is the only thing that can differ; assert the
+  // two declarations really are byte-identical, so a future edit to one cannot
+  // silently leave the other behind.
+  const shellValue = /--glass-surface-shell:\s*([^;]+);/.exec(css)?.[1];
+  const gateValue = /--glass-surface-gate:\s*([^;]+);/.exec(css)?.[1];
+  assert.ok(shellValue && gateValue, "both plate tokens must be declared");
+  assert.equal(
+    shellValue,
+    gateValue,
+    "the two page plates must share one value",
+  );
+});

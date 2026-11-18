@@ -130,38 +130,29 @@
    * half its density (0.45 → 0.225). A veil, not a sheet — the plate darkens
    * what is behind it and the light ink reads on the result. */
   --glass-surface-gate: rgba(10, 12, 16, 0.225);
-  /* The two shell panes: a thin grey wash over the animated backdrop.
+  /* The two shell panes — the rail and the page area — carry the same dark
+   * veil as the sign-in plate. One value, `rgba(10, 12, 16, 0.225)`, for
+   * every page-level plate in the app: the rail, the page area and the
+   * sign-in card are the same kind of surface, so they are painted the same
+   * way instead of one being a light wash and the other a dark veil.
    *
-   * The first attempt was a light sheet — `rgba(230,233,238,0.66)` — and it
-   * read as painted paper, not as glass. The reason is measurable: the
-   * backdrop under the pane is almost black (measured luminance 0.014–0.088
-   * across the whole page pane; the brightest pixel behind «Медный куст» is
-   * `#252426`). Against that, a light sheet at 0.66 composites to
-   * `rgb(164,166,171)` — brighter than anything else in the window, because
-   * the colour field itself only survives in the 6px gaps around the panes.
-   * The pane was not competing with the backdrop; it was the only lit surface.
+   * A veil, not a sheet. The pane darkens what is behind it, so the colour
+   * field still reads through, and the ink on it is light — the pairing the
+   * rest of the palette already uses on the `#08090c` canvas.
    *
-   * So the pane is painted *dark and thin* instead, the way tryliner's dark
-   * theme does it (`--bg-glass: rgba(70,70,70,0.2)`), and the colour field is
-   * allowed to be the brightest thing in the window again.
+   * Why not a light sheet, which this used to be: the backdrop under the pane
+   * is almost black (measured luminance 0.014–0.088 across the page pane), so
+   * a light wash composites brighter than everything else in the window and
+   * the pane stops being glass and becomes the only lit surface. The dark veil
+   * keeps the colour field the brightest thing in the window, which is what
+   * the design is built around.
    *
-   * Alpha and ink polarity are locked together: below 0.5 a dark ink cannot
-   * hold 4.5:1 on the composite (measured 3.47:1 at 0.45, 2.55:1 at 0.35), so
-   * the ink must flip to light.
-   *
-   * 0.13 was the thinnest value that still read as a surface: the copper came
-   * through it, yet the pane separated from the backdrop at the rounded edge.
-   * The brief then asked for half of that again, so the wash is 0.065 — the
-   * field is very nearly the whole surface now, and the pane is a slight lift
-   * in luminance plus the blur.
-   *
-   * Counter-intuitively, contrast gets *better* as the alpha drops: every bit
-   * of light grey paint lifts the composite towards the ink, so a thinner wash
-   * is a darker and friendlier ground for light text. Measured over the whole
-   * page pane, worst case across all twelve backdrops (`frost` in every case):
-   * 4.45:1 at 0.20, 5.16:1 at 0.13 — and dropping further only helps. The
-   * separation from the backdrop is what pays for it, not readability. */
-  --glass-surface-shell: rgba(230, 233, 238, 0.065);
+   * Density is deliberately the gate's, not the shared pane's 0.45: over a
+   * whole screen at 0.45 the field disappeared behind the plate. At 0.225 the
+   * plate is a clear surface at the rounded edge and the field still moves
+   * underneath it. Readability is not what pays for it — light ink on a darker
+   * composite reads *better* the more veil there is. */
+  --glass-surface-shell: rgba(10, 12, 16, 0.225);
   /* Light ink now, because the pane is a dark wash — the same pairing the rest
    * of the palette already uses for text on `#08090c`. */
   --glass-shell-ink: oklch(0.97 0.002 250);

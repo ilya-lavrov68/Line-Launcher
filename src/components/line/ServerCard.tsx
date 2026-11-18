@@ -83,6 +83,7 @@ export default function ServerCard({
         onClick={onClick}
         aria-label={t("servers.open", { name })}
         data-line-card
+        data-line-glass="frost"
         className={cn(
           // A tinted surface instead of a border. `fill-subtle` is one step above
           // the page, which is enough separation on a flat backdrop and gives the
@@ -94,7 +95,7 @@ export default function ServerCard({
           // The only hover signal: the surface gets visibly darker. With the
           // lift gone this has to carry the affordance by itself, so it is a
           // step stronger than before rather than a nudge nobody notices.
-          "hover:bg-fill-strong/85 bg-fill-subtle h-full w-full transition-colors duration-150",
+          "hover:bg-fill-strong/85 h-full w-full transition-colors duration-150",
           "flex-col items-stretch justify-start gap-3 overflow-hidden rounded-[var(--radius-item)] p-0",
           "text-left whitespace-normal hover:border-transparent",
         )}

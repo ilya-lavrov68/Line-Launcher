@@ -131,12 +131,22 @@ npm run demo:check        # демо-проект целиком по HTTPS, б�
 Браузерные проверки (нужен запущенный `npm run dev` в другом терминале):
 
 ```sh
-npx playwright-core install chromium
 npm run test:ui           # сквозной сценарий интерфейса
 npm run test:boot         # подключение при старте ровно один раз
 npm run screenshots       # обновить картинки для README (1280x800)
 npm run screenshots:offline  # приблизительные рисунки в .offline-shots/, не снимки
 ```
+
+Скачивать браузер не нужно: `scripts/lib/find-browser.mjs` берёт уже
+установленный Chrome, Edge или Chromium (на Windows первым делом Edge — он есть
+везде). Если браузер лежит не там, укажите путь явно:
+
+```sh
+CHROMIUM_PATH=/path/to/chrome npm run screenshots
+```
+
+`npx playwright-core install chromium` для этого не требуется и в средах без
+доступа к CDN Playwright просто не сработает.
 
 При изменении интерфейса, установки или поведения обновляйте связанные разделы
 README и `docs/` в том же PR. Исторические планы и результаты не являются

@@ -1,0 +1,201 @@
+# Команды проекта
+
+Полный список команд `npm run` разбит по смыслу: что вы хотите сделать, а не в
+каком файле это лежит. Всё, что запускается, запускается из корня репозитория.
+
+```
+npm install    →  один раз, после клонирования
+npm ci         →  то же, но строго по package-lock.json (как в CI)
+```
+
+## Быстрая карта
+
+| Хочу… | Команда |
+| --- | --- |
+| Увидеть интерфейс прямо сейчас | [`npm run dev`](#разработка-интерфейса) |
+| Запустить полное приложение | [`npm run tauri dev`](#полное-приложение-tauri) |
+| Проверить, что ничего не сломал | [`npm test`](#проверки-перед-коммитом) |
+| Собрать установщик | [`npm run tauri:build`](#сборка-релиза) |
+| Показать проект целиком, без Rust и JDK | [`npm run demo:check`](#демо-проект-без-rust-и-jdk) |
+| Понять, почему не собирается | [`npm run doctor`](#диагностика-окружения) |
+| Обновить картинки для README | [`npm run screenshots`](#скриншоты) |
+
+---
+
+## Разработка интерфейса
+
+Только фронтенд. Rust, Tauri и игровые функции недоступны — вместо них работает
+заглушка IPC, поэтому это самый быстрый способ смотреть вёрстку.
+
+| Команда | Что делает |
+| --- | --- |
+| `npm run dev` | Vite dev-сервер на `:5173` плюс генерация брендинга. Заглушка Tauri, демо-данные. |
+| `npm run build` | Production-сборка фронтенда. Запускает `version:check`, `brand`, `check` и `vite build`. |
+| `npm run preview` | Раздача уже собранного `dist/` для проверки прод-сборки. |
+| `npm run format` | Prettier по фронтенду и `cargo fmt` по Rust. |
+
+`npm run dev` печатает `[provider] config_url пуст`, пока в
+`branding/provider.json` не задан адрес провайдера, — это нормально для
+разработки: вместо реального входа появляется поле ссылки.
+
+## Полное приложение (Tauri)
+
+Десктопная оболочка: реальные окно, трей, запуск Minecraft. Нужен Rust.
+
+| Команда | Что делает |
+| --- | --- |
+| `npm run tauri dev` | Полное приложение в режиме разработки. Сначала проверяет окружение. |
+| `npm run tauri build` | Сборка бандла через CLI напрямую (без `version:check`/`brand`). |
+| `npm run tauri -- <args>` | Любая подкоманда Tauri CLI через обёртку. `icon` и `signer` работают без Rust. |
+| `npm run tauri:build` | **Основная сборка установщика**: `brand`, затем `scripts/tauri-build.mjs`. |
+
+Разница между `tauri build` и `tauri:build` важна: `tauri:build` сначала
+пересобирает брендинг и на Windows делает два прохода бандлинга (у MSI и NSIS
+разные требования к лицензии).
+
+## Сборка релиза
+
+| Команда | Что делает |
+| --- | --- |
+| `npm run tauri:build` | Установщики под текущую ОС. Полный отчёт — [BUILD.md](BUILD.md), [INSTALLER.md](INSTALLER.md). |
+| `npm run check:tauri` | CI-гейт: версии `tauri`-крейта и `@tauri-apps/api` совпадают по major.minor. |
+| `npm run icon:check` | Проверка иконки Windows: размеры и формат, которые ждёт установщик. |
+| `npm run pack:manifest` | `pack.json` для ZIP целой сборки Minecraft. Аргументы — см. ниже. |
+| `npm run version:sync` | Разложить одну версию по пяти файлам (`package.json`, `Cargo.toml`, …). С аргументом поднимает номер: `npm run version:sync 0.15.0`. |
+| `npm run version:check` | Проверить, что версии не разъехались. Вызывается из `build`. |
+
+`pack:manifest` принимает аргументы: `node scripts/pack-manifest.mjs pack.zip
+https://cdn.example.com/pack.zip [--version 1.21.1] [--out .provider/pack.json]`.
+
+## Проверки перед коммитом
+
+Быстрый набор, который стоит прогнать перед каждым PR.
+
+| Команда | Что проверяет | Нужно |
+| --- | --- | --- |
+| `npm test` | Контракт, брендинг, лицензия, логика игрока, дизайн-система, скриншоты. ~390 тестов. | Node 22+ |
+| `npm run check` | TypeScript (`tsc -b`). | Node 22+ |
+| `npm run build` | Версии, брендинг, типы и production-сборка. | Node 22+ |
+| `npm run brand` | Пересобрать брендинг из `branding/*.json` (экраны, иконки, лицензия). | Node 22+ |
+| `npm run brand:check` | Сгенерированный брендинг актуален (`apply-brand.ts --check`). | Node 22+ |
+| `npm run test:rust` | Чистая Rust-логика без crates.io: `rustc --test` по файлам без внешних зависимостей. | `rustc` |
+| `npm run prepare` | Ставит git-хуки lefthook. | Node 22+ |
+
+`npm test` — это `node --test` по `tests/*.test.ts`, без Jest и без сборки.
+Его не нужно запускать через `npm run test` — это одна и та же команда.
+
+### Проверки, которым нужен запущенный `npm run dev`
+
+Все они открывают настоящий браузер через `playwright-core`. Скачивать
+браузер не нужно: `scripts/lib/find-browser.mjs` берёт уже установленный
+Chrome, Edge или Chromium, а путь можно задать через `CHROMIUM_PATH`.
+
+| Команда | Что проверяет |
+| --- | --- |
+| `npm run test:ui` | Сквозной проход по всем экранам интерфейса. |
+| `npm run test:boot` | Подключение к провайдеру происходит ровно один раз при старте. |
+| `npm run test:dock` | Геометрия дока: появление прогресса не двигает кнопки. |
+| `npm run test:drag` | Перетаскивание серверов в секции. |
+
+## Скриншоты
+
+| Команда | Что делает | Куда пишет |
+| --- | --- | --- |
+| `npm run screenshots` | **Настоящие снимки** живых React-компонентов в браузере. Так собирается галерея README. | `docs/images/` |
+| `npm run screenshots:gallery` | Тот же офлайн-рендерер, но кросс-платформенный запуск: раскладывает результат в `docs/images/`. | `docs/images/` |
+| `npm run screenshots:offline` | Рисует экраны токенами на canvas без браузера. Приближение, не снимок. | `.offline-shots/` |
+
+Первые два требуют запущенного `npm run dev` (кроме `:offline`). Восемь файлов
+ровно **1280×800**; это проверяет `tests/screenshots.test.ts`, поэтому галерея не
+может «поехать» по высоте.
+
+Порядок правильный такой: `npm run screenshots` для README, а `:offline` —
+запасной вариант для машин без браузера. Офлайн-рендерер не является
+доказательством того, как выглядит приложение: он не умеет то, что умеет
+браузер.
+
+## Демо-проект без Rust и JDK
+
+Локальный провайдер и полный цикл по настоящему HTTPS. Нужны только Node 22+ и
+`openssl`.
+
+| Команда | Что делает |
+| --- | --- |
+| `npm run demo` | Провайдер + десктопное приложение одной командой (нужен Rust). |
+| `npm run demo:app` | Только приложение, к уже запущенному провайдеру. |
+| `npm run demo:check` | Сквозная самопроверка демо-проекта по HTTPS. JDK и Rust не нужны. |
+| `npm run demo:doctor` | Диагностика цепочки демо: что именно не работает и почему. |
+| `npm run demo:build` | Локальный релизный билд под запущенный провайдер. **Не давать игрокам.** |
+| `npm run demo:update` | Опубликовать вторую версию сборки, не перезапуская провайдер. |
+| `npm run provider:serve` | Только dev-провайдер из `examples/provider/`. |
+| `npm run provider:pack` | Собрать демо-сборки из `examples/`. Полному варианту нужен JDK. |
+
+`demo:build` включает dev-CA и предназначен только для проверки обновлений на
+своей машине.
+
+## Контракт провайдера
+
+Проверки протокола: Node играет роль лаунчера, Rust не участвует.
+
+| Команда | Что проверяет | Нужно |
+| --- | --- | --- |
+| `npm run test:provider` | Сквозной провайдер: пак, `config.json`, Java-клиент, обмен тикета. | Node, `openssl`; JDK для Java-части |
+| `npm run test:wardrobe` | Эндпоинты гардероба по реальному HTTPS. | Node, `openssl` |
+| `npm run test:java` | Настоящая JVM: `LineTicketClient.java` против одноразового провайдера. | JDK или `ECJ_JAR` |
+
+## Диагностика окружения
+
+| Команда | На что отвечает |
+| --- | --- |
+| `npm run doctor` | Может ли эта машина вообще собрать десктопное приложение: Rust, платформенные зависимости, Tauri. |
+| `npm run demo:doctor` | Почему не работает демо: сертификат, порты, конфиг провайдера. |
+| `npm run source:check-modrinth` | Read-only проверка источника Modrinth. Ничего не устанавливает и не меняет. |
+
+`doctor` возвращает код 1 только на блокерах. `tauri dev` без Rust падает с
+непонятным `cargo metadata ... program not found` — `doctor` печатает настоящую
+причину.
+
+---
+
+## Что от чего зависит
+
+```
+npm test ────────────► ничего, кроме Node 22+
+npm run check ───────► ничего
+npm run build ───────► version:check → brand → check → vite build
+npm run tauri:build ─► brand → Rust + Tauri CLI
+npm run screenshots ─► playwright-core + Chrome/Edge + npm run dev
+npm run test:ui ─────► playwright-core + Chrome/Edge + npm run dev
+npm run demo:check ──► Node 22+ и openssl
+npm run test:provider► Node 22+, openssl, JDK (для Java-части)
+```
+
+## Переменные окружения, которые действительно читаются
+
+| Переменная | Где | Зачем |
+| --- | --- | --- |
+| `CHROMIUM_PATH` | все браузерные скрипты | Путь к Chrome/Chromium, если автопоиск не нашёл. |
+| `BASE_URL` | `screenshots.mjs`, браузерные тесты | Другой адрес dev-сервера вместо `http://127.0.0.1:5173`. |
+| `SHOTS_DIR` | `render-screens.mjs` | Куда писать офлайн-рендер (по умолчанию `.offline-shots/`). |
+| `ECJ_JAR` | `test:java` | Eclipse-компилятор вместо `javac`. |
+| `LEFTHOOK=0` | любая git-команда | Переменная самого lefthook: пропустить хуки. Нужна, если `rustfmt` не установлен и коммит падает на форматировании. |
+
+## Частые ошибки
+
+| Симптом | Причина и решение |
+| --- | --- |
+| `error while loading shared libraries: libnss3.so` | Chromium без системных NSS. Поставьте зависимости Google Chrome или укажите рабочий `CHROMIUM_PATH`. |
+| `Failed to download Chrome for Testing` | Нет доступа к CDN Playwright. Браузер и так не нужно скачивать — скрипт найдёт установленный. |
+| `[provider] config_url пуст` | Нормально для `npm run dev`. Адрес задаётся в `branding/provider.json`. |
+| `npm audit` ругается | Проверяйте `npm audit --omit=dev`: инструменты сборки в бандл не попадают. |
+| `lefthook` падает на коммите | Нет `rustfmt` или хуки не установлены. `npm run prepare` или `LEFTHOOK=0 git commit`. |
+
+## Где читать дальше
+
+| Документ | О чём |
+| --- | --- |
+| [START.md](START.md) | Быстрый старт для игрока, провайдера и разработчика |
+| [BUILD.md](BUILD.md) | Сборка с нуля: программы, файлы, установщик |
+| [VERIFICATION.md](VERIFICATION.md) | Что проверено, чем и с какими ограничениями |
+| [RUNBOOK.md](RUNBOOK.md) | Подробные сценарии и ручные проверки |
+| [DEMO.md](DEMO.md) | Демо-режим целиком |

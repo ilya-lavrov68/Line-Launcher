@@ -7,10 +7,19 @@ components in headless Chromium at 1280×800 using `npm run screenshots`. The
 provider, Tauri commands, installed state and skin data are fixtures; the images
 are not evidence of a working Windows WebView, actual game launch or downloads.
 The obsolete connecting image was removed. Capture is staged so a failed run
-leaves the previous gallery intact if capture fails before publication; the offline token renderer writes only to
+leaves the previous gallery intact; the offline token renderer writes only to
 `.offline-shots/` and is not a source of screenshots.
 
-Local checks for this pass: 389 npm tests passed (1 skipped), TypeScript and
+**Panel surfaces.** The two shell panes (`[data-line-glass="main"|"sidebar"]`)
+are a thin grey wash, `rgba(230,233,238,0.13)`, with light ink — not the light
+sheet the first iteration used. Measured on the real screenshot with the copper
+backdrop: primary text **7.06:1**, quiet text **6.28:1** at the brightest point
+of the pane. Worst case across all twelve backdrops (`frost`) is **5.16:1** and
+**4.58:1**. Raised surfaces (menus, dialogs, popovers) stay opaque. These are
+rendering measurements of the reference components with fixtures, not a
+Windows WebView check.
+
+Local checks for this pass: 390 npm tests passed (1 skipped), TypeScript and
 frontend build passed, and the dependency-free Rust subset passed 89 tests.
 Chromium UI smoke passed after correcting a test fixture that held a second
 mock installation indefinitely; boot, card drag and dock smoke passed as well.
@@ -285,9 +294,10 @@ Checked in the implementation sandbox:
   from the interface. Captured after this change: the single account screen, the
   server list unlocked by it, and the wardrobe with a sync status instead of a
   send button. 0 page errors.
-- Screenshot geometry is now an invariant, not a habit. All six README images
-  were captured at whatever height the screen needed (480, 860, 1000, 1060), so
-  the gallery mixed tall and short pictures. `scripts/screenshots.mjs` takes one
+- Screenshot geometry is now an invariant, not a habit. At the time of this
+  pass all six README images then in existence were captured at whatever height
+  the screen needed (480, 860, 1000, 1060), so the gallery mixed tall and short
+  pictures. (The gallery has since grown to eight images; the rule is the same.) `scripts/screenshots.mjs` takes one
   fixed viewport for every shot and throws if the viewport drifts,
   `scripts/render-screens.mjs` draws the same six screens at the same size, and
   `tests/screenshots.test.ts` reads each PNG's IHDR and fails unless it is exactly

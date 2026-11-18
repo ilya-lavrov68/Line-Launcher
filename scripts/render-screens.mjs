@@ -200,14 +200,15 @@ export function loadTokens() {
     background: color("--background"),
     // `--line-canvas` is `#08090c`: one flat value under the backdrop.
     canvas: color("--line-canvas"),
-    // Everything the renderer draws with the *default* ink lands on the light
-    // shell pane (the rail, the page area, cards inside them), because the
-    // shell is where the content is. So the defaults are the shell inks; the
-    // strips that sit directly on the dark field (title bar, footer, sign-in
-    // captions) ask for `canvasInk` explicitly.
-    foreground: parseColor(resolve("--glass-shell-ink")) ?? [33, 33, 36, 1],
+    // Everything the renderer draws with the *default* ink lands on the shell
+    // pane (the rail, the page area, cards inside them), because the shell is
+    // where the content is. The shell is a thin dark wash, so its ink is
+    // light — the same way the rest of the palette paints on `#08090c`. The
+    // strips that sit directly on the field (title bar, footer) ask for
+    // `canvasInk` explicitly.
+    foreground: parseColor(resolve("--glass-shell-ink")) ?? [244, 245, 246, 1],
     mutedForeground:
-      parseColor(resolve("--glass-shell-ink-soft")) ?? [97, 100, 107, 1],
+      parseColor(resolve("--glass-shell-ink-soft")) ?? [230, 232, 234, 1],
     primary: color("--primary"),
     primaryForeground: color("--primary-foreground"),
     border: color("--border"),
@@ -216,13 +217,13 @@ export function loadTokens() {
     fillSubtle: color("--fill-subtle"),
     fillHover: color("--fill-hover"),
     // Two panes, because the design has two: `--glass-surface` is the dark
-    // tint everything nested sits on, `--glass-surface-shell` is the light grey
-    // frosted sheet of the rail and the page area. The shell one is read with
+    // tint everything nested sits on, `--glass-surface-shell` is the thin grey
+    // wash of the rail and the page area. The shell one is read with
     // an explicit fallback — a missing token used to give `parseColor("")` →
     // white, so every panel rendered as a white board while the CSS was right.
     surfaceGlass: color("--glass-surface"),
     surfaceShellGlass:
-      parseColor(resolve("--glass-surface-shell")) ?? [228, 230, 234, 0.62],
+      parseColor(resolve("--glass-surface-shell")) ?? [230, 233, 238, 0.13],
     online: color("--line-online"),
     update: color("--line-update"),
     offline: color("--line-offline"),
@@ -231,17 +232,18 @@ export function loadTokens() {
     // Light ink for the strips that sit on the dark canvas, not on frost.
     canvasInk,
     canvasInkSoft,
-    // Dark ink for everything painted *on* the light shell pane. The shell sets
+    // Ink for everything painted *on* the shell pane. The shell sets
     // `--foreground` from `--glass-shell-ink` (see the rule in index.css), so
-    // the renderer reads the same token the app does.
-    shellInk: parseColor(resolve("--glass-shell-ink")) ?? [33, 33, 36, 1],
-    shellInkSoft: parseColor(resolve("--glass-shell-ink-soft")) ?? [97, 100, 107, 1],
+    // the renderer reads the same token the app does; the fallbacks match the
+    // dark wash rather than the light sheet this used to assume.
+    shellInk: parseColor(resolve("--glass-shell-ink")) ?? [244, 245, 246, 1],
+    shellInkSoft: parseColor(resolve("--glass-shell-ink-soft")) ?? [230, 232, 234, 1],
     shellOnline:
-      parseColor(resolve("--glass-shell-online")) ?? [42, 110, 78, 1],
+      parseColor(resolve("--glass-shell-online")) ?? [97, 208, 138, 1],
     shellUpdate:
-      parseColor(resolve("--glass-shell-update")) ?? [122, 90, 34, 1],
+      parseColor(resolve("--glass-shell-update")) ?? [232, 190, 94, 1],
     shellError:
-      parseColor(resolve("--glass-shell-error")) ?? [150, 55, 55, 1],
+      parseColor(resolve("--glass-shell-error")) ?? [232, 116, 116, 1],
     popover: color("--popover"),
   };
 }
@@ -710,10 +712,11 @@ function sideNav(ctx, top, height, active, { providerName, username } = {}) {
   NAV.forEach((item, index) => {
     const y = top + 52 + index * 36;
     const isActive = active === item.id;
-    // On the light shell pane the ink is dark: `--glass-shell-ink`. The rail is
-    // inside `[data-line-glass="sidebar"]`, which re-points `--foreground` to
-    // exactly this value in the app.
-    if (isActive) fillRound(ctx, 8, y, w - 16, 32, 8, "rgba(0,0,0,0.07)");
+    // The rail is inside `[data-line-glass="sidebar"]`, which re-points
+    // `--foreground` to `--glass-shell-ink` in the app; read the same token.
+    // The active pill is a *lift* of the fill ladder, not a shadow: on a dark
+    // wash a black 7% pill is invisible, which is what the old value drew.
+    if (isActive) fillRound(ctx, 8, y, w - 16, 32, 8, "rgba(255,255,255,0.08)");
     icon(
       ctx,
       item.icon,
@@ -822,24 +825,25 @@ function appFooter(ctx, top, height) {
  * not ship.
  */
 function glass(ctx, x, y, w, h, radius = 18) {
-  // A card inside the light shell pane. The dark tint (`--glass-surface`) is
-  // for panes sitting straight on the backdrop; inside the shell the card is a
-  // slightly denser *light* sheet, or the dark tint would punch a hole in the
-  // pane and the ink on it would disappear.
-  fillRound(ctx, x, y, w, h, radius, "rgba(255,255,255,0.55)");
+  // A card inside the shell pane. The pane is already a thin dark wash, so the
+  // card only needs the fill ladder step above it — the same `--fill-subtle`
+  // the app paints (`rgba(255,255,255,0.045)`). A light sheet here (the old
+  // `rgba(255,255,255,0.55)`) drew cards brighter than the pane they sit on,
+  // which is the one thing a translucent pane must not do: it re-creates the
+  // white board the dark shell was adopted to remove.
+  fillRound(ctx, x, y, w, h, radius, "rgba(255,255,255,0.045)");
 }
 
 /**
  * The two structural sheets of the shell — the navigation rail and the main
  * pane. Both are `[data-line-glass]` elements in the app, so they paint the
- * white frost over the canvas. The renderer used to leave the canvas bare, and
- * every card floated on black. Painted before the rail, so the rail's ink lands
- * on the frost rather than under it.
+ * thin grey wash over the canvas. Painted before the rail, so the rail's ink
+ * lands on the wash rather than under it.
  */
 function shellGlass(ctx, top, footerH, navW) {
   const height = SHOT_HEIGHT - top - footerH - 6;
-  // The two shell panes are light grey frosted glass over the field; cards
-  // and controls inside them keep the dark pane (`glass()`).
+  // Both shell panes are the same thin wash; the field stays visible through
+  // them and the cards inside are a single step above (`glass()`).
   fillRound(ctx, 6, top + 6, navW - 6, height, 12, rgba(T.surfaceShellGlass));
   fillRound(
     ctx,

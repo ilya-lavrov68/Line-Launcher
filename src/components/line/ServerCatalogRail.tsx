@@ -54,7 +54,11 @@ export function ServerCatalogRail({
             data-line-glass
             role="region"
             aria-label={t("servers.rail")}
-            className="flex items-center gap-3 p-3"
+            /* The strip sits above the grid of cards, so it has to share their
+               corner radius. Without it the pane was the only 90° rectangle in
+               a screen of rounded surfaces — it read as a leftover from a
+               layout that had no glass at all. */
+            className="flex items-center gap-3 rounded-[var(--radius-item)] p-3"
           >
             <div
               data-line-icon

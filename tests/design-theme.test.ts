@@ -712,3 +712,75 @@ test("panes are a darkening tint over the moving backdrop", () => {
     /data-line-glass="sidebar"/,
   );
 });
+
+test("the page cannot shift sideways when a screen starts overflowing", () => {
+  // Measured defect: the page pane scrolled its own content, so a screen taller
+  // than the pane (settings) and one shorter than it (server catalogue) had
+  // different content widths — the whole column stepped 6px sideways every time
+  // the player moved between them, because the scrollbar gutter only existed
+  // while a scrollbar did.
+  //
+  // The fix has two halves and both are needed: the gutter is reserved on every
+  // scrolling shell pane, and the thumb is not drawn at rest, so reserving it
+  // costs nothing visually.
+  const css = read("src/index.css");
+  assert.match(
+    css,
+    /\[data-line-glass="main"\],\s*\n\s*\[data-line-glass="sidebar"\]\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/,
+    "both shell panes must reserve the scrollbar gutter",
+  );
+
+  // Rest state: the pill is invisible. Without this the reserved gutter would
+  // paint a thumb on every screen, including the ones that do not scroll.
+  const thumbRule = /::-webkit-scrollbar-thumb\s*\{([\s\S]*?)\n  \}/.exec(css);
+  assert.ok(thumbRule, "the thumb rule must exist");
+  assert.match(
+    thumbRule[1],
+    /background-color:\s*transparent;/,
+    "the thumb must be invisible at rest",
+  );
+  // ...and it comes back on interaction, or a long page has no visible affordance.
+  assert.match(css, /:hover::-webkit-scrollbar-thumb\s*\{/);
+  assert.match(css, /:focus-within::-webkit-scrollbar-thumb\s*\{/);
+
+  // The sign-in gate is a screen of its own and needs the same reservation.
+  assert.match(
+    read("src/components/line/SignInScreen.tsx"),
+    /scrollbarGutter:\s*"stable"/,
+  );
+});
+
+test("the catalogue rail shares the cards' corner radius", () => {
+  // Measured defect: the strip above the grid was the only 90° rectangle on a
+  // screen built from 12px surfaces. It reads as a leftover, not as a pane.
+  const rail = read("src/components/line/ServerCatalogRail.tsx");
+  const section = rail.slice(
+    rail.indexOf("data-line-glass"),
+    rail.indexOf("</section>"),
+  );
+  assert.match(
+    section,
+    /rounded-\[var\(--radius-item\)\]/,
+    "the rail must use the item radius, like the cards below it",
+  );
+});
+
+test("the sign-in plate is half the density of the shared pane", () => {
+  // The brief: «главная плитка должна быть такая же» on the sign-in screen —
+  // the gate card is a page-level plate, not a card inside a pane.
+  const css = read("src/index.css");
+  const shared = /--glass-surface:\s*rgba\(10,\s*12,\s*16,\s*0\.45\)/.exec(css);
+  const gate = /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(css);
+  assert.ok(shared, "--glass-surface must stay the shared pane value");
+  assert.ok(gate, "the gate plate must be half the shared pane: 0.45 → 0.225");
+  assert.match(
+    css,
+    /\[data-line-glass="gate"\]\s*\{[\s\S]*?background:\s*var\(--glass-surface-gate\)/,
+    "the gate attribute must paint the gate plate",
+  );
+  assert.match(
+    read("src/components/line/SignInScreen.tsx"),
+    /data-line-glass="gate"/,
+    "the sign-in card must opt into the gate plate",
+  );
+});

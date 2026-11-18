@@ -75,7 +75,13 @@ export default function SignInScreen({
         <TitleBar />
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-6">
+      {/* `scrollbar-gutter: stable` matches the shell's panes: the gate is a
+          different screen from the launcher, and a short error banner must not
+          move the card sideways relative to a taller one. */}
+      <div
+        className="relative z-10 flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-6"
+        style={{ scrollbarGutter: "stable" }}
+      >
         <m.div
           initial={reduced ? false : { opacity: 0, y: 14 }}
           animate={{ opacity: entered ? 1 : 0, y: entered ? 0 : 14 }}
@@ -92,8 +98,11 @@ export default function SignInScreen({
               ` ${t("signin.serverCount", { count: serverCount })}`}
           </p>
 
+          {/* `gate`, not the shared `data-line-glass`: this card is the one
+              pane the whole screen is built around, so it follows the shell
+              panes' density rather than the cards-inside-a-pane one. */}
           <div
-            data-line-glass
+            data-line-glass="gate"
             className="flex w-full flex-col gap-4 rounded-[var(--radius-panel)] p-6"
           >
             <AuthForm

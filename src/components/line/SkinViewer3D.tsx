@@ -192,9 +192,8 @@ export default function SkinViewer3D({
 
   return (
     <div
-      data-line-glass="frost"
       className={cn(
-        "relative overflow-hidden rounded-[var(--radius-item)]",
+        "bg-fill-subtle relative overflow-hidden rounded-[var(--radius-item)]",
         "bg-[radial-gradient(120%_100%_at_50%_0%,rgba(255,255,255,0.09),transparent_70%)]",
         className,
       )}

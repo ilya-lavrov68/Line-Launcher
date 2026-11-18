@@ -11,13 +11,12 @@ leaves the previous gallery intact; the offline token renderer writes only to
 `.offline-shots/` and is not a source of screenshots.
 
 **Panel surfaces.** The two shell panes (`[data-line-glass="main"|"sidebar"]`)
-are a thin grey wash, `rgba(230,233,238,0.13)`, with light ink — not the light
-sheet the first iteration used. Measured on the real screenshot with the copper
-backdrop: primary text **7.06:1**, quiet text **6.28:1** at the brightest point
-of the pane. Worst case across all twelve backdrops (`frost`) is **5.16:1** and
-**4.58:1**. Raised surfaces (menus, dialogs, popovers) stay opaque. These are
-rendering measurements of the reference components with fixtures, not a
-Windows WebView check.
+and the sign-in plate are the same dark veil, `rgba(10,12,16,0.225)`, with light
+ink. Measured on the real wardrobe screenshot with the copper backdrop, at the
+brightest point of the pane (composite `rgb(61,68,77)`): primary text
+**9.02:1**, quiet text **8.02:1**. Raised surfaces (menus, dialogs, popovers)
+stay opaque. These are rendering measurements of the reference components with
+fixtures, not a Windows WebView check.
 
 Local checks for this pass: 390 npm tests passed (1 skipped), TypeScript and
 frontend build passed, and the dependency-free Rust subset passed 89 tests.

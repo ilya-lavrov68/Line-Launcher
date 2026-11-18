@@ -765,16 +765,15 @@ test("the catalogue rail shares the cards' corner radius", () => {
   );
 });
 
-test("the sign-in plate is light grey and half as dense again", () => {
-  // Two briefs landed on this plate in a row. The first asked for a plate half
-  // the density of the shared pane — granted, but painted with the dark tint,
-  // so the card was translucent yet still a dark veil. The second brief was
-  // explicit that it must be «светло-серая прозрачная»: light grey like the
-  // shell panes, and then twice as transparent again. Transparency and
-  // lightness are two separate requirements here, not one.
+test("the sign-in plate is half the density of the shared pane", () => {
+  // The brief: «главная плитка должна быть такая же» on the sign-in screen — the
+  // gate card is a page-level plate, not a card inside a pane, so it is the
+  // shared tint at half the density rather than a second surface.
   //
-  // The values: shared pane 0.45 → half 0.225 → half again 0.1125, now in the
-  // light grey the shell panes use, not the dark `rgba(10, 12, 16, …)` tint.
+  // A later round painted it light grey and twice as transparent; that round was
+  // reverted in full, and this test pins the shape it was reverted to. The dark
+  // veil is the point: the plate darkens what is behind it, so the root ink
+  // reads on it without any per-subtree palette.
   const css = read("src/index.css");
   assert.match(
     css,
@@ -783,13 +782,13 @@ test("the sign-in plate is light grey and half as dense again", () => {
   );
   assert.match(
     css,
-    /--glass-surface-gate:\s*rgba\(230,\s*233,\s*238,\s*0\.1125\)/,
-    "the gate plate must be the light grey pane grey at 0.1125 (0.45 ÷ 2 ÷ 2)",
+    /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/,
+    "the gate plate must be half the shared pane: 0.45 → 0.225",
   );
   assert.doesNotMatch(
     css,
-    /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16/,
-    "the gate plate must not fall back to the dark card tint — it read as a veil",
+    /--glass-surface-gate:\s*rgba\(230,\s*233,\s*238/,
+    "the gate plate is a dark veil, not a light sheet — that version was reverted",
   );
   assert.match(
     css,
@@ -800,66 +799,6 @@ test("the sign-in plate is light grey and half as dense again", () => {
     read("src/components/line/SignInScreen.tsx"),
     /data-line-glass="gate"/,
     "the sign-in card must opt into the gate plate",
-  );
-});
-
-test("a light gate plate re-points its ink like the shell panes do", () => {
-  // A light plate under dark ink is unreadable; painting the surface without
-  // flipping the text was the actual bug in the first attempt. The gate block
-  // has to carry the same ink overrides the shell panes carry.
-  const css = read("src/index.css");
-  const gate = /\[data-line-glass="gate"\]\s*\{([\s\S]*?)\n  \}/.exec(css);
-  assert.ok(gate, "there must be a gate rule");
-  for (const token of [
-    "--foreground",
-    "--card-foreground",
-    "--muted-foreground",
-    "--secondary-foreground",
-    "--border",
-    "--input",
-  ]) {
-    assert.match(
-      gate[1],
-      new RegExp(`${token}:\\s*var\\(|${token}:\\s*rgba\\(`),
-      `the gate plate must re-point ${token}, or the form is dark-on-light`,
-    );
-  }
-});
-
-test("cards inside a pane are frosted, not just washed over", () => {
-  // The brief: «у всех этих карточек на страницах фон должен быть с сильным
-  // блюром, frost glass примерно». A translucent fill over a moving backdrop
-  // leaves small text wobbling; the blur is what makes the tone stable.
-  const css = read("src/index.css");
-  assert.match(
-    css,
-    /--glass-surface-frost:\s*rgba\(230,\s*233,\s*238,\s*0\.3\)/,
-    "the frost surface must be a light sheet at 0.3, not the pane tint",
-  );
-  const frost = /\[data-line-glass="frost"\]\s*\{([\s\S]*?)\n  \}/.exec(css);
-  assert.ok(frost, "there must be a frost rule");
-  // `background-color`, not the `background` shorthand: the 3D viewer paints a
-  // radial gradient as its background image, and the shorthand wiped it out.
-  assert.match(
-    frost[1],
-    /background-color:\s*var\(--glass-surface-frost\)/,
-    "the frost rule must paint the frost surface",
-  );
-  const blur = /backdrop-filter:\s*blur\((\d+)px\)/.exec(frost[1]);
-  assert.ok(blur, "the frost rule must set a backdrop blur at all");
-  assert.ok(
-    Number(blur[1]) >= 24,
-    `frost means a heavy blur; ${blur[1]}px is a wash, not frost`,
-  );
-  assert.match(
-    frost[1],
-    /-webkit-backdrop-filter:/,
-    "the frost rule needs the WebKit-prefixed duplicate for the Tauri webview",
-  );
-  assert.match(
-    read("src/components/line/WardrobeScreen.tsx"),
-    /data-line-glass="frost"/,
-    "the wardrobe cards must opt into the frost surface",
   );
 });
 
@@ -893,40 +832,63 @@ test("the skin placeholder cannot stretch the card around it", () => {
   );
 });
 
-test("every card on a page is frosted, not only the ones with a lot of text", () => {
-  // The brief was «все карточки на main плитке», and the first attempt frosted
-  // only the four cards a human happened to name. A card with one button on it
-  // is still a card. This test names the page surfaces one by one so a new page
-  // cannot quietly ship with a plain `fill-subtle` box: the failure message says
-  // which surface lost its frost.
-  //
-  // Not cards, and deliberately excluded: inputs and labels (a frosted input
-  // under a frosted card is glass in glass), the banner image box on the server
-  // page (artwork, not a surface), the app icon tile, and dialogs — those are
-  // `raised` and must stay opaque.
-  const expected: Record<string, string> = {
-    "src/components/line/ServerCard.tsx": "a server card in the catalogue",
-    "src/components/line/Skeleton.tsx": "the loading server card",
-    "src/components/line/ServerDetail.tsx": "the pack-check card",
-    "src/components/line/SkinViewer3D.tsx": "the 3D skin viewer",
-    "src/components/line/WardrobeScreen.tsx": "the wardrobe card",
-    "src/components/line/ProfileScreen.tsx": "the profile details card",
-  };
-  for (const [file, what] of Object.entries(expected)) {
-    assert.match(
-      read(file),
-      /data-line-glass="frost"/,
-      `${what} lost its frost`,
-    );
-  }
-  assert.match(
-    read("src/components/line/WardrobeScreen.tsx"),
-    /data-line-glass="frost"[\s\S]{0,200}data-line-glass-tint/,
-    "the active skin tile must keep its accent fill and only take the blur",
+test("every page-level plate is the same dark veil", () => {
+  // «Вуаль возвращается на ВСЕ главные панели, то есть ещё и main + sidebar».
+  // The rail, the page area and the sign-in plate are the same kind of surface
+  // — a whole screen is built on them — so they are one value, not two that
+  // drift apart. The failure mode this pins: the shell was left on a light
+  // `rgba(230,233,238,…)` wash while the gate became a dark veil, so the app
+  // had two different ideas of what a page plate is.
+  const css = read("src/index.css");
+  const shell =
+    /--glass-surface-shell:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(css);
+  const gate = /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(
+    css,
   );
-  assert.match(
-    indexCss,
-    /\[data-line-glass="frost"\]\[data-line-glass-tint\]/,
-    "there must be a rule for a frost card that brings its own tint",
+  assert.ok(shell, "the shell panes must be the dark veil at 0.225");
+  assert.ok(gate, "the sign-in plate must be the same dark veil at 0.225");
+  assert.doesNotMatch(
+    css,
+    /--glass-surface-shell:\s*rgba\(230,/,
+    "the shell must not go back to the light sheet — it read as painted paper",
+  );
+  // The blank line between them is the only thing that can differ; assert the
+  // two declarations really are byte-identical, so a future edit to one cannot
+  // silently leave the other behind.
+  const shellValue = /--glass-surface-shell:\s*([^;]+);/.exec(css)?.[1];
+  const gateValue = /--glass-surface-gate:\s*([^;]+);/.exec(css)?.[1];
+  assert.ok(shellValue && gateValue, "both plate tokens must be declared");
+  assert.equal(
+    shellValue,
+    gateValue,
+    "the two page plates must share one value",
+  );
+});
+
+test("the rail does not repeat the provider name", () => {
+  // «Вот эту надпись ещё надо убрать, она там только мешает» — the small
+  // provider label under the logo in the sidebar. It is not hidden by CSS: the
+  // label is gone from the component and the prop with it, so no page can bring
+  // it back without failing here. The name still has its proper homes — the
+  // page title on the catalogue and the window title — so nothing is lost.
+  const nav = read("src/components/line/SideNav.tsx");
+  assert.doesNotMatch(
+    nav,
+    /providerName/,
+    "the rail must not take a provider name at all — it only had it for the label",
+  );
+  assert.doesNotMatch(
+    nav,
+    /title=\{providerName\}/,
+    "the rail must not render the provider name as a tooltip either",
+  );
+  // The label sat between the logo and the first nav item; assert the rail now
+  // starts with the list by checking no element is rendered before `items.map`.
+  const body = nav.slice(nav.indexOf("overflow-y-auto p-2"));
+  const firstChild = body.slice(0, body.indexOf("items.map"));
+  assert.doesNotMatch(
+    firstChild,
+    /<p |<span /,
+    "nothing may be rendered above the nav items — that slot held the label",
   );
 });

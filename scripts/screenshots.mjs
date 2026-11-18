@@ -426,50 +426,6 @@ await page.addInitScript(
   { config, skins, installed, configured, software: SOFTWARE_RENDERER.source },
 );
 
-/**
- * `AUDIT_CARDS=1 npm run screenshots` pauses before each capture to print every
- * card-like box inside the main pane and the surface it is painted with. Used to
- * answer «which cards are still just transparent» from facts, not from memory —
- * a screenshot shows a card but not whether its blur came from a rule or luck.
- * Off by default: the gallery must not change because of a diagnostic.
- */
-const AUDIT_CARDS = process.env.AUDIT_CARDS === "1";
-
-async function auditCards(name) {
-  if (!AUDIT_CARDS) return;
-  const cards = await page.evaluate(() => {
-    const main = document.querySelector('[data-line-glass="main"]');
-    if (!main) return [];
-    const out = [];
-    for (const el of main.querySelectorAll("*")) {
-      const s = getComputedStyle(el);
-      const bg = s.backgroundColor;
-      if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") continue;
-      const radius = parseFloat(s.borderTopLeftRadius) || 0;
-      const rect = el.getBoundingClientRect();
-      if (radius < 6 || rect.width < 80 || rect.height < 40) continue;
-      out.push({
-        glass: el.dataset.lineGlass ?? "-",
-        bg,
-        blur: (s.backdropFilter || s.webkitBackdropFilter || "none").replace(
-          /\s+/g,
-          " ",
-        ),
-        radius: Math.round(radius),
-        size: `${Math.round(rect.width)}×${Math.round(rect.height)}`,
-        text: (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 40),
-      });
-    }
-    return out;
-  });
-  console.log(`\n--- cards in main pane: ${name} ---`);
-  for (const c of cards) {
-    console.log(
-      `${(c.blur === "none" ? "NO-BLUR" : "blur").padEnd(8)} r${String(c.radius).padEnd(3)} ${c.size.padEnd(10)} ${c.bg.padEnd(26)} glass=${c.glass.padEnd(7)} ${c.blur.padEnd(20)} «${c.text}»`,
-    );
-  }
-}
-
 async function shot(name) {
   // Every screenshot is the same viewport, so the gallery has one aspect ratio.
   // Content taller than 800px is what the app itself scrolls; capturing the
@@ -478,7 +434,6 @@ async function shot(name) {
   // Obsy's animated background never settles; freeze it for a stable image.
   await page.mouse.move(SHOT_WIDTH - 10, SHOT_HEIGHT - 10);
   await page.waitForTimeout(350);
-  await auditCards(name);
   const file = path.join(staging, `line-${name}.png`);
   await page.screenshot({ path: file, animations: "disabled" });
   const size = await page.evaluate(() => [

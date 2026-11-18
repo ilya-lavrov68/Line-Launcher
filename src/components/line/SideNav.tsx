@@ -25,7 +25,6 @@ export type LineSection = "servers" | "wardrobe" | "account" | "settings";
 export interface SideNavProps {
   section: LineSection;
   collapsed: boolean;
-  providerName?: string;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
   onChangeProvider: () => void;
@@ -56,7 +55,6 @@ interface NavItem {
 export default function SideNav({
   section,
   collapsed,
-  providerName,
   onNavigate,
   onToggleCollapsed,
   onChangeProvider,
@@ -94,16 +92,10 @@ export default function SideNav({
     >
       {/* No mark here: the logo and the product name are one lockup in the
           title bar, and a second copy three pixels below it read as a mistake.
-          The rail starts with the provider name and the sections. */}
+          The rail is icon-and-label only — the provider's name is already the
+          page title on the screen it belongs to (and the window title), so a
+          third copy in the rail was one label of a long name too many. */}
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
-        {!collapsed && providerName && (
-          <p
-            className="text-muted-foreground truncate px-2.5 pt-1.5 pb-2 text-xs"
-            title={providerName}
-          >
-            {providerName}
-          </p>
-        )}
         {items.map((item) => {
           const active = section === item.id;
           const Icon = item.icon;

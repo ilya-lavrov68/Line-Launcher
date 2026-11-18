@@ -83,7 +83,6 @@ export default function ServerCard({
         onClick={onClick}
         aria-label={t("servers.open", { name })}
         data-line-card
-        data-line-glass="frost"
         className={cn(
           // A tinted surface instead of a border. `fill-subtle` is one step above
           // the page, which is enough separation on a flat backdrop and gives the
@@ -112,8 +111,8 @@ export default function ServerCard({
             />
             {/* The state chip floats on the artwork: it is the one place on the
                 card where a readable label beats another row of text. It keeps
-                its own dark scrim — the card *under* it is frosted white, and a
-                white chip on a white sheet would disappear into the card. */}
+                its own dark scrim so the label stays legible whatever the
+                banner behind it happens to be. */}
             {state && (
               <span className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[12px] font-medium text-white backdrop-blur-sm">
                 {state.tone === "busy" ? (

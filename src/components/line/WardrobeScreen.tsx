@@ -375,10 +375,7 @@ export default function WardrobeScreen({
         )}
       </div>
 
-      <div
-        data-line-glass="frost"
-        className="flex flex-col gap-4 rounded-[var(--radius-item)] p-4"
-      >
+      <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-foreground text-sm font-semibold">
             {t("wardrobe.add")}
@@ -513,10 +510,7 @@ export default function WardrobeScreen({
         </div>
       </div>
 
-      <div
-        data-line-glass="frost"
-        className="flex flex-col gap-4 rounded-[var(--radius-item)] p-4"
-      >
+      <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
         <div className="flex items-start gap-3">
           <SectionIcon icon={History} />
           <div className="flex min-w-0 flex-col gap-0.5">
@@ -574,14 +568,10 @@ export default function WardrobeScreen({
               return (
                 <li
                   key={skin.id}
-                  data-line-glass="frost"
-                  /* The active tile carries its own accent fill: it needs the
-                     blur to match its neighbours, but not the frost sheet. */
-                  {...(isActive ? { "data-line-glass-tint": "" } : {})}
                   className={
                     isActive
                       ? "bg-primary/10 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
-                      : "flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
+                      : "bg-fill/60 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
                   }
                 >
                   <div className="flex items-center gap-2">
@@ -633,10 +623,7 @@ export default function WardrobeScreen({
         )}
       </div>
 
-      <div
-        data-line-glass="frost"
-        className="flex items-start gap-3 rounded-[var(--radius-item)] p-4"
-      >
+      <div className="bg-fill-subtle flex items-start gap-3 rounded-[var(--radius-item)] p-4">
         <SectionIcon icon={Shirt} />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-foreground text-sm font-semibold">

@@ -396,10 +396,7 @@ export function PackCheckPanel({
   const suspicious = (result?.findings.length ?? 0) > 0;
 
   return (
-    <div
-      data-line-glass="frost"
-      className="flex flex-col gap-2 rounded-[var(--radius-item)] p-3"
-    >
+    <div className="bg-fill-subtle flex flex-col gap-2 rounded-[var(--radius-item)] p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"

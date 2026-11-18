@@ -51,9 +51,8 @@ export function SkeletonServerCard({ className }: { className?: string }) {
   return (
     <div
       aria-hidden="true"
-      data-line-glass="frost"
       className={cn(
-        "flex flex-col gap-3 rounded-[var(--radius-item)] p-0",
+        "bg-fill-subtle flex flex-col gap-3 rounded-[var(--radius-item)] p-0",
         className,
       )}
     >

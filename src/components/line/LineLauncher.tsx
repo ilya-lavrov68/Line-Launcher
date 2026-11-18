@@ -923,7 +923,6 @@ export default function LineLauncher() {
                 <SideNav
                   section={section}
                   collapsed={settings?.settings.sidebarCollapsed ?? true}
-                  providerName={snapshot?.config.provider.name}
                   actionsDisabled={actionsBusy || loading || !session}
                   navigationDisabled={!session}
                   onNavigate={navigate}

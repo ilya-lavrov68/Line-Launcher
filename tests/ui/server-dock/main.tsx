@@ -93,7 +93,6 @@ function App() {
           <SideNav
             section="servers"
             collapsed
-            providerName="Provider"
             navigationDisabled={busy}
             actionsDisabled={busy}
             onNavigate={() => {}}
@@ -150,8 +149,8 @@ function Catalogue() {
       <MotionConfig reducedMotion="always">
         <main style={{ maxWidth: 900, margin: 40 }}>
           <ServerList
-            providerName="Provider"
             servers={[minecraft]}
+            providerName="Provider"
             layout={{ sections: [], assignments: {} }}
             refreshing={refreshing}
             onRefresh={() => setRefreshing(true)}

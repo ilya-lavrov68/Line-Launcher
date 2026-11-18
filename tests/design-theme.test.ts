@@ -864,3 +864,31 @@ test("every page-level plate is the same dark veil", () => {
     "the two page plates must share one value",
   );
 });
+
+test("the rail does not repeat the provider name", () => {
+  // «Вот эту надпись ещё надо убрать, она там только мешает» — the small
+  // provider label under the logo in the sidebar. It is not hidden by CSS: the
+  // label is gone from the component and the prop with it, so no page can bring
+  // it back without failing here. The name still has its proper homes — the
+  // page title on the catalogue and the window title — so nothing is lost.
+  const nav = read("src/components/line/SideNav.tsx");
+  assert.doesNotMatch(
+    nav,
+    /providerName/,
+    "the rail must not take a provider name at all — it only had it for the label",
+  );
+  assert.doesNotMatch(
+    nav,
+    /title=\{providerName\}/,
+    "the rail must not render the provider name as a tooltip either",
+  );
+  // The label sat between the logo and the first nav item; assert the rail now
+  // starts with the list by checking no element is rendered before `items.map`.
+  const body = nav.slice(nav.indexOf("overflow-y-auto p-2"));
+  const firstChild = body.slice(0, body.indexOf("items.map"));
+  assert.doesNotMatch(
+    firstChild,
+    /<p |<span /,
+    "nothing may be rendered above the nav items — that slot held the label",
+  );
+});

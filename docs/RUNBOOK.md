@@ -225,7 +225,10 @@ $env:CHROMIUM_PATH="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
 npm run test:ui
 ```
 
-Либо скачайте Chromium один раз: `npx playwright-core install chromium`.
+Либо укажите путь к уже установленному Chromium через `CHROMIUM_PATH` —
+скачивать ничего не обязательно. `npx playwright-core install chromium`
+работает только там, где есть доступ к CDN Playwright; в закрытых средах он
+падает с ошибкой загрузки.
 
 UI-smoke обращается к запущенному dev-серверу, поэтому в другом терминале должен
 работать `npm run dev`. Если сервер не поднят, скрипт теперь говорит об этом

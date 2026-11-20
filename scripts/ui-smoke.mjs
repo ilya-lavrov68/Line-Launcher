@@ -1239,9 +1239,19 @@ try {
   // Mandatory licence credit stays visible and inside the viewport.
   for (const width of [375, 800, 1280]) {
     await page.setViewportSize({ width, height: 900 });
-    const credit = page.locator(
-      '[data-line-attribution="footer"],[data-line-attribution="header"]',
-    );
+    // Two copies exist in the DOM: the rail's and the sign-in page's. The
+    // gate keeps its own mounted under the shell (so the catalogue behind it
+    // is already warm), and the rail's is hidden while signed out. The
+    // credit that matters is the one the player can actually see, so the
+    // locator is filtered to visible rather than asserted to be unique —
+    // strict mode on a deliberately duplicated element failed the suite on
+    // every run.
+    const credit = page
+      .locator(
+        '[data-line-attribution="footer"],[data-line-attribution="header"]',
+      )
+      .filter({ visible: true })
+      .first();
     await credit.waitFor({ state: "visible" });
     const text = await credit.innerText();
     for (const required of ["Line Launcher", "Plus In Plus", "|"]) {

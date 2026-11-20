@@ -639,6 +639,27 @@
   }
 }
 
+/* The launch bar inside the dock's primary button: a third of the plate
+ * travelling left to right, for a stage that has no percentage to show (the
+ * pack is installed and the JVM is starting). The install stage keeps its
+ * anchored fill instead — see `ServerDockPrimary`.
+ *
+ * The element is 1/3 wide and travels 200 % of its own width, which puts its
+ * left edge exactly one plate-width to the right: it enters from off-plate and
+ * exits off-plate, so the loop never shows a jump back to the start. */
+@keyframes line-dock-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.dock-sweep {
+  animation: line-dock-sweep 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
 /* Movement is a preference, colour is not: with reduced motion the field keeps
  * every one of its stops and simply stops travelling. */
 @media (prefers-reduced-motion: reduce) {
@@ -650,6 +671,17 @@
    * sweep is decoration. */
   .line-skeleton {
     animation: none;
+  }
+
+  /* A bar that cannot travel still has to say "working". Holding it across the
+   * whole plate reads as a full bar, which is a lie; holding the third in place
+   * reads as a bar that stopped. Pulse the third's opacity instead — motion is
+   * the preference, "still here" is not. */
+  .dock-sweep {
+    animation: none;
+    transform: none;
+    width: 100%;
+    opacity: 0.55;
   }
 }
 

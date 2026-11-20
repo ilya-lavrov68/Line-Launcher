@@ -108,6 +108,14 @@ pub struct LaunchManifest {
     /// Extra game arguments (see `game_args_are_safe`). Never JVM arguments.
     #[serde(default)]
     pub game_args: Vec<String>,
+    /// How much heap this pack needs, in MiB. A *number*, not an argument
+    /// string: the launcher turns it into `-Xmx` itself, clamps it to what the
+    /// machine can spare, and ignores it entirely when the player chose a value.
+    /// That is why it is a field and not a `-Xmx` in `game_args` — a manifest
+    /// that could pass flags would need the whole flag whitelist this manifest
+    /// exists to avoid.
+    #[serde(default)]
+    pub recommended_memory_mb: Option<u32>,
     /// Minecraft account type reported to the client: mojang | msa | legacy.
     #[serde(default)]
     pub user_type: Option<String>,
@@ -323,6 +331,7 @@ mod tests {
             natives_dir: None,
             logging_config: None,
             game_args: Vec::new(),
+            recommended_memory_mb: None,
             user_type: None,
         }
     }
@@ -355,6 +364,25 @@ mod tests {
         ] {
             assert!(!game_args_are_safe(&owned(&bad)), "accepted {bad:?}");
         }
+    }
+
+    #[test]
+    fn recommended_memory_is_read_as_a_number_and_a_string_is_refused() {
+        // A number is data: the launcher turns it into `-Xmx` itself.
+        let parsed = LaunchManifest::parse(
+            br#"{"schema_version":1,"java_major":21,"main_class":"Main","classpath":["client.jar"],"minecraft_version":"1.21.1","recommended_memory_mb":6144}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.recommended_memory_mb, Some(6144));
+        // A string that looks like a flag is not a heap hint, and must not be
+        // accepted as one — `deny_unknown_fields` plus a typed field is what
+        // keeps `-Xmx` out of the manifest.
+        assert!(LaunchManifest::parse(
+            br#"{"schema_version":1,"java_major":21,"main_class":"Main","classpath":["client.jar"],"minecraft_version":"1.21.1","recommended_memory_mb":"-Xmx16G"}"#,
+        )
+        .is_err());
+        // Absent stays absent: a pack written before this field changes nothing.
+        assert_eq!(manifest().recommended_memory_mb, None);
     }
 
     #[test]

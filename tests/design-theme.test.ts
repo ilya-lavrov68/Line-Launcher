@@ -129,6 +129,17 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   }
   assert.match(panel, /<ServerDockPrimary[\s\S]{0,600}progress=\{/);
   assert.match(panel, /progressLabel=/);
+  // The launch stage asks for the sweep, the install stage asks for the fill.
+  // Both are pinned: merging them back into one "hold a third" branch is the
+  // regression this pair exists to catch.
+  assert.match(panel, /indeterminate=\{!installing && phase === "starting"\}/);
+  const primarySource = read("src/components/line/ServerDock.tsx");
+  assert.match(primarySource, /busy && !indeterminate &&/);
+  assert.match(primarySource, /busy && indeterminate &&/);
+  assert.match(primarySource, /className="dock-sweep /);
+  // The sweep must actually travel; a static third was the rejected version.
+  assert.match(read("src/index.css"), /@keyframes line-dock-sweep/);
+  assert.match(read("src/index.css"), /\.dock-sweep \{[\s\S]{0,200}animation: line-dock-sweep/);
   // Ни отдельного прогресса, ни имени файла: стадия — из словаря.
   assert.doesNotMatch(panel, /<ActionProgress/);
   assert.doesNotMatch(panel, /progress\.label/);

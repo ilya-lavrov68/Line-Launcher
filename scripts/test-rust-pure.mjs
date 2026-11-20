@@ -222,6 +222,7 @@ const items = [
   attributed("launch.rs", "pub fn heap_ceiling("),
   attributed("launch.rs", "pub fn validate_heap("),
   attributed("launch.rs", "pub fn optimal_heap_mb("),
+  attributed("launch.rs", "pub fn pack_heap_mb("),
   attributed("launch.rs", "pub fn format_uuid("),
   attributed("launch.rs", "pub fn valid_uuid("),
   attributed("launch.rs", "pub fn build_java_command("),
@@ -297,6 +298,10 @@ const tests = [
     "fn only_complete_live_evidence_removes_matching_stale_hints(",
   ),
   attributed("repair_evidence.rs", "fn unknown_hints_are_never_discarded("),
+  attributed(
+    "launch.rs",
+    "fn pack_budget_is_honoured_within_what_the_machine_can_spare(",
+  ),
   attributed(
     "launch.rs",
     "fn mod_jar_scope_excludes_service_files_and_other_folders(",

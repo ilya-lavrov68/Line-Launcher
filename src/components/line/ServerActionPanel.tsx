@@ -204,12 +204,12 @@ export default function ServerActionPanel({
         <ServerDockPrimary
           disabled={!canPress}
           active={active}
-          // The fill follows the real percentage of files/bytes done, from the
-          // left edge. `indeterminate` is only for a stage that genuinely has
-          // no denominator — and even then it does not "run": it holds a third
-          // of the surface at the left, so the button still reads as filling.
+          // Two waits, two shapes: install has a denominator and fills by the
+          // real percentage; launch has none (the pack is on disk, the JVM is
+          // starting) and gets the sweep. A frozen third read as a bar that
+          // stopped, not as work in progress.
           progress={installing && progress ? (percent ?? 0) : null}
-          indeterminate={false}
+          indeterminate={!installing && phase === "starting"}
           progressLabel={
             progress ? installPhaseLabel(t, progress.phase) : undefined
           }

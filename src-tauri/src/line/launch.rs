@@ -49,6 +49,9 @@ pub struct LaunchSpec {
     pub total_memory_bytes: u64,
     /// Player override from settings; None keeps the automatic sizing.
     pub heap_mb: Option<u32>,
+    /// The pack's own recommendation from the verified manifest. Only consulted
+    /// when `heap_mb` is None; never able to exceed `heap_ceiling`.
+    pub pack_memory_mb: Option<u32>,
     /// The loader this build runs under, from the verified release. Forge and
     /// NeoForge need module-system flags; Fabric and Quilt must not receive
     /// them. The pack cannot influence this beyond choosing its own loader.
@@ -110,9 +113,39 @@ pub fn validate_heap(requested: u32, total_memory_bytes: u64) -> LineResult<u32>
     Ok(requested)
 }
 
+/// How much heap a pack can actually use on this machine.
+///
+/// Half of physical memory, capped at 8 GiB — the same figure the launcher has
+/// always suggested, so turning the automatic mode on changes nothing for a
+/// pack that declares no budget of its own.
 pub fn optimal_heap_mb(total_memory_bytes: u64) -> u32 {
     let mib = total_memory_bytes / (1024 * 1024);
     (mib / 2).clamp(1024, 8192) as u32
+}
+
+/// The heap a pack should get when it declares `recommended_memory_mb`.
+///
+/// One pack's budget is not another's: a 200-mod kitchen sink needs several
+/// gigabytes before the first chunk loads, while a vanilla-shaped pack runs
+/// fine in one and is *worse* with four — a large heap makes the collector
+/// defer and then pause longer. So the pack may say what it needs, and this
+/// decides what it gets.
+///
+/// The pack is a hint, never an order. It cannot raise the heap past what the
+/// machine can spare (`heap_ceiling`), because a manifest asking for 12 GiB on
+/// an 8 GiB laptop is exactly how a launcher wins the RAM fight and loses the
+/// game. Within the machine's limit the request is honoured, rounded down to a
+/// whole 256 MiB so the slider and `-Xmx` agree on a readable number.
+///
+/// `None` (a pack that declares nothing) means `optimal_heap_mb`.
+pub fn pack_heap_mb(recommended_memory_mb: Option<u32>, total_memory_bytes: u64) -> u32 {
+    let Some(requested) = recommended_memory_mb else {
+        return optimal_heap_mb(total_memory_bytes);
+    };
+    let ceiling = heap_ceiling(total_memory_bytes);
+    // Below the minimum the game will not start at all, so a pack asking for
+    // 512 MiB still gets the floor rather than a crash it cannot explain.
+    requested.clamp(MIN_HEAP_MB, ceiling) / 256 * 256
 }
 
 /// Formats 16 bytes as a UUID and sets the RFC 4122 version/variant bits, so the
@@ -216,9 +249,13 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
     if classpath.contains(['\n', '\r', '\0']) {
         return Err(LineError::input("Некорректный classpath."));
     }
+    // Priority: the player's own number (validated against this machine), then
+    // the pack's declared budget, then the automatic figure. A player who
+    // picked 6 GiB keeps it even on a pack that asks for 2 — the setting is
+    // theirs, and the pack only fills in when nobody chose.
     let heap = match spec.heap_mb {
         Some(requested) => validate_heap(requested, spec.total_memory_bytes)?,
-        None => optimal_heap_mb(spec.total_memory_bytes),
+        None => pack_heap_mb(spec.pack_memory_mb, spec.total_memory_bytes),
     };
     let mut args = vec![
         spec.java.to_string_lossy().into_owned(),
@@ -1168,6 +1205,7 @@ pub async fn launch_game(
             session_channel_id: launch_auth.as_ref().map(|(channel, _, _)| channel.id.clone()),
             total_memory_bytes,
             heap_mb: preferences.heap_mb,
+            pack_memory_mb: resolved.manifest.recommended_memory_mb,
             loader: launch_loader,
             module_path: launch_module_path,
         };
@@ -1605,6 +1643,7 @@ mod tests {
             session_channel_id: Some("launch-channel-1".into()),
             total_memory_bytes: 16 * 1024 * 1024 * 1024,
             heap_mb: None,
+            pack_memory_mb: None,
             loader: LoaderChoice::Fabric,
             module_path: Vec::new(),
         }
@@ -1778,6 +1817,43 @@ mod tests {
         assert!(valid_uuid(&format_uuid(&[1, 2, 3])));
         assert!(!valid_uuid(""));
         assert!(!valid_uuid(&"A".repeat(36)));
+    }
+
+    #[test]
+    fn pack_budget_is_honoured_within_what_the_machine_can_spare() {
+        const GIB: u64 = 1024 * 1024 * 1024;
+        // A pack that declares nothing keeps the historical automatic figure,
+        // so turning this feature on changes nothing for existing packs.
+        assert_eq!(pack_heap_mb(None, 16 * GIB), optimal_heap_mb(16 * GIB));
+        // A declared budget within the ceiling is honoured, rounded down to a
+        // whole 256 MiB so the slider and `-Xmx` show the same number.
+        assert_eq!(pack_heap_mb(Some(6144), 32 * GIB), 6144);
+        assert_eq!(pack_heap_mb(Some(6000), 32 * GIB), 5888);
+        // The machine wins: 12 GiB on an 8 GiB laptop would make the launcher
+        // compete with Windows for RAM during boot, which is the failure this
+        // cap exists to prevent.
+        assert_eq!(pack_heap_mb(Some(12_288), 8 * GIB), heap_ceiling(8 * GIB));
+        // Nothing starts below the floor, so a pack asking for 512 MiB gets the
+        // minimum instead of a JVM that dies before the first chunk.
+        assert_eq!(pack_heap_mb(Some(512), 16 * GIB), MIN_HEAP_MB);
+        // Absurd input cannot escape the ceiling either.
+        assert_eq!(pack_heap_mb(Some(u32::MAX), 16 * GIB), heap_ceiling(16 * GIB));
+    }
+
+    #[test]
+    fn a_player_chosen_heap_beats_the_pack_budget() {
+        let mut s = spec();
+        s.total_memory_bytes = 32 * 1024 * 1024 * 1024;
+        s.pack_memory_mb = Some(2048);
+        s.heap_mb = None;
+        // The pack asked for 2 GiB and nothing else was chosen, so it gets 2.
+        let automatic = build_java_command(&s).unwrap();
+        assert!(automatic.contains(&"-Xmx2048M".to_string()));
+        // The player chose 6 GiB: the setting is theirs, the pack only fills in.
+        s.heap_mb = Some(6144);
+        let chosen = build_java_command(&s).unwrap();
+        assert!(chosen.contains(&"-Xmx6144M".to_string()));
+        assert!(!chosen.contains(&"-Xmx2048M".to_string()));
     }
 
     #[test]

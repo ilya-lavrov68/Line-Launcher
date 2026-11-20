@@ -291,7 +291,9 @@ export const ru = {
   "settings.memory": "Память игры",
   "settings.memoryHint": "Компьютер: {total} МБ, доступно до {ceiling} МБ.",
   "settings.memoryLabel": "Объём памяти для игры, МБ",
-  "settings.memoryAuto": "Вернуть автоматический подбор",
+  "settings.memoryAuto": "Подбирать память автоматически",
+  "settings.memoryAutoHint":
+    "Сборка скажет, сколько ей нужно, а лаунчер ограничит запрос тем, что может отдать компьютер. Ползунок станет недоступен.",
   "settings.backdrop": "Фон лаунчера",
   "settings.backdropHint":
     "Двенадцать градиентов, каждый движется по-своему. Переключение плавное, выбор сохраняется.",
@@ -784,7 +786,9 @@ const en: Dictionary = {
   "settings.memory": "Game memory",
   "settings.memoryHint": "Computer: {total} MB, up to {ceiling} MB available.",
   "settings.memoryLabel": "Memory for the game, MB",
-  "settings.memoryAuto": "Go back to automatic sizing",
+  "settings.memoryAuto": "Size memory automatically",
+  "settings.memoryAutoHint":
+    "The pack says how much it needs, and the launcher caps that at what the machine can spare. The slider becomes unavailable.",
   "settings.backdrop": "Launcher backdrop",
   "settings.backdropHint":
     "Twelve gradients, each one moving in its own way. Switching dissolves, the choice is kept.",
@@ -1279,7 +1283,9 @@ const de: Dictionary = {
   "settings.memory": "Spielspeicher",
   "settings.memoryHint": "Computer: {total} MB, bis zu {ceiling} MB verfügbar.",
   "settings.memoryLabel": "Speicher für das Spiel, MB",
-  "settings.memoryAuto": "Zurück zur automatischen Wahl",
+  "settings.memoryAuto": "Speicher automatisch wählen",
+  "settings.memoryAutoHint":
+    "Das Paket nennt seinen Bedarf, der Launcher begrenzt ihn auf das, was der Rechner hergibt. Der Regler wird dann inaktiv.",
   "settings.backdrop": "Hintergrund des Launchers",
   "settings.backdropHint":
     "Zwölf Farbverläufe, jeder bewegt sich auf seine eigene Weise. Der Wechsel blendet über, die Wahl bleibt gespeichert.",
@@ -1773,7 +1779,9 @@ const fr: Dictionary = {
   "settings.memoryHint":
     "Ordinateur : {total} Mo, jusqu'à {ceiling} Mo disponibles.",
   "settings.memoryLabel": "Mémoire pour le jeu, Mo",
-  "settings.memoryAuto": "Revenir au choix automatique",
+  "settings.memoryAuto": "Choisir la mémoire automatiquement",
+  "settings.memoryAutoHint":
+    "La compilation indique son besoin, le launcher le plafonne à ce que la machine peut fournir. Le curseur devient inactif.",
   "settings.backdrop": "Fond du launcher",
   "settings.backdropHint":
     "Douze dégradés, chacun se déplace à sa manière. Le changement fond en douceur, le choix est conservé.",

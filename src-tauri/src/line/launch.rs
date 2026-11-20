@@ -19,6 +19,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
+use super::jvm_profile::{self, LoaderFamily};
+use super::minecraft_core::LoaderChoice;
+
 pub const GAME_EVENT: &str = "line://game-status";
 
 #[derive(Debug, Clone)]
@@ -46,6 +49,17 @@ pub struct LaunchSpec {
     pub total_memory_bytes: u64,
     /// Player override from settings; None keeps the automatic sizing.
     pub heap_mb: Option<u32>,
+    /// The pack's own recommendation from the verified manifest. Only consulted
+    /// when `heap_mb` is None; never able to exceed `heap_ceiling`.
+    pub pack_memory_mb: Option<u32>,
+    /// The loader this build runs under, from the verified release. Forge and
+    /// NeoForge need module-system flags; Fabric and Quilt must not receive
+    /// them. The pack cannot influence this beyond choosing its own loader.
+    pub loader: LoaderChoice,
+    /// Extra module-path entries for a modular loader (`-p`). Empty for
+    /// classpath loaders and for modular ones whose modules are on the class
+    /// path, which is the normal Forge layout.
+    pub module_path: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,9 +113,39 @@ pub fn validate_heap(requested: u32, total_memory_bytes: u64) -> LineResult<u32>
     Ok(requested)
 }
 
+/// How much heap a pack can actually use on this machine.
+///
+/// Half of physical memory, capped at 8 GiB — the same figure the launcher has
+/// always suggested, so turning the automatic mode on changes nothing for a
+/// pack that declares no budget of its own.
 pub fn optimal_heap_mb(total_memory_bytes: u64) -> u32 {
     let mib = total_memory_bytes / (1024 * 1024);
     (mib / 2).clamp(1024, 8192) as u32
+}
+
+/// The heap a pack should get when it declares `recommended_memory_mb`.
+///
+/// One pack's budget is not another's: a 200-mod kitchen sink needs several
+/// gigabytes before the first chunk loads, while a vanilla-shaped pack runs
+/// fine in one and is *worse* with four — a large heap makes the collector
+/// defer and then pause longer. So the pack may say what it needs, and this
+/// decides what it gets.
+///
+/// The pack is a hint, never an order. It cannot raise the heap past what the
+/// machine can spare (`heap_ceiling`), because a manifest asking for 12 GiB on
+/// an 8 GiB laptop is exactly how a launcher wins the RAM fight and loses the
+/// game. Within the machine's limit the request is honoured, rounded down to a
+/// whole 256 MiB so the slider and `-Xmx` agree on a readable number.
+///
+/// `None` (a pack that declares nothing) means `optimal_heap_mb`.
+pub fn pack_heap_mb(recommended_memory_mb: Option<u32>, total_memory_bytes: u64) -> u32 {
+    let Some(requested) = recommended_memory_mb else {
+        return optimal_heap_mb(total_memory_bytes);
+    };
+    let ceiling = heap_ceiling(total_memory_bytes);
+    // Below the minimum the game will not start at all, so a pack asking for
+    // 512 MiB still gets the floor rather than a crash it cannot explain.
+    requested.clamp(MIN_HEAP_MB, ceiling) / 256 * 256
 }
 
 /// Formats 16 bytes as a UUID and sets the RFC 4122 version/variant bits, so the
@@ -205,9 +249,13 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
     if classpath.contains(['\n', '\r', '\0']) {
         return Err(LineError::input("Некорректный classpath."));
     }
+    // Priority: the player's own number (validated against this machine), then
+    // the pack's declared budget, then the automatic figure. A player who
+    // picked 6 GiB keeps it even on a pack that asks for 2 — the setting is
+    // theirs, and the pack only fills in when nobody chose.
     let heap = match spec.heap_mb {
         Some(requested) => validate_heap(requested, spec.total_memory_bytes)?,
-        None => optimal_heap_mb(spec.total_memory_bytes),
+        None => pack_heap_mb(spec.pack_memory_mb, spec.total_memory_bytes),
     };
     let mut args = vec![
         spec.java.to_string_lossy().into_owned(),
@@ -261,9 +309,35 @@ pub fn build_java_command(spec: &LaunchSpec) -> LineResult<Vec<String>> {
             config.to_string_lossy()
         ));
     }
+    // Forge and NeoForge launch through the module system and need the flags
+    // the manifest is forbidden to carry. The launcher builds them itself from
+    // the loader family, which comes from the verified release — see
+    // `jvm_profile.rs` for why the pack must not supply this list.
+    let family = LoaderFamily::of(spec.loader);
+    if family == LoaderFamily::Modular {
+        let module_path = spec
+            .module_path
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        args.extend(
+            jvm_profile::module_path_args(&module_path)
+                .map_err(|message| LineError::input(message))?,
+        );
+    }
+    args.extend(jvm_profile::loader_jvm_args(family));
+    if family == LoaderFamily::Modular {
+        // The loader re-reads the class path from this property. Its value is
+        // the classpath already validated above, so no new input reaches the
+        // process here.
+        args.push(
+            jvm_profile::legacy_class_path_arg(&classpath)
+                .map_err(LineError::input)?,
+        );
+    }
     args.extend([
         "-cp".into(),
-        classpath,
+        classpath.clone(),
         spec.main_class.clone(),
         "--gameDir".into(),
         spec.game_dir.to_string_lossy().into_owned(),
@@ -605,15 +679,27 @@ pub fn is_mod_jar(path: &str) -> bool {
 /// Compare live mod JARs to the published list without inspecting their words.
 /// Non-JAR data is not treated as a mod. Links and special files are never
 /// followed, and no player files are removed.
+/// Strict form: any unproved mod is an error, which is what every caller that
+/// has no way to offer a quarantine decision needs.
 pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
-    check_live_mods_with(game, owned, |_| Ok(false))
+    let unproved = check_live_mods_with(game, owned, |_| Ok(false))?;
+    if let Some(first) = unproved.first() {
+        return Err(LineError::new(
+            ErrorCode::Integrity,
+            format!(
+                "В папке mods найден лишний мод: {first}. Уберите его и повторите запуск."
+            ),
+            false,
+        ));
+    }
+    Ok(())
 }
 
 fn check_live_mods_with(
     game: &Path,
     owned: &[String],
     mut prove: impl FnMut(&str) -> LineResult<bool>,
-) -> LineResult<()> {
+) -> LineResult<Vec<String>> {
     let dir = game.join("mods");
     match std::fs::symlink_metadata(&dir) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -624,7 +710,7 @@ fn check_live_mods_with(
                     false,
                 ));
             }
-            return Ok(());
+            return Ok(Vec::new());
         }
         Err(error) => return Err(LineError::io(&error)),
         Ok(_) if !is_real_dir(&dir) => {
@@ -648,6 +734,8 @@ fn check_live_mods_with(
         }
         files.insert(path.as_str());
     }
+    // Files that are neither published nor proved derived. Reported, not acted on.
+    let mut unproved: Vec<String> = Vec::new();
     let mut pending = vec![(dir, "mods".to_string())];
     let mut visited = 0usize;
     while let Some((directory, prefix)) = pending.pop() {
@@ -674,15 +762,17 @@ fn check_live_mods_with(
                 {
                     continue;
                 }
-                return Err(LineError::new(ErrorCode::Integrity,
-                    format!("В папке mods найден лишний мод: {relative}. Уберите его и повторите запуск."), false));
+                // Not proved: collect it. The caller decides whether to refuse
+                // the launch or to offer the file to quarantine; the scan itself
+                // never moves anything (see `quarantine.rs`).
+                unproved.push(relative);
             } else {
                 return Err(LineError::new(ErrorCode::Integrity,
                     format!("В папке mods найден посторонний файл или каталог: {relative}. Уберите его и повторите запуск."), false));
             }
         }
     }
-    Ok(())
+    Ok(unproved)
 }
 
 /// Result of the resource-pack check. `blocked` is fatal; `foreign` alone is
@@ -690,6 +780,10 @@ fn check_live_mods_with(
 pub struct PackScan {
     pub blocked: Option<String>,
     pub foreign: usize,
+    /// Extra mod JARs whose provenance could not be proved. Fatal for the
+    /// launch, and the exact list the quarantine command accepts — so the
+    /// dialog offers what the scan actually found, not a guess.
+    pub unproved: Vec<String>,
 }
 
 /// Checks mod composition, then resource-pack keywords in the live game.
@@ -712,13 +806,14 @@ pub fn scan_packs_with(
     prove: impl FnMut(&str) -> LineResult<bool>,
 ) -> LineResult<PackScan> {
     let game = instance_game_dir(base)?;
-    check_live_mods_with(&game, owned, prove)?;
+    let unproved = check_live_mods_with(&game, owned, prove)?;
     let settings = server.anticheat.clone().unwrap_or_default();
     if !settings.scan_resourcepacks {
         // The mod composition check above is independent of this switch.
         return Ok(PackScan {
             blocked: None,
             foreign: 0,
+            unproved: Vec::new(),
         });
     }
     let (findings, foreign) =
@@ -742,10 +837,186 @@ pub fn scan_packs_with(
             findings.summary(3)
         ))
     };
+    // An unproved mod blocks the launch before the resource-pack findings are
+    // even relevant: the player has to decide about the file, not read a
+    // keyword report. `blocked` carries the sentence, `unproved` the evidence.
+    let blocked = if unproved.is_empty() {
+        blocked
+    } else {
+        Some(format!(
+            "В папке mods {} файл(ов) неизвестного происхождения: {}. Их можно убрать в карантин — файлы не удаляются, и их можно вернуть.",
+            unproved.len(),
+            summarize_paths(&unproved, 3)
+        ))
+    };
     Ok(PackScan {
         blocked,
         foreign: foreign.len(),
+        unproved,
     })
+}
+
+/// First few paths, then a count. The dialog shows the whole list; this is the
+/// sentence that has to stay readable in a toast and a log line.
+fn summarize_paths(paths: &[String], limit: usize) -> String {
+    let mut shown: Vec<&str> = paths.iter().take(limit).map(String::as_str).collect();
+    let rest = paths.len().saturating_sub(shown.len());
+    if rest > 0 {
+        shown.push("…");
+        return format!("{}, и ещё {rest}", shown.join(", "));
+    }
+    shown.join(", ")
+}
+
+/// What a quarantine batch actually did, for the dialog that asked for it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuarantineOutcome {
+    /// Files moved, in the order they were requested.
+    pub moved: Vec<String>,
+    /// Files refused, each with the launcher's own explanation.
+    pub refused: Vec<String>,
+}
+
+/// Moves the *named* unproved mods into quarantine, on an explicit decision.
+///
+/// Why a separate command rather than an option on the launch: a launch is one
+/// click and often a reflex. Moving files out of the game directory has to be
+/// a second, deliberate action whose list the player has seen. The launch path
+/// only reports `PackScan::unproved`; nothing moves until this is called.
+///
+/// The batch is re-validated here rather than trusted from the dialog. Between
+/// the scan and the click, a release may have been reinstalled and a file the
+/// player pointed at may now be part of it; `plan()` refuses published paths,
+/// so a stale dialog cannot be used to move a provider's mod.
+#[tauri::command]
+pub async fn quarantine_mods(
+    server_id: String,
+    paths: Vec<String>,
+    app: AppHandle,
+    state: State<'_, LineState>,
+) -> LineResult<QuarantineOutcome> {
+    let (_, config) = state.fresh_config()?;
+    let server = config.server(&server_id)?.clone();
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| LineError::storage())?;
+    let base = server_dir(&root, &server_id)?;
+    let instance = base.clone();
+    let moved = tauri::async_runtime::spawn_blocking(move || -> LineResult<QuarantineOutcome> {
+        // The same lock the launch takes, so a quarantine cannot interleave with
+        // an installation or another launch of this server.
+        let _lock = InstallLock::acquire(&base)?;
+        let game = instance_game_dir(&base)?;
+        let published: std::collections::HashSet<String> =
+            super::pack::owned_files(&base).into_iter().collect();
+        let (accepted, refused) = super::quarantine::plan(&paths, &published);
+        let mut done = Vec::new();
+        let mut errors: Vec<String> = refused.iter().map(|e| e.message()).collect();
+        let mut entries = Vec::new();
+        for relative in accepted {
+            match super::quarantine::quarantine_file(&base, &game, &relative) {
+                Ok(entry) => {
+                    done.push(entry.relative.clone());
+                    entries.push(entry);
+                }
+                Err(error) => errors.push(error.message()),
+            }
+        }
+        if !entries.is_empty() {
+            let dir = base.join(super::quarantine::QUARANTINE_DIR);
+            super::storage::create_private_dir(&dir)?;
+            let manifest = dir.join(super::quarantine::QUARANTINE_MANIFEST);
+            let previous =
+                std::fs::read_to_string(&manifest).unwrap_or_default();
+            let mut all = super::quarantine::parse_manifest(&previous);
+            for entry in entries {
+                if let Some(slot) = all.iter_mut().find(|e| e.relative == entry.relative) {
+                    *slot = entry;
+                } else {
+                    all.push(entry);
+                }
+            }
+            std::fs::write(&manifest, super::quarantine::render_manifest(&all))
+                .map_err(|e| LineError::io(&e))?;
+        }
+        Ok(QuarantineOutcome {
+            moved: done,
+            refused: errors,
+        })
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    if !moved.moved.is_empty() {
+        super::logger::info(
+            super::logger::Area::Launch,
+            "mods quarantined",
+            &[super::logger::Field::num("moved", moved.moved.len() as u64)],
+        );
+    }
+    Ok(moved)
+}
+
+/// Puts quarantined files back. Refuses to overwrite anything, so a player who
+/// accepted the prompt by mistake loses nothing.
+#[tauri::command]
+pub async fn restore_quarantined(
+    server_id: String,
+    paths: Vec<String>,
+    app: AppHandle,
+    state: State<'_, LineState>,
+) -> LineResult<QuarantineOutcome> {
+    let (_, config) = state.fresh_config()?;
+    // Validate the id even though it is not used beyond the directory lookup:
+    // the command surface is the same shape as its siblings.
+    config.server(&server_id)?;
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| LineError::storage())?;
+    let base = server_dir(&root, &server_id)?;
+    let outcome = tauri::async_runtime::spawn_blocking(move || -> LineResult<QuarantineOutcome> {
+        let _lock = InstallLock::acquire(&base)?;
+        let game = instance_game_dir(&base)?;
+        let manifest_path = base
+            .join(super::quarantine::QUARANTINE_DIR)
+            .join(super::quarantine::QUARANTINE_MANIFEST);
+        let text = std::fs::read_to_string(&manifest_path).unwrap_or_default();
+        let entries = super::quarantine::parse_manifest(&text);
+        let wanted: std::collections::HashSet<&str> =
+            paths.iter().map(String::as_str).collect();
+        let mut restored = Vec::new();
+        let mut errors = Vec::new();
+        for entry in entries.iter().filter(|e| wanted.contains(e.relative.as_str())) {
+            match super::quarantine::restore_file(&base, &game, entry) {
+                Ok(()) => restored.push(entry.relative.clone()),
+                Err(error) => errors.push(error.message()),
+            }
+        }
+        // A path the player asked for that is not in the manifest is reported,
+        // not silently ignored: it usually means the file was already restored.
+        for path in &paths {
+            if !entries.iter().any(|e| &e.relative == path) {
+                errors.push(format!("Файл {path} не найден в карантине."));
+            }
+        }
+        if !restored.is_empty() {
+            let remaining: Vec<super::quarantine::MovedFile> = entries
+                .into_iter()
+                .filter(|e| !restored.contains(&e.relative))
+                .collect();
+            std::fs::write(&manifest_path, super::quarantine::render_manifest(&remaining))
+                .map_err(|e| LineError::io(&e))?;
+        }
+        Ok(QuarantineOutcome {
+            moved: restored,
+            refused: errors,
+        })
+    })
+    .await
+    .map_err(|_| LineError::storage())??;
+    Ok(outcome)
 }
 
 #[tauri::command]
@@ -904,6 +1175,16 @@ pub async fn launch_game(
         if stop.load(Ordering::Acquire) {
             return Err(cancelled());
         }
+        // The loader the pack declares. Absent means a bare classpath launch,
+        // which is what every manifest written before 0.15.4 means: Fabric,
+        // Quilt and vanilla-shaped packs are unaffected. The manifest validator
+        // already rejected unknown names, so `parse_loader` cannot fail here
+        // for a manifest that reached this point.
+        let launch_loader = match resolved.manifest.loader.as_deref() {
+            None => LoaderChoice::Fabric,
+            Some(kind) => super::minecraft_core::parse_loader(kind)?,
+        };
+        let launch_module_path: Vec<PathBuf> = Vec::new();
         let spec = LaunchSpec {
             java: runtime.path,
             game_dir: game_dir.clone(),
@@ -924,6 +1205,9 @@ pub async fn launch_game(
             session_channel_id: launch_auth.as_ref().map(|(channel, _, _)| channel.id.clone()),
             total_memory_bytes,
             heap_mb: preferences.heap_mb,
+            pack_memory_mb: resolved.manifest.recommended_memory_mb,
+            loader: launch_loader,
+            module_path: launch_module_path,
         };
         let args = build_java_command(&spec)?;
         // Keep the game's own output instead of discarding it: a failed launch
@@ -1142,6 +1426,11 @@ pub struct PackCheck {
     pub findings: Vec<String>,
     /// Retained for API compatibility; ownership is not a resource-pack finding.
     pub foreign: Vec<String>,
+    /// Extra mod JARs the launch would refuse, with the exact paths, so the
+    /// check and the launch report the same thing and the dialog can offer
+    /// them by name.
+    #[serde(default)]
+    pub unproved: Vec<String>,
 }
 
 /// A resource-pack check is meaningful only for a completed provider release.
@@ -1189,6 +1478,11 @@ pub async fn check_resource_packs(
             return Ok(PackCheck {
                 findings: Vec::new(),
                 foreign: Vec::new(),
+                unproved: check_live_mods_with(
+                    &game,
+                    &owned,
+                    |_| Ok(false),
+                )?,
             });
         }
         let (findings, foreign) = super::resourcepack::scan_all(
@@ -1211,6 +1505,7 @@ pub async fn check_resource_packs(
                 })
                 .collect(),
             foreign: foreign.into_iter().map(|pack| pack.path).collect(),
+            unproved: check_live_mods_with(&game, &owned, |_| Ok(false))?,
         })
     })
     .await
@@ -1348,7 +1643,86 @@ mod tests {
             session_channel_id: Some("launch-channel-1".into()),
             total_memory_bytes: 16 * 1024 * 1024 * 1024,
             heap_mb: None,
+            pack_memory_mb: None,
+            loader: LoaderChoice::Fabric,
+            module_path: Vec::new(),
         }
+    }
+
+    #[test]
+    fn fabric_command_carries_no_module_flags() {
+        // The historical behaviour, kept bit for bit: a classpath loader must
+        // not start receiving module-system flags just because Forge gained
+        // them. A stray `--add-opens` on a Fabric pack is a launch failure that
+        // looks like a mod bug.
+        let args = build_java_command(&spec()).unwrap();
+        for flag in ["--add-opens", "--add-exports", "--add-modules", "-p"] {
+            assert!(
+                !args.iter().any(|arg| arg == flag),
+                "Fabric launch must not contain {flag}"
+            );
+        }
+        assert!(!args.iter().any(|a| a.starts_with("-DlegacyClassPath=")));
+    }
+
+    #[test]
+    fn forge_command_gets_the_module_flags_the_manifest_cannot_carry() {
+        // The whole point of 0.15.4: Forge/NeoForge finally launch. The flags
+        // come from the launcher, not from the pack, so this is also the test
+        // that the ban on manifest JVM args still holds.
+        let mut forge = spec();
+        forge.loader = LoaderChoice::Forge;
+        let args = build_java_command(&forge).unwrap();
+        assert!(args.iter().any(|arg| arg == "--add-opens"));
+        assert!(args.iter().any(|arg| arg == "--add-exports"));
+        assert!(args.iter().any(|arg| arg == "--add-modules"));
+        assert!(
+            args.iter().any(|a| a.starts_with("-DlegacyClassPath=")),
+            "the loader re-reads the class path from this property"
+        );
+        // `-p` takes exactly one argument, and it comes before `-cp`.
+        let cp = args.iter().position(|a| a == "-cp").unwrap();
+        assert!(!args[..cp].iter().filter(|a| *a == "-p").count().gt(&1));
+        // Nothing that could load code before the game's entry point.
+        for arg in &args {
+            let lower = arg.to_ascii_lowercase();
+            assert!(!lower.starts_with("-javaagent"), "{arg}");
+            assert!(!lower.starts_with("-agentlib"), "{arg}");
+            assert!(!lower.starts_with("-agentpath"), "{arg}");
+        }
+    }
+
+    #[test]
+    fn neoforge_takes_the_same_family_flags_as_forge() {
+        let mut neo = spec();
+        neo.loader = LoaderChoice::NeoForge;
+        let neo_args = build_java_command(&neo).unwrap();
+        let mut forge = spec();
+        forge.loader = LoaderChoice::Forge;
+        let forge_args = build_java_command(&forge).unwrap();
+        // Same family, same flags: the difference between the two loaders is
+        // which jar the provider shipped, not which JVM options it needs.
+        let flags = |args: &[String]| {
+            args.iter()
+                .filter(|a| a.starts_with("--add-") || a.starts_with("-DlegacyClassPath"))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(flags(&neo_args), flags(&forge_args));
+    }
+
+    #[test]
+    fn module_path_is_passed_as_one_argument() {
+        let mut forge = spec();
+        forge.loader = LoaderChoice::Forge;
+        forge.module_path = vec![abs("libraries/a.jar"), abs("libraries/b.jar")];
+        let args = build_java_command(&forge).unwrap();
+        let index = args.iter().position(|a| a == "-p").unwrap();
+        // The value right after `-p` lists both entries and is a single token.
+        assert!(args[index + 1].contains("a.jar"));
+        assert!(args[index + 1].contains("b.jar"));
+        // One token, or the JVM reads the second jar as a main class.
+        assert_eq!(args.iter().filter(|a| *a == "-p").count(), 1);
     }
 
     #[test]
@@ -1443,6 +1817,43 @@ mod tests {
         assert!(valid_uuid(&format_uuid(&[1, 2, 3])));
         assert!(!valid_uuid(""));
         assert!(!valid_uuid(&"A".repeat(36)));
+    }
+
+    #[test]
+    fn pack_budget_is_honoured_within_what_the_machine_can_spare() {
+        const GIB: u64 = 1024 * 1024 * 1024;
+        // A pack that declares nothing keeps the historical automatic figure,
+        // so turning this feature on changes nothing for existing packs.
+        assert_eq!(pack_heap_mb(None, 16 * GIB), optimal_heap_mb(16 * GIB));
+        // A declared budget within the ceiling is honoured, rounded down to a
+        // whole 256 MiB so the slider and `-Xmx` show the same number.
+        assert_eq!(pack_heap_mb(Some(6144), 32 * GIB), 6144);
+        assert_eq!(pack_heap_mb(Some(6000), 32 * GIB), 5888);
+        // The machine wins: 12 GiB on an 8 GiB laptop would make the launcher
+        // compete with Windows for RAM during boot, which is the failure this
+        // cap exists to prevent.
+        assert_eq!(pack_heap_mb(Some(12_288), 8 * GIB), heap_ceiling(8 * GIB));
+        // Nothing starts below the floor, so a pack asking for 512 MiB gets the
+        // minimum instead of a JVM that dies before the first chunk.
+        assert_eq!(pack_heap_mb(Some(512), 16 * GIB), MIN_HEAP_MB);
+        // Absurd input cannot escape the ceiling either.
+        assert_eq!(pack_heap_mb(Some(u32::MAX), 16 * GIB), heap_ceiling(16 * GIB));
+    }
+
+    #[test]
+    fn a_player_chosen_heap_beats_the_pack_budget() {
+        let mut s = spec();
+        s.total_memory_bytes = 32 * 1024 * 1024 * 1024;
+        s.pack_memory_mb = Some(2048);
+        s.heap_mb = None;
+        // The pack asked for 2 GiB and nothing else was chosen, so it gets 2.
+        let automatic = build_java_command(&s).unwrap();
+        assert!(automatic.contains(&"-Xmx2048M".to_string()));
+        // The player chose 6 GiB: the setting is theirs, the pack only fills in.
+        s.heap_mb = Some(6144);
+        let chosen = build_java_command(&s).unwrap();
+        assert!(chosen.contains(&"-Xmx6144M".to_string()));
+        assert!(!chosen.contains(&"-Xmx2048M".to_string()));
     }
 
     #[test]

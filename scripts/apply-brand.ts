@@ -46,7 +46,15 @@ import {
 } from "./provider-config.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const BRANDING = join(ROOT, "branding");
+// Overridable so a test can exercise the generator against a throwaway copy
+// instead of mutating `branding/` in the working tree. That mutation was a real
+// race: `tests/brand.test.ts` writes `presets.json` here while a sibling test in
+// the same file asserts it is absent, and `node --test` runs tests in a file
+// concurrently. Defaults to the shipped directory, so every build path is
+// unchanged.
+const BRANDING = process.env.LINE_BRANDING_DIR
+  ? resolve(process.env.LINE_BRANDING_DIR)
+  : join(ROOT, "branding");
 const CONFIG_PATH = join(BRANDING, "line.brand.json");
 const OUT_CSS = join(ROOT, "src/brand/generated.css");
 const OUT_TS = join(ROOT, "src/brand/generated.ts");
@@ -57,7 +65,12 @@ const PROVIDER_PATH = join(BRANDING, "provider.json");
 const OWNER_PATH = join(BRANDING, "owner.ts");
 const OUT_OWNER = join(ROOT, "src/brand/owner.generated.ts");
 const OUT_PROVIDER = join(ROOT, "src/brand/provider.generated.ts");
-const ICONS_DIR = join(ROOT, "src-tauri/icons");
+// Same reason as `BRANDING`: a test that plants a deliberately odd stamp must
+// not do it in the working tree, because a sibling test runs `brand:check`
+// against these very files at the same time.
+const ICONS_DIR = process.env.LINE_ICONS_DIR
+  ? resolve(process.env.LINE_ICONS_DIR)
+  : join(ROOT, "src-tauri/icons");
 
 const CHECK_ONLY = process.argv.includes("--check");
 const SKIP_ICONS = process.argv.includes("--skip-icons");

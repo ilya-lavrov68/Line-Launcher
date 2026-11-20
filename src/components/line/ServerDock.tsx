@@ -103,7 +103,7 @@ export function ServerDockPrimary({
           busy && "disabled:opacity-100",
         )}
       >
-        {busy && (
+        {busy && !indeterminate && (
           // Decorative: the fill a player watches. `aria-hidden` because the
           // real progressbar sits outside the button (see above).
           //
@@ -114,6 +114,9 @@ export function ServerDockPrimary({
           // the start. `width` would do the same thing visually, but scaling a
           // fixed-size layer keeps the work on the compositor and lets the
           // eased step match the one the player uses (`transform 600ms`).
+          //
+          // This is the *install* shape: it needs a denominator. A stage with
+          // no denominator gets the sweep below instead of a frozen third.
           <span
             aria-hidden="true"
             className={cn(
@@ -126,18 +129,28 @@ export function ServerDockPrimary({
               // quarter white the growing area read as a grey slab cut into the
               // button — «посредственно» was fair.
               "bg-primary-foreground/12 absolute inset-0 origin-left",
-              !indeterminate &&
-                "transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+              "transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
             )}
-            style={{
-              // Always a scale from the left edge. A stage with no denominator
-              // holds a third of the surface instead of sweeping: the button
-              // never looks like something is running past it, only like it is
-              // filled this far. Sweeping was the «просто бегает» the brief
-              // rejected.
-              transform: `scaleX(${indeterminate ? 1 / 3 : (clamped ?? 0) / 100})`,
-            }}
+            style={{ transform: `scaleX(${(clamped ?? 0) / 100})` }}
           />
+        )}
+        {busy && indeterminate && (
+          // The launch shape: the pack is already installed, so there is no
+          // percentage to show — the work is starting the JVM, not copying
+          // bytes. A third of the surface slides left to right and repeats,
+          // which says "working, length unknown" without inventing a number.
+          //
+          // It is a separate element from the fill above rather than a mode of
+          // it: the fill is anchored (`origin-left`, scale) and the sweep
+          // travels (`translateX`), and one element cannot do both without
+          // lurching back to zero each cycle.
+          <span
+            aria-hidden="true"
+            data-slot="dock-sweep"
+            className="absolute inset-0 overflow-hidden"
+          >
+            <span className="dock-sweep bg-primary-foreground/12 absolute inset-y-0 left-0 w-1/3" />
+          </span>
         )}
         <span className="relative z-10 inline-flex min-w-0 items-center gap-2">
           {children}

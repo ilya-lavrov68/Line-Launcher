@@ -25,6 +25,7 @@ import {
   type McLaunchRequest,
   type McPlayRequest,
   type PackCheckResult,
+  type QuarantineOutcome,
   type SettingsSnapshot,
   type SkinModel,
   type SkinState,
@@ -95,6 +96,16 @@ export const lineApi = {
    */
   checkPacks: (serverId: string) =>
     call<PackCheckResult>("check_resource_packs", { serverId }),
+  /**
+   * Moves unproved mod files into quarantine. Only ever called from an explicit
+   * decision: the launcher never moves a player's file on its own, and the Rust
+   * side refuses anything that came from the release.
+   */
+  quarantineMods: (serverId: string, paths: string[]) =>
+    call<QuarantineOutcome>("quarantine_mods", { serverId, paths }),
+  /** Puts them back. Refuses to overwrite a file that reappeared. */
+  restoreQuarantined: (serverId: string, paths: string[]) =>
+    call<QuarantineOutcome>("restore_quarantined", { serverId, paths }),
   stopGame: (serverId: string) => call<boolean>("stop_game", { serverId }),
   gameStatus: (serverId: string) =>
     call<GameStatus>("get_game_status", { serverId }),

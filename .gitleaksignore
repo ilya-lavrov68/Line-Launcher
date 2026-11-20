@@ -1,1 +1,13 @@
 # Project-specific false positives must include a rule, path, and justification.
+
+# generic-api-key / docs/SESSION-MODEL-A.md:95 — a documentation sample, not a
+# credential. The string is a 43-character base64url placeholder written to
+# illustrate the `session_secret` field of the provider session response; the
+# format table directly below it is what specifies the real length and
+# alphabet. The sample itself was replaced with prose in 9b0abaa, which is why
+# this waiver only has to cover the commit the old text lives in: history is
+# scanned, and rewriting it to hide an example would be the wrong trade.
+#
+# Justification is narrow on purpose: a bare fingerprint with no rule, path or
+# reason is how a real secret gets waived by accident later.
+5303c9a69a1b709368a254031389370e3fb8f576:docs/SESSION-MODEL-A.md:generic-api-key:95

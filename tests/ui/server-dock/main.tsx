@@ -134,7 +134,11 @@ function App() {
               onStop={() => {}}
               onHistory={() => {}}
               onRollback={() => {}}
-              onCheckPacks={async () => ({ findings: [], foreign: [] })}
+              onCheckPacks={async () => ({
+                findings: [],
+                foreign: [],
+                unproved: [],
+              })}
             />
           </main>
         </div>

@@ -108,9 +108,28 @@ pub struct LaunchManifest {
     /// Extra game arguments (see `game_args_are_safe`). Never JVM arguments.
     #[serde(default)]
     pub game_args: Vec<String>,
+    /// How much heap this pack needs, in MiB. A *number*, not an argument
+    /// string: the launcher turns it into `-Xmx` itself, clamps it to what the
+    /// machine can spare, and ignores it entirely when the player chose a value.
+    /// That is why it is a field and not a `-Xmx` in `game_args` — a manifest
+    /// that could pass flags would need the whole flag whitelist this manifest
+    /// exists to avoid.
+    #[serde(default)]
+    pub recommended_memory_mb: Option<u32>,
     /// Minecraft account type reported to the client: mojang | msa | legacy.
     #[serde(default)]
     pub user_type: Option<String>,
+    /// Which loader family the pack runs under: fabric | quilt | forge |
+    /// neoforge. Absent keeps the historical behaviour, which is a bare
+    /// classpath launch.
+    ///
+    /// This field is a *selector*, not an argument list: it can only choose one
+    /// of the flag sets the launcher already carries (`jvm_profile.rs`), and an
+    /// unknown value is rejected. That is the difference between "the pack says
+    /// which loader it needs" and "the pack says what the JVM should run",
+    /// which is the hole this manifest exists to keep shut.
+    #[serde(default)]
+    pub loader: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -227,6 +246,14 @@ impl LaunchManifest {
         {
             return Err(invalid());
         }
+        // Known loader names only. The name selects a flag set the launcher
+        // already owns; anything else is a manifest we do not understand, and
+        // guessing would mean running the wrong loader's flags.
+        if self.loader.as_deref().is_some_and(|kind| {
+            !matches!(kind, "fabric" | "quilt" | "forge" | "neoforge")
+        }) {
+            return Err(invalid());
+        }
         Ok(())
     }
 
@@ -304,6 +331,7 @@ mod tests {
             natives_dir: None,
             logging_config: None,
             game_args: Vec::new(),
+            recommended_memory_mb: None,
             user_type: None,
         }
     }
@@ -336,6 +364,25 @@ mod tests {
         ] {
             assert!(!game_args_are_safe(&owned(&bad)), "accepted {bad:?}");
         }
+    }
+
+    #[test]
+    fn recommended_memory_is_read_as_a_number_and_a_string_is_refused() {
+        // A number is data: the launcher turns it into `-Xmx` itself.
+        let parsed = LaunchManifest::parse(
+            br#"{"schema_version":1,"java_major":21,"main_class":"Main","classpath":["client.jar"],"minecraft_version":"1.21.1","recommended_memory_mb":6144}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.recommended_memory_mb, Some(6144));
+        // A string that looks like a flag is not a heap hint, and must not be
+        // accepted as one — `deny_unknown_fields` plus a typed field is what
+        // keeps `-Xmx` out of the manifest.
+        assert!(LaunchManifest::parse(
+            br#"{"schema_version":1,"java_major":21,"main_class":"Main","classpath":["client.jar"],"minecraft_version":"1.21.1","recommended_memory_mb":"-Xmx16G"}"#,
+        )
+        .is_err());
+        // Absent stays absent: a pack written before this field changes nothing.
+        assert_eq!(manifest().recommended_memory_mb, None);
     }
 
     #[test]

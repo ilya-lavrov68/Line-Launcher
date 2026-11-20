@@ -73,6 +73,8 @@ pub fn run() {
             line::launch::stop_game,
             line::launch::get_game_status,
             line::launch::check_resource_packs,
+            line::launch::quarantine_mods,
+            line::launch::restore_quarantined,
             line::rollback::list_release_history,
             line::rollback::rollback_release,
             line::settings::get_settings,

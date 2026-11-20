@@ -60,11 +60,23 @@ pub fn accepts_explicit_java(required_major: u16, selected_major: u16) -> bool {
     selected_major >= required_major && (8..=26).contains(&selected_major)
 }
 
-/// Normalises the loader selection. `None`/empty version means "latest stable".
-pub fn validate_loader(
-    kind: &str,
-    version: Option<&str>,
-) -> LineResult<(LoaderChoice, Option<String>)> {
+/// Parses a loader name, without a version.
+///
+/// Exists so the launch manifest and the settings screen cannot disagree about
+/// which names are loaders: both go through this one match. An unknown name is
+/// rejected rather than defaulted, because defaulting would quietly launch a
+/// Forge pack with Fabric's (absent) flags.
+/// The one table of loader names, without a version.
+///
+/// Shared by the settings screen and the launch manifest so the two cannot
+/// disagree about which names are loaders. An unknown name is rejected rather
+/// than defaulted: defaulting would quietly launch a Forge pack with Fabric's
+/// (absent) flags.
+///
+/// The arm shape is load-bearing — the WebView contract test greps for
+/// `"<kind>" => LoaderChoice::` to prove the names the UI offers are the ones
+/// Rust accepts.
+pub fn parse_loader(kind: &str) -> LineResult<LoaderChoice> {
     let choice = match kind.trim().to_ascii_lowercase().as_str() {
         "fabric" => LoaderChoice::Fabric,
         "quilt" => LoaderChoice::Quilt,
@@ -76,6 +88,15 @@ pub fn validate_loader(
             ))
         }
     };
+    Ok(choice)
+}
+
+/// Normalises the loader selection. `None`/empty version means "latest stable".
+pub fn validate_loader(
+    kind: &str,
+    version: Option<&str>,
+) -> LineResult<(LoaderChoice, Option<String>)> {
+    let choice = parse_loader(kind)?;
     let selected = match version.map(str::trim) {
         None | Some("") => None,
         Some(text) => {

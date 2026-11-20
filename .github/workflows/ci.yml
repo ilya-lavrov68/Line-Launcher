@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, "arena/**"]
   pull_request:
+  # Manual re-run. Needed because a run whose jobs never started (a billing
+  # block, an outage) cannot be re-run from the UI — GitHub refuses with
+  # "its workflow file may be broken" — and a re-push to get CI going is noise
+  # in the history.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,7 +36,18 @@ jobs:
         run: npm run check:tauri
       - name: Branding is up to date
         run: npm run brand:check
-      - run: npm test
+      - name: Unit tests
+        shell: bash
+        # The tail of the run goes into an annotation, because the raw job log
+        # sits behind a host that some environments cannot reach. Without this
+        # the only thing visible from outside is "exit code 1".
+        run: |
+          set -o pipefail
+          if ! npm test 2>&1 | tee frontend-test.log; then
+            message=$(tail -c 4000 frontend-test.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=npm test failed::${message}"
+            exit 1
+          fi
       - run: npm run build
       - name: Icon generation runs from a clean stamp
         # Exercises the `tauri icon` spawn, which is where `npx.cmd` threw
@@ -74,8 +90,24 @@ jobs:
           done
           echo "dev server did not start" >&2
           exit 1
-      - run: npm run test:boot
-      - run: npm run test:ui
+      - name: Boot smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm run test:boot 2>&1 | tee boot-smoke.log; then
+            message=$(tail -c 4000 boot-smoke.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=test:boot failed::${message}"
+            exit 1
+          fi
+      - name: Browser suites
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm run test:ui 2>&1 | tee browser-suites.log; then
+            message=$(tail -c 4000 browser-suites.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=test:ui failed::${message}"
+            exit 1
+          fi
 
   rust-pure:
     # Runs the dependency-free Rust logic with plain rustc. This is a fast
@@ -87,7 +119,15 @@ jobs:
         with:
           node-version: 22
       - uses: dtolnay/rust-toolchain@stable
-      - run: npm run test:rust
+      - name: Pure Rust logic
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm run test:rust 2>&1 | tee rust-pure.log; then
+            message=$(tail -c 4000 rust-pure.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=test:rust failed::${message}"
+            exit 1
+          fi
 
   rust:
     strategy:
@@ -110,9 +150,25 @@ jobs:
           workspaces: src-tauri
       - name: Lockfile is current
         shell: bash
-        run: cargo metadata --locked --format-version 1 --manifest-path src-tauri/Cargo.toml > /dev/null
+        # This is the step the three rust jobs died on. `cargo metadata` exits
+        # 101 when Cargo.toml and Cargo.lock disagree, and says which crate in
+        # a message that used to be thrown away by `> /dev/null`.
+        run: |
+          set -o pipefail
+          if ! cargo metadata --locked --format-version 1 --manifest-path src-tauri/Cargo.toml > /dev/null 2> lock.log; then
+            message=$(tail -c 4000 lock.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=cargo metadata --locked failed (Cargo.lock is stale)::${message}"
+            exit 1
+          fi
       - name: Format
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! cargo fmt --manifest-path src-tauri/Cargo.toml --check 2>&1 | tee fmt.log; then
+            message=$(tail -c 4000 fmt.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=cargo fmt failed (run: cargo fmt)::${message}"
+            exit 1
+          fi
       # Compiler diagnostics are echoed as annotations so a failure is readable
       # in the PR UI without downloading the raw job log.
       - name: Check all targets
@@ -188,4 +244,15 @@ jobs:
           VERSION=8.28.0
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp
           sudo install /tmp/gitleaks /usr/local/bin/gitleaks
-      - run: gitleaks detect --verbose --redact
+      - name: Secret scan
+        shell: bash
+        # `--redact` hides the secret but keeps the rule, file and line, which
+        # is what identifies a false positive. Wrapped so the finding reaches
+        # an annotation instead of only the job log.
+        run: |
+          set -o pipefail
+          if ! gitleaks detect --verbose --redact 2>&1 | tee gitleaks.log; then
+            message=$(tail -c 4000 gitleaks.log | sed 's/%/%25/g; s/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=gitleaks found something::${message}"
+            exit 1
+          fi

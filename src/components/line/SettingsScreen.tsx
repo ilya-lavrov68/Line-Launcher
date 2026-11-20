@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -399,14 +400,13 @@ export default function SettingsScreen({
               >
                 {t("settings.heapLabel")}
               </Label>
+              {/* In the automatic mode the number is the pack's, and it
+                  differs per pack — the exact figure is settled at launch, so
+                  showing one here would be a guess dressed as a fact. */}
               <span className="text-foreground font-mono text-xs">
-                {t("settings.heapValue", { heap })}
-                {automatic && (
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {t("settings.auto")}
-                  </span>
-                )}
+                {automatic
+                  ? t("settings.auto")
+                  : t("settings.heapValue", { heap })}
               </span>
             </div>
             <Slider
@@ -415,7 +415,7 @@ export default function SettingsScreen({
               max={heapCeilingMb}
               step={256}
               value={[heap]}
-              disabled={busy}
+              disabled={busy || automatic}
               onValueChange={(value) =>
                 setHeap(Array.isArray(value) ? value[0] : value)
               }
@@ -424,15 +424,33 @@ export default function SettingsScreen({
               }
               aria-label={t("settings.memoryLabel")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy || automatic}
-              onClick={() => void commitHeap(suggestedHeapMb)}
-              className="cursor-pointer self-start text-xs"
+            {/* A checkbox, not a button: this is a mode the player is *in*, and
+                a button reads as a one-off action that has to be pressed again
+                after every change. The slider below is the manual mode, so it
+                greys out while the mode is on rather than disappearing — the
+                bar still shows roughly what the machine will allocate. */}
+            <label
+              htmlFor="heap-auto"
+              className="flex cursor-pointer items-start gap-2.5"
             >
-              {t("settings.memoryAuto")}
-            </Button>
+              <Switch
+                id="heap-auto"
+                checked={automatic}
+                disabled={busy}
+                onCheckedChange={(checked) =>
+                  void commitHeap(checked ? suggestedHeapMb : heap)
+                }
+                className="mt-0.5 cursor-pointer"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-foreground text-xs font-medium">
+                  {t("settings.memoryAuto")}
+                </span>
+                <span className="text-muted-foreground text-[11px] leading-relaxed">
+                  {t("settings.memoryAutoHint")}
+                </span>
+              </span>
+            </label>
             {/* The heap is the one setting a player is most likely to have been
                 told to "just raise" by a forum post. Raising it past what the
                 machine can spare is how a launcher starts competing with Windows

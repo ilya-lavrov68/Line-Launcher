@@ -142,13 +142,36 @@ async function boot(cached, delay) {
     { config, cached, delay },
   );
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  // Let any duplicate in-flight request land before counting.
-  await page.waitForTimeout(600);
-  const calls = await page.evaluate(() =>
-    window.__calls
-      .filter((c) => c[0] === "fetch_line_config")
-      .map((c) => c[1].url),
-  );
+  // Wait for the work to land, not for a fixed duration.
+  //
+  // The stub answers `get_cached_config` after `delay`, and the page then has
+  // to act on it: a *warm* start must revalidate exactly once. A flat 600 ms
+  // was enough on a warm laptop and not on a cold CI runner, so the warm case
+  // failed intermittently with "a warm start must revalidate once, got 0" —
+  // the second call simply had not happened yet. Poll until the expected
+  // outcome appears, then give a duplicate a chance to arrive afterwards,
+  // which is the thing this suite exists to catch.
+  const deadline = Date.now() + 10_000;
+  let calls = [];
+  while (Date.now() < deadline) {
+    calls = await page.evaluate(() =>
+      window.__calls
+        .filter((c) => c[0] === "fetch_line_config")
+        .map((c) => c[1].url),
+    );
+    if (calls.length > 0) break;
+    await page.waitForTimeout(50);
+  }
+  // A cold start legitimately has zero calls, so it must not wait out the
+  // deadline: it is told apart by having no cached snapshot to revalidate.
+  if (cached) {
+    await page.waitForTimeout(600);
+    calls = await page.evaluate(() =>
+      window.__calls
+        .filter((c) => c[0] === "fetch_line_config")
+        .map((c) => c[1].url),
+    );
+  }
   const settingsReads = await page.evaluate(
     () => window.__calls.filter((c) => c[0] === "get_settings").length,
   );

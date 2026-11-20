@@ -176,6 +176,19 @@ const items = [
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
   attributed("minecraft_core.rs", "pub fn validate_version_id("),
   attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
+  attributed("jvm_profile.rs", "pub enum LoaderFamily {"),
+  // The inherent impl is a separate item: copying the enum alone loses `of()`,
+  // which every caller and the flags tests use.
+  attributed("jvm_profile.rs", "impl LoaderFamily {"),
+  // The flag tests read these three tables directly, so they have to travel
+  // with the tests; copying the functions alone left them undefined.
+  attributed("jvm_profile.rs", "const OPENED_PACKAGES:"),
+  attributed("jvm_profile.rs", "const EXPORTED_PACKAGES:"),
+  attributed("jvm_profile.rs", "const ADDED_MODULES:"),
+  attributed("jvm_profile.rs", "pub fn loader_jvm_args("),
+  attributed("jvm_profile.rs", "pub fn module_path_args("),
+  attributed("jvm_profile.rs", "pub fn legacy_class_path_arg("),
+  attributed("minecraft_core.rs", "pub fn parse_loader("),
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
   attributed("minecraft_core.rs", "pub fn initial_heap_mb("),
@@ -217,6 +230,7 @@ const items = [
   attributed("launch.rs", "pub fn heap_ceiling("),
   attributed("launch.rs", "pub fn validate_heap("),
   attributed("launch.rs", "pub fn optimal_heap_mb("),
+  attributed("launch.rs", "pub fn pack_heap_mb("),
   attributed("launch.rs", "pub fn format_uuid("),
   attributed("launch.rs", "pub fn valid_uuid("),
   attributed("launch.rs", "pub fn build_java_command("),
@@ -282,12 +296,28 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
-  attributed("minecraft.rs", "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell("),
+  attributed(
+    "minecraft.rs",
+    "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell(",
+  ),
   attributed("runtime_inventory.rs", "fn accepts_only_lowercase_sha1_digests("),
-  attributed("repair_evidence.rs", "fn only_complete_live_evidence_removes_matching_stale_hints("),
+  attributed(
+    "repair_evidence.rs",
+    "fn only_complete_live_evidence_removes_matching_stale_hints(",
+  ),
   attributed("repair_evidence.rs", "fn unknown_hints_are_never_discarded("),
-  attributed("launch.rs", "fn mod_jar_scope_excludes_service_files_and_other_folders("),
-  attributed("resourcepack.rs", "fn keyword_search_handles_multibyte_rejected_matches_without_panicking("),
+  attributed(
+    "launch.rs",
+    "fn pack_budget_is_honoured_within_what_the_machine_can_spare(",
+  ),
+  attributed(
+    "launch.rs",
+    "fn mod_jar_scope_excludes_service_files_and_other_folders(",
+  ),
+  attributed(
+    "resourcepack.rs",
+    "fn keyword_search_handles_multibyte_rejected_matches_without_panicking(",
+  ),
   attributed("connector.rs", "fn narrow_cache_names_only("),
   attributed("release_swap.rs", "fn swap_temp("),
   attributed(
@@ -335,7 +365,10 @@ const tests = [
   ),
   attributed("zip_repair.rs", "fn example("),
   attributed("zip_repair.rs", "fn only_identical_plan_is_approved("),
-  attributed("java_consent.rs", "fn consent_is_specific_to_revision_purpose_version_and_source("),
+  attributed(
+    "java_consent.rs",
+    "fn consent_is_specific_to_revision_purpose_version_and_source(",
+  ),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
   attributed(
     "minecraft_core.rs",
@@ -371,7 +404,10 @@ const tests = [
     "instance.rs",
     "fn game_directory_is_found_plain_wrapped_and_named(",
   ),
-  attributed("instance.rs", "fn many_unrelated_wrappers_keep_priority_and_support_late_matches("),
+  attributed(
+    "instance.rs",
+    "fn many_unrelated_wrappers_keep_priority_and_support_late_matches(",
+  ),
   attributed("instance.rs", "fn version_profiles_are_paired_with_their_json("),
   attributed(
     "instance.rs",
@@ -810,9 +846,14 @@ const source = [
   .replace(/super::config::/g, "")
   .replace(/super::storage::/g, "")
   .replace(/super::error::/g, "")
+  .replace(/^use super::minecraft_core::LoaderChoice;$/gm, "")
   .replace(/super::launch_manifest::/g, "")
   .replace(/super::integrity::/g, "")
-  .replace(/crate::line::storage::/g, "");
+  .replace(/crate::line::storage::/g, "")
+  // `jvm_profile` is a sibling module; the harness is flat, so its items are
+  // copied in with no module to qualify them.
+  .replace(/jvm_profile::/g, "")
+  .replace(/minecraft_core::/g, "");
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "line-rust-pure-"));
 try {

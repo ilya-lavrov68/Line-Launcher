@@ -92,7 +92,7 @@ RETURNING server_id, pack_sha256, channel_id, username, expires_at;
 ```json
 {
   "session_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-  "session_secret": "3Jk0c9n2Pq7sV1xY4zB6mR8tW0aE5hL2uN4fS7dG9kM",
+  "session_secret": "<43 characters of base64url, generated per session>",
   "username": "Player_1",
   "uuid": "357b224b-7284-4b0b-9604-24bce67c4b7d",
   "server_id": "survival",

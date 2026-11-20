@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import type { BrandConfig } from "../branding/brand.types.ts";
@@ -196,23 +204,42 @@ test("a leftover presets.json is refused by the generator, not ignored", () => {
   // The config check above catches the keys; this catches the other half of an
   // unfinished migration. It runs the real generator, because the check lives
   // there — brand-config.ts is pure and must not touch the filesystem.
-  const presetsPath = path.join(ROOT, "branding/presets.json");
-  assert.ok(!existsSync(presetsPath), "the shipped tree must not carry it");
-  writeFileSync(presetsPath, '{"presets":{}}');
+  //
+  // It runs against a *copy*, never against `branding/` itself. Writing the
+  // file there raced with the test above, which asserts it is absent: `node
+  // --test` runs the tests in a file concurrently, so the window between
+  // `writeFileSync` and `rmSync` was occasionally wide enough for the other
+  // test to see it and fail with "ENOENT expected". That produced an
+  // intermittent red on a runner slow enough to hit the window, which is
+  // exactly the flake this rewrite removes.
+  const sandbox = mkdtempSync(path.join(tmpdir(), "line-branding-"));
   try {
+    const branding = path.join(sandbox, "branding");
+    cpSync(path.join(ROOT, "branding"), branding, { recursive: true });
+    writeFileSync(path.join(branding, "presets.json"), '{"presets":{}}');
     assert.throws(
       () =>
         execFileSync(
           process.execPath,
           ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
-          { cwd: ROOT, encoding: "utf8", stdio: "pipe" },
+          {
+            cwd: ROOT,
+            encoding: "utf8",
+            stdio: "pipe",
+            env: { ...process.env, LINE_BRANDING_DIR: branding },
+          },
         ),
       (error: { stderr?: string }) => {
         assert.match(String(error.stderr), /palette is fixed/);
         return true;
       },
     );
+    // The shipped tree is untouched by any of it.
+    assert.ok(
+      !existsSync(path.join(ROOT, "branding/presets.json")),
+      "the shipped tree must never carry presets.json",
+    );
   } finally {
-    rmSync(presetsPath, { force: true });
+    rmSync(sandbox, { recursive: true, force: true });
   }
 });

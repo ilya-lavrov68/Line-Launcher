@@ -1,13 +1,51 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { tauriCliCommand } from "../scripts/lib/tauri-cli.mjs";
 import { normalizeEol, sameText } from "../scripts/lib/text-eol.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-const STAMP = path.join(ROOT, "src-tauri/icons/.brand-source.sha256");
+/**
+ * The icon stamp and manifest live in `src-tauri/icons`, and a sibling test in
+ * `brand.test.ts` runs `brand:check` against those same files concurrently.
+ * These cases deliberately plant a wrong stamp, so they get a private copy of
+ * both directories and point the generator at it — otherwise the two tests
+ * race, and the one that reads sees the other one's planted file.
+ */
+function sandbox(): { icons: string; branding: string; stamp: string; cleanup: () => void } {
+  const root = mkdtempSync(path.join(tmpdir(), "line-icons-"));
+  const icons = path.join(root, "icons");
+  const branding = path.join(root, "branding");
+  cpSync(path.join(ROOT, "src-tauri/icons"), icons, { recursive: true });
+  cpSync(path.join(ROOT, "branding"), branding, { recursive: true });
+  return {
+    icons,
+    branding,
+    stamp: path.join(icons, ".brand-source.sha256"),
+    cleanup: () => rmSync(root, { recursive: true, force: true }),
+  };
+}
+
+/** Runs the real generator against a sandbox instead of the working tree. */
+function runBrandCheck(box: { icons: string; branding: string }, args = ["--check"]) {
+  return execFileSync(
+    process.execPath,
+    ["--experimental-strip-types", "scripts/apply-brand.ts", ...args],
+    {
+      encoding: "utf8",
+      cwd: ROOT,
+      shell: false,
+      env: {
+        ...process.env,
+        LINE_BRANDING_DIR: box.branding,
+        LINE_ICONS_DIR: box.icons,
+      },
+    },
+  );
+}
 
 // The icon pipeline only runs when a custom app icon is configured. With
 // assets.app_icon = null these two cases have nothing to exercise, so skip
@@ -61,21 +99,18 @@ test(
   () => {
     // Regression: a CRLF stamp never matched, so every `npm run dev` regenerated
     // all OS icons — and on Windows that path died with `spawnSync npx.cmd EINVAL`.
-    const original = readFileSync(STAMP, "utf8");
+    const box = sandbox();
     try {
-      writeFileSync(STAMP, original.replace(/\n/g, "\r\n"));
-      const out = execFileSync(
-        process.execPath,
-        ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
-        { encoding: "utf8", cwd: ROOT, shell: false },
-      );
+      const original = readFileSync(box.stamp, "utf8");
+      writeFileSync(box.stamp, original.replace(/\n/g, "\r\n"));
+      const out = runBrandCheck(box);
       assert.match(out, /up to date/);
       assert.ok(
         !/generating OS icons/.test(out),
         "a CRLF stamp must not trigger icon regeneration",
       );
     } finally {
-      writeFileSync(STAMP, original);
+      box.cleanup();
     }
   },
 );
@@ -84,21 +119,16 @@ test(
   "brand:check still fails when the source icon really changed",
   { skip: iconSkip },
   () => {
-    const original = readFileSync(STAMP, "utf8");
+    const box = sandbox();
     try {
-      writeFileSync(STAMP, "0".repeat(64) + "\r\n");
+      writeFileSync(box.stamp, "0".repeat(64) + "\r\n");
       assert.throws(
-        () =>
-          execFileSync(
-            process.execPath,
-            ["--experimental-strip-types", "scripts/apply-brand.ts", "--check"],
-            { encoding: "utf8", cwd: ROOT, shell: false, stdio: "pipe" },
-          ),
+        () => runBrandCheck(box),
         /out of date|Command failed/,
         "normalizing line endings must not hide a genuine mismatch",
       );
     } finally {
-      writeFileSync(STAMP, original);
+      box.cleanup();
     }
   },
 );

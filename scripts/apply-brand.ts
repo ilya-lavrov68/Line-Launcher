@@ -65,7 +65,12 @@ const PROVIDER_PATH = join(BRANDING, "provider.json");
 const OWNER_PATH = join(BRANDING, "owner.ts");
 const OUT_OWNER = join(ROOT, "src/brand/owner.generated.ts");
 const OUT_PROVIDER = join(ROOT, "src/brand/provider.generated.ts");
-const ICONS_DIR = join(ROOT, "src-tauri/icons");
+// Same reason as `BRANDING`: a test that plants a deliberately odd stamp must
+// not do it in the working tree, because a sibling test runs `brand:check`
+// against these very files at the same time.
+const ICONS_DIR = process.env.LINE_ICONS_DIR
+  ? resolve(process.env.LINE_ICONS_DIR)
+  : join(ROOT, "src-tauri/icons");
 
 const CHECK_ONLY = process.argv.includes("--check");
 const SKIP_ICONS = process.argv.includes("--skip-icons");

@@ -19,7 +19,7 @@
     ]
   },
   "bundle": {
-    "shortDescription": "Provider-configured Minecraft launcher",
+    "shortDescription": "Official version of provider-configured Minecraft launcher - Line Launcher",
     "publisher": "Plus In Plus",
     "icon": [
       "icons/32x32.png",

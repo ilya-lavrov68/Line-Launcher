@@ -40,7 +40,6 @@
 //! small functions the caller drives; nothing in this module spawns a process
 //! or reads the network.
 
-use super::error::{LineError, LineResult};
 use super::pack::checked_game_path;
 use super::storage::is_real_file;
 use std::fs;
@@ -290,17 +289,6 @@ pub fn parse_manifest(text: &str) -> Vec<MovedFile> {
         });
     }
     entries
-}
-
-/// The launcher's own refusal when a batch would move something it must not.
-pub fn mapped(result: Result<MovedFile, QuarantineError>) -> LineResult<MovedFile> {
-    result.map_err(|error| {
-        LineError::new(
-            super::error::ErrorCode::Integrity,
-            error.message(),
-            false,
-        )
-    })
 }
 
 #[cfg(test)]

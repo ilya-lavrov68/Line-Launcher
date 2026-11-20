@@ -622,12 +622,89 @@ try {
   );
   check(collapsed, "collapsing the sidebar was not persisted");
   await page.getByRole("button", { name: "Серверы" }).waitFor();
+  await page.waitForFunction(() => {
+    const mark = document.querySelector("header [data-line-brand-mark]");
+    const rail = document.querySelector('[data-line-glass="sidebar"]');
+    if (!mark || !rail) return false;
+    const markRect = mark.getBoundingClientRect();
+    const railRect = rail.getBoundingClientRect();
+    return (
+      Math.abs(
+        markRect.left +
+          markRect.width / 2 -
+          (railRect.left + railRect.width / 2),
+      ) < 1
+    );
+  });
   await page.getByRole("button", { name: "Развернуть меню" }).click();
 
   // Settings screen renders the safe controls, with no free-form JVM field.
   await page.getByRole("button", { name: "Настройки" }).click();
   await page.getByText("Память игры", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Повторить поиск Java" }).waitFor();
+
+  // Toggling automatic heap is an in-place settings write, never a document
+  // navigation. Pin both directions: this used to look like a refresh to the
+  // player and could discard the settings screen they were using.
+  const heapSwitch = page.locator("#heap-auto");
+  const initialDocumentTime = await page.evaluate(() => performance.timeOrigin);
+  await heapSwitch.click();
+  await page.waitForFunction(() =>
+    window.__calls.some(
+      (c) => c[0] === "save_settings" && c[1].settings.heapMb === 4096,
+    ),
+  );
+  check(
+    (await page.evaluate(() => performance.timeOrigin)) === initialDocumentTime,
+    "turning automatic heap off reloaded the page",
+  );
+  await heapSwitch.click();
+  await page.waitForFunction(() =>
+    window.__calls.some(
+      (c) => c[0] === "save_settings" && c[1].settings.heapMb === null,
+    ),
+  );
+  check(
+    (await page.evaluate(() => performance.timeOrigin)) === initialDocumentTime,
+    "turning automatic heap on reloaded the page",
+  );
+  const workspaceGlass = page
+    .locator('[role="radio"]')
+    .filter({ hasText: "Прозрачные панели" });
+  await workspaceGlass.click();
+  const glassSurfaces = await page.evaluate(() => ({
+    finish: document.documentElement.dataset.lineWorkspace,
+    main: getComputedStyle(document.querySelector('[data-line-glass="main"]'))
+      .backgroundColor,
+    sidebar: getComputedStyle(
+      document.querySelector('[data-line-glass="sidebar"]'),
+    ).backgroundColor,
+  }));
+  check(
+    glassSurfaces.finish === "glass" &&
+      glassSurfaces.main === "rgba(10, 12, 16, 0.225)" &&
+      glassSurfaces.sidebar === glassSurfaces.main,
+    `glass finish did not paint both shell panels: ${JSON.stringify(glassSurfaces)}`,
+  );
+  await page
+    .locator('[role="radio"]')
+    .filter({ hasText: "Сплошные панели" })
+    .click();
+  const solidSurfaces = await page.evaluate(() => ({
+    finish: document.documentElement.dataset.lineWorkspace,
+    main: getComputedStyle(document.querySelector('[data-line-glass="main"]'))
+      .backgroundColor,
+    sidebar: getComputedStyle(
+      document.querySelector('[data-line-glass="sidebar"]'),
+    ).backgroundColor,
+  }));
+  check(
+    solidSurfaces.finish === "solid" &&
+      solidSurfaces.main === "rgb(43, 45, 48)" &&
+      solidSurfaces.sidebar === solidSurfaces.main,
+    `solid finish did not paint both shell panels: ${JSON.stringify(solidSurfaces)}`,
+  );
+
   const sectionIcons = await page
     .locator('[data-line-icon="section"]')
     .evaluateAll((nodes) =>
@@ -805,9 +882,33 @@ try {
     "the catalogue gained a shortcut that is not a server card",
   );
 
+  // The horizontal Harmony accordion stays available even with saved sections;
+  // it is a temporary presentation and switching back restores the same groups.
+  await page.getByRole("button", { name: "Добавить секцию" }).click();
+  await page.getByRole("button", { name: "Гармонь", exact: true }).click();
+  const harmony = page.locator("[data-line-harmony]");
+  await harmony.waitFor();
+  check(
+    (await page.locator("[data-harmony-row]").count()) === 3 &&
+      (await page.locator("[data-harmony-row] img").count()) >= 6,
+    "Harmony must show every server's banner art and logo",
+  );
+  await page.locator('[data-harmony-row="creative"] > button').click();
+  await page.waitForFunction(() => {
+    const open = document.querySelector('[data-harmony-row="creative"]');
+    const folded = document.querySelector('[data-harmony-row="survival"]');
+    return (
+      open?.hasAttribute("data-open") &&
+      folded &&
+      open.getBoundingClientRect().width >
+        folded.getBoundingClientRect().width * 2
+    );
+  });
+  await page.getByRole("button", { name: "Сетка", exact: true }).click();
+  await page.locator("[data-section-drop]").first().waitFor();
+
   // Dragging changes the same player-owned layout as the section selector.
   // Exercise an empty, collapsed destination and the return to "no section".
-  await page.getByRole("button", { name: "Добавить секцию" }).click();
   const group = page
     .locator("[data-section-drop]")
     .filter({ hasText: "Секция 1" });

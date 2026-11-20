@@ -1072,6 +1072,44 @@ test("a missing Java runtime list does not blank the settings screen", () => {
   assert.match(settings, /!list\.some\(/);
 });
 
+test("auto RAM persists in place and has a no-reload regression guard", () => {
+  const settings = read("src/components/line/SettingsScreen.tsx");
+  const switchBlock = settings.slice(
+    settings.indexOf('id="heap-auto"'),
+    settings.indexOf("</Switch>", settings.indexOf('id="heap-auto"')),
+  );
+  assert.match(switchBlock, /onCheckedChange=/);
+  assert.doesNotMatch(settings, /<form\b/);
+
+  const commit = settings.slice(
+    settings.indexOf("async function commitHeap("),
+    settings.indexOf(
+      "async function clearCache(",
+      settings.indexOf("async function commitHeap("),
+    ),
+  );
+  assert.match(
+    commit,
+    /await persist\(\{ \.\.\.settings, heapMb: automatic \? null : value \}\)/,
+  );
+  assert.doesNotMatch(commit, /location\.reload|window\.location/);
+
+  const smoke = read("scripts/ui-smoke.mjs");
+  assert.match(smoke, /performance\.timeOrigin/);
+  assert.match(smoke, /turning automatic heap off reloaded the page/);
+  assert.match(smoke, /turning automatic heap on reloaded the page/);
+});
+
+test("the title-bar brand mark is centered on the sidebar, not its padded header", () => {
+  const titleBar = read("src/components/line/TitleBar.tsx");
+  assert.match(titleBar, /"justify-between gap-3 pr-1 select-none"/);
+  assert.match(
+    titleBar,
+    /collapsed \? "justify-center" : "pl-4"/,
+    "the collapsed mark must be centered on the rail; open lockup keeps its inset",
+  );
+});
+
 test("the sidebar icons are 1.5x their old 20px and the rows grew with them", () => {
   const nav = read("src/components/line/SideNav.tsx");
   // 30px, not `h-5 w-5` (20px). Every glyph in the rail — the sections, the
@@ -1088,10 +1126,7 @@ test("the sidebar icons are 1.5x their old 20px and the rows grew with them", ()
   assert.match(nav, /h-\[30px\] w-\[30px\]/);
   // A 30px glyph in a 36px row touches both edges. The rows and the two
   // secondary buttons grew so the icons keep their padding.
-  assert.match(
-    nav,
-    /"items-center gap-2\.5 rounded-lg text-xs font-medium"/,
-  );
+  assert.match(nav, /"items-center gap-2\.5 rounded-lg text-xs font-medium"/);
   // Collapsed targets are squares: 40x40 inside the 60px rail, which leaves
   // 2px of air each side. A bar-shaped highlight was the complaint — the box
   // was wider than it was tall — and 44 was edge-to-edge, which read as a slab.

@@ -75,7 +75,7 @@ export default function TitleBar({
       // border was the third strip in a row and cut the window in two.
       className={cn(
         "flex h-11 w-full shrink-0 items-center",
-        "justify-between gap-3 pr-1 pl-3 select-none",
+        "justify-between gap-3 pr-1 select-none",
       )}
     >
       <div
@@ -93,7 +93,7 @@ export default function TitleBar({
           style={{ width: railWidth }}
           className={cn(
             "flex shrink-0 items-center gap-2 transition-[width] duration-180 ease-out",
-            collapsed ? "justify-center" : "pl-1",
+            collapsed ? "justify-center" : "pl-4",
           )}
         >
           <BrandMark className="h-5 w-5 shrink-0" />

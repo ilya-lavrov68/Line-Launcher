@@ -135,8 +135,9 @@ pub struct LauncherSettings {
     /// a downgrade never leaves an empty catalogue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog_view: Option<String>,
-    /// How the workspace behind the panels is painted: `glass` (the animated
-    /// backdrop reads through) or `solid` (an opaque JetBrains-grey field).
+    /// How the main panels are painted: `glass` (the animated backdrop shows
+    /// through) or `solid` (opaque JetBrains-grey panels). The backdrop itself
+    /// remains unchanged in either finish.
     ///
     /// Two values, for the same reason as `catalog_view`: a third finish is the
     /// sort of thing that gets added, and a bool called `solid` would have to

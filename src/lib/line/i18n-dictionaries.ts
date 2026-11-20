@@ -1317,10 +1317,10 @@ const de: Dictionary = {
     "Das Paket nennt seinen Bedarf, der Launcher begrenzt ihn auf das, was der Rechner hergibt. Der Regler wird dann inaktiv.",
   "settings.workspace": "Arbeitsfläche",
   "settings.workspaceHint":
-    "Woraus die Panels bestehen: klares Glas, durch das der Hintergrund sichtbar ist, oder ein durchgehendes Dunkelgrau.",
-  "workspace.glass": "Klar",
-  "workspace.glassHint": "Der Hintergrund bewegt sich hinter den Panels",
-  "workspace.solid": "Deckend",
+    "Die Hauptpanels sind entweder transparent und lassen den Hintergrund durchscheinen oder undurchsichtig dunkelgrau.",
+  "workspace.glass": "Transparente Panels",
+  "workspace.glassHint": "Der Hintergrund scheint durch die Panels",
+  "workspace.solid": "Undurchsichtige Panels",
   "workspace.solidHint": "Dunkelgrau wie in JetBrains-IDEs",
   "settings.backdrop": "Hintergrund des Launchers",
   "settings.backdropHint":

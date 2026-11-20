@@ -117,26 +117,25 @@
 
   /* ── workspace finishes ────────────────────────────────────────────────
    *
-   * The player picks what the workspace behind the panels is made of. Two
-   * finishes, one attribute: `data-line-workspace` on the root element, set
-   * from settings.
+   * The player picks what the main panels are made of. Two finishes, one
+   * attribute: `data-line-workspace` on the root element, set from settings.
+   * The animated backdrop is the same in both — it is the beauty of the
+   * design, and neither finish touches it.
    *
    * `glass` is this design's own answer — the animated backdrop reads through
    * a thin veil, and that is what every pane above is tuned for.
    *
-   * `solid` paints an opaque field instead, so nothing moves behind the
-   * interface and the window reads as a tool rather than a scene. The two
-   * greys are JetBrains': #1E1F22 is their editor background and #2B2D30 their
-   * panel background in the New UI, and they are the pair the eye already
-   * associates with a quiet, high-contrast IDE. Using the *editor* grey under
-   * the panes and the *panel* grey for the panes inverts them the way an IDE
-   * does: the frame is lighter than the workspace it surrounds.
+   * `solid` makes the main panels opaque instead: the rail, the page area and
+   * the sign-in plate go to a flat JetBrains grey, so the shader shows in the
+   * gaps between them rather than through them. The grey is JetBrains' panel
+   * background in the New UI (#2B2D30), the colour the eye already associates
+   * with a quiet, high-contrast IDE.
    *
-   * The rule lives here rather than in a component because six surfaces paint
-   * this colour — the canvas, both shell panes, the gate, and the two backdrop
-   * layers — and a component-by-component switch would drift the moment one of
-   * them was touched. */
-  --line-solid-workspace: #1e1f22;
+   * The rule lives here rather than in a component because the three
+   * page-level plates paint from two tokens — the shell panes from
+   * `--glass-surface-shell`, the sign-in plate from `--glass-surface-gate` —
+   * and a component-by-component switch would drift the moment one of them
+   * was touched. */
   --line-solid-panel: #2b2d30;
 
   /* Glass: a dark pane over the moving backdrop — the state this design had
@@ -372,22 +371,11 @@
     border-radius: var(--radius-panel);
   }
 
-  /* ── solid workspace ───────────────────────────────────────────────────
-   *
-   * Opaque, and the haze is taken out of paint entirely: a moving shader
-   * behind an opaque field is work done for nothing, and on a machine that
-   * cannot draw it the field is what the player sees anyway. `backdrop-filter`
-   * goes with it — there is nothing left to blur, and a blur over a flat
-   * colour is a full-screen compositing pass for no pixels of difference.
-   *
-   * The gate gets the same treatment: it is a page-level plate, and leaving it
-   * translucent over a solid workspace would put the only see-through surface
-   * in the window on the one screen that has nothing behind it.
-   */
-  /* The settings swatch for the glass finish: a stand-in for the haze, since
-   * the real one is a WebGL canvas that cannot be sampled into a 40px tile.
-   * Three bands from the palette, not invented hues — the swatch has to look
-   * like what the player will get, and what they get is the theme's field. */
+  /* ── workspace finish previews and panel treatment ───────────────────── */
+  /* The workspace-finish swatch: a stand-in for the shared haze, since the
+   * real one is a WebGL canvas that cannot be sampled into a 40px tile. The
+   * backdrop stays the same in both choices; only the plate over these bands
+   * changes. */
   .line-workspace-swatch {
     background-image: linear-gradient(
       135deg,
@@ -401,21 +389,15 @@
    * attribute saying `solid`, and no attribute at all — which is what the root
    * carries before settings arrive. Writing it the other way round (glass by
    * default, an override for solid) would make the launcher open on the shader
-   * for the frame before the player's choice loads, then flip. */
+   * for the frame before the player's choice loads, then flip.
+   *
+   * The animated backdrop stays: it is the beauty of the design. Only the
+   * main panels go opaque, so the shader shows in the gaps between them
+   * instead of through them. The page background is the shader, not a flat
+   * field, so --line-canvas is left alone. */
   :root:not([data-line-workspace="glass"]) {
-    --line-canvas: var(--line-solid-workspace);
     --glass-surface-shell: var(--line-solid-panel);
     --glass-surface-gate: var(--line-solid-panel);
-  }
-
-  :root:not([data-line-workspace="glass"]) [data-line-haze],
-  :root:not([data-line-workspace="glass"]) [data-line-backdrop] {
-    display: none;
-  }
-
-  :root:not([data-line-workspace="glass"]) [data-line-glass] {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 
   /* Card hover: a faint lift of the fill ladder rather than a colour change, so

@@ -122,6 +122,7 @@ test("the workspace finish is a setting with a solid default", () => {
   const rust = read("src-tauri/src/line/settings.rs");
   const types = read("src/types/line.ts");
   const launcher = read("src/components/line/LineLauncher.tsx");
+  const settings = read("src/components/line/SettingsScreen.tsx");
   const css = read("src/index.css");
 
   assert.match(rust, /pub workspace: Option<String>/);
@@ -151,12 +152,21 @@ test("the workspace finish is a setting with a solid default", () => {
     /:root:not\(\[data-line-workspace="glass"\]\) \{/,
     "solid must be the finish with no attribute",
   );
-  // The JetBrains pair, and the haze switched off rather than left running
-  // behind an opaque field.
-  assert.match(css, /--line-solid-workspace: #1e1f22/);
+  // The main plates become opaque JetBrains grey, while the selected animated
+  // backdrop remains the page background in both finishes.
+  assert.doesNotMatch(css, /--line-solid-workspace/);
   assert.match(css, /--line-solid-panel: #2b2d30/);
   assert.match(
     css,
-    /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-haze\],/,
+    /:root:not\(\[data-line-workspace="glass"\]\) \{\s*--glass-surface-shell: var\(--line-solid-panel\);\s*--glass-surface-gate: var\(--line-solid-panel\);\s*\}/,
+  );
+  assert.doesNotMatch(
+    css,
+    /:root:not\(\[data-line-workspace="glass"\]\)\s+\[data-line-(?:haze|backdrop|canvas|glass)\]/,
+  );
+  assert.match(
+    settings,
+    /className="line-workspace-swatch relative flex size-10[^\"]*"/,
+    "both finish previews retain the animated backdrop swatch",
   );
 });

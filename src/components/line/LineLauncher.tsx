@@ -185,11 +185,11 @@ export default function LineLauncher() {
   /**
    * The workspace finish, written onto <html>.
    *
-   * Six surfaces paint from it and the page's own background comes from
-   * `:root`, so the attribute has to sit above the component tree. An effect
-   * rather than a static attribute because the answer arrives with settings,
-   * and the attribute is removed while that answer is unknown — so a player who
-   * chose glass does not watch the window start solid and then change.
+   * The main shell panes and sign-in plate read it from `:root`, so the
+   * attribute has to sit above the component tree. The backdrop is untouched.
+   * An effect rather than a static attribute because the answer arrives with
+   * settings, and the attribute is removed while that answer is unknown — so a
+   * player who chose glass does not watch the window start solid and then change.
    */
   useEffect(() => {
     const root = document.documentElement;

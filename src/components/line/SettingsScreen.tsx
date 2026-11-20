@@ -481,9 +481,10 @@ export default function SettingsScreen({
         >
           {/* Two cards, not a select: this is a look, and a look has to be
               seen to be chosen. Each option paints a swatch of exactly what it
-              produces — the glass one over the live colour field, the solid one
-              in the JetBrains grey — so the choice is made by looking rather
-              than by reading a word.
+              produces — the backdrop is the same in both, and the difference
+              is the plate in the middle: a translucent one for glass, the
+              opaque JetBrains grey for solid — so the choice is made by
+              looking rather than by reading a word.
 
               The default is solid, and it is the default only when nobody has
               chosen: `workspace` stays absent until the player picks. */}
@@ -524,17 +525,12 @@ export default function SettingsScreen({
                   )}
                 >
                   {/* The swatch is the thing itself, not a picture of it:
-                      the glass one is a translucent plate over a stack of
-                      bands that stand in for the haze, the solid one is the
-                      flat JetBrains value. */}
+                      the backdrop bands stand in for the haze in both, and
+                      the plate in the middle is what changes — translucent
+                      for glass, the opaque JetBrains value for solid. */}
                   <span
                     aria-hidden="true"
-                    className={cn(
-                      "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-white/10",
-                      option.id === "solid"
-                        ? "bg-[var(--line-solid-workspace)]"
-                        : "line-workspace-swatch",
-                    )}
+                    className="line-workspace-swatch relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-white/10"
                   >
                     <span
                       className={cn(

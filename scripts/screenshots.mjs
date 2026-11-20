@@ -323,12 +323,12 @@ await page.addInitScript(
               // default the first run actually opens with.
               sidebarCollapsed: true,
               afterLaunch: "minimize",
-              // The gallery documents «Медный куст» (`id: "copper"` in
-              // `src/lib/line/backdrops.ts`) — the backdrop the brief asked
-              // for. Without it the mock falls back to the first preset and
-              // every picture shows a different field than the one asked
-              // about.
+              // Explicitly capture the shipped defaults: grid catalog and
+              // opaque JetBrains panels. The animated copper backdrop remains
+              // visible around the panels in the solid finish.
               backdrop: "copper",
+              catalogView: "grid",
+              workspace: "solid",
               windowWidth: 1280,
               windowHeight: 860,
               windowMaximized: false,
@@ -476,6 +476,14 @@ try {
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).waitFor();
   await shot("servers");
 
+  // The optional accordion view is a separate screenshot so the README shows
+  // both the grid default and the compact view for scanning a longer catalog.
+  await page.getByRole("button", { name: "Гармонь", exact: true }).click();
+  await page.locator("[data-line-harmony]").waitFor();
+  await shot("harmony");
+  await page.getByRole("button", { name: "Сетка", exact: true }).click();
+  await page.locator("[data-line-harmony]").waitFor({ state: "detached" });
+
   // Every server is already unlocked: no second login, straight to the build.
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
@@ -503,6 +511,14 @@ try {
   await page.getByRole("button", { name: "Настройки", exact: true }).click();
   await page.getByRole("heading", { name: "Память игры" }).waitFor();
   await shot("settings");
+  const workspaceHeading = page.getByRole("heading", {
+    name: "Рабочая зона",
+  });
+  await workspaceHeading.evaluate((element) =>
+    element.scrollIntoView({ block: "start", behavior: "instant" }),
+  );
+  await page.locator('[role="radiogroup"]').waitFor();
+  await shot("workspace");
 
   if (errors.length > 0) {
     console.error("page errors:", errors);
@@ -512,11 +528,13 @@ try {
       "welcome",
       "account",
       "servers",
+      "harmony",
       "server",
       "minecraft",
       "wardrobe",
       "profile",
       "settings",
+      "workspace",
     ].map((name) => `line-${name}.png`);
     if (
       captured.length !== expected.length ||

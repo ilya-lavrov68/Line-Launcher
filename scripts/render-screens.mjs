@@ -1,18 +1,14 @@
-// Draws the README screenshots without a browser.
+// Draws offline UI illustrations without a browser.
 //
 //   node scripts/render-screens.mjs            # writes .offline-shots/line-*.png
-//   node scripts/render-screens.mjs --check    # fails if any image is missing
+//   node scripts/render-screens.mjs --check    # checks the selected output folder
 //   SHOTS_DIR=/tmp/out node scripts/render-screens.mjs
 //
-// Why this exists: `npm run screenshots` renders the real app through
-// playwright-core and is the source of truth. It needs Chrome/Edge, which some
-// build machines (and CI containers without libnss) do not have. This script is
-// a deterministic approximation: colours are read from `src/index.css`,
-// the same tokens the app renders with, and every screen is laid out at one fixed
-// size (1280x800) so the gallery never mixes tall and short images again.
-//
-// It draws the *current* design (`data-theme="line"`). The old design is
-// reachable in the app; the README only shows what a new user sees.
+// `npm run screenshots` is the source of truth: Playwright captures the real
+// React app and writes the README gallery. This script is only a fallback for
+// machines without Chrome/Edge. It draws an approximation on canvas, taking
+// colours from `src/index.css`; it does not render the app or write `docs/images`.
+// All illustrations use one fixed size (1280x800).
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,15 +29,6 @@ const outDir = path.resolve(
   process.env.SHOTS_DIR || path.join(root, ".offline-shots"),
 );
 const checkOnly = process.argv.includes("--check");
-/**
- * True when the caller asked for the README gallery itself (`SHOTS_DIR` points
- * at `docs/images`). The gallery has a fixed set of eight screens and a test
- * that rejects anything else in that folder, so the transient «connecting»
- * screen is written only to the scratch folder.
- */
-const writingGallery =
-  Boolean(process.env.SHOTS_DIR) &&
-  path.resolve(process.env.SHOTS_DIR) === path.join(root, "docs", "images");
 
 /** Every screenshot has the same body size; the poster swaps per screen. */
 export const SHOT_WIDTH = 1280;
@@ -207,8 +194,9 @@ export function loadTokens() {
     // strips that sit directly on the field (title bar, footer) ask for
     // `canvasInk` explicitly.
     foreground: parseColor(resolve("--glass-shell-ink")) ?? [244, 245, 246, 1],
-    mutedForeground:
-      parseColor(resolve("--glass-shell-ink-soft")) ?? [230, 232, 234, 1],
+    mutedForeground: parseColor(resolve("--glass-shell-ink-soft")) ?? [
+      230, 232, 234, 1,
+    ],
     primary: color("--primary"),
     primaryForeground: color("--primary-foreground"),
     border: color("--border"),
@@ -222,8 +210,9 @@ export function loadTokens() {
     // an explicit fallback — a missing token used to give `parseColor("")` →
     // white, so every panel rendered as a white board while the CSS was right.
     surfaceGlass: color("--glass-surface"),
-    surfaceShellGlass:
-      parseColor(resolve("--glass-surface-shell")) ?? [230, 233, 238, 0.13],
+    surfaceShellGlass: parseColor(resolve("--glass-surface-shell")) ?? [
+      230, 233, 238, 0.13,
+    ],
     online: color("--line-online"),
     update: color("--line-update"),
     offline: color("--line-offline"),
@@ -237,13 +226,18 @@ export function loadTokens() {
     // the renderer reads the same token the app does; the fallbacks match the
     // dark wash rather than the light sheet this used to assume.
     shellInk: parseColor(resolve("--glass-shell-ink")) ?? [244, 245, 246, 1],
-    shellInkSoft: parseColor(resolve("--glass-shell-ink-soft")) ?? [230, 232, 234, 1],
-    shellOnline:
-      parseColor(resolve("--glass-shell-online")) ?? [97, 208, 138, 1],
-    shellUpdate:
-      parseColor(resolve("--glass-shell-update")) ?? [232, 190, 94, 1],
-    shellError:
-      parseColor(resolve("--glass-shell-error")) ?? [232, 116, 116, 1],
+    shellInkSoft: parseColor(resolve("--glass-shell-ink-soft")) ?? [
+      230, 232, 234, 1,
+    ],
+    shellOnline: parseColor(resolve("--glass-shell-online")) ?? [
+      97, 208, 138, 1,
+    ],
+    shellUpdate: parseColor(resolve("--glass-shell-update")) ?? [
+      232, 190, 94, 1,
+    ],
+    shellError: parseColor(resolve("--glass-shell-error")) ?? [
+      232, 116, 116, 1,
+    ],
     popover: color("--popover"),
   };
 }
@@ -1652,11 +1646,17 @@ function screenMinecraft(ctx) {
     size: 12,
     color: rgba(T.mutedForeground),
   });
-  text(ctx, "MC 1.21.1", x + pad + 18 + measure(ctx, "Игра не запущена", 12, 400) + 12, rowY + 9, {
-    size: 10,
-    color: rgba(T.mutedForeground, 0.8),
-    mono: true,
-  });
+  text(
+    ctx,
+    "MC 1.21.1",
+    x + pad + 18 + measure(ctx, "Игра не запущена", 12, 400) + 12,
+    rowY + 9,
+    {
+      size: 10,
+      color: rgba(T.mutedForeground, 0.8),
+      mono: true,
+    },
+  );
   rowY += 26;
 
   const barW = contentW - pad * 2;
@@ -1681,7 +1681,15 @@ function screenMinecraft(ctx) {
     size: 10,
     color: rgba(T.shellInk, 0.85),
   });
-  icon(ctx, "download", x + pad + ghostW + 18, rowY + 7, 12, rgba(T.shellInk, 0.7), 1.8);
+  icon(
+    ctx,
+    "download",
+    x + pad + ghostW + 18,
+    rowY + 7,
+    12,
+    rgba(T.shellInk, 0.7),
+    1.8,
+  );
   text(ctx, "Подготовить заранее", x + pad + ghostW + 36, rowY + 17, {
     size: 10,
     color: rgba(T.shellInk, 0.7),
@@ -2106,9 +2114,9 @@ function screenSettings(ctx) {
     });
   });
 
-  // No appearance section: there is one design (see docs/DESIGN.md), and the
-  // settings screen has no theme switch. This renderer used to draw one, which
-  // put a control in the gallery that no player could find in the app.
+  // The real SettingsScreen now has a workspace-finish section between memory
+  // and the backdrop picker. This lightweight canvas sketch omits it; the README
+  // uses only the Playwright capture, which shows the actual settings UI.
 }
 
 /**
@@ -2235,10 +2243,9 @@ function screenProfile(ctx) {
 
 export const SCREENS = [
   ["welcome", screenWelcome],
-  // `connecting` is deliberately not in the gallery: it is a transient state
-  // the README does not show, and writing it here left a file the gallery test
-  // rejects as obsolete. It stays in the module for the browser writer.
-  ...(writingGallery ? [] : [["connecting", screenConnecting]]),
+  // The connecting state is transient; it appears only in this offline preview,
+  // never in the README gallery captured by Playwright.
+  ["connecting", screenConnecting],
   ["account", screenAccount],
   ["servers", screenServers],
   ["server", screenServer],

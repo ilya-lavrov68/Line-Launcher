@@ -1,37 +1,28 @@
 # Verification status
 
-## Current branch: screenshot and documentation pass
+## Current verification snapshot
 
-The eight gallery images in `docs/images/` were captured from current React
-components in headless Chromium at 1280×800 using `npm run screenshots`. The
-provider, Tauri commands, installed state and skin data are fixtures; the images
-are not evidence of a working Windows WebView, actual game launch or downloads.
-The obsolete connecting image was removed. Capture is staged so a failed run
-leaves the previous gallery intact; the offline token renderer writes only to
-`.offline-shots/` and is not a source of screenshots.
+The README gallery now contains ten screenshots captured from the current React
+application in headless Chromium at **1280×800** with `npm run screenshots`.
+It includes the grid catalog, the optional «Гармонь» view, the settings overview,
+and a focused view of the workspace-finish chooser. The capture uses demo
+configuration, a mocked Tauri IPC layer, and fixture installation/skin data; it
+is not evidence of a working Windows WebView, a real provider, game launch or
+download. There were no page errors during capture. Images are staged and
+published only after the full run succeeds. Offline canvas illustrations live
+under `.offline-shots/` and must not replace `docs/images/`.
 
-**Panel surfaces.** The two shell panes (`[data-line-glass="main"|"sidebar"]`)
-and the sign-in plate are the same dark veil, `rgba(10,12,16,0.225)`, with light
-ink. Measured on the real wardrobe screenshot with the copper backdrop, at the
-brightest point of the pane (composite `rgb(61,68,77)`): primary text
-**9.02:1**, quiet text **8.02:1**. Raised surfaces (menus, dialogs, popovers)
-stay opaque. These are rendering measurements of the reference components with
-fixtures, not a Windows WebView check.
+The default workspace finish is opaque JetBrains-grey on the main panels; the
+animated background is retained around them. Transparent glass remains an
+optional setting. The screenshot of the chooser shows both options over the
+same background.
 
-Local checks for this pass: 390 npm tests passed (1 skipped), TypeScript and
-frontend build passed, and the dependency-free Rust subset passed 89 tests.
-Chromium UI smoke passed after correcting a test fixture that held a second
-mock installation indefinitely; boot, card drag and dock smoke passed as well.
-All these browser scenarios use a mocked backend, not Tauri or Minecraft.
-
-The current draft PR #71 remains unverified as a complete application. Local
-frontend, pure Rust and partial JSON/filesystem harness tests do not compile the
-full Tauri/Cargo graph. Previously on Windows a real BattleArmory source install
-was exercised; it does not validate the latest draft or all loaders. Current
-GitHub Actions jobs did not start: the check annotation cites failed account
-payments or a spending limit, which the account owner must resolve in Billing &
-plans. Do not read these jobs as test failures or successful code validation.
-See [INSTALLATION-AUDIT.md](INSTALLATION-AUDIT.md) for the acceptance gates.
+Local verification for this refresh: `npm test` — 404 tests (403 passed, 1
+skipped); `npm run check`, `npm run build`, branding check, and screenshot
+capture passed. The screenshot harness stubs Tauri and provider state. No full
+Tauri/Cargo build or real game launch was performed as part of this pass. For
+installation acceptance gates and platform-specific validation, see
+[INSTALLATION-AUDIT.md](INSTALLATION-AUDIT.md).
 
 ## Historical desktop-fix pass (not current status)
 
@@ -296,10 +287,11 @@ Checked in the implementation sandbox:
 - Screenshot geometry is now an invariant, not a habit. At the time of this
   pass all six README images then in existence were captured at whatever height
   the screen needed (480, 860, 1000, 1060), so the gallery mixed tall and short
-  pictures. (The gallery has since grown to eight images; the rule is the same.) `scripts/screenshots.mjs` takes one
-  fixed viewport for every shot and throws if the viewport drifts,
-  `scripts/render-screens.mjs` draws the same six screens at the same size, and
-  `tests/screenshots.test.ts` reads each PNG's IHDR and fails unless it is exactly
+  pictures. At that historical snapshot the browser gallery had eight images;
+  it now has ten. `scripts/screenshots.mjs` takes one fixed viewport for every
+  shot and throws if the viewport drifts. The offline canvas renderer is only an
+  approximation and is kept out of `docs/images/`. `tests/screenshots.test.ts`
+  reads each PNG's IHDR and fails unless it is exactly
   1280x800. Mutation-checked, 5 of 5 caught: a 1280x860 PNG over one screen, a
   per-screen `shot("wardrobe", 1000)` height, changing the shared height constant,
   reading only the `[data-theme="line"]` block instead of `:root` + the palette

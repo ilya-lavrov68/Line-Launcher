@@ -5,14 +5,14 @@
     "app_id": "studio.plusinplus.line-launcher",
     "publisher": "Plus In Plus",
     "window_title": "Line Launcher",
-    "description": "Provider-configured Minecraft launcher"
+    "description": "Official version of provider-configured Minecraft launcher - Line Launcher"
   },
   "assets": {
     "logo": "assets/logo.svg",
     "app_icon": "assets/app-icon.svg"
   },
   "attribution": {
-    "placement": "header",
+    "placement": "footer",
     "language": "en"
   }
 }

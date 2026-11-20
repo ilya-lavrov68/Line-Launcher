@@ -12,11 +12,11 @@ export const brand: Brand = {
   appId: "studio.plusinplus.line-launcher",
   publisher: "Plus In Plus",
   windowTitle: "Line Launcher",
-  description: "Provider-configured Minecraft launcher",
+  description: "Official version of provider-configured Minecraft launcher - Line Launcher",
   logo: logoUrl,
   logoTinted: false,
   attribution: {
-    placement: "header",
+    placement: "footer",
     language: "en",
     en: "Powered by Line Launcher | Plus In Plus",
     ru: "Работает на Line Launcher | Plus In Plus",

@@ -96,6 +96,7 @@ export default function SideNav({
           const Icon = item.icon;
           const button = (
             <Button
+              key={item.id}
               variant="ghost"
               disabled={item.disabled || navigationDisabled}
               // Keep it focusable and hoverable so the reason is reachable by
@@ -132,7 +133,7 @@ export default function SideNav({
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Button>
           );
-          if (!item.hint) return <div key={item.id}>{button}</div>;
+          if (!item.hint) return button;
           return (
             <Tooltip key={item.id}>
               <TooltipTrigger render={button} />

@@ -139,7 +139,10 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   assert.match(primarySource, /className="dock-sweep /);
   // The sweep must actually travel; a static third was the rejected version.
   assert.match(read("src/index.css"), /@keyframes line-dock-sweep/);
-  assert.match(read("src/index.css"), /\.dock-sweep \{[\s\S]{0,200}animation: line-dock-sweep/);
+  assert.match(
+    read("src/index.css"),
+    /\.dock-sweep \{[\s\S]{0,200}animation: line-dock-sweep/,
+  );
   // Ни отдельного прогресса, ни имени файла: стадия — из словаря.
   assert.doesNotMatch(panel, /<ActionProgress/);
   assert.doesNotMatch(panel, /progress\.label/);
@@ -849,21 +852,24 @@ test("the skin placeholder cannot stretch the card around it", () => {
   );
 });
 
-test("every page-level plate is the same dark veil", () => {
-  // «Вуаль возвращается на ВСЕ главные панели, то есть ещё и main + sidebar».
-  // The rail, the page area and the sign-in plate are the same kind of surface
-  // — a whole screen is built on them — so they are one value, not two that
-  // drift apart. The failure mode this pins: the shell was left on a light
-  // `rgba(230,233,238,…)` wash while the gate became a dark veil, so the app
-  // had two different ideas of what a page plate is.
+test("page plates use a shared veil while the sidebar stays visually distinct", () => {
+  // The page and sign-in plates share one dark veil; the rail has a slightly
+  // deeper tint so the navigation boundary does not disappear into the page.
   const css = read("src/index.css");
   const shell =
     /--glass-surface-shell:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(css);
   const gate = /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(
     css,
   );
-  assert.ok(shell, "the shell panes must be the dark veil at 0.225");
+  assert.ok(shell, "the page pane must be the dark veil at 0.225");
   assert.ok(gate, "the sign-in plate must be the same dark veil at 0.225");
+  assert.match(
+    css,
+    /--glass-surface-sidebar:\s*rgba\(8,\s*10,\s*14,\s*0\.32\)/,
+    "the sidebar must use a deeper tint than the neighboring page pane",
+  );
+  assert.match(css, /--line-solid-sidebar:\s*#191b1f/);
+  assert.match(css, /--line-solid-panel:\s*#222326/);
   assert.doesNotMatch(
     css,
     /--glass-surface-shell:\s*rgba\(230,/,
@@ -878,7 +884,7 @@ test("every page-level plate is the same dark veil", () => {
   assert.equal(
     shellValue,
     gateValue,
-    "the two page plates must share one value",
+    "the main page and sign-in plates must share one value",
   );
 });
 

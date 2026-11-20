@@ -52,12 +52,10 @@ test("the accordion is a disclosure, not a div with a click", () => {
   assert.match(catalog, /<button\b/);
   assert.match(catalog, /aria-expanded=\{open\}/);
   assert.doesNotMatch(catalog, /aria-pressed/);
-  // One row is open at a time: clicking the open row closes it, clicking
-  // another opens that one.
-  assert.match(
-    catalog,
-    /onClick=\{\(\) => setChosen\(open \? "" : server\.id\)\}/,
-  );
+  // One row is always open when servers exist: clicking a folded row opens it,
+  // while clicking the already-open row cannot collapse the whole accordion.
+  assert.match(catalog, /if \(!open\) setChosen\(server\.id\)/);
+  assert.doesNotMatch(catalog, /setChosen\(""\)/);
 });
 
 test("harmony is a horizontal artwork accordion with a reduced-motion fallback", () => {
@@ -71,7 +69,7 @@ test("harmony is a horizontal artwork accordion with a reduced-motion fallback",
   );
   assert.match(catalog, /server\.banner_url/);
   assert.match(catalog, /server\.icon_url \?\? server\.logo_url/);
-  assert.match(catalog, /bg-\[#222326\]/);
+  assert.match(catalog, /bg-\[#1d1f23\]/);
   assert.match(catalog, /showArtwork \? \(/);
   const fallbackClass = /data-harmony-art-fallback\s+className="([^"]+)"/.exec(
     catalog,
@@ -181,7 +179,7 @@ test("the workspace finish is a setting with a solid default", () => {
   assert.match(css, /--line-solid-panel: #222326/);
   assert.match(
     css,
-    /:root:not\(\[data-line-workspace="glass"\]\) \{\s*--glass-surface-shell: var\(--line-solid-panel\);\s*--glass-surface-gate: var\(--line-solid-panel\);\s*\}/,
+    /:root:not\(\[data-line-workspace="glass"\]\) \{\s*--glass-surface-shell: var\(--line-solid-panel\);\s*--glass-surface-sidebar: var\(--line-solid-sidebar\);\s*--glass-surface-gate: var\(--line-solid-panel\);\s*\}/,
   );
   assert.doesNotMatch(
     css,
@@ -195,7 +193,12 @@ test("the workspace finish is a setting with a solid default", () => {
   assert.match(
     css,
     /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-glass="main"\][\s\S]*?background-color: var\(--line-solid-panel\);/,
-    "solid must paint the opaque panel directly on the actual shell panes",
+    "solid must paint the opaque panel directly on the main pane",
+  );
+  assert.match(
+    css,
+    /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-glass="sidebar"\][\s\S]*?background-color: var\(--line-solid-sidebar\);/,
+    "the rail must be distinct from the overlapping page panel",
   );
   assert.doesNotMatch(
     css,

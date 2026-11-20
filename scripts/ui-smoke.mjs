@@ -628,6 +628,22 @@ try {
   check(collapsed, "collapsing the sidebar was not persisted");
   await page.getByRole("button", { name: "Серверы" }).waitFor();
   await page.waitForFunction(() => {
+    const rail = document.querySelector('[data-line-glass="sidebar"]');
+    if (!rail) return false;
+    const railRect = rail.getBoundingClientRect();
+    const railCenter = railRect.left + railRect.width / 2;
+    const buttons = [...rail.querySelectorAll("button")];
+    return (
+      buttons.length > 0 &&
+      buttons.every((button) => {
+        const buttonRect = button.getBoundingClientRect();
+        return (
+          Math.abs(buttonRect.left + buttonRect.width / 2 - railCenter) < 1
+        );
+      })
+    );
+  });
+  await page.waitForFunction(() => {
     const mark = document.querySelector("header [data-line-brand-mark]");
     const rail = document.querySelector('[data-line-glass="sidebar"]');
     if (!mark || !rail) return false;
@@ -688,7 +704,8 @@ try {
   check(
     glassSurfaces.finish === "glass" &&
       glassSurfaces.main === "rgba(10, 12, 16, 0.225)" &&
-      glassSurfaces.sidebar === glassSurfaces.main,
+      glassSurfaces.sidebar === "rgba(8, 10, 14, 0.32)" &&
+      glassSurfaces.sidebar !== glassSurfaces.main,
     `glass finish did not paint both shell panels: ${JSON.stringify(glassSurfaces)}`,
   );
   await page
@@ -706,8 +723,57 @@ try {
   check(
     solidSurfaces.finish === "solid" &&
       solidSurfaces.main === "rgb(34, 35, 38)" &&
-      solidSurfaces.sidebar === solidSurfaces.main,
+      solidSurfaces.sidebar === "rgb(25, 27, 31)" &&
+      solidSurfaces.sidebar !== solidSurfaces.main,
     `solid finish did not paint both shell panels: ${JSON.stringify(solidSurfaces)}`,
+  );
+
+  // The color lift belongs to the composed backdrop, not any one theme layer;
+  // its strength must stay constant after the outgoing shader is discarded.
+  const backdropFilterBefore = await page
+    .locator("[data-line-backdrop]")
+    .evaluate((node) => getComputedStyle(node).filter);
+  const shaderLayers = page.locator(
+    '[data-line-backdrop] > [aria-hidden="true"]',
+  );
+  const shaderLayerCount = await shaderLayers.count();
+  const shaderTransitionDuration =
+    shaderLayerCount > 0
+      ? await shaderLayers
+          .first()
+          .evaluate((node) => getComputedStyle(node).transitionDuration)
+      : "0s";
+  await page.evaluate(() => {
+    window.__backdropOpacityTransitions = 0;
+    document
+      .querySelector("[data-line-backdrop]")
+      ?.addEventListener("transitionrun", (event) => {
+        if (
+          event.propertyName === "opacity" &&
+          event.target instanceof HTMLElement &&
+          event.target.getAttribute("aria-hidden") === "true"
+        ) {
+          window.__backdropOpacityTransitions += 1;
+        }
+      });
+  });
+  await page.getByRole("button", { name: /^Фон лаунчера:/ }).click();
+  await page.getByRole("radio", { name: "Ночная бухта", exact: true }).click();
+  if (shaderLayerCount > 0 && shaderTransitionDuration !== "0s") {
+    await page.waitForFunction(() => window.__backdropOpacityTransitions >= 2);
+  }
+  await page.waitForFunction(
+    () =>
+      document.querySelector("[data-line-backdrop]")?.dataset
+        .lineBackdropTheme === "zenith",
+  );
+  const backdropFilterAfter = await page
+    .locator("[data-line-backdrop]")
+    .evaluate((node) => getComputedStyle(node).filter);
+  check(
+    backdropFilterBefore === "saturate(1.4)" &&
+      backdropFilterAfter === backdropFilterBefore,
+    `backdrop saturation changed across themes: ${backdropFilterBefore} → ${backdropFilterAfter}`,
   );
 
   const sectionIcons = await page
@@ -908,6 +974,11 @@ try {
         .locator('[data-harmony-row="skyblock"] [data-harmony-logo-fallback]')
         .count()) === 1,
     "a server with no art or logo must use the neutral icon fallback",
+  );
+  await page.locator('[data-harmony-row="skyblock"] > button').click();
+  check(
+    (await page.locator("[data-harmony-row][data-open]").count()) === 1,
+    "the accordion must retain one expanded server when its open header is clicked",
   );
   await page.locator('[data-harmony-row="creative"] > button').click();
   await page.waitForFunction(() => {

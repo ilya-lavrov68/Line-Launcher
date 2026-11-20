@@ -400,14 +400,13 @@ export default function SettingsScreen({
               >
                 {t("settings.heapLabel")}
               </Label>
+              {/* In the automatic mode the number is the pack's, and it
+                  differs per pack — the exact figure is settled at launch, so
+                  showing one here would be a guess dressed as a fact. */}
               <span className="text-foreground font-mono text-xs">
-                {t("settings.heapValue", { heap })}
-                {automatic && (
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {t("settings.auto")}
-                  </span>
-                )}
+                {automatic
+                  ? t("settings.auto")
+                  : t("settings.heapValue", { heap })}
               </span>
             </div>
             <Slider

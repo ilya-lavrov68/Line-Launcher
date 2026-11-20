@@ -77,7 +77,7 @@
    * haze and light enough that the haze still reads through — an earlier 0.82
    * turned every panel into opaque grey and left the colour visible only in the
    * 6px gaps, which looked like a broken window instead of a designed one.
-   * The blur in the `[data-line-glass]` rule below does the rest. */
+   * The pane is a tint, not frosted glass: no blur obscures the backdrop. */
   --fill-subtle: rgba(255, 255, 255, 0.045);
   --fill: rgba(255, 255, 255, 0.07);
   --fill-hover: rgba(255, 255, 255, 0.1);
@@ -293,19 +293,15 @@
 /* ─────────────────────── component opt-in rules ─────────────────────── */
 
 @layer components {
-  /* Panel surface, only while the new theme is active.
+  /* Panel surfaces, only while the new theme is active.
    *
    * No outline: a 1px border around every panel is the loudest thing on a dark
    * screen — twelve panels draw twelve boxes and the eye reads a grid of frames
-   * instead of content. Separation comes from the glass itself.
-   *
-   * Blur is back, and only because the backdrop came back: with an animated
-   * colour field behind the window, a translucent panel without it shows the
-   * mesh's edges through the text. */
+   * instead of content. Separation comes from the fill and rounded shape.
+   * Translucent panels are a plain tint over the animated backdrop, not frost:
+   * the colour field stays crisp and no backdrop blur is applied. */
   [data-line-glass] {
     background: var(--glass-surface);
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
     /* No token re-pointing here. tryliner's rule is «glass only on the outer
      * container; never nest glass in glass» — flipping the whole palette per
      * subtree is what made every pane a board with its own inverted ink. One
@@ -313,20 +309,13 @@
      * what a pane changes is its *fill*, not the ink. */
   }
 
-  /* The two large shell panes — the rail and the page area. These are the ones
-   * that sit *on* the animated backdrop, so these are the ones that carry the
-   * glass: a light grey frosted sheet the colour field reads through, which is
-   * how tryliner's sidebar and content panes behave (their `--bg-glass` over
-   * the moving cover backdrop).
-   *
-   * `--glass-surface` is the shared, dark pane used by everything else. The
-   * shell gets its own light value, so making the shell frosted does not turn
-   * every popover into a translucent slab. */
+  /* The two large shell panes — the rail and the page area — sit over the
+   * animated backdrop. The glass finish is the requested subtle dark veil;
+   * solid swaps only these large plates to the opaque JetBrains panel colour.
+   * `--glass-surface` remains the denser fill for nested cards and controls. */
   [data-line-glass="main"],
   [data-line-glass="sidebar"] {
     background: var(--glass-surface-shell);
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
     /* Reserve the scrollbar gutter in both panes whether or not they overflow.
      * A page taller than the pane and a page shorter than it then occupy the
      * same width, so navigating between them cannot shift the content. */
@@ -351,8 +340,6 @@
    * dark veil, so the root ink already reads on it — no re-pointing here. */
   [data-line-glass="gate"] {
     background: var(--glass-surface-gate);
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
     scrollbar-gutter: stable;
   }
 
@@ -362,8 +349,6 @@
    * rendering bug. They were never the point of the brief. */
   [data-line-glass="raised"] {
     background: var(--popover);
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
   }
 
   /* The action dock: one continuous surface, no separate header block. */
@@ -398,6 +383,22 @@
   :root:not([data-line-workspace="glass"]) {
     --glass-surface-shell: var(--line-solid-panel);
     --glass-surface-gate: var(--line-solid-panel);
+  }
+
+  /* Paint the workspace choice directly on its actual surfaces as well as
+   * exposing the shared tokens above. This keeps the visible shell finish
+   * coupled to the root preference even when a component supplies its own
+   * background declaration. */
+  :root[data-line-workspace="glass"] [data-line-glass="main"],
+  :root[data-line-workspace="glass"] [data-line-glass="sidebar"],
+  :root[data-line-workspace="glass"] [data-line-glass="gate"] {
+    background-color: rgba(10, 12, 16, 0.225);
+  }
+
+  :root:not([data-line-workspace="glass"]) [data-line-glass="main"],
+  :root:not([data-line-workspace="glass"]) [data-line-glass="sidebar"],
+  :root:not([data-line-workspace="glass"]) [data-line-glass="gate"] {
+    background-color: var(--line-solid-panel);
   }
 
   /* Card hover: a faint lift of the fill ladder rather than a colour change, so

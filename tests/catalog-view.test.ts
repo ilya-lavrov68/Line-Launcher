@@ -60,17 +60,21 @@ test("the accordion is a disclosure, not a div with a click", () => {
   );
 });
 
-test("harmony respects reduced motion instead of refusing to open", () => {
+test("harmony is a horizontal artwork accordion with a reduced-motion fallback", () => {
   const catalog = read("src/components/line/HarmonyCatalog.tsx");
 
-  // The row still opens — the box is what carries the information, and a
-  // reduced-motion user needs it just as much. Only the tween is dropped.
-  assert.match(catalog, /const reduced = useReducedMotion\(\)/);
+  assert.match(catalog, /role="list"/);
+  assert.match(catalog, /flex h-\[min\(390px,58vh\)\][^\"]*overflow-x-auto/);
   assert.match(
     catalog,
-    /initial=\{reduced \? false : \{ height: 0, opacity: 0 \}\}/,
+    /animate=\{\{ flexGrow: open \? 1 : 0, flexBasis: open \? 0 : 68 \}\}/,
   );
-  assert.match(catalog, /duration: reduced \? 0 : 0\.2/);
+  assert.match(catalog, /server\.banner_url/);
+  assert.match(catalog, /server\.icon_url \?\? server\.logo_url/);
+  assert.match(catalog, /aria-controls=\{panelId\}/);
+  assert.match(catalog, /const reduced = useReducedMotion\(\)/);
+  assert.match(catalog, /duration: reduced \? 0 : 0\.28/);
+  assert.match(catalog, /reduced \? \{ opacity: 0 \} : \{ opacity: 0, y: 8 \}/);
 });
 
 test("the view is a setting, so it survives a restart", () => {
@@ -101,21 +105,24 @@ test("the view is a setting, so it survives a restart", () => {
   assert.match(launcher, /catalogView: view/);
 });
 
-test("the switch is offered only where it can work", () => {
+test("the view switch stays visible with saved sections and restores the grouped grid", () => {
   const list = read("src/components/line/ServerList.tsx");
 
-  // Sections and harmony are different answers to the same question — how the
-  // list is grouped — so the switch is hidden while sections exist. Drawing a
-  // player's sections as an accordion would silently drop their arrangement.
-  assert.match(
+  // The accordion is an alternate presentation, not a destructive edit to the
+  // player's saved group layout, so the control must not disappear when groups
+  // exist. Text labels make this non-standard view discoverable in the UI.
+  assert.match(list, /aria-label=\{t\("catalog\.view"\)\}/);
+  assert.match(list, /<span>\{t\("catalog\.harmony"\)\}<\/span>/);
+  assert.doesNotMatch(
     list,
-    /\{layout === undefined \|\| layout\.sections\.length === 0 \? \(/,
+    /layout === undefined \|\| layout\.sections\.length === 0 \?/,
   );
-  // And the grouped grid is not drawn underneath the accordion: its drag hints
-  // and "add section" button would be gestures over a list that ignores them.
   assert.match(list, /\{view === "harmony" \? \(/);
   assert.match(list, /\{view === "grid" &&\s*targets\.map/);
-  assert.match(list, /\{view === "grid" && layout !== undefined && \(/);
+  assert.match(
+    list,
+    /view === "grid" &&\s*layout !== undefined &&\s*layout\.sections\.length === 0/,
+  );
 });
 
 test("the workspace finish is a setting with a solid default", () => {
@@ -163,6 +170,21 @@ test("the workspace finish is a setting with a solid default", () => {
   assert.doesNotMatch(
     css,
     /:root:not\(\[data-line-workspace="glass"\]\)\s+\[data-line-(?:haze|backdrop|canvas|glass)\]/,
+  );
+  assert.match(
+    css,
+    /:root\[data-line-workspace="glass"\] \[data-line-glass="main"\][\s\S]*?background-color: rgba\(10, 12, 16, 0\.225\);/,
+    "glass must visibly paint the translucent wash on the actual shell panes",
+  );
+  assert.match(
+    css,
+    /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-glass="main"\][\s\S]*?background-color: var\(--line-solid-panel\);/,
+    "solid must paint the opaque panel directly on the actual shell panes",
+  );
+  assert.doesNotMatch(
+    css,
+    /backdrop-filter:\s*blur\(/,
+    "the workspace surfaces must not use a frost-glass blur",
   );
   assert.match(
     settings,

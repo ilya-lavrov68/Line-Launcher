@@ -217,54 +217,48 @@ export default function ServerList({
           {providerName}
         </h2>
         <div className="flex items-center gap-2">
-          {/* The view switch sits with Refresh because they are the same kind
-              of control: a way to change what the catalogue you are looking at
-              looks like, not a place to go. A segmented pair rather than a
-              select, because there are exactly two and the state has to be
-              readable without opening anything.
-
-              Harmony is hidden while sections exist: the two are different
-              answers to the same question — how the list is grouped — and
-              drawing a player's sections as an accordion means one of the two
-              silently stops working. */}
-          {layout === undefined || layout.sections.length === 0 ? (
-            <div
-              role="group"
-              aria-label={t("catalog.view")}
-              className="border-border/50 bg-fill-subtle flex items-center gap-0.5 rounded-[var(--radius-control)] border p-0.5"
+          {/* Keep both catalogue layouts available even when the player has
+              sections: Harmony is a temporary presentation choice, not an edit
+              to those saved groups. Labeled buttons make the less familiar
+              horizontal accordion discoverable without relying on tooltips. */}
+          <div
+            role="group"
+            aria-label={t("catalog.view")}
+            className="border-border/50 bg-fill-subtle flex items-center gap-0.5 rounded-[var(--radius-control)] border p-0.5"
+          >
+            <button
+              type="button"
+              aria-pressed={view === "grid"}
+              aria-label={t("catalog.grid")}
+              title={t("catalog.grid")}
+              onClick={() => onViewChange?.("grid")}
+              className={cn(
+                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] px-2 text-[11px] font-medium transition-colors",
+                view === "grid"
+                  ? "bg-fill-strong text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
-              <button
-                type="button"
-                aria-pressed={view === "grid"}
-                aria-label={t("catalog.grid")}
-                title={t("catalog.grid")}
-                onClick={() => onViewChange?.("grid")}
-                className={cn(
-                  "flex size-7 cursor-pointer items-center justify-center rounded-[6px] transition-colors",
-                  view === "grid"
-                    ? "bg-fill-strong text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <LayoutGrid className="size-3.5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === "harmony"}
-                aria-label={t("catalog.harmony")}
-                title={t("catalog.harmony")}
-                onClick={() => onViewChange?.("harmony")}
-                className={cn(
-                  "flex size-7 cursor-pointer items-center justify-center rounded-[6px] transition-colors",
-                  view === "harmony"
-                    ? "bg-fill-strong text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <ListCollapse className="size-3.5" aria-hidden="true" />
-              </button>
-            </div>
-          ) : null}
+              <LayoutGrid className="size-3.5" aria-hidden="true" />
+              <span>{t("catalog.grid")}</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "harmony"}
+              aria-label={t("catalog.harmony")}
+              title={t("catalog.harmony")}
+              onClick={() => onViewChange?.("harmony")}
+              className={cn(
+                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] px-2 text-[11px] font-medium transition-colors",
+                view === "harmony"
+                  ? "bg-fill-strong text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <ListCollapse className="size-3.5" aria-hidden="true" />
+              <span>{t("catalog.harmony")}</span>
+            </button>
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -295,23 +289,26 @@ export default function ServerList({
         </p>
       )}
 
-      {layout !== undefined && layout.sections.length === 0 && (
-        <p className="text-muted-foreground text-xs leading-relaxed">
-          {t("sections.emptyHint")}
-        </p>
-      )}
+      {view === "grid" &&
+        layout !== undefined &&
+        layout.sections.length === 0 && (
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            {t("sections.emptyHint")}
+          </p>
+        )}
 
-      {layout !== undefined && layout.sections.length > 0 && (
-        <p className="text-muted-foreground text-xs leading-relaxed">
-          {t("sections.dragHint")}
-        </p>
-      )}
+      {view === "grid" &&
+        layout !== undefined &&
+        layout.sections.length > 0 && (
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            {t("sections.dragHint")}
+          </p>
+        )}
 
-      {/* Harmony replaces the whole grouped grid, not only the cards: the
-          section headings, the drag hints and the "add section" control are all
-          about arranging a grid, and leaving them over an accordion would offer
-          gestures that do nothing. The switch is hidden in that case (see the
-          header), so this is the state the player asked for, not a dead end. */}
+      {/* Harmony temporarily replaces the grouped grid; the saved sections
+          remain untouched and return when the player switches back. Keep grid
+          editing controls out of this presentation so every visible gesture
+          continues to work. */}
       {view === "harmony" ? (
         <HarmonyCatalog
           servers={servers}

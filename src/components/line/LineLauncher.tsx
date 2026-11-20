@@ -15,6 +15,7 @@ import { isNewerGameStatus } from "@/types/line";
 import type {
   AuthMode,
   AuthSessionInfo,
+  CatalogView,
   ConfigSnapshot,
   InstallProgress as ProgressData,
   McInstallProgress,
@@ -818,6 +819,32 @@ export default function LineLauncher() {
   }
 
   /**
+   * The catalogue's view is a setting, not local state.
+   *
+   * It looks like a display preference — and it is — but the catalogue is the
+   * screen the launcher opens on, so "which view was I looking at" has to
+   * survive a restart or the player re-picks it every morning. Written straight
+   * through rather than debounced: a view change is one click, and there is no
+   * dragging gesture that would produce a burst of writes.
+   *
+   * Optimistic on purpose. A failed write keeps the new view on screen and
+   * reverts only the stored copy: the player asked to see the list, and showing
+   * them the old one while nothing explains why is worse than a preference that
+   * does not persist.
+   */
+  async function changeCatalogView(view: CatalogView) {
+    if (!settings) return;
+    const next = { ...settings.settings, catalogView: view };
+    const previous = settings;
+    setSettings({ ...settings, settings: next });
+    try {
+      setSettings(await lineApi.saveSettings(next));
+    } catch {
+      setSettings(previous);
+    }
+  }
+
+  /**
    * There is no other provider to switch to. This signs out and reconnects to the
    * same baked address, which is what a player actually wants after an outage.
    *
@@ -1155,6 +1182,14 @@ export default function LineLauncher() {
                                   providerName={snapshot.config.provider.name}
                                   servers={snapshot.config.servers}
                                   installedIds={installedIds}
+                                  view={
+                                    settings?.settings.catalogView === "harmony"
+                                      ? "harmony"
+                                      : "grid"
+                                  }
+                                  onViewChange={(next) =>
+                                    void changeCatalogView(next)
+                                  }
                                   stale={snapshot.stale}
                                   refreshing={refreshing}
                                   actionsDisabled={actionsBusy || layoutSaving}

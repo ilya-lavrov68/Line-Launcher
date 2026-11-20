@@ -125,6 +125,16 @@ pub struct LauncherSettings {
     /// a layout that does not fit is discarded, never a reason to fail startup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_layout: Option<ServerLayout>,
+    /// How the catalogue is drawn: `grid` (every server a card) or `harmony`
+    /// (one expanded, the rest collapsed rows).
+    ///
+    /// A plain two-value string rather than a bool because a third view is the
+    /// sort of thing that gets added, and a bool named `harmony` would then have
+    /// to become an enum in a format that has already been written to disk.
+    /// Unknown values fall back to the grid in the UI, so a hand-edited file or
+    /// a downgrade never leaves an empty catalogue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_view: Option<String>,
     /// Pack download cap in KiB/s; zero means unlimited.
     pub download_limit_kib: u32,
     pub window_width: u32,
@@ -142,6 +152,7 @@ impl Default for LauncherSettings {
             backdrop: None,
             language: None,
             server_layout: None,
+            catalog_view: None,
             download_limit_kib: 0,
             window_width: 1100,
             window_height: 720,
@@ -165,6 +176,14 @@ impl LauncherSettings {
         }
         if let Some(layout) = &self.server_layout {
             layout.validate()?;
+        }
+        // Only the two views this build can draw. An unknown value is refused
+        // here rather than silently stored, so the file on disk always names a
+        // view the UI will actually honour.
+        if let Some(view) = &self.catalog_view {
+            if view != "grid" && view != "harmony" {
+                return Err(LineError::input("Неизвестный вид каталога серверов."));
+            }
         }
         if !(MIN_WINDOW_WIDTH..=MAX_WINDOW_DIMENSION).contains(&self.window_width)
             || !(MIN_WINDOW_HEIGHT..=MAX_WINDOW_DIMENSION).contains(&self.window_height)
@@ -308,5 +327,42 @@ pub async fn clear_config_cache(app: AppHandle) -> LineResult<bool> {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(LineError::io(&error)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings_with_view(view: Option<&str>) -> LauncherSettings {
+        LauncherSettings {
+            catalog_view: view.map(str::to_string),
+            ..LauncherSettings::default()
+        }
+    }
+
+    #[test]
+    fn catalog_view_accepts_only_the_two_views_this_build_draws() {
+        let total = 16 * 1024 * 1024 * 1024;
+        assert!(settings_with_view(None).validate(total).is_ok());
+        assert!(settings_with_view(Some("grid")).validate(total).is_ok());
+        assert!(settings_with_view(Some("harmony")).validate(total).is_ok());
+        // An unknown value is refused rather than stored: the settings file is
+        // then always a document the UI can honour, and a downgrade that does
+        // not know a future view falls into the load() default instead of
+        // rendering a catalogue with no layout at all.
+        assert!(settings_with_view(Some("mosaic")).validate(total).is_err());
+        assert!(settings_with_view(Some("")).validate(total).is_err());
+    }
+
+    #[test]
+    fn an_absent_catalog_view_round_trips_as_absent() {
+        // `skip_serializing_if` matters: a default written to disk would turn
+        // "nobody has chosen" into an explicit "grid", and the field is meant
+        // to stay absent until the player actually picks a view.
+        let json = serde_json::to_string(&settings_with_view(None)).unwrap();
+        assert!(!json.contains("catalogView"));
+        let back: LauncherSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.catalog_view, None);
     }
 }

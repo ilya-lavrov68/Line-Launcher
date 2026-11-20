@@ -244,7 +244,16 @@ export interface LauncherSettings {
    * reordering someone else's list. Absent = one flat list, as before 0.13.
    */
   serverLayout?: ServerLayout | null;
+  /**
+   * How the catalogue is drawn: `grid` (every server a card) or `harmony`
+   * (one expanded, the rest collapsed rows). Absent or unknown = grid, so a
+   * hand-edited file never leaves an empty catalogue.
+   */
+  catalogView?: CatalogView | null;
 }
+
+/** The catalogue's two layouts. */
+export type CatalogView = "grid" | "harmony";
 
 export interface SettingsSnapshot {
   settings: LauncherSettings;

@@ -602,7 +602,12 @@ fn download_installer_with_retry(
     mut wait: impl FnMut(Duration),
     mut retrying: impl FnMut(u32),
 ) -> LineResult<()> {
-    const ATTEMPTS: u32 = 3;
+    // maven.neoforged.net is a single host that serves large installers and is
+    // routinely slow from home connections; three attempts with 750ms/1500ms
+    // gaps gave up inside the window where the network was still working, and
+    // the player saw "timed out" on a download that would have finished. A
+    // fourth attempt and longer gaps cost nothing when the first one works.
+    const ATTEMPTS: u32 = 4;
     for attempt in 1..=ATTEMPTS {
         match download() {
             Ok(()) => return Ok(()),
@@ -617,7 +622,7 @@ fn download_installer_with_retry(
                     return Err(mc_error(error));
                 }
                 retrying(attempt + 1);
-                wait(Duration::from_millis(u64::from(attempt) * 750));
+                wait(Duration::from_millis(u64::from(attempt) * 1_500));
             }
         }
     }
@@ -2414,7 +2419,7 @@ mod network_diagnostics_tests {
     }
 
     #[test]
-    fn repeated_timeout_stops_after_three_attempts_and_cleans_partial_file() {
+    fn repeated_timeout_stops_after_the_last_attempt_and_cleans_partial_file() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("installer.jar");
         let mut attempts = 0;
@@ -2431,7 +2436,7 @@ mod network_diagnostics_tests {
             |_| {},
         );
         assert!(result.is_err());
-        assert_eq!(attempts, 3);
+        assert_eq!(attempts, 4);
         assert!(!path.exists());
     }
 

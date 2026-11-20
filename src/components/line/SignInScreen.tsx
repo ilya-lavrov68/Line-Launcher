@@ -72,7 +72,11 @@ export default function SignInScreen({
           Plus In Plus Demo" next to a page whose heading is already the
           provider's name put the same words on screen twice. */}
       <div className="relative z-10 shrink-0 px-1.5 pt-1.5">
-        <TitleBar />
+        {/* No rail on this screen, so the lockup keeps the collapsed rail's
+            width: the mark stays where the player will find it a moment later,
+            and the gate does not have a logo in a different place from the
+            launcher behind it. */}
+        <TitleBar railWidth={60} collapsed />
       </div>
 
       {/* `scrollbar-gutter: stable` matches the shell's panes: the gate is a

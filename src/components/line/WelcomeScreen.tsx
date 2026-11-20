@@ -30,16 +30,29 @@ export interface WelcomeScreenProps {
   onDone: () => void;
   /** How long the finished word stays before the sign-in screen takes over. */
   holdMs?: number;
+  /**
+   * Never leave before this many milliseconds have passed, even if the word
+   * finished early.
+   *
+   * The greeting used to be a fixed 1.1s regardless of what was behind it, so
+   * on a cold start the backdrop — a WebGL haze whose module is imported after
+   * the first paint — was still arriving when the word faded, and the player
+   * watched an empty colour field finish resolving after the greeting had
+   * already gone. A greeting is the one moment where waiting reads as care, so
+   * it now holds until the backdrop has had a moment to land.
+   */
+  minMs?: number;
 }
 
 /** How long the nib takes to cross the word, in seconds. */
-const DRAW_DURATION = 0.72;
+const DRAW_DURATION = 0.95;
 /** Shortest time the greeting may stay on screen, motion or not. */
-const REDUCED_MIN_MS = 900;
+const REDUCED_MIN_MS = 1500;
 
 export default function WelcomeScreen({
   onDone,
-  holdMs = 380,
+  holdMs = 950,
+  minMs = 1900,
 }: WelcomeScreenProps) {
   const reduced = useReducedMotion();
   // Not translated, on purpose: it is a wordmark — the greeting itself, not a
@@ -55,7 +68,7 @@ export default function WelcomeScreen({
    * 620ms hold, which is shorter than it takes to focus on a word.
    */
   const drawMs = reduced ? 0 : DRAW_DURATION * 1000;
-  const total = Math.max(drawMs + holdMs, REDUCED_MIN_MS);
+  const total = Math.max(drawMs + holdMs, minMs, REDUCED_MIN_MS);
 
   // The greeting is a fixed-length prologue, not a loading state: it ends when
   // the word has been written and held, whether or not the provider has

@@ -307,7 +307,10 @@ test("the login screen is one panel, not nested cards", () => {
   // keep the window's own frame, or a frameless window opened here could not be
   // moved or closed.
   assert.doesNotMatch(account, /className="bg-background[^"]*h-dvh/);
-  assert.match(account, /<TitleBar \/>/);
+  // The frame is still the window's own. It now takes the rail width so the
+  // brand lockup sits where the rail will be: this screen has no rail, and the
+  // logo must not jump when the launcher appears behind it.
+  assert.match(account, /<TitleBar railWidth=\{60\} collapsed \/>/);
   assert.match(account, /data-line-signin/);
 });
 
@@ -324,7 +327,10 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   // With reduced motion there is no draw to watch, so the screen needs a floor
   // of its own — it used to last 620ms and flashed past unread.
   assert.match(welcome, /REDUCED_MIN_MS/);
-  assert.match(welcome, /Math\.max\(drawMs \+ holdMs, REDUCED_MIN_MS\)/);
+  // The floor is not only the reduced-motion one: the greeting also waits for
+  // `minMs` so the backdrop's lazily-imported shader can land before the word
+  // fades. Ending on a still-empty colour field was the complaint.
+  assert.match(welcome, /Math\.max\(drawMs \+ holdMs, minMs, REDUCED_MIN_MS\)/);
   // No fetch, no session check, no promise: only the timer decides.
   assert.doesNotMatch(welcome, /\bawait\b|\bPromise\b|lineApi\./);
 

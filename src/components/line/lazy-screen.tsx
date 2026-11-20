@@ -30,11 +30,22 @@ import {
  */
 export function lazyScreen<P extends object>(
   load: () => Promise<{ default: ComponentType<P> }>,
+  /**
+   * The shape of the screen while its chunk is in flight.
+   *
+   * Every screen used to wait behind the same three bars, which meant the
+   * settings page, the wardrobe and the account page all announced themselves
+   * with a heading and two lines of text — the same picture for three
+   * different layouts, and none of them the layout that was about to arrive.
+   * The caller now passes the screen's own skeleton, so the first paint is
+   * already the page's geometry and nothing jumps when the chunk lands.
+   */
+  fallback?: ReactNode,
 ) {
   const Lazy = lazy(load) as unknown as ComponentType<P>;
   return function LazyScreen(props: P) {
     return (
-      <Suspense fallback={<ScreenLoading />}>
+      <Suspense fallback={fallback ?? <ScreenLoading />}>
         <ChunkBoundary>
           <Lazy {...props} />
         </ChunkBoundary>

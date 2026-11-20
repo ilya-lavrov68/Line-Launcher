@@ -239,10 +239,20 @@ export default function SettingsScreen({
     }
   }
 
-  async function commitHeap(value: number) {
+  /**
+   * The slider writes a number; the switch writes the *mode*.
+   *
+   * These used to be one function that inferred the mode from the value
+   * (`value === suggestedHeapMb ? null : value`), and that made the switch
+   * unable to move at all: turning automatic *off* passes the value the slider
+   * happens to hold, which is the suggested heap while the mode is on, so the
+   * write stored `null` again — automatic stayed on and the switch snapped back
+   * on every click. The mode is a separate decision from the number, so it is a
+   * separate call.
+   */
+  async function commitHeap(value: number, automatic = false) {
     // "Automatic" is stored as null so a machine with different RAM sizes itself.
-    const heapMb = value === suggestedHeapMb ? null : value;
-    await persist({ ...settings, heapMb });
+    await persist({ ...settings, heapMb: automatic ? null : value });
   }
 
   async function clearCache() {
@@ -438,7 +448,7 @@ export default function SettingsScreen({
                 checked={automatic}
                 disabled={busy}
                 onCheckedChange={(checked) =>
-                  void commitHeap(checked ? suggestedHeapMb : heap)
+                  void commitHeap(checked ? suggestedHeapMb : heap, checked)
                 }
                 className="mt-0.5 cursor-pointer"
               />

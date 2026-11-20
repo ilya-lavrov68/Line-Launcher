@@ -55,8 +55,10 @@ import { toLineError, type SettingsSnapshot } from "@/types/line";
 import { initialLanguage, setLanguage, useT } from "@/lib/line/i18n";
 import { displayVersion, isPrerelease } from "@/lib/line/version";
 import {
+  SkeletonProfile,
   SkeletonServerGrid,
   SkeletonSettings,
+  SkeletonWardrobe,
 } from "@/components/line/Skeleton";
 
 /**
@@ -71,9 +73,18 @@ import {
  * `lazyScreen` keeps the panel geometry while the chunk loads, so this is not
  * visible as a blank frame.
  */
-const SettingsScreen = lazyScreen(() => import("./SettingsScreen"));
-const WardrobeScreen = lazyScreen(() => import("./WardrobeScreen"));
-const ProfileScreen = lazyScreen(() => import("./ProfileScreen"));
+const SettingsScreen = lazyScreen(
+  () => import("./SettingsScreen"),
+  <SkeletonSettings />,
+);
+const WardrobeScreen = lazyScreen(
+  () => import("./WardrobeScreen"),
+  <SkeletonWardrobe />,
+);
+const ProfileScreen = lazyScreen(
+  () => import("./ProfileScreen"),
+  <SkeletonProfile />,
+);
 const AboutDialog = lazyScreen(() => import("./AboutDialog"));
 
 type Screen = "config" | "account" | "servers" | "detail";
@@ -160,6 +171,15 @@ export default function LineLauncher() {
     gameStatus?.phase === "starting" || gameStatus?.phase === "running";
   const actionsBusy =
     installing || authLoading || launching || gameActive || minecraftBusy;
+
+  /**
+   * The rail's width is a number two components need — the rail itself and the
+   * brand lockup above it — so it is computed once, here. Deriving it in both
+   * places is how the two got out of step before: the lockup kept a fixed
+   * indent while the rail animated, so the logo slid across the rail's edge
+   * during the toggle and the name appeared somewhere it had not been.
+   */
+  const railCollapsed = settings?.settings.sidebarCollapsed ?? true;
 
   const loadConfig = useCallback(async (url: string, force = false) => {
     const generation = ++requestGeneration.current;
@@ -940,11 +960,15 @@ export default function LineLauncher() {
                 shellLocked && "pointer-events-none opacity-0",
               )}
             >
-              <TitleBar context={titleContext} />
+              <TitleBar
+                context={titleContext}
+                railWidth={railCollapsed ? 60 : 208}
+                collapsed={railCollapsed}
+              />
               <div className="flex min-h-0 w-full flex-1 gap-1.5 overflow-hidden">
                 <SideNav
                   section={section}
-                  collapsed={settings?.settings.sidebarCollapsed ?? true}
+                  collapsed={railCollapsed}
                   actionsDisabled={actionsBusy || loading || !session}
                   navigationDisabled={!session}
                   onNavigate={navigate}

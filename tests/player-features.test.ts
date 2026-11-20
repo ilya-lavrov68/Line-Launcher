@@ -1077,16 +1077,26 @@ test("the sidebar icons are 1.5x their old 20px and the rows grew with them", ()
   // 30px, not `h-5 w-5` (20px). Every glyph in the rail — the sections, the
   // reconnect, the about, the collapse chevron — scales together; a single one
   // left at 20px read as a mistake rather than a hierarchy.
-  assert.doesNotMatch(nav, /h-5 w-5/, "an icon is still at the old 20px size");
+  // The rail's *icons* are 30px. The one 20px mark left is the brand lockup,
+  // which is a logo rather than a section glyph and is sized like a logo.
+  const withoutMark = nav.replace(/<BrandMark className="[^"]*"/g, "");
+  assert.doesNotMatch(
+    withoutMark,
+    /h-5 w-5/,
+    "an icon is still at the old 20px size",
+  );
   assert.match(nav, /h-\[30px\] w-\[30px\]/);
   // A 30px glyph in a 36px row touches both edges. The rows and the two
   // secondary buttons grew so the icons keep their padding.
   assert.match(
     nav,
-    /"h-12 w-full items-center gap-2\.5 rounded-lg text-xs font-medium"/,
+    /"items-center gap-2\.5 rounded-lg text-xs font-medium"/,
   );
-  assert.match(nav, /h-12 w-full cursor-pointer/);
-  assert.match(nav, /h-11 w-full cursor-pointer/);
+  // Collapsed targets are squares: 40x40 inside the 60px rail, which leaves
+  // 2px of air each side. A bar-shaped highlight was the complaint — the box
+  // was wider than it was tall — and 44 was edge-to-edge, which read as a slab.
+  assert.match(nav, /collapsed \? "mx-auto h-10 w-10 justify-center px-0"/);
+  assert.match(nav, /h-12 w-full justify-start px-2\.5/);
   // The collapsed rail is 60px wide with 8px of padding each side: 44px of
   // usable width, which the 30px glyph fits inside without clipping.
   assert.match(nav, /collapsed \? 60 : 208/);

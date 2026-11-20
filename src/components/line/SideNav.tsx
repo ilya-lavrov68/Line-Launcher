@@ -90,12 +90,7 @@ export default function SideNav({
         "rounded-[var(--radius-item)]",
       )}
     >
-      {/* No mark here: the logo and the product name are one lockup in the
-          title bar, and a second copy three pixels below it read as a mistake.
-          The rail is icon-and-label only — the provider's name is already the
-          page title on the screen it belongs to (and the window title), so a
-          third copy in the rail was one label of a long name too many. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden p-2">
         {items.map((item) => {
           const active = section === item.id;
           const Icon = item.icon;
@@ -114,8 +109,12 @@ export default function SideNav({
               title={collapsed && !item.hint ? item.label : undefined}
               onClick={() => onNavigate(item.id)}
               className={cn(
-                "h-12 w-full items-center gap-2.5 rounded-lg text-xs font-medium",
-                collapsed ? "justify-center px-0" : "justify-start px-2.5",
+                "items-center gap-2.5 rounded-lg text-xs font-medium",
+                // Collapsed targets are squares, not bars: the rail is 60px
+                // wide with 8px of padding each side, so 40x40 leaves 2px of
+                // air on both sides. 44 filled the rail edge to edge, which is
+                // why the highlight read as a slab against the sidebar.
+                collapsed ? "mx-auto h-10 w-10 justify-center px-0" : "h-12 w-full justify-start px-2.5",
                 // focusableWhenDisabled drops the native :disabled styling, so
                 // the muted look is restored explicitly. It stays hoverable so
                 // the tooltip explaining the reason can still be read.
@@ -151,8 +150,10 @@ export default function SideNav({
           title={collapsed ? t("nav.reconnect") : undefined}
           onClick={onChangeProvider}
           className={cn(
-            "text-muted-foreground hover:text-foreground h-12 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
-            collapsed ? "justify-center px-0" : "justify-start px-2.5",
+            "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            collapsed
+              ? "mx-auto h-10 w-10 justify-center px-0"
+              : "h-12 w-full justify-start px-2.5",
           )}
         >
           <RefreshCw
@@ -167,8 +168,10 @@ export default function SideNav({
           title={collapsed ? t("nav.about") : undefined}
           onClick={onAbout}
           className={cn(
-            "text-muted-foreground hover:text-foreground h-12 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
-            collapsed ? "justify-center px-0" : "justify-start px-2.5",
+            "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            collapsed
+              ? "mx-auto h-10 w-10 justify-center px-0"
+              : "h-12 w-full justify-start px-2.5",
           )}
         >
           <Info className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
@@ -188,8 +191,10 @@ export default function SideNav({
           aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
           title={collapsed ? t("nav.expand") : t("nav.collapse")}
           className={cn(
-            "text-muted-foreground hover:text-foreground h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg text-xs",
-            collapsed ? "justify-center px-0" : "justify-start px-2.5",
+            "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            collapsed
+              ? "mx-auto h-10 w-10 justify-center px-0"
+              : "h-11 w-full justify-start px-2.5",
           )}
         >
           <ChevronLeft

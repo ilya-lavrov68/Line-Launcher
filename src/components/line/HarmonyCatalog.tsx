@@ -14,6 +14,41 @@ export interface HarmonyCatalogProps {
   onSelect: (server: LineServer) => void;
 }
 
+function ServerBanner({ server, open }: { server: LineServer; open: boolean }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [server.banner_url]);
+
+  const showArtwork = Boolean(server.banner_url) && !failed;
+
+  return (
+    <div aria-hidden="true" className="absolute inset-0 bg-[#222326]">
+      {showArtwork ? (
+        <>
+          <img
+            src={server.banner_url}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+            className="absolute inset-0 size-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/10" />
+        </>
+      ) : (
+        open && (
+          <span
+            data-harmony-art-fallback
+            className="absolute top-7 left-1/2 flex size-20 -translate-x-1/2 items-center justify-center rounded-[18px] bg-[#34363b] text-white/55 ring-1 ring-white/10"
+          >
+            <Server className="size-9" />
+          </span>
+        )
+      )}
+    </div>
+  );
+}
+
 function ServerLogo({
   server,
   className,
@@ -37,9 +72,10 @@ function ServerLogo({
     />
   ) : (
     <span
+      data-harmony-logo-fallback
       aria-hidden="true"
       className={cn(
-        "flex items-center justify-center bg-black/35 text-white/80",
+        "flex items-center justify-center bg-[#34363b] text-white/65 ring-1 ring-white/10",
         className,
       )}
     >
@@ -129,32 +165,9 @@ export default function HarmonyCatalog({
                 minWidth: open ? "min(72vw, 320px)" : 68,
                 flexShrink: open ? 1 : 0,
               }}
-              className="relative h-full overflow-hidden rounded-[var(--radius-item)] bg-[#15171b]"
+              className="relative h-full overflow-hidden rounded-[var(--radius-item)] bg-[#222326]"
             >
-              {/* A color field remains under the artwork if a provider's banner
-                  is missing or fails to load. The banner is decorative; the
-                  server's visible name supplies its meaning. */}
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_15%,rgba(72,94,126,0.8),transparent_55%),linear-gradient(145deg,#272b34,#101115_72%)]"
-              />
-              {server.banner_url && (
-                <img
-                  src={server.banner_url}
-                  alt=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  onError={(event) => event.currentTarget.remove()}
-                  className="absolute inset-0 size-full object-cover"
-                />
-              )}
-              <div
-                aria-hidden="true"
-                className={cn(
-                  "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-black/15",
-                  !open && "from-black/80 via-black/15 to-black/25",
-                )}
-              />
+              <ServerBanner server={server} open={open} />
 
               <button
                 type="button"

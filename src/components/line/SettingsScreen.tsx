@@ -483,7 +483,7 @@ export default function SettingsScreen({
               seen to be chosen. Each option paints a swatch of exactly what it
               produces — the backdrop is the same in both, and the difference
               is the plate in the middle: a translucent one for glass, the
-              opaque JetBrains grey for solid — so the choice is made by
+              deep charcoal for solid — so the choice is made by
               looking rather than by reading a word.
 
               The default is solid, and it is the default only when nobody has
@@ -527,7 +527,7 @@ export default function SettingsScreen({
                   {/* The swatch is the thing itself, not a picture of it:
                       the backdrop bands stand in for the haze in both, and
                       the plate in the middle is what changes — translucent
-                      for glass, the opaque JetBrains value for solid. */}
+                      for glass, the opaque charcoal value for solid. */}
                   <span
                     aria-hidden="true"
                     className="line-workspace-swatch relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-white/10"

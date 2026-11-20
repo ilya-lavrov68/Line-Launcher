@@ -71,6 +71,22 @@ test("harmony is a horizontal artwork accordion with a reduced-motion fallback",
   );
   assert.match(catalog, /server\.banner_url/);
   assert.match(catalog, /server\.icon_url \?\? server\.logo_url/);
+  assert.match(catalog, /bg-\[#222326\]/);
+  assert.match(catalog, /showArtwork \? \(/);
+  const fallbackClass = /data-harmony-art-fallback\s+className="([^"]+)"/.exec(
+    catalog,
+  )?.[1];
+  assert.ok(
+    fallbackClass,
+    "missing artwork must render its server-icon placeholder",
+  );
+  assert.doesNotMatch(
+    fallbackClass,
+    /gradient/,
+    "the no-art placeholder must be flat",
+  );
+  assert.match(catalog, /data-harmony-logo-fallback/);
+  assert.match(catalog, /open && \([\s\S]*?<Server className="size-9" \/>/);
   assert.match(catalog, /aria-controls=\{panelId\}/);
   assert.match(catalog, /const reduced = useReducedMotion\(\)/);
   assert.match(catalog, /duration: reduced \? 0 : 0\.28/);
@@ -159,10 +175,10 @@ test("the workspace finish is a setting with a solid default", () => {
     /:root:not\(\[data-line-workspace="glass"\]\) \{/,
     "solid must be the finish with no attribute",
   );
-  // The main plates become opaque JetBrains grey, while the selected animated
+  // The main plates become opaque charcoal, while the selected animated
   // backdrop remains the page background in both finishes.
   assert.doesNotMatch(css, /--line-solid-workspace/);
-  assert.match(css, /--line-solid-panel: #2b2d30/);
+  assert.match(css, /--line-solid-panel: #222326/);
   assert.match(
     css,
     /:root:not\(\[data-line-workspace="glass"\]\) \{\s*--glass-surface-shell: var\(--line-solid-panel\);\s*--glass-surface-gate: var\(--line-solid-panel\);\s*\}/,

@@ -126,17 +126,17 @@
    * a thin veil, and that is what every pane above is tuned for.
    *
    * `solid` makes the main panels opaque instead: the rail, the page area and
-   * the sign-in plate go to a flat JetBrains grey, so the shader shows in the
-   * gaps between them rather than through them. The grey is JetBrains' panel
-   * background in the New UI (#2B2D30), the colour the eye already associates
-   * with a quiet, high-contrast IDE.
+   * the sign-in plate go to a flat, deep charcoal, so the shader shows in the
+   * gaps between them rather than through them. The grey is a deeper, cleaner
+   * charcoal than JetBrains' standard New UI panel (#2B2D30), so large plates
+   * recede behind the content instead of reading as another bright block.
    *
    * The rule lives here rather than in a component because the three
    * page-level plates paint from two tokens — the shell panes from
    * `--glass-surface-shell`, the sign-in plate from `--glass-surface-gate` —
    * and a component-by-component switch would drift the moment one of them
    * was touched. */
-  --line-solid-panel: #2b2d30;
+  --line-solid-panel: #222326;
 
   /* Glass: a dark pane over the moving backdrop — the state this design had
    * before it was inverted. `rgba(10,12,16,0.45)` lets the colour field read
@@ -311,7 +311,7 @@
 
   /* The two large shell panes — the rail and the page area — sit over the
    * animated backdrop. The glass finish is the requested subtle dark veil;
-   * solid swaps only these large plates to the opaque JetBrains panel colour.
+   * solid swaps only these large plates to the darker opaque charcoal.
    * `--glass-surface` remains the denser fill for nested cards and controls. */
   [data-line-glass="main"],
   [data-line-glass="sidebar"] {

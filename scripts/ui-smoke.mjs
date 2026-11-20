@@ -41,6 +41,11 @@ const config = JSON.parse(
 config.provider.name = "Plus In Plus Demo";
 // Exercise the explicit provider-pack offline path in the real UI as well.
 config.servers[1].launch_mode = "offline";
+// Exercise the image-less fallback: no fabricated gradient or broken-image
+// glyph, just the neutral server mark on the charcoal placeholder.
+delete config.servers[1].icon_url;
+delete config.servers[1].logo_url;
+delete config.servers[1].banner_url;
 delete config.servers[1].auth;
 config.required_features.push("offline-launch-v1");
 // The shipped example points at cdn.example.com, which only exercises the
@@ -700,7 +705,7 @@ try {
   }));
   check(
     solidSurfaces.finish === "solid" &&
-      solidSurfaces.main === "rgb(43, 45, 48)" &&
+      solidSurfaces.main === "rgb(34, 35, 38)" &&
       solidSurfaces.sidebar === solidSurfaces.main,
     `solid finish did not paint both shell panels: ${JSON.stringify(solidSurfaces)}`,
   );
@@ -890,8 +895,19 @@ try {
   await harmony.waitFor();
   check(
     (await page.locator("[data-harmony-row]").count()) === 3 &&
-      (await page.locator("[data-harmony-row] img").count()) >= 6,
-    "Harmony must show every server's banner art and logo",
+      (await page.locator("[data-harmony-row] img").count()) >= 4,
+    "Harmony must show the available banner art and server logos",
+  );
+  await page.locator('[data-harmony-row="skyblock"] > button').click();
+  await page.locator('[data-harmony-row="skyblock"][data-open]').waitFor();
+  check(
+    (await page
+      .locator('[data-harmony-row="skyblock"] [data-harmony-art-fallback]')
+      .count()) === 1 &&
+      (await page
+        .locator('[data-harmony-row="skyblock"] [data-harmony-logo-fallback]')
+        .count()) === 1,
+    "a server with no art or logo must use the neutral icon fallback",
   );
   await page.locator('[data-harmony-row="creative"] > button').click();
   await page.waitForFunction(() => {

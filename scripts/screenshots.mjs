@@ -324,7 +324,7 @@ await page.addInitScript(
               sidebarCollapsed: true,
               afterLaunch: "minimize",
               // Explicitly capture the shipped defaults: grid catalog and
-              // opaque JetBrains panels. The animated copper backdrop remains
+              // opaque charcoal panels. The animated copper backdrop remains
               // visible around the panels in the solid finish.
               backdrop: "copper",
               catalogView: "grid",

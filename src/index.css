@@ -137,6 +137,7 @@
    * and a component-by-component switch would drift the moment one of them
    * was touched. */
   --line-solid-panel: #222326;
+  --line-solid-sidebar: #191b1f;
 
   /* Glass: a dark pane over the moving backdrop — the state this design had
    * before it was inverted. `rgba(10,12,16,0.45)` lets the colour field read
@@ -153,11 +154,9 @@
    * half its density (0.45 → 0.225). A veil, not a sheet — the plate darkens
    * what is behind it and the light ink reads on the result. */
   --glass-surface-gate: rgba(10, 12, 16, 0.225);
-  /* The two shell panes — the rail and the page area — carry the same dark
-   * veil as the sign-in plate. One value, `rgba(10, 12, 16, 0.225)`, for
-   * every page-level plate in the app: the rail, the page area and the
-   * sign-in card are the same kind of surface, so they are painted the same
-   * way instead of one being a light wash and the other a dark veil.
+  /* The page and sign-in plates share the requested dark veil. The rail has
+   * its own slightly deeper tint so it reads as navigation, not a second copy
+   * of the panel beside it.
    *
    * A veil, not a sheet. The pane darkens what is behind it, so the colour
    * field still reads through, and the ink on it is light — the pairing the
@@ -176,6 +175,7 @@
    * underneath it. Readability is not what pays for it — light ink on a darker
    * composite reads *better* the more veil there is. */
   --glass-surface-shell: rgba(10, 12, 16, 0.225);
+  --glass-surface-sidebar: rgba(8, 10, 14, 0.32);
   /* Light ink now, because the pane is a dark wash — the same pairing the rest
    * of the palette already uses for text on `#08090c`. */
   --glass-shell-ink: oklch(0.97 0.002 250);
@@ -382,6 +382,7 @@
    * field, so --line-canvas is left alone. */
   :root:not([data-line-workspace="glass"]) {
     --glass-surface-shell: var(--line-solid-panel);
+    --glass-surface-sidebar: var(--line-solid-sidebar);
     --glass-surface-gate: var(--line-solid-panel);
   }
 
@@ -390,15 +391,21 @@
    * coupled to the root preference even when a component supplies its own
    * background declaration. */
   :root[data-line-workspace="glass"] [data-line-glass="main"],
-  :root[data-line-workspace="glass"] [data-line-glass="sidebar"],
   :root[data-line-workspace="glass"] [data-line-glass="gate"] {
     background-color: rgba(10, 12, 16, 0.225);
   }
 
+  :root[data-line-workspace="glass"] [data-line-glass="sidebar"] {
+    background-color: var(--glass-surface-sidebar);
+  }
+
   :root:not([data-line-workspace="glass"]) [data-line-glass="main"],
-  :root:not([data-line-workspace="glass"]) [data-line-glass="sidebar"],
   :root:not([data-line-workspace="glass"]) [data-line-glass="gate"] {
     background-color: var(--line-solid-panel);
+  }
+
+  :root:not([data-line-workspace="glass"]) [data-line-glass="sidebar"] {
+    background-color: var(--line-solid-sidebar);
   }
 
   /* Card hover: a faint lift of the fill ladder rather than a colour change, so
@@ -422,6 +429,15 @@
    * The layer is oversized (`-inset-[20%]`) so the drift never exposes an
    * edge, and the keyframes move `background-position` — a compositor-cheap,
    * paint-only property on a layer that has nothing else to do. */
+
+  /* Keep a steady saturation lift on the composed backdrop, outside the theme
+   * layers themselves. During a theme swap the incoming/outgoing shader layers
+   * briefly overlap; applying one stable filter to the finished field prevents
+   * the final single layer from looking washed out when the crossfade completes.
+   */
+  [data-line-backdrop].line-backdrop-saturation {
+    filter: saturate(1.4);
+  }
 
   [data-line-haze] {
     animation: line-haze-drift 90s var(--ease-line) infinite;

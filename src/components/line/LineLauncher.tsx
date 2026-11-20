@@ -946,6 +946,7 @@ export default function LineLauncher() {
             <AnimatedBackdrop
               imageUrl={selected?.banner_url}
               themeId={settings?.settings.backdrop ?? undefined}
+              className="line-backdrop-saturation"
             />
             {/* The gate sits on the same backdrop as the app. It is painted
                 after the shell in DOM order and given its own stacking context,

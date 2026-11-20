@@ -1110,6 +1110,37 @@ test("the title-bar brand mark is centered on the sidebar, not its padded header
   );
 });
 
+test("collapsed sidebar buttons are direct centered flex items", () => {
+  const nav = read("src/components/line/SideNav.tsx");
+  assert.match(nav, /<Button\s+key=\{item\.id\}/);
+  assert.match(nav, /if \(!item\.hint\) return button;/);
+  assert.doesNotMatch(nav, /<div key=\{item\.id\}>\{button\}<\/div>/);
+
+  const smoke = read("scripts/ui-smoke.mjs");
+  assert.match(smoke, /buttons\.every\(\(button\) =>/);
+  assert.match(smoke, /buttonRect\.left \+\s*buttonRect\.width \/ 2/);
+});
+
+test("the animated backdrop keeps its saturation lift across theme changes", () => {
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  const css = read("src/index.css");
+  const backdrop = read("src/components/line/AnimatedBackdrop.tsx");
+  assert.match(launcher, /className="line-backdrop-saturation"/);
+  assert.match(
+    css,
+    /\[data-line-backdrop\]\.line-backdrop-saturation\s*\{\s*filter: saturate\(1\.4\);/,
+  );
+  assert.match(backdrop, /exit=\{index < layers\.length - 1\}/);
+  assert.match(backdrop, /opacity: exit \? 0 : shown \? 1 : 0/);
+  assert.match(
+    backdrop,
+    /transitionDuration: reduced \? "0ms" : `\$\{CROSSFADE_MS\}ms`/,
+  );
+  const smoke = read("scripts/ui-smoke.mjs");
+  assert.match(smoke, /backdropFilterBefore/);
+  assert.match(smoke, /backdropFilterAfter/);
+});
+
 test("the sidebar icons are 1.5x their old 20px and the rows grew with them", () => {
   const nav = read("src/components/line/SideNav.tsx");
   // 30px, not `h-5 w-5` (20px). Every glyph in the rail — the sections, the

@@ -161,12 +161,15 @@ class BackdropBoundary extends Component<
 function HazeLayer({
   theme,
   enter,
+  exit,
   reduced,
   onUnsupported,
 }: {
   theme: BackdropTheme;
-  /** True for the newest layer, which fades in; older ones sit still. */
+  /** True for the newest layer, which fades in. */
   enter: boolean;
+  /** Outgoing layers fade away beneath the incoming theme. */
+  exit: boolean;
   reduced: boolean;
   onUnsupported: () => void;
 }) {
@@ -211,7 +214,7 @@ function HazeLayer({
     <div
       className="absolute inset-0 transition-opacity ease-out"
       style={{
-        opacity: shown ? 1 : 0,
+        opacity: exit ? 0 : shown ? 1 : 0,
         transitionDuration: reduced ? "0ms" : `${CROSSFADE_MS}ms`,
       }}
       aria-hidden="true"
@@ -327,9 +330,10 @@ export default function AnimatedBackdrop({
             <HazeLayer
               key={layer.id}
               theme={layer}
-              // Only the top layer fades in; everything under it is already
-              // painted and waits to be unmounted.
+              // The incoming layer fades in while its predecessor fades out;
+              // the timer below keeps both mounted for the full transition.
               enter={index === layers.length - 1 && layers.length > 1}
+              exit={index < layers.length - 1}
               reduced={reduced}
               onUnsupported={() => setSupported(false)}
             />

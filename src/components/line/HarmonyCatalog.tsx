@@ -22,7 +22,7 @@ function ServerBanner({ server, open }: { server: LineServer; open: boolean }) {
   const showArtwork = Boolean(server.banner_url) && !failed;
 
   return (
-    <div aria-hidden="true" className="absolute inset-0 bg-[#222326]">
+    <div aria-hidden="true" className="absolute inset-0 bg-[#1d1f23]">
       {showArtwork ? (
         <>
           <img
@@ -165,7 +165,7 @@ export default function HarmonyCatalog({
                 minWidth: open ? "min(72vw, 320px)" : 68,
                 flexShrink: open ? 1 : 0,
               }}
-              className="relative h-full overflow-hidden rounded-[var(--radius-item)] bg-[#222326]"
+              className="relative h-full overflow-hidden rounded-[var(--radius-item)]"
             >
               <ServerBanner server={server} open={open} />
 
@@ -177,7 +177,9 @@ export default function HarmonyCatalog({
                 aria-label={
                   state ? `${server.name} · ${state.label}` : server.name
                 }
-                onClick={() => setChosen(open ? "" : server.id)}
+                onClick={() => {
+                  if (!open) setChosen(server.id);
+                }}
                 className={cn(
                   "absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center gap-3 p-2 text-center text-white",
                   "focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none focus-visible:ring-inset",

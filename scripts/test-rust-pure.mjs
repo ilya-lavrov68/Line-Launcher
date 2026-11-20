@@ -852,7 +852,8 @@ const source = [
   .replace(/crate::line::storage::/g, "")
   // `jvm_profile` is a sibling module; the harness is flat, so its items are
   // copied in with no module to qualify them.
-  .replace(/jvm_profile::/g, "");
+  .replace(/jvm_profile::/g, "")
+  .replace(/minecraft_core::/g, "");
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "line-rust-pure-"));
 try {

@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, "arena/**"]
   pull_request:
+  # Manual re-run. Needed because a run whose jobs never started (a billing
+  # block, an outage) cannot be re-run from the UI — GitHub refuses with
+  # "its workflow file may be broken" — and a re-push to get CI going is noise
+  # in the history.
+  workflow_dispatch:
 
 permissions:
   contents: read

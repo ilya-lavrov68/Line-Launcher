@@ -180,6 +180,11 @@ const items = [
   // The inherent impl is a separate item: copying the enum alone loses `of()`,
   // which every caller and the flags tests use.
   attributed("jvm_profile.rs", "impl LoaderFamily {"),
+  // The flag tests read these three tables directly, so they have to travel
+  // with the tests; copying the functions alone left them undefined.
+  attributed("jvm_profile.rs", "const OPENED_PACKAGES:"),
+  attributed("jvm_profile.rs", "const EXPORTED_PACKAGES:"),
+  attributed("jvm_profile.rs", "const ADDED_MODULES:"),
   attributed("jvm_profile.rs", "pub fn loader_jvm_args("),
   attributed("jvm_profile.rs", "pub fn module_path_args("),
   attributed("jvm_profile.rs", "pub fn legacy_class_path_arg("),

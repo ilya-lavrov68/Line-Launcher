@@ -30,10 +30,12 @@ const SCREENS = [
   "account",
   "profile",
   "servers",
+  "harmony",
   "server",
   "minecraft",
   "wardrobe",
   "settings",
+  "workspace",
 ] as const;
 
 /**
@@ -54,9 +56,13 @@ test("every README screenshot is the same size", () => {
 });
 
 test("the gallery does not retain obsolete line screenshots", () => {
-  const names = readdirSync(new URL("../docs/images/", import.meta.url))
-    .filter((file) => /^line-.*\.png$/.test(file));
-  assert.deepEqual(new Set(names), new Set(SCREENS.map((name) => `line-${name}.png`)));
+  const names = readdirSync(new URL("../docs/images/", import.meta.url)).filter(
+    (file) => /^line-.*\.png$/.test(file),
+  );
+  assert.deepEqual(
+    new Set(names),
+    new Set(SCREENS.map((name) => `line-${name}.png`)),
+  );
 });
 
 test("the README embeds exactly the screenshots that are checked", () => {
@@ -137,19 +143,39 @@ test("the fallback renderer cannot overwrite the gallery", () => {
   // was produced by the Playwright writer.
   const browser = read("scripts/screenshots.mjs").toString("utf8");
   assert.match(browser, /path\.join\(root, "docs\/images"\)/);
-});
 
+  // The legacy gallery alias must be as safe as the direct offline command.
+  const gallery = read("scripts/render-gallery.mjs").toString("utf8");
+  assert.match(gallery, /\.offline-shots.*gallery/);
+  assert.doesNotMatch(gallery, /path\.join\(root, "docs\/images"\)/);
+});
 
 test("browser capture stages the entire gallery before publishing", () => {
   const browser = read("scripts/screenshots.mjs").toString("utf8");
   assert.match(browser, /mkdtempSync\(path\.join\(outDir, "\.capture-"\)\)/);
-  assert.ok(browser.indexOf("Incomplete screenshot gallery") < browser.indexOf("renameSync(path.join(staging"));
-  assert.match(browser, /rmSync\(staging, \{ recursive: true, force: true \}\)/);
+  assert.ok(
+    browser.indexOf("Incomplete screenshot gallery") <
+      browser.indexOf("renameSync(path.join(staging"),
+  );
+  assert.match(
+    browser,
+    /rmSync\(staging, \{ recursive: true, force: true \}\)/,
+  );
   assert.match(browser, /shot\("minecraft"\)/);
+  assert.match(browser, /shot\("harmony"\)/);
+  assert.match(browser, /shot\("workspace"\)/);
+  assert.match(browser, /catalogView: "grid"/);
+  assert.match(browser, /workspace: "solid"/);
+  assert.match(
+    browser,
+    /getByRole\("button", \{ name: "Гармонь", exact: true \}\)/,
+  );
 });
-
 
 test("UI smoke holds only the first mocked installation", () => {
   const smoke = read("scripts/ui-smoke.mjs").toString("utf8");
-  assert.match(smoke, /window\.__holdInstall = false;\s*window\.__releaseInstall\(\);/);
+  assert.match(
+    smoke,
+    /window\.__holdInstall = false;\s*window\.__releaseInstall\(\);/,
+  );
 });

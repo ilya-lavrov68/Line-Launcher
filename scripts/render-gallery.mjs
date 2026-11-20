@@ -1,16 +1,12 @@
-// Regenerate the README gallery without a browser.
+// Draw an offline gallery preview without a browser.
 //
 //   npm run screenshots:gallery
 //
-// This is the offline renderer pointed at `docs/images`, so the eight pictures
-// README.md embeds are refreshed from the live theme tokens even when no Chrome
-// is available. `npm run screenshots` is still the better tool when a browser
-// exists: it drives the real components. This one draws a token-accurate
-// approximation, which is what the fallback has always been.
-//
-// `SHOTS_DIR` is set here rather than in the npm script because `VAR=value cmd`
-// is shell syntax: on Windows `npm run` hands the line to cmd.exe, where it is
-// not an environment assignment at all.
+// This produces an offline approximation in `.offline-shots/gallery`; it never
+// writes to `docs/images`. The README gallery is reserved for `npm run
+// screenshots`, which photographs the real React components in a browser.
+// This alias is retained for people who want the token-drawn gallery preview
+// without installing Chrome, but it is not a replacement for those screenshots.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,7 +18,10 @@ const result = spawnSync(
   {
     cwd: root,
     stdio: "inherit",
-    env: { ...process.env, SHOTS_DIR: path.join(root, "docs", "images") },
+    env: {
+      ...process.env,
+      SHOTS_DIR: path.join(root, ".offline-shots", "gallery"),
+    },
   },
 );
 process.exit(result.status ?? 1);

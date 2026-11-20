@@ -301,11 +301,11 @@ export const ru = {
     "Сборка скажет, сколько ей нужно, а лаунчер ограничит запрос тем, что может отдать компьютер. Ползунок станет недоступен.",
   "settings.workspace": "Рабочая зона",
   "settings.workspaceHint":
-    "Из чего сделаны панели: прозрачное стекло, сквозь которое видно фон, или сплошной тёмно-серый.",
-  "workspace.glass": "Прозрачная",
-  "workspace.glassHint": "Фон движется за панелями",
-  "workspace.solid": "Сплошная",
-  "workspace.solidHint": "Тёмно-серый, как в JetBrains IDE",
+    "Главные панели: прозрачные, сквозь них виден фон, или сплошные тёмно-серые.",
+  "workspace.glass": "Прозрачные панели",
+  "workspace.glassHint": "Фон виден сквозь панели",
+  "workspace.solid": "Сплошные панели",
+  "workspace.solidHint": "Тёмно-серые, как в JetBrains IDE",
   "settings.backdrop": "Фон лаунчера",
   "settings.backdropHint":
     "Двенадцать градиентов, каждый движется по-своему. Переключение плавное, выбор сохраняется.",
@@ -808,10 +808,10 @@ const en: Dictionary = {
     "The pack says how much it needs, and the launcher caps that at what the machine can spare. The slider becomes unavailable.",
   "settings.workspace": "Workspace",
   "settings.workspaceHint":
-    "What the panels are made of: clear glass the backdrop shows through, or a solid dark grey.",
-  "workspace.glass": "Clear",
-  "workspace.glassHint": "The backdrop moves behind the panels",
-  "workspace.solid": "Solid",
+    "The main panels are transparent, showing the backdrop through, or solid dark grey.",
+  "workspace.glass": "Transparent panels",
+  "workspace.glassHint": "The backdrop shows through the panels",
+  "workspace.solid": "Solid panels",
   "workspace.solidHint": "Dark grey, as in JetBrains IDEs",
   "settings.backdrop": "Launcher backdrop",
   "settings.backdropHint":
@@ -1317,7 +1317,7 @@ const de: Dictionary = {
     "Das Paket nennt seinen Bedarf, der Launcher begrenzt ihn auf das, was der Rechner hergibt. Der Regler wird dann inaktiv.",
   "settings.workspace": "Arbeitsfläche",
   "settings.workspaceHint":
-    "Die Hauptpanels sind entweder transparent und lassen den Hintergrund durchscheinen oder undurchsichtig dunkelgrau.",
+    "Die Hauptpanels sind transparent und lassen den Hintergrund durchscheinen oder sind undurchsichtig dunkelgrau.",
   "workspace.glass": "Transparente Panels",
   "workspace.glassHint": "Der Hintergrund scheint durch die Panels",
   "workspace.solid": "Undurchsichtige Panels",
@@ -1825,10 +1825,10 @@ const fr: Dictionary = {
     "La compilation indique son besoin, le launcher le plafonne à ce que la machine peut fournir. Le curseur devient inactif.",
   "settings.workspace": "Espace de travail",
   "settings.workspaceHint":
-    "De quoi sont faits les panneaux : verre clair laissant voir l'arrière-plan, ou un gris foncé opaque.",
-  "workspace.glass": "Transparent",
-  "workspace.glassHint": "L'arrière-plan bouge derrière les panneaux",
-  "workspace.solid": "Opaque",
+    "Les panneaux principaux sont transparents et laissent voir l'arrière-plan, ou opaques et gris foncé.",
+  "workspace.glass": "Panneaux transparents",
+  "workspace.glassHint": "L'arrière-plan est visible à travers les panneaux",
+  "workspace.solid": "Panneaux opaques",
   "workspace.solidHint": "Gris foncé, comme dans les IDE JetBrains",
   "settings.backdrop": "Fond du launcher",
   "settings.backdropHint":

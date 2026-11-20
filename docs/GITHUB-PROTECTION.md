@@ -21,10 +21,22 @@
 | --- | --- |
 | `deletion` | `main` нельзя удалить |
 | `non_fast_forward` | force-push запрещён: историю нельзя переписать |
-| `update` | пушить прямо в `main` нельзя вообще — только через PR |
 | `required_linear_history` | в `main` не бывает merge-коммитов, история читается сверху вниз |
 | `pull_request` | изменения попадают только PR-ом |
 | `required_status_checks` | PR не смёржится, пока не зелены четыре проверки |
+
+### Почему здесь **нет** правила `update`
+
+`update` («Restrict updates») запрещает обновлять ref всем, кроме `bypass_actors`.
+Мёрж PR — это тоже обновление ref, поэтому правило блокирует **и мёрж**: PR
+показывает `mergeable: MERGEABLE` рядом с `mergeStateStatus: BLOCKED` при
+полностью зелёных проверках, и ошибки с именем правила нет. При пустом
+`bypass_actors` не может мёржить даже владелец — `gh pr merge` отвечает
+`Merging is blocked: Cannot update this protected ref`, а `--admin` не помогает.
+
+Прямой push в `main` запрещает не `update`, а `pull_request`: он требует, чтобы
+изменение пришло PR-ом. Так что, убрав `update`, мы не теряем защиту — только
+возвращаем возможность мёржить. Не добавляйте его обратно.
 
 ### Почему `required_approving_review_count: 0`
 
@@ -75,6 +87,12 @@ GitHub не может привязать к аккаунту. Коммиты а
 У этого ruleset-а `bypass_actors` **не** пустой: администратор должен иметь
 возможность починить сломанный CI. Владелец и так единственный, кто может
 пушить в `main`.
+
+**У `target: push` нет и не может быть секции `conditions`.** Push-правила
+работают с содержимым файлов, а не с ref'ами, поэтому `ref_name` для них не
+поддерживается — GitHub отвечает `422 Validation Failed: Target ref_name is not
+supported for push rulesets`. Секцию не добавляйте: она выглядит логичной по
+аналогии с `main.json`, но не даёт создать ruleset.
 
 ## Как применить
 

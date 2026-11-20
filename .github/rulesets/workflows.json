@@ -9,12 +9,6 @@
       "bypass_mode": "always"
     }
   ],
-  "conditions": {
-    "ref_name": {
-      "include": ["~ALL"],
-      "exclude": []
-    }
-  },
   "rules": [
     {
       "type": "file_path_restriction",

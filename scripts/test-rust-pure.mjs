@@ -167,10 +167,6 @@ const items = [
   attributed("minecraft.rs", "impl Drop for PreparationGuard {"),
   attributed("minecraft.rs", "fn busy("),
   attributed("minecraft.rs", "fn loader_installer_command("),
-  attributed("jvm_profile.rs", "pub enum LoaderFamily {"),
-  attributed("jvm_profile.rs", "pub fn loader_jvm_args("),
-  attributed("jvm_profile.rs", "pub fn module_path_args("),
-  attributed("jvm_profile.rs", "pub fn legacy_class_path_arg("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
   plain("java_consent.rs", "pub struct JavaDownloadPlan {"),
@@ -180,6 +176,13 @@ const items = [
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
   attributed("minecraft_core.rs", "pub fn validate_version_id("),
   attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
+  attributed("jvm_profile.rs", "pub enum LoaderFamily {"),
+  // The inherent impl is a separate item: copying the enum alone loses `of()`,
+  // which every caller and the flags tests use.
+  attributed("jvm_profile.rs", "impl LoaderFamily {"),
+  attributed("jvm_profile.rs", "pub fn loader_jvm_args("),
+  attributed("jvm_profile.rs", "pub fn module_path_args("),
+  attributed("jvm_profile.rs", "pub fn legacy_class_path_arg("),
   attributed("minecraft_core.rs", "pub fn parse_loader("),
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
@@ -305,20 +308,6 @@ const tests = [
   attributed(
     "launch.rs",
     "fn mod_jar_scope_excludes_service_files_and_other_folders(",
-  ),
-  attributed("jvm_profile.rs", "fn fabric_and_quilt_get_no_extra_flags("),
-  attributed("jvm_profile.rs", "fn modular_loaders_get_module_flags("),
-  attributed(
-    "jvm_profile.rs",
-    "fn no_flag_can_inject_an_agent_or_a_class_path(",
-  ),
-  attributed(
-    "jvm_profile.rs",
-    "fn module_path_is_one_argument_and_rejects_options(",
-  ),
-  attributed(
-    "jvm_profile.rs",
-    "fn legacy_class_path_carries_the_validated_classpath(",
   ),
   attributed(
     "resourcepack.rs",
@@ -855,7 +844,10 @@ const source = [
   .replace(/^use super::minecraft_core::LoaderChoice;$/gm, "")
   .replace(/super::launch_manifest::/g, "")
   .replace(/super::integrity::/g, "")
-  .replace(/crate::line::storage::/g, "");
+  .replace(/crate::line::storage::/g, "")
+  // `jvm_profile` is a sibling module; the harness is flat, so its items are
+  // copied in with no module to qualify them.
+  .replace(/jvm_profile::/g, "");
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "line-rust-pure-"));
 try {

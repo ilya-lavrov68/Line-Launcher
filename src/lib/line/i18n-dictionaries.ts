@@ -11,6 +11,15 @@
  */
 
 export const ru = {
+  "quarantine.title": "Файлы неизвестного происхождения",
+  "quarantine.description":
+    "Эти моды не входят в сборку, и лаунчер не может доказать, что они получены из неё. Отметьте те, которые нужно убрать: файлы не удаляются, а переносятся в карантин, и их можно вернуть.",
+  "quarantine.confirm": "В карантин ({count})",
+  "quarantine.moving": "Переносим…",
+  "quarantine.nothingMoved": "Ни один файл не был перенесён.",
+  "quarantine.restoreHint": "Файлы можно вернуть в любой момент.",
+  "quarantine.restore": "Вернуть из карантина",
+  "quarantine.restored": "Возвращено файлов: {count}.",
   "common.cancel": "Отмена",
   "common.close": "Закрыть",
   "common.retry": "Повторить",
@@ -421,6 +430,7 @@ export const ru = {
 
   "packs.reportProvider": "Отправить провайдеру",
   "packs.check": "Проверить ресурс-паки",
+  "packs.moreFiles": "и ещё {count}",
   "packs.checking": "Проверяем ресурс-паки…",
   "packs.clean": "Проверка пройдена: подозрительных ресурс-паков нет.",
   "packs.foreign":
@@ -491,6 +501,15 @@ export type Dictionary = Record<MessageKey, string>;
 export type MessageValues = Record<string, string | number>;
 
 const en: Dictionary = {
+  "quarantine.title": "Files of unknown origin",
+  "quarantine.description":
+    "These mods are not part of the build, and the launcher cannot prove they came from it. Tick the ones to set aside: the files are moved to quarantine, not deleted, and can be restored.",
+  "quarantine.confirm": "Quarantine ({count})",
+  "quarantine.moving": "Moving…",
+  "quarantine.nothingMoved": "No file was moved.",
+  "quarantine.restoreHint": "The files can be restored at any time.",
+  "quarantine.restore": "Restore from quarantine",
+  "quarantine.restored": "Files restored: {count}.",
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.retry": "Retry",
@@ -906,6 +925,7 @@ const en: Dictionary = {
 
   "packs.reportProvider": "Send to provider",
   "packs.check": "Check resource packs",
+  "packs.moreFiles": "and {count} more",
   "packs.checking": "Checking resource packs…",
   "packs.clean": "Check passed: no suspicious resource packs.",
   "packs.foreign":
@@ -970,6 +990,16 @@ const en: Dictionary = {
 };
 
 const de: Dictionary = {
+  "quarantine.title": "Dateien unbekannter Herkunft",
+  "quarantine.description":
+    "Diese Mods gehören nicht zum Build, und der Launcher kann nicht beweisen, dass sie daraus stammen. Wähle die Dateien aus, die beiseitegelegt werden sollen: Sie werden in die Quarantäne verschoben, nicht gelöscht, und lassen sich wiederherstellen.",
+  "quarantine.confirm": "In Quarantäne ({count})",
+  "quarantine.moving": "Wird verschoben…",
+  "quarantine.nothingMoved": "Es wurde keine Datei verschoben.",
+  "quarantine.restoreHint":
+    "Die Dateien lassen sich jederzeit wiederherstellen.",
+  "quarantine.restore": "Aus Quarantäne holen",
+  "quarantine.restored": "Wiederhergestellte Dateien: {count}.",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
   "common.retry": "Erneut versuchen",
@@ -1391,6 +1421,7 @@ const de: Dictionary = {
 
   "packs.reportProvider": "An Anbieter senden",
   "packs.check": "Ressourcenpakete prüfen",
+  "packs.moreFiles": "und {count} weitere",
   "packs.checking": "Ressourcenpakete werden geprüft…",
   "packs.clean": "Prüfung bestanden: keine verdächtigen Ressourcenpakete.",
   "packs.foreign":
@@ -1457,6 +1488,16 @@ const de: Dictionary = {
 };
 
 const fr: Dictionary = {
+  "quarantine.title": "Fichiers d’origine inconnue",
+  "quarantine.description":
+    "Ces mods ne font pas partie de la compilation, et le launcher ne peut pas prouver qu’ils en proviennent. Cochez ceux à mettre de côté : les fichiers sont déplacés en quarantaine, pas supprimés, et peuvent être restaurés.",
+  "quarantine.confirm": "En quarantaine ({count})",
+  "quarantine.moving": "Déplacement…",
+  "quarantine.nothingMoved": "Aucun fichier n’a été déplacé.",
+  "quarantine.restoreHint":
+    "Les fichiers peuvent être restaurés à tout moment.",
+  "quarantine.restore": "Restaurer depuis la quarantaine",
+  "quarantine.restored": "Fichiers restaurés : {count}.",
   "common.cancel": "Annuler",
   "common.close": "Fermer",
   "common.retry": "Réessayer",
@@ -1877,6 +1918,7 @@ const fr: Dictionary = {
 
   "packs.reportProvider": "Envoyer au fournisseur",
   "packs.check": "Vérifier les packs de ressources",
+  "packs.moreFiles": "et {count} de plus",
   "packs.checking": "Vérification des packs de ressources…",
   "packs.clean": "Vérification réussie : aucun pack de ressources suspect.",
   "packs.foreign":

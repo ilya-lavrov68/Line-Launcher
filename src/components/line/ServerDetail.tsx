@@ -1,6 +1,12 @@
 import { m } from "framer-motion";
 import { useState } from "react";
-import { ArrowLeft, FolderInput, ShieldCheck, ShieldX } from "lucide-react";
+import {
+  ArrowLeft,
+  FolderInput,
+  PackageX,
+  ShieldCheck,
+  ShieldX,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -71,6 +77,10 @@ export interface ServerDetailProps {
   onSectionChange?: (section: string | null) => void;
   /** Runs the same pack check a launch runs, without launching. */
   onCheckPacks?: () => Promise<PackCheckResult>;
+  /** The files the last refusal named, when it was about unproved mods. */
+  unprovedMods?: string[];
+  /** Opens the quarantine decision for exactly those files. */
+  onQuarantine?: () => void;
 }
 
 /**
@@ -324,6 +334,8 @@ export default function ServerDetail(props: ServerDetailProps) {
         <PackCheckPanel
           onCheck={props.onCheckPacks}
           onReport={props.onReportPacks}
+          unproved={phase === "blocked" ? props.unprovedMods : undefined}
+          onQuarantine={props.onQuarantine}
           blocked={
             phase === "blocked" ? (props.launchError ?? undefined) : undefined
           }
@@ -358,6 +370,14 @@ export interface PackCheckPanelProps {
   onReport?: () => Promise<void>;
   /** Set when a launch was already refused, so the reason survives a reload. */
   blocked?: string;
+  /**
+   * The exact files the refusal named, when the reason was unproved mods. The
+   * panel offers them to quarantine; it never offers this for a keyword finding
+   * or a missing release file, because those have different answers.
+   */
+  unproved?: string[];
+  /** Opens the quarantine decision. Absent hides the button, never fakes it. */
+  onQuarantine?: () => void;
   disabled?: boolean;
 }
 
@@ -372,6 +392,8 @@ export function PackCheckPanel({
   onCheck,
   onReport,
   blocked,
+  unproved,
+  onQuarantine,
   disabled = false,
 }: PackCheckPanelProps) {
   const t = useT();
@@ -452,7 +474,32 @@ export function PackCheckPanel({
               })}
             </span>
           )}
+          {unproved && unproved.length > 0 && (
+            <ul className="flex flex-col gap-0.5 font-mono text-[11px] break-all">
+              {unproved.slice(0, 5).map((path) => (
+                <li key={path}>{path}</li>
+              ))}
+              {unproved.length > 5 && (
+                <li className="opacity-70">
+                  {t("packs.moreFiles", { count: unproved.length - 5 })}
+                </li>
+              )}
+            </ul>
+          )}
           <span>{t("packs.blockedHint")}</span>
+          {onQuarantine && unproved && unproved.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit cursor-pointer gap-1.5"
+              disabled={disabled || state === "running"}
+              onClick={onQuarantine}
+              data-testid="open-quarantine"
+            >
+              <PackageX className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t("quarantine.title")}
+            </Button>
+          )}
           {onReport && (
             <Button
               variant="outline"

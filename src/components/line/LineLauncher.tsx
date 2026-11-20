@@ -30,6 +30,7 @@ import { bakedProvider } from "@/brand/provider.generated";
 import { connectionMode, isAllowedCachedUrl } from "@/lib/line/provider-flow";
 import AnimatedBackdrop from "./AnimatedBackdrop";
 import SignInScreen from "./SignInScreen";
+import QuarantineDialog from "./QuarantineDialog";
 import ServerDetail from "./ServerDetail";
 import DownloadWidget from "./DownloadWidget";
 import { lazyScreen } from "./lazy-screen";
@@ -133,6 +134,11 @@ export default function LineLauncher() {
   );
   const [backgrounded, setBackgrounded] = useState(false);
   const [launchError, setLaunchError] = useState<string>();
+  // Files the last refusal named, and whether the decision dialog is open. Both
+  // reset whenever the launch error clears, so a stale list cannot outlive the
+  // refusal it described.
+  const [unprovedMods, setUnprovedMods] = useState<string[]>([]);
+  const [quarantineOpen, setQuarantineOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<ReleaseHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -610,9 +616,25 @@ export default function LineLauncher() {
     } catch (cause) {
       if (mounted.current && generation === detailGeneration.current) {
         setLaunchError(errorMessage(cause));
+        // A refusal may have been about unproved mods, and the message cannot
+        // carry a reliable list (it is one sentence for a log line). Ask the
+        // same check the panel uses — it reports the exact paths, and it is
+        // the only source the dialog is allowed to show.
+        void lineApi
+          .checkPacks(selected.id)
+          .then((check) => {
+            if (mounted.current && generation === detailGeneration.current)
+              setUnprovedMods(check.unproved);
+          })
+          .catch(() => {
+            // No list is a valid outcome: the refusal was about something else
+            // (a keyword, a missing file), and the dialog stays closed.
+          });
         if (await authExpired(cause)) {
-          if (mounted.current && generation === detailGeneration.current)
+          if (mounted.current && generation === detailGeneration.current) {
             setLaunchError(undefined);
+            setUnprovedMods([]);
+          }
         }
       }
     } finally {
@@ -1148,7 +1170,11 @@ export default function LineLauncher() {
                             }
                             onCheckPacks={async () => {
                               await refreshConfigForMinecraft();
-                              return lineApi.checkPacks(selected.id);
+                              const check = await lineApi.checkPacks(
+                                selected.id,
+                              );
+                              setUnprovedMods(check.unproved);
+                              return check;
                             }}
                             onReportPacks={
                               snapshot?.config.provider.support_email
@@ -1169,6 +1195,8 @@ export default function LineLauncher() {
                             actionsBusy={actionsBusy || layoutSaving}
                             installError={installError}
                             launchError={launchError}
+                            unprovedMods={unprovedMods}
+                            onQuarantine={() => setQuarantineOpen(true)}
                             availability={
                               selected.launch_mode === "offline" ||
                               selected.launch_mode === "minecraft" ||
@@ -1242,6 +1270,25 @@ export default function LineLauncher() {
                 open={aboutOpen}
                 onOpenChange={setAboutOpen}
               />
+              {/* Only mounted with a real list and a real server: the dialog
+                  acts on exact paths, so it must never open on a guess. */}
+              {selected && unprovedMods.length > 0 && (
+                <QuarantineDialog
+                  open={quarantineOpen}
+                  onOpenChange={setQuarantineOpen}
+                  serverId={selected.id}
+                  paths={unprovedMods}
+                  onChanged={(moved) => {
+                    setUnprovedMods((previous) =>
+                      previous.filter((path) => !moved.includes(path)),
+                    );
+                    // The refusal it answered no longer holds in full: clear a
+                    // message that named files which have now been set aside.
+                    if (moved.length === unprovedMods.length)
+                      setLaunchError(undefined);
+                  }}
+                />
+              )}
             </div>
             {/* Persistent rail: the last opened server stays one click away from
                 the catalogue, the wardrobe and settings. */}

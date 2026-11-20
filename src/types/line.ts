@@ -178,6 +178,19 @@ export interface LineAnticheat {
 export interface PackCheckResult {
   findings: string[];
   foreign: string[];
+  /**
+   * Extra mod JARs the launch would refuse, with exact paths. Same list the
+   * launch reports, so the quarantine dialog never shows a guess.
+   */
+  unproved: string[];
+}
+
+/** What a quarantine or restore batch did, per file. */
+export interface QuarantineOutcome {
+  /** Paths moved, in the order they were requested. */
+  moved: string[];
+  /** Refusals, each already carrying the launcher's own explanation. */
+  refused: string[];
 }
 
 export interface LineConfig {

@@ -167,6 +167,10 @@ const items = [
   attributed("minecraft.rs", "impl Drop for PreparationGuard {"),
   attributed("minecraft.rs", "fn busy("),
   attributed("minecraft.rs", "fn loader_installer_command("),
+  attributed("jvm_profile.rs", "pub enum LoaderFamily {"),
+  attributed("jvm_profile.rs", "pub fn loader_jvm_args("),
+  attributed("jvm_profile.rs", "pub fn module_path_args("),
+  attributed("jvm_profile.rs", "pub fn legacy_class_path_arg("),
   attributed("minecraft_core.rs", "pub const MAX_VERSION_ID_LEN:"),
   attributed("minecraft_core.rs", "pub enum LoaderChoice {"),
   plain("java_consent.rs", "pub struct JavaDownloadPlan {"),
@@ -176,6 +180,7 @@ const items = [
   attributed("minecraft_core.rs", "pub fn validate_instance_id("),
   attributed("minecraft_core.rs", "pub fn validate_version_id("),
   attributed("minecraft_core.rs", "pub fn accepts_explicit_java("),
+  attributed("minecraft_core.rs", "pub fn parse_loader("),
   attributed("minecraft_core.rs", "pub fn validate_loader("),
   attributed("minecraft_core.rs", "pub fn apply_heap("),
   attributed("minecraft_core.rs", "pub fn initial_heap_mb("),
@@ -282,12 +287,38 @@ const items = [
 // Real unit tests, copied from the crate so expectations have one source of truth.
 const tests = [
   installTestPrelude,
-  attributed("minecraft.rs", "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell("),
+  attributed(
+    "minecraft.rs",
+    "fn loader_command_passes_paths_as_distinct_arguments_without_a_shell(",
+  ),
   attributed("runtime_inventory.rs", "fn accepts_only_lowercase_sha1_digests("),
-  attributed("repair_evidence.rs", "fn only_complete_live_evidence_removes_matching_stale_hints("),
+  attributed(
+    "repair_evidence.rs",
+    "fn only_complete_live_evidence_removes_matching_stale_hints(",
+  ),
   attributed("repair_evidence.rs", "fn unknown_hints_are_never_discarded("),
-  attributed("launch.rs", "fn mod_jar_scope_excludes_service_files_and_other_folders("),
-  attributed("resourcepack.rs", "fn keyword_search_handles_multibyte_rejected_matches_without_panicking("),
+  attributed(
+    "launch.rs",
+    "fn mod_jar_scope_excludes_service_files_and_other_folders(",
+  ),
+  attributed("jvm_profile.rs", "fn fabric_and_quilt_get_no_extra_flags("),
+  attributed("jvm_profile.rs", "fn modular_loaders_get_module_flags("),
+  attributed(
+    "jvm_profile.rs",
+    "fn no_flag_can_inject_an_agent_or_a_class_path(",
+  ),
+  attributed(
+    "jvm_profile.rs",
+    "fn module_path_is_one_argument_and_rejects_options(",
+  ),
+  attributed(
+    "jvm_profile.rs",
+    "fn legacy_class_path_carries_the_validated_classpath(",
+  ),
+  attributed(
+    "resourcepack.rs",
+    "fn keyword_search_handles_multibyte_rejected_matches_without_panicking(",
+  ),
   attributed("connector.rs", "fn narrow_cache_names_only("),
   attributed("release_swap.rs", "fn swap_temp("),
   attributed(
@@ -335,7 +366,10 @@ const tests = [
   ),
   attributed("zip_repair.rs", "fn example("),
   attributed("zip_repair.rs", "fn only_identical_plan_is_approved("),
-  attributed("java_consent.rs", "fn consent_is_specific_to_revision_purpose_version_and_source("),
+  attributed(
+    "java_consent.rs",
+    "fn consent_is_specific_to_revision_purpose_version_and_source(",
+  ),
   attributed("minecraft_core.rs", "fn version_ids_are_directory_safe("),
   attributed(
     "minecraft_core.rs",
@@ -371,7 +405,10 @@ const tests = [
     "instance.rs",
     "fn game_directory_is_found_plain_wrapped_and_named(",
   ),
-  attributed("instance.rs", "fn many_unrelated_wrappers_keep_priority_and_support_late_matches("),
+  attributed(
+    "instance.rs",
+    "fn many_unrelated_wrappers_keep_priority_and_support_late_matches(",
+  ),
   attributed("instance.rs", "fn version_profiles_are_paired_with_their_json("),
   attributed(
     "instance.rs",
@@ -810,6 +847,7 @@ const source = [
   .replace(/super::config::/g, "")
   .replace(/super::storage::/g, "")
   .replace(/super::error::/g, "")
+  .replace(/^use super::minecraft_core::LoaderChoice;$/gm, "")
   .replace(/super::launch_manifest::/g, "")
   .replace(/super::integrity::/g, "")
   .replace(/crate::line::storage::/g, "");

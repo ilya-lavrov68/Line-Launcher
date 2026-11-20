@@ -111,6 +111,17 @@ pub struct LaunchManifest {
     /// Minecraft account type reported to the client: mojang | msa | legacy.
     #[serde(default)]
     pub user_type: Option<String>,
+    /// Which loader family the pack runs under: fabric | quilt | forge |
+    /// neoforge. Absent keeps the historical behaviour, which is a bare
+    /// classpath launch.
+    ///
+    /// This field is a *selector*, not an argument list: it can only choose one
+    /// of the flag sets the launcher already carries (`jvm_profile.rs`), and an
+    /// unknown value is rejected. That is the difference between "the pack says
+    /// which loader it needs" and "the pack says what the JVM should run",
+    /// which is the hole this manifest exists to keep shut.
+    #[serde(default)]
+    pub loader: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -225,6 +236,14 @@ impl LaunchManifest {
             .as_deref()
             .is_some_and(|kind| !matches!(kind, "mojang" | "msa" | "legacy"))
         {
+            return Err(invalid());
+        }
+        // Known loader names only. The name selects a flag set the launcher
+        // already owns; anything else is a manifest we do not understand, and
+        // guessing would mean running the wrong loader's flags.
+        if self.loader.as_deref().is_some_and(|kind| {
+            !matches!(kind, "fabric" | "quilt" | "forge" | "neoforge")
+        }) {
             return Err(invalid());
         }
         Ok(())

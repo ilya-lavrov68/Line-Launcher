@@ -135,6 +135,16 @@ pub struct LauncherSettings {
     /// a downgrade never leaves an empty catalogue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog_view: Option<String>,
+    /// How the workspace behind the panels is painted: `glass` (the animated
+    /// backdrop reads through) or `solid` (an opaque JetBrains-grey field).
+    ///
+    /// Two values, for the same reason as `catalog_view`: a third finish is the
+    /// sort of thing that gets added, and a bool called `solid` would have to
+    /// become an enum in a format already written to disk. `None` means the
+    /// theme's own default — the UI decides, so changing the default does not
+    /// require rewriting anybody's settings file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
     /// Pack download cap in KiB/s; zero means unlimited.
     pub download_limit_kib: u32,
     pub window_width: u32,
@@ -153,6 +163,7 @@ impl Default for LauncherSettings {
             language: None,
             server_layout: None,
             catalog_view: None,
+            workspace: None,
             download_limit_kib: 0,
             window_width: 1100,
             window_height: 720,
@@ -183,6 +194,11 @@ impl LauncherSettings {
         if let Some(view) = &self.catalog_view {
             if view != "grid" && view != "harmony" {
                 return Err(LineError::input("Неизвестный вид каталога серверов."));
+            }
+        }
+        if let Some(workspace) = &self.workspace {
+            if workspace != "glass" && workspace != "solid" {
+                return Err(LineError::input("Неизвестный вид рабочей зоны."));
             }
         }
         if !(MIN_WINDOW_WIDTH..=MAX_WINDOW_DIMENSION).contains(&self.window_width)
@@ -353,6 +369,29 @@ mod tests {
         // rendering a catalogue with no layout at all.
         assert!(settings_with_view(Some("mosaic")).validate(total).is_err());
         assert!(settings_with_view(Some("")).validate(total).is_err());
+    }
+
+    #[test]
+    fn workspace_accepts_only_the_two_finishes_this_build_paints() {
+        let total = 16 * 1024 * 1024 * 1024;
+        for ok in [None, Some("glass"), Some("solid")] {
+            assert!(
+                LauncherSettings {
+                    workspace: ok.map(str::to_string),
+                    ..LauncherSettings::default()
+                }
+                .validate(total)
+                .is_ok()
+            );
+        }
+        assert!(
+            LauncherSettings {
+                workspace: Some("frosted".to_string()),
+                ..LauncherSettings::default()
+            }
+            .validate(total)
+            .is_err()
+        );
     }
 
     #[test]

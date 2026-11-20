@@ -182,6 +182,28 @@ export default function LineLauncher() {
    */
   const railCollapsed = settings?.settings.sidebarCollapsed ?? true;
 
+  /**
+   * The workspace finish, written onto <html>.
+   *
+   * Six surfaces paint from it and the page's own background comes from
+   * `:root`, so the attribute has to sit above the component tree. An effect
+   * rather than a static attribute because the answer arrives with settings,
+   * and the attribute is removed while that answer is unknown — so a player who
+   * chose glass does not watch the window start solid and then change.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const finish = settings?.settings.workspace;
+    if (finish === "glass") {
+      root.setAttribute("data-line-workspace", "glass");
+    } else if (finish === "solid") {
+      root.setAttribute("data-line-workspace", "solid");
+    } else {
+      root.removeAttribute("data-line-workspace");
+    }
+    return () => root.removeAttribute("data-line-workspace");
+  }, [settings?.settings.workspace]);
+
   const loadConfig = useCallback(async (url: string, force = false) => {
     const generation = ++requestGeneration.current;
     setLoading(true);
@@ -910,6 +932,12 @@ export default function LineLauncher() {
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
+          {/* The workspace finish is an attribute on <html> (set by an effect
+              below), not a prop threaded through six surfaces: the colour
+              field, both shell pans, the sign-in plate and the two backdrop
+              layers all paint from it, and one attribute is what the CSS keys
+              off. It has to live on the root element rather than this div
+              because the page background is painted by `:root`. */}
           <div className="bg-background text-foreground relative flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
             {/* The haze is the only colour field in the design; every surface
                 above it is glass. It is decoration and nothing depends on it:

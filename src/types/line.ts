@@ -250,10 +250,20 @@ export interface LauncherSettings {
    * hand-edited file never leaves an empty catalogue.
    */
   catalogView?: CatalogView | null;
+  /**
+   * How the workspace behind the panels is painted: `glass` lets the animated
+   * backdrop read through, `solid` paints an opaque JetBrains-grey field.
+   * Absent = the theme's default, so changing that default does not require
+   * rewriting anybody's settings file.
+   */
+  workspace?: WorkspaceFinish | null;
 }
 
 /** The catalogue's two layouts. */
 export type CatalogView = "grid" | "harmony";
+
+/** The two finishes the workspace can be painted in. */
+export type WorkspaceFinish = "glass" | "solid";
 
 export interface SettingsSnapshot {
   settings: LauncherSettings;

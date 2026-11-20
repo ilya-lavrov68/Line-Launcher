@@ -299,6 +299,13 @@ export const ru = {
   "settings.memoryAuto": "Подбирать память автоматически",
   "settings.memoryAutoHint":
     "Сборка скажет, сколько ей нужно, а лаунчер ограничит запрос тем, что может отдать компьютер. Ползунок станет недоступен.",
+  "settings.workspace": "Рабочая зона",
+  "settings.workspaceHint":
+    "Из чего сделаны панели: прозрачное стекло, сквозь которое видно фон, или сплошной тёмно-серый.",
+  "workspace.glass": "Прозрачная",
+  "workspace.glassHint": "Фон движется за панелями",
+  "workspace.solid": "Сплошная",
+  "workspace.solidHint": "Тёмно-серый, как в JetBrains IDE",
   "settings.backdrop": "Фон лаунчера",
   "settings.backdropHint":
     "Двенадцать градиентов, каждый движется по-своему. Переключение плавное, выбор сохраняется.",
@@ -799,6 +806,13 @@ const en: Dictionary = {
   "settings.memoryAuto": "Size memory automatically",
   "settings.memoryAutoHint":
     "The pack says how much it needs, and the launcher caps that at what the machine can spare. The slider becomes unavailable.",
+  "settings.workspace": "Workspace",
+  "settings.workspaceHint":
+    "What the panels are made of: clear glass the backdrop shows through, or a solid dark grey.",
+  "workspace.glass": "Clear",
+  "workspace.glassHint": "The backdrop moves behind the panels",
+  "workspace.solid": "Solid",
+  "workspace.solidHint": "Dark grey, as in JetBrains IDEs",
   "settings.backdrop": "Launcher backdrop",
   "settings.backdropHint":
     "Twelve gradients, each one moving in its own way. Switching dissolves, the choice is kept.",
@@ -1301,6 +1315,13 @@ const de: Dictionary = {
   "settings.memoryAuto": "Speicher automatisch wählen",
   "settings.memoryAutoHint":
     "Das Paket nennt seinen Bedarf, der Launcher begrenzt ihn auf das, was der Rechner hergibt. Der Regler wird dann inaktiv.",
+  "settings.workspace": "Arbeitsfläche",
+  "settings.workspaceHint":
+    "Woraus die Panels bestehen: klares Glas, durch das der Hintergrund sichtbar ist, oder ein durchgehendes Dunkelgrau.",
+  "workspace.glass": "Klar",
+  "workspace.glassHint": "Der Hintergrund bewegt sich hinter den Panels",
+  "workspace.solid": "Deckend",
+  "workspace.solidHint": "Dunkelgrau wie in JetBrains-IDEs",
   "settings.backdrop": "Hintergrund des Launchers",
   "settings.backdropHint":
     "Zwölf Farbverläufe, jeder bewegt sich auf seine eigene Weise. Der Wechsel blendet über, die Wahl bleibt gespeichert.",
@@ -1802,6 +1823,13 @@ const fr: Dictionary = {
   "settings.memoryAuto": "Choisir la mémoire automatiquement",
   "settings.memoryAutoHint":
     "La compilation indique son besoin, le launcher le plafonne à ce que la machine peut fournir. Le curseur devient inactif.",
+  "settings.workspace": "Espace de travail",
+  "settings.workspaceHint":
+    "De quoi sont faits les panneaux : verre clair laissant voir l'arrière-plan, ou un gris foncé opaque.",
+  "workspace.glass": "Transparent",
+  "workspace.glassHint": "L'arrière-plan bouge derrière les panneaux",
+  "workspace.solid": "Opaque",
+  "workspace.solidHint": "Gris foncé, comme dans les IDE JetBrains",
   "settings.backdrop": "Fond du launcher",
   "settings.backdropHint":
     "Douze dégradés, chacun se déplace à sa manière. Le changement fond en douceur, le choix est conservé.",

@@ -1095,8 +1095,12 @@ test("the sidebar icons are 1.5x their old 20px and the rows grew with them", ()
   // Collapsed targets are squares: 40x40 inside the 60px rail, which leaves
   // 2px of air each side. A bar-shaped highlight was the complaint — the box
   // was wider than it was tall — and 44 was edge-to-edge, which read as a slab.
-  assert.match(nav, /collapsed \? "mx-auto h-10 w-10 justify-center px-0"/);
-  assert.match(nav, /h-12 w-full justify-start px-2\.5/);
+  assert.match(
+    nav,
+    /collapsed\s*\?\s*"mx-auto h-10 w-10 justify-center px-0"/,
+    "collapsed targets must be 40x40 squares",
+  );
+  assert.match(nav, /"h-12 w-full justify-start px-2\.5"/);
   // The collapsed rail is 60px wide with 8px of padding each side: 44px of
   // usable width, which the 30px glyph fits inside without clipping.
   assert.match(nav, /collapsed \? 60 : 208/);

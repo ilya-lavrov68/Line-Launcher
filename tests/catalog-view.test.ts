@@ -23,7 +23,10 @@ test("the harmony view opens the first server until the player chooses", () => {
   // freeze the fallback against the list as it was on first render, so a
   // provider that reorders the catalogue would leave the accordion open on a
   // server that is no longer first, for a reason the player cannot see.
-  assert.match(catalog, /const \[chosen, setChosen\] = useState<string \| null>\(null\)/);
+  assert.match(
+    catalog,
+    /const \[chosen, setChosen\] = useState<string \| null>\(null\)/,
+  );
   assert.match(catalog, /const firstId = servers\[0\]\?\.id/);
   assert.match(catalog, /const openId = chosen \?\? firstId \?\? null/);
 });
@@ -51,7 +54,10 @@ test("the accordion is a disclosure, not a div with a click", () => {
   assert.doesNotMatch(catalog, /aria-pressed/);
   // One row is open at a time: clicking the open row closes it, clicking
   // another opens that one.
-  assert.match(catalog, /onClick=\{\(\) => setChosen\(open \? "" : server\.id\)\}/);
+  assert.match(
+    catalog,
+    /onClick=\{\(\) => setChosen\(open \? "" : server\.id\)\}/,
+  );
 });
 
 test("harmony respects reduced motion instead of refusing to open", () => {
@@ -60,7 +66,10 @@ test("harmony respects reduced motion instead of refusing to open", () => {
   // The row still opens — the box is what carries the information, and a
   // reduced-motion user needs it just as much. Only the tween is dropped.
   assert.match(catalog, /const reduced = useReducedMotion\(\)/);
-  assert.match(catalog, /initial=\{reduced \? false : \{ height: 0, opacity: 0 \}\}/);
+  assert.match(
+    catalog,
+    /initial=\{reduced \? false : \{ height: 0, opacity: 0 \}\}/,
+  );
   assert.match(catalog, /duration: reduced \? 0 : 0\.2/);
 });
 
@@ -73,7 +82,10 @@ test("the view is a setting, so it survives a restart", () => {
   // views lives in TypeScript, and a view this build does not know falls back
   // to the grid instead of blanking the catalogue.
   assert.match(rust, /pub catalog_view: Option<String>/);
-  assert.match(rust, /serde\(default, skip_serializing_if = "Option::is_none"\)\]\s*pub catalog_view/);
+  assert.match(
+    rust,
+    /serde\(default, skip_serializing_if = "Option::is_none"\)\]\s*pub catalog_view/,
+  );
   // Validated on the way in, so the file on disk always names a view the UI
   // will honour rather than being silently ignored.
   assert.match(rust, /if view != "grid" && view != "harmony"/);
@@ -82,7 +94,10 @@ test("the view is a setting, so it survives a restart", () => {
   assert.match(types, /catalogView\?: CatalogView \| null/);
 
   // Written through the same settings call everything else uses.
-  assert.match(launcher, /async function changeCatalogView\(view: CatalogView\)/);
+  assert.match(
+    launcher,
+    /async function changeCatalogView\(view: CatalogView\)/,
+  );
   assert.match(launcher, /catalogView: view/);
 });
 
@@ -101,4 +116,47 @@ test("the switch is offered only where it can work", () => {
   assert.match(list, /\{view === "harmony" \? \(/);
   assert.match(list, /\{view === "grid" &&\s*targets\.map/);
   assert.match(list, /\{view === "grid" && layout !== undefined && \(/);
+});
+
+test("the workspace finish is a setting with a solid default", () => {
+  const rust = read("src-tauri/src/line/settings.rs");
+  const types = read("src/types/line.ts");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  const css = read("src/index.css");
+
+  assert.match(rust, /pub workspace: Option<String>/);
+  assert.match(rust, /if workspace != "glass" && workspace != "solid"/);
+
+  assert.match(types, /export type WorkspaceFinish = "glass" \| "solid"/);
+  assert.match(types, /workspace\?: WorkspaceFinish \| null/);
+
+  // The attribute lives on <html>, not on a component's div: the page
+  // background comes from `:root`, and six surfaces paint from it.
+  assert.match(
+    launcher,
+    /root\.setAttribute\("data-line-workspace", "glass"\)/,
+  );
+  assert.match(
+    launcher,
+    /root\.setAttribute\("data-line-workspace", "solid"\)/,
+  );
+  // Removed while the answer is unknown, so someone who chose glass does not
+  // watch the window start solid and then change under the greeting.
+  assert.match(launcher, /root\.removeAttribute\("data-line-workspace"\)/);
+
+  // Solid is the default: the rule matches "no attribute at all", which is
+  // what the root carries before settings arrive.
+  assert.match(
+    css,
+    /:root:not\(\[data-line-workspace="glass"\]\) \{/,
+    "solid must be the finish with no attribute",
+  );
+  // The JetBrains pair, and the haze switched off rather than left running
+  // behind an opaque field.
+  assert.match(css, /--line-solid-workspace: #1e1f22/);
+  assert.match(css, /--line-solid-panel: #2b2d30/);
+  assert.match(
+    css,
+    /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-haze\],/,
+  );
 });

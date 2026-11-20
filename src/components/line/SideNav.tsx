@@ -90,7 +90,7 @@ export default function SideNav({
         "rounded-[var(--radius-item)]",
       )}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2">
         {items.map((item) => {
           const active = section === item.id;
           const Icon = item.icon;
@@ -114,7 +114,9 @@ export default function SideNav({
                 // wide with 8px of padding each side, so 40x40 leaves 2px of
                 // air on both sides. 44 filled the rail edge to edge, which is
                 // why the highlight read as a slab against the sidebar.
-                collapsed ? "mx-auto h-10 w-10 justify-center px-0" : "h-12 w-full justify-start px-2.5",
+                collapsed
+                  ? "mx-auto h-10 w-10 justify-center px-0"
+                  : "h-12 w-full justify-start px-2.5",
                 // focusableWhenDisabled drops the native :disabled styling, so
                 // the muted look is restored explicitly. It stays hoverable so
                 // the tooltip explaining the reason can still be read.

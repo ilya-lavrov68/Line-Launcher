@@ -109,6 +109,11 @@ export const ru = {
   "servers.railInstalled": "Сборка установлена",
   "servers.railDownloading": "Загрузка сборки",
   "servers.railMissing": "Сборка не установлена",
+  "catalog.grid": "Сетка",
+  "catalog.harmony": "Гармонь",
+  "catalog.view": "Вид каталога",
+  "harmony.title": "Серверы",
+  "harmony.open": "Открыть",
 
   "detail.buildMissing": "Сборка не скачана",
   "detail.updateAvailable": "Доступно обновление",
@@ -294,6 +299,13 @@ export const ru = {
   "settings.memoryAuto": "Подбирать память автоматически",
   "settings.memoryAutoHint":
     "Сборка скажет, сколько ей нужно, а лаунчер ограничит запрос тем, что может отдать компьютер. Ползунок станет недоступен.",
+  "settings.workspace": "Рабочая зона",
+  "settings.workspaceHint":
+    "Из чего сделаны панели: прозрачное стекло, сквозь которое видно фон, или сплошной тёмно-серый.",
+  "workspace.glass": "Прозрачная",
+  "workspace.glassHint": "Фон движется за панелями",
+  "workspace.solid": "Сплошная",
+  "workspace.solidHint": "Тёмно-серый, как в JetBrains IDE",
   "settings.backdrop": "Фон лаунчера",
   "settings.backdropHint":
     "Двенадцать градиентов, каждый движется по-своему. Переключение плавное, выбор сохраняется.",
@@ -602,6 +614,11 @@ const en: Dictionary = {
   "servers.railInstalled": "Build installed",
   "servers.railDownloading": "Downloading the build",
   "servers.railMissing": "Build not installed",
+  "catalog.grid": "Grid",
+  "catalog.harmony": "Accordion",
+  "catalog.view": "Catalogue view",
+  "harmony.title": "Servers",
+  "harmony.open": "Open",
 
   "detail.buildMissing": "Build not downloaded",
   "detail.updateAvailable": "Update available",
@@ -789,6 +806,13 @@ const en: Dictionary = {
   "settings.memoryAuto": "Size memory automatically",
   "settings.memoryAutoHint":
     "The pack says how much it needs, and the launcher caps that at what the machine can spare. The slider becomes unavailable.",
+  "settings.workspace": "Workspace",
+  "settings.workspaceHint":
+    "What the panels are made of: clear glass the backdrop shows through, or a solid dark grey.",
+  "workspace.glass": "Clear",
+  "workspace.glassHint": "The backdrop moves behind the panels",
+  "workspace.solid": "Solid",
+  "workspace.solidHint": "Dark grey, as in JetBrains IDEs",
   "settings.backdrop": "Launcher backdrop",
   "settings.backdropHint":
     "Twelve gradients, each one moving in its own way. Switching dissolves, the choice is kept.",
@@ -1096,6 +1120,11 @@ const de: Dictionary = {
   "servers.railInstalled": "Build installiert",
   "servers.railDownloading": "Build wird geladen",
   "servers.railMissing": "Build nicht installiert",
+  "catalog.grid": "Raster",
+  "catalog.harmony": "Akkordeon",
+  "catalog.view": "Katalogansicht",
+  "harmony.title": "Server",
+  "harmony.open": "Öffnen",
 
   "detail.buildMissing": "Build nicht geladen",
   "detail.updateAvailable": "Update verfügbar",
@@ -1286,6 +1315,13 @@ const de: Dictionary = {
   "settings.memoryAuto": "Speicher automatisch wählen",
   "settings.memoryAutoHint":
     "Das Paket nennt seinen Bedarf, der Launcher begrenzt ihn auf das, was der Rechner hergibt. Der Regler wird dann inaktiv.",
+  "settings.workspace": "Arbeitsfläche",
+  "settings.workspaceHint":
+    "Die Hauptpanels sind entweder transparent und lassen den Hintergrund durchscheinen oder undurchsichtig dunkelgrau.",
+  "workspace.glass": "Transparente Panels",
+  "workspace.glassHint": "Der Hintergrund scheint durch die Panels",
+  "workspace.solid": "Undurchsichtige Panels",
+  "workspace.solidHint": "Dunkelgrau wie in JetBrains-IDEs",
   "settings.backdrop": "Hintergrund des Launchers",
   "settings.backdropHint":
     "Zwölf Farbverläufe, jeder bewegt sich auf seine eigene Weise. Der Wechsel blendet über, die Wahl bleibt gespeichert.",
@@ -1595,6 +1631,11 @@ const fr: Dictionary = {
   "servers.railInstalled": "Version installée",
   "servers.railDownloading": "Téléchargement de la version",
   "servers.railMissing": "Version non installée",
+  "catalog.grid": "Grille",
+  "catalog.harmony": "Accordéon",
+  "catalog.view": "Affichage du catalogue",
+  "harmony.title": "Serveurs",
+  "harmony.open": "Ouvrir",
 
   "detail.buildMissing": "Version non téléchargée",
   "detail.updateAvailable": "Mise à jour disponible",
@@ -1782,6 +1823,13 @@ const fr: Dictionary = {
   "settings.memoryAuto": "Choisir la mémoire automatiquement",
   "settings.memoryAutoHint":
     "La compilation indique son besoin, le launcher le plafonne à ce que la machine peut fournir. Le curseur devient inactif.",
+  "settings.workspace": "Espace de travail",
+  "settings.workspaceHint":
+    "De quoi sont faits les panneaux : verre clair laissant voir l'arrière-plan, ou un gris foncé opaque.",
+  "workspace.glass": "Transparent",
+  "workspace.glassHint": "L'arrière-plan bouge derrière les panneaux",
+  "workspace.solid": "Opaque",
+  "workspace.solidHint": "Gris foncé, comme dans les IDE JetBrains",
   "settings.backdrop": "Fond du launcher",
   "settings.backdropHint":
     "Douze dégradés, chacun se déplace à sa manière. Le changement fond en douceur, le choix est conservé.",

@@ -5,6 +5,7 @@ import {
   Coffee,
   FileText,
   Languages,
+  Layers,
   MemoryStick,
   Download,
   Palette,
@@ -470,6 +471,87 @@ export default function SettingsScreen({
             <p className="text-muted-foreground text-[11px] leading-relaxed">
               {t("settings.memoryStability")}
             </p>
+          </div>
+        </Section>
+
+        <Section
+          icon={Layers}
+          title={t("settings.workspace")}
+          description={t("settings.workspaceHint")}
+        >
+          {/* Two cards, not a select: this is a look, and a look has to be
+              seen to be chosen. Each option paints a swatch of exactly what it
+              produces — the backdrop is the same in both, and the difference
+              is the plate in the middle: a translucent one for glass, the
+              opaque JetBrains grey for solid — so the choice is made by
+              looking rather than by reading a word.
+
+              The default is solid, and it is the default only when nobody has
+              chosen: `workspace` stays absent until the player picks. */}
+          <div
+            role="radiogroup"
+            aria-label={t("settings.workspace")}
+            className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+          >
+            {[
+              {
+                id: "glass" as const,
+                label: "workspace.glass",
+                hint: "workspace.glassHint",
+              },
+              {
+                id: "solid" as const,
+                label: "workspace.solid",
+                hint: "workspace.solidHint",
+              },
+            ].map((option) => {
+              const active = (settings.workspace ?? "solid") === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  disabled={busy}
+                  onClick={() =>
+                    void persist({ ...settings, workspace: option.id })
+                  }
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border p-2 text-left transition-colors",
+                    active
+                      ? "border-foreground/30 bg-fill-subtle"
+                      : "border-border/40 hover:border-foreground/20 hover:bg-fill-subtle/60",
+                    busy && "cursor-not-allowed opacity-60",
+                  )}
+                >
+                  {/* The swatch is the thing itself, not a picture of it:
+                      the backdrop bands stand in for the haze in both, and
+                      the plate in the middle is what changes — translucent
+                      for glass, the opaque JetBrains value for solid. */}
+                  <span
+                    aria-hidden="true"
+                    className="line-workspace-swatch relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-white/10"
+                  >
+                    <span
+                      className={cn(
+                        "block size-6 rounded-[3px] border border-white/15",
+                        option.id === "solid"
+                          ? "bg-[var(--line-solid-panel)]"
+                          : "bg-white/15 backdrop-blur-[2px]",
+                      )}
+                    />
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-foreground text-xs font-medium">
+                      {t(option.label)}
+                    </span>
+                    <span className="text-muted-foreground text-[11px] leading-relaxed">
+                      {t(option.hint)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </Section>
 

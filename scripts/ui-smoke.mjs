@@ -640,10 +640,12 @@ try {
         };
       }),
     );
-  // Eight sections: language, download limit, memory, backdrop, Java, window behaviour,
-  // configuration cache and support. Language is first, above memory.
+  // Nine sections: language, download limit, memory, workspace, backdrop, Java,
+  // window behaviour, configuration cache and support. Language is first, above
+  // memory; workspace sits above the backdrop because it decides what the
+  // backdrop is even painted into.
   check(
-    sectionIcons.length === 8 &&
+    sectionIcons.length === 9 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&

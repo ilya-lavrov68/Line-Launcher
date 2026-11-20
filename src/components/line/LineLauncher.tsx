@@ -15,6 +15,7 @@ import { isNewerGameStatus } from "@/types/line";
 import type {
   AuthMode,
   AuthSessionInfo,
+  CatalogView,
   ConfigSnapshot,
   InstallProgress as ProgressData,
   McInstallProgress,
@@ -180,6 +181,28 @@ export default function LineLauncher() {
    * during the toggle and the name appeared somewhere it had not been.
    */
   const railCollapsed = settings?.settings.sidebarCollapsed ?? true;
+
+  /**
+   * The workspace finish, written onto <html>.
+   *
+   * The main shell panes and sign-in plate read it from `:root`, so the
+   * attribute has to sit above the component tree. The backdrop is untouched.
+   * An effect rather than a static attribute because the answer arrives with
+   * settings, and the attribute is removed while that answer is unknown — so a
+   * player who chose glass does not watch the window start solid and then change.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const finish = settings?.settings.workspace;
+    if (finish === "glass") {
+      root.setAttribute("data-line-workspace", "glass");
+    } else if (finish === "solid") {
+      root.setAttribute("data-line-workspace", "solid");
+    } else {
+      root.removeAttribute("data-line-workspace");
+    }
+    return () => root.removeAttribute("data-line-workspace");
+  }, [settings?.settings.workspace]);
 
   const loadConfig = useCallback(async (url: string, force = false) => {
     const generation = ++requestGeneration.current;
@@ -818,6 +841,32 @@ export default function LineLauncher() {
   }
 
   /**
+   * The catalogue's view is a setting, not local state.
+   *
+   * It looks like a display preference — and it is — but the catalogue is the
+   * screen the launcher opens on, so "which view was I looking at" has to
+   * survive a restart or the player re-picks it every morning. Written straight
+   * through rather than debounced: a view change is one click, and there is no
+   * dragging gesture that would produce a burst of writes.
+   *
+   * Optimistic on purpose. A failed write keeps the new view on screen and
+   * reverts only the stored copy: the player asked to see the list, and showing
+   * them the old one while nothing explains why is worse than a preference that
+   * does not persist.
+   */
+  async function changeCatalogView(view: CatalogView) {
+    if (!settings) return;
+    const next = { ...settings.settings, catalogView: view };
+    const previous = settings;
+    setSettings({ ...settings, settings: next });
+    try {
+      setSettings(await lineApi.saveSettings(next));
+    } catch {
+      setSettings(previous);
+    }
+  }
+
+  /**
    * There is no other provider to switch to. This signs out and reconnects to the
    * same baked address, which is what a player actually wants after an outage.
    *
@@ -883,6 +932,12 @@ export default function LineLauncher() {
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
+          {/* The workspace finish is an attribute on <html> (set by an effect
+              below), not a prop threaded through six surfaces: the colour
+              field, both shell pans, the sign-in plate and the two backdrop
+              layers all paint from it, and one attribute is what the CSS keys
+              off. It has to live on the root element rather than this div
+              because the page background is painted by `:root`. */}
           <div className="bg-background text-foreground relative flex h-dvh min-h-0 w-full flex-col overflow-hidden font-sans">
             {/* The haze is the only colour field in the design; every surface
                 above it is glass. It is decoration and nothing depends on it:
@@ -1155,6 +1210,14 @@ export default function LineLauncher() {
                                   providerName={snapshot.config.provider.name}
                                   servers={snapshot.config.servers}
                                   installedIds={installedIds}
+                                  view={
+                                    settings?.settings.catalogView === "harmony"
+                                      ? "harmony"
+                                      : "grid"
+                                  }
+                                  onViewChange={(next) =>
+                                    void changeCatalogView(next)
+                                  }
                                   stale={snapshot.stale}
                                   refreshing={refreshing}
                                   actionsDisabled={actionsBusy || layoutSaving}

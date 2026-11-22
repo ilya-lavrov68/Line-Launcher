@@ -76,7 +76,7 @@ export default function SignInScreen({
             width: the mark stays where the player will find it a moment later,
             and the gate does not have a logo in a different place from the
             launcher behind it. */}
-        <TitleBar railWidth={60} collapsed />
+        <TitleBar />
       </div>
 
       {/* `scrollbar-gutter: stable` matches the shell's panes: the gate is a

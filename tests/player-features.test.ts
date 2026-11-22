@@ -1124,14 +1124,15 @@ test("auto RAM persists in place and has a no-reload regression guard", () => {
   assert.match(smoke, /turning automatic heap on reloaded the page/);
 });
 
-test("the title-bar brand mark is centered on the sidebar, not its padded header", () => {
+test("the title-bar brand mark stays pinned in the compact rail corner", () => {
   const titleBar = read("src/components/line/TitleBar.tsx");
   assert.match(titleBar, /"justify-between gap-3 pr-1 select-none"/);
   assert.match(
     titleBar,
-    /collapsed \? "justify-center" : "pl-4"/,
-    "the collapsed mark must be centered on the rail; open lockup keeps its inset",
+    /className="flex w-12 shrink-0 items-center justify-center"/,
   );
+  assert.match(titleBar, /<BrandMark className="h-5 w-5 shrink-0" \/>/);
+  assert.doesNotMatch(titleBar, /brand\.name|railWidth|collapsed/);
 });
 
 test("collapsed sidebar buttons are direct centered flex items", () => {
@@ -1165,33 +1166,19 @@ test("the animated backdrop keeps its saturation lift across theme changes", () 
   assert.match(smoke, /backdropFilterAfter/);
 });
 
-test("the sidebar icons are 1.5x their old 20px and the rows grew with them", () => {
+test("the sidebar is narrower with smaller Material Symbols and usable targets", () => {
   const nav = read("src/components/line/SideNav.tsx");
-  // 30px, not `h-5 w-5` (20px). Every glyph in the rail — the sections, the
-  // reconnect, the about, the collapse chevron — scales together; a single one
-  // left at 20px read as a mistake rather than a hierarchy.
-  // The rail's *icons* are 30px. The one 20px mark left is the brand lockup,
-  // which is a logo rather than a section glyph and is sized like a logo.
-  const withoutMark = nav.replace(/<BrandMark className="[^"]*"/g, "");
-  assert.doesNotMatch(
-    withoutMark,
-    /h-5 w-5/,
-    "an icon is still at the old 20px size",
-  );
-  assert.match(nav, /h-\[30px\] w-\[30px\]/);
-  // A 30px glyph in a 36px row touches both edges. The rows and the two
-  // secondary buttons grew so the icons keep their padding.
-  assert.match(nav, /"items-center gap-2\.5 rounded-lg text-xs font-medium"/);
-  // Collapsed targets are squares: 40x40 inside the 60px rail, which leaves
-  // 2px of air each side. A bar-shaped highlight was the complaint — the box
-  // was wider than it was tall — and 44 was edge-to-edge, which read as a slab.
+  assert.match(nav, /animate=\{\{ width: collapsed \? 48 : 184 \}\}/);
+  assert.match(nav, /<Icon className="h-5 w-5 shrink-0"/);
+  assert.match(nav, /<Settings className="h-5 w-5 shrink-0"/);
+  assert.match(nav, /<Info className="h-5 w-5 shrink-0"/);
+  assert.match(nav, /<ChevronLeft[\s\S]{0,150}h-5 w-5/);
+  assert.match(nav, /collapsed\s*\?\s*"mx-auto h-9 w-9 justify-center px-0"/);
+  assert.match(nav, /"h-10 w-full justify-start px-2\.5"/);
+  const icons = read("src/components/ui/icons.tsx");
   assert.match(
-    nav,
-    /collapsed\s*\?\s*"mx-auto h-10 w-10 justify-center px-0"/,
-    "collapsed targets must be 40x40 squares",
+    icons,
+    /import apparel from "@material-symbols\/svg-400\/rounded\/apparel\.svg"/,
   );
-  assert.match(nav, /"h-12 w-full justify-start px-2\.5"/);
-  // The collapsed rail is 60px wide with 8px of padding each side: 44px of
-  // usable width, which the 30px glyph fits inside without clipping.
-  assert.match(nav, /collapsed \? 60 : 208/);
+  assert.match(icons, /export const Shirt = materialSymbol\(apparel\)/);
 });

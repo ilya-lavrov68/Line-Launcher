@@ -319,7 +319,7 @@ await page.addInitScript(
             settings: {
               heapMb: 4096,
               javaPath: null,
-              // The sidebar is a 60px icon rail; the gallery documents the
+              // The sidebar is a 48px icon rail; the gallery documents the
               // default the first run actually opens with.
               sidebarCollapsed: true,
               afterLaunch: "minimize",

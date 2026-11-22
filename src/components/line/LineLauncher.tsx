@@ -982,11 +982,7 @@ export default function LineLauncher() {
                 shellLocked && "pointer-events-none opacity-0",
               )}
             >
-              <TitleBar
-                context={titleContext}
-                railWidth={railCollapsed ? 60 : 208}
-                collapsed={railCollapsed}
-              />
+              <TitleBar context={titleContext} />
               <div className="flex min-h-0 w-full flex-1 gap-1.5 overflow-hidden">
                 <SideNav
                   section={section}

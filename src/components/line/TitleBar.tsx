@@ -1,5 +1,4 @@
 import { Copy, CropSquare, Minus, X } from "@/components/ui/icons";
-import { brand } from "@/brand/generated";
 import BrandMark from "@/components/line/BrandMark";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,20 +14,8 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/line/i18n";
 
 export interface TitleBarProps {
-  /** Breadcrumb shown next to the product name. */
+  /** Breadcrumb shown after the fixed brand mark. */
   context?: string;
-  /**
-   * Width of the rail below, in pixels.
-   *
-   * The brand lockup sits directly above the rail, and the rail animates its
-   * own width between 60 and 208. Giving this row the same number and the same
-   * transition is what keeps the two in step: the logo stays over the rail
-   * instead of drifting across it while it opens, and the name unfolds as the
-   * row grows rather than appearing at the end of a jump.
-   */
-  railWidth: number;
-  /** Whether the rail is collapsed: below this width the name is not drawn. */
-  collapsed: boolean;
 }
 
 /**
@@ -40,11 +27,7 @@ export interface TitleBarProps {
  * `data-tauri-drag-region` marks the draggable area; interactive children opt out
  * automatically because Tauri ignores the drag region on interactive elements.
  */
-export default function TitleBar({
-  context,
-  railWidth,
-  collapsed,
-}: TitleBarProps) {
+export default function TitleBar({ context }: TitleBarProps) {
   const t = useT();
   const [maximized, setMaximized] = useState(false);
 
@@ -82,29 +65,13 @@ export default function TitleBar({
         data-tauri-drag-region
         className="pointer-events-none flex min-w-0 items-center gap-3"
       >
-        {/* The lockup: the mark alone over a collapsed rail, the mark and the
-            product name over an open one. It sits here rather than inside the
-            rail so the brand is *above* the navigation, and it tracks the
-            rail's animated width so the two never drift apart mid-toggle.
-            The name is not unmounted when collapsed — it keeps its place and
-            simply is not drawn, so the mark does not slide when it reappears. */}
+        {/* A fixed-width mark pins the logo to the rail's corner regardless of
+            its expanded width. Keep the product name off this compact chrome. */}
         <div
           data-tauri-drag-region
-          style={{ width: railWidth }}
-          className={cn(
-            "flex shrink-0 items-center gap-2 transition-[width] duration-180 ease-out",
-            collapsed ? "justify-center" : "pl-4",
-          )}
+          className="flex w-12 shrink-0 items-center justify-center"
         >
           <BrandMark className="h-5 w-5 shrink-0" />
-          {!collapsed && (
-            <span
-              data-tauri-drag-region
-              className="text-foreground truncate text-xs font-semibold tracking-tight"
-            >
-              {brand.name}
-            </span>
-          )}
         </div>
         {context && (
           <>

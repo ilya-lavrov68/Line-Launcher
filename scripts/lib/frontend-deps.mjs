@@ -1,5 +1,5 @@
-// Check the actual frontend entrypoints, not just the node_modules directory.
-// CSS imports must resolve even in an incomplete/production-only npm install.
+// Check actual frontend entrypoints, not just the node_modules directory.
+// CSS and asset imports must resolve even in incomplete/production-only installs.
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -12,6 +12,7 @@ export function missingFrontendDependencies(root) {
     "@tailwindcss/vite",
     "tailwindcss/index.css",
     "typescript",
+    "@material-symbols/svg-400/rounded/error.svg",
   ];
   const missing = modules.filter((name) => {
     try {

@@ -1,4 +1,4 @@
-import { Copy, Minus, Square, X } from "lucide-react";
+import { Copy, CropSquare, Minus, X } from "@/components/ui/icons";
 import { brand } from "@/brand/generated";
 import BrandMark from "@/components/line/BrandMark";
 import { useEffect, useState } from "react";
@@ -144,7 +144,7 @@ export default function TitleBar({
             {maximized ? (
               <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             ) : (
-              <Square className="h-3.5 w-3.5" aria-hidden="true" />
+              <CropSquare className="h-3.5 w-3.5" aria-hidden="true" />
             )}
           </Button>
           {/*

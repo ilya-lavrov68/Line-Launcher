@@ -1,4 +1,4 @@
-import { PackageX, RotateCcw, ShieldCheck } from "lucide-react";
+import { PackageX, RotateCcw, ShieldCheck } from "@/components/ui/icons";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {

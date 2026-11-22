@@ -1,4 +1,4 @@
-import { ArrowUpRight, Download, X } from "lucide-react";
+import { ArrowUpRight, Download, X } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/line/i18n";
 import type { InstallProgress, McInstallProgress } from "@/types/line";
@@ -101,17 +101,41 @@ export default function DownloadWidget({
             {t("detail.cancelDownload")}
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={onOpen} className="relative overflow-hidden">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onOpen}
+          className="relative overflow-hidden"
+        >
           {active && (
-            <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-primary/20">
-              <span className={percent === null ? "block h-full w-1/3 animate-pulse motion-reduce:animate-none bg-primary" : "block h-full bg-primary transition-[width]"} style={percent === null ? undefined : { width: `${percent}%` }} />
+            <span
+              aria-hidden="true"
+              className="bg-primary/20 pointer-events-none absolute inset-x-0 bottom-0 h-1"
+            >
+              <span
+                className={
+                  percent === null
+                    ? "bg-primary block h-full w-1/3 animate-pulse motion-reduce:animate-none"
+                    : "bg-primary block h-full transition-[width]"
+                }
+                style={percent === null ? undefined : { width: `${percent}%` }}
+              />
             </span>
           )}
           {t("download.open")}{" "}
           <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </Button>
       </div>
-      {active && <span role="progressbar" aria-label={t("download.widgetTitle")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined} className="sr-only" />}
+      {active && (
+        <span
+          role="progressbar"
+          aria-label={t("download.widgetTitle")}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent ?? undefined}
+          className="sr-only"
+        />
+      )}
     </aside>
   );
 }

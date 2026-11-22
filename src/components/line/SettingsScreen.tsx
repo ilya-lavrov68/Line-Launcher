@@ -14,7 +14,7 @@ import {
   Palette,
   RefreshCw,
   Trash2,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";

@@ -1,5 +1,5 @@
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info } from "@/components/ui/icons";
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 

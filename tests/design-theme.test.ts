@@ -746,8 +746,13 @@ test("the page cannot shift sideways when a screen starts overflowing", () => {
   const css = read("src/index.css");
   assert.match(
     css,
-    /\[data-line-glass="main"\],\s*\n\s*\[data-line-glass="sidebar"\]\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/,
-    "both shell panes must reserve the scrollbar gutter",
+    /\[data-line-glass="main"\]\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/,
+    "the main page must reserve its scrollbar gutter",
+  );
+  assert.match(
+    css,
+    /\[data-line-glass="sidebar"\]\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/,
+    "the sidebar must reserve its scrollbar gutter",
   );
 
   // Rest state: the pill is invisible. Without this the reserved gutter would
@@ -852,32 +857,43 @@ test("the skin placeholder cannot stretch the card around it", () => {
   );
 });
 
-test("page plates use a shared veil while the sidebar stays visually distinct", () => {
-  // The page and sign-in plates share one dark veil; the rail has a slightly
-  // deeper tint so the navigation boundary does not disappear into the page.
+test("the sidebar blends into the backdrop while the main page stays distinct", () => {
   const css = read("src/index.css");
   const shell =
     /--glass-surface-shell:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(css);
   const gate = /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(
     css,
   );
-  assert.ok(shell, "the page pane must be the dark veil at 0.225");
+  assert.ok(shell, "the main page must keep its dark translucent plate");
   assert.ok(gate, "the sign-in plate must be the same dark veil at 0.225");
   assert.match(
     css,
-    /--glass-surface-sidebar:\s*rgba\(8,\s*10,\s*14,\s*0\.32\)/,
-    "the sidebar must use a deeper tint than the neighboring page pane",
+    /\[data-line-glass="sidebar"\]\s*\{\s*background:\s*transparent/,
+    "the sidebar blends into the animated backdrop",
   );
-  assert.match(css, /--line-solid-sidebar:\s*#191b1f/);
+  assert.match(
+    css,
+    /\[data-line-glass="main"\]\s*\{\s*background:\s*var\(--glass-surface-shell\)/,
+    "the content page remains a distinct panel",
+  );
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  assert.doesNotMatch(launcher, /data-line-glass="workspace"/);
+  assert.match(
+    launcher,
+    /<SideNav[\s\S]*?<main\s+data-line-glass="main"/,
+    "navigation and page remain separate surfaces",
+  );
+  assert.match(
+    launcher,
+    /className="flex min-h-0 w-full flex-1 gap-1\.5 overflow-hidden"/,
+    "a small gap preserves the separation between rail and page",
+  );
   assert.match(css, /--line-solid-panel:\s*#222326/);
   assert.doesNotMatch(
     css,
     /--glass-surface-shell:\s*rgba\(230,/,
-    "the shell must not go back to the light sheet — it read as painted paper",
+    "the page panel must not go back to the light sheet",
   );
-  // The blank line between them is the only thing that can differ; assert the
-  // two declarations really are byte-identical, so a future edit to one cannot
-  // silently leave the other behind.
   const shellValue = /--glass-surface-shell:\s*([^;]+);/.exec(css)?.[1];
   const gateValue = /--glass-surface-gate:\s*([^;]+);/.exec(css)?.[1];
   assert.ok(shellValue && gateValue, "both plate tokens must be declared");

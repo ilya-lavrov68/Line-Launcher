@@ -3,14 +3,11 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { BACKDROP_THEMES, backdropTheme } from "../src/lib/line/backdrops.ts";
 
-// Pin the four accent themes after the intentional grain and focal-point
-// alignment updates, so palette or geometry edits stay reviewable.
-test("the selected backdrops retain their tuned seam-aligned configs", () => {
+// Copper Bush is the one explicitly retained palette; pin its full config so
+// later edits cannot accidentally change it while warming the other themes.
+test("Copper Bush remains exactly as selected", () => {
   const expected: Record<string, string> = {
-    mint: "390a70c1eefaa2ee663e1d4b5ef9002a63d54edb246dc714b7e6d9a481dc7254",
     copper: "843fa99ef1ac37e10e06555e54bae7a86530124b2e51ea7111d4bcd6c74f759a",
-    frost: "77c6029de2bf891f58343c4d2588626d23460b5c07f39caca1254964511a8622",
-    azure: "7f9b69f16492e8ad911192563f11049d17094cf284b48c86bee85dcfa33f2966",
   };
   for (const [id, digest] of Object.entries(expected)) {
     const theme = BACKDROP_THEMES.find((entry) => entry.id === id);
@@ -21,6 +18,23 @@ test("the selected backdrops retain their tuned seam-aligned configs", () => {
       id,
     );
     assert.equal(backdropTheme(id), theme);
+  }
+});
+
+test("the non-copper backdrops are warm and slightly grainier", () => {
+  for (const theme of BACKDROP_THEMES) {
+    if (theme.id === "copper") {
+      assert.equal(theme.config.grain, 0.443);
+      continue;
+    }
+    assert.equal(theme.config.grain, 0.52, `${theme.id} grain strength`);
+    for (const color of theme.config.palette) {
+      const [r, g, b] = [1, 3, 5].map((offset) =>
+        parseInt(color.slice(offset, offset + 2), 16),
+      );
+      assert.ok(r > b, `${theme.id}: ${color} is not warm-toned`);
+      assert.ok(r >= g, `${theme.id}: ${color} shifts green over red`);
+    }
   }
 });
 

@@ -1,5 +1,5 @@
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { Play, Server as ServerIcon } from "lucide-react";
+import { Play, Server as ServerIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import type { InstallProgress, LineServer } from "@/types/line";
 import { useT } from "@/lib/line/i18n";

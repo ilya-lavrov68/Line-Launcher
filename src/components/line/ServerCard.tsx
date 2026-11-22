@@ -1,4 +1,4 @@
-import { Check, CloudDownload, Server } from "lucide-react";
+import { Check, CloudDownload, Server } from "@/components/ui/icons";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

@@ -1048,10 +1048,8 @@ test("backdrops are dim enough to read on, and none of them stands still", () =>
   assert.equal(grains.length, 12);
   assert.equal(animationCenters.length, 12);
   assert.equal(motions.length, 12);
-  assert.ok(
-    grains.every((grain) => grain === 0.443),
-    "every backdrop should match Copper Bush's grain strength",
-  );
+  assert.equal(grains.filter((grain) => grain === 0.52).length, 11);
+  assert.equal(grains.filter((grain) => grain === 0.443).length, 1);
   assert.ok(
     animationCenters.every(([x]) => x >= 0.16 && x <= 0.24),
     "the animated fields should cluster around the sidebar-to-content seam",

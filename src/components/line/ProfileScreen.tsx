@@ -1,5 +1,5 @@
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
-import { LogOut, RefreshCw, Shirt, UserRound } from "lucide-react";
+import { LogOut, RefreshCw, Shirt, UserRound } from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SectionIcon from "@/components/line/SectionIcon";
 import SkinViewer3D from "@/components/line/SkinViewer3D";

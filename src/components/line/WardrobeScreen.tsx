@@ -7,7 +7,7 @@ import {
   Shirt,
   Trash2,
   UserRound,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SkinPreview from "@/components/line/SkinPreview";
 import SectionIcon from "@/components/line/SectionIcon";

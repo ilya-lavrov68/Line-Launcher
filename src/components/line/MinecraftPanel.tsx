@@ -1,4 +1,11 @@
-import { Download, Gamepad2, Loader2, Play, Square, Wifi } from "lucide-react";
+import {
+  Download,
+  Gamepad2,
+  Loader2,
+  Play,
+  Square,
+  Wifi,
+} from "@/components/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {

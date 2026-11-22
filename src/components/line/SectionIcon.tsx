@@ -1,7 +1,7 @@
-import type { LucideIcon } from "lucide-react";
+import type { LineIcon } from "@/components/ui/icons";
 
 /** A section marker, not a button: no tile, border, background or click affordance. */
-export default function SectionIcon({ icon: Icon }: { icon: LucideIcon }) {
+export default function SectionIcon({ icon: Icon }: { icon: LineIcon }) {
   return (
     <Icon
       data-line-icon="section"

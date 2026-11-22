@@ -1,4 +1,4 @@
-import { AlertTriangle, RefreshCw, Server } from "lucide-react";
+import { AlertTriangle, RefreshCw, Server } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/line/i18n";
 import { SkeletonAuthCard } from "@/components/line/Skeleton";

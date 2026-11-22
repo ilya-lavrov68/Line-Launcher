@@ -1,5 +1,5 @@
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { Eye, EyeOff, LogIn, RefreshCw, UserPlus } from "lucide-react";
+import { Eye, EyeOff, LogIn, RefreshCw, UserPlus } from "@/components/ui/icons";
 import { useId, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import FieldMessage from "./FieldMessage";

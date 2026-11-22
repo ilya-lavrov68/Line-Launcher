@@ -152,8 +152,8 @@ test("the workspace finish is a setting with a solid default", () => {
   assert.match(types, /export type WorkspaceFinish = "glass" \| "solid"/);
   assert.match(types, /workspace\?: WorkspaceFinish \| null/);
 
-  // The attribute lives on <html>, not on a component's div: the page
-  // background comes from `:root`, and six surfaces paint from it.
+  // The attribute lives on <html>, not on a component's div: the animated
+  // backdrop is global, and the main page/gate finishes derive from its tokens.
   assert.match(
     launcher,
     /root\.setAttribute\("data-line-workspace", "glass"\)/,
@@ -179,7 +179,7 @@ test("the workspace finish is a setting with a solid default", () => {
   assert.match(css, /--line-solid-panel: #222326/);
   assert.match(
     css,
-    /:root:not\(\[data-line-workspace="glass"\]\) \{\s*--glass-surface-shell: var\(--line-solid-panel\);\s*--glass-surface-sidebar: var\(--line-solid-sidebar\);\s*--glass-surface-gate: var\(--line-solid-panel\);\s*\}/,
+    /:root:not\(\[data-line-workspace="glass"\]\) \{\s*--glass-surface-shell: var\(--line-solid-panel\);\s*--glass-surface-gate: var\(--line-solid-panel\);\s*\}/,
   );
   assert.doesNotMatch(
     css,
@@ -188,17 +188,12 @@ test("the workspace finish is a setting with a solid default", () => {
   assert.match(
     css,
     /:root\[data-line-workspace="glass"\] \[data-line-glass="main"\][\s\S]*?background-color: rgba\(10, 12, 16, 0\.225\);/,
-    "glass must visibly paint the translucent wash on the actual shell panes",
+    "glass must visibly paint the translucent wash on the separate page panel",
   );
   assert.match(
     css,
     /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-glass="main"\][\s\S]*?background-color: var\(--line-solid-panel\);/,
-    "solid must paint the opaque panel directly on the main pane",
-  );
-  assert.match(
-    css,
-    /:root:not\(\[data-line-workspace="glass"\]\) \[data-line-glass="sidebar"\][\s\S]*?background-color: var\(--line-solid-sidebar\);/,
-    "the rail must be distinct from the overlapping page panel",
+    "solid must paint the opaque panel directly on the main page",
   );
   assert.doesNotMatch(
     css,

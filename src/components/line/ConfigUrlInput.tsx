@@ -1,5 +1,5 @@
 import { m } from "framer-motion";
-import { Link2, RefreshCw } from "lucide-react";
+import { Link2, RefreshCw } from "@/components/ui/icons";
 import { useId, useState, type FormEvent } from "react";
 import { useT } from "@/lib/line/i18n";
 import { Button } from "@/components/ui/button";

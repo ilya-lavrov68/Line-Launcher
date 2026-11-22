@@ -1,4 +1,4 @@
-import { Layers2 } from "lucide-react";
+import { Layers2 } from "@/components/ui/icons";
 import { brand } from "@/brand/generated";
 import { cn } from "@/lib/utils";
 

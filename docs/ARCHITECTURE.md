@@ -85,7 +85,7 @@ TTL кэша ограничен 60–86400 секундами; отсутств�
 - `src-tauri/src/line/`: config/cache/auth/state/storage/http/install/launch/error-модули.
 - `src/components/line/`: `ConfigUrlInput`, `ServerList`, `ServerCard`, `AuthForm`, `WelcomeScreen`, `SignInScreen`, `Skeleton` (заглушки загрузки по форме экранов), orchestration `LineLauncher`. Переводы — `src/lib/line/languages.ts` + `i18n-dictionaries.ts` + `i18n-core.ts` (стор) и `i18n.ts` (`useT`).
 - `Button`, `Input`, `Label`, `Tabs`, `Progress` переиспользуются. Отдельных Card/Modal/ProgressBar в Obsy нет; карточки следуют `InstalledAddonCard`, диалоги — `Dialog`, прогресс — составному `Progress`.
-- Tailwind v4, исходные токены и скругления Obsy без изменений, Framer Motion, Lucide, Base UI. Учтён reduced motion; карточки доступны с клавиатуры. Захардкоженные цвета убраны в пользу токенов Obsy.
+- Tailwind v4, исходные токены и скругления Obsy без изменений, Framer Motion, Material Symbols Rounded, Base UI. Учтён reduced motion; карточки доступны с клавиатуры. Захардкоженные цвета убраны в пользу токенов Obsy.
 - Build-time брендинг: `branding/line.brand.json` → генератор CSS/TS/Tauri-overlay/иконок, пресеты и переопределения только для семантических цветов, обязательная по лицензии видимая атрибуция Line Launcher | Plus In Plus (`docs/BRANDING.md`).
 - Тесты контракта TS, тесты валидатора брендинга и Rust-тесты путей/размеров/symlink/cancellation/lock/atomic write/SemVer.
 - CI переведён на npm lockfile: frontend/branding/license tests, Java-client integration matrix и Rust fmt/check/test/clippy на Linux/Windows/macOS. Rust-прогоны ещё должны быть выполнены в CI до релиза.

@@ -1,5 +1,5 @@
 import { m, useReducedMotion } from "framer-motion";
-import { Check, CloudDownload, Server } from "lucide-react";
+import { Check, CloudDownload, Server } from "@/components/ui/icons";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

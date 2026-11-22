@@ -125,19 +125,17 @@
    * `glass` is this design's own answer — the animated backdrop reads through
    * a thin veil, and that is what every pane above is tuned for.
    *
-   * `solid` makes the main panels opaque instead: the rail, the page area and
-   * the sign-in plate go to a flat, deep charcoal, so the shader shows in the
-   * gaps between them rather than through them. The grey is a deeper, cleaner
-   * charcoal than JetBrains' standard New UI panel (#2B2D30), so large plates
-   * recede behind the content instead of reading as another bright block.
+   * `solid` makes the main page and sign-in plates opaque instead, in a flat
+   * deep charcoal. The grey is a deeper, cleaner charcoal than JetBrains'
+   * standard New UI panel (#2B2D30), so the page recedes behind its content
+   * instead of reading as another bright block.
    *
-   * The rule lives here rather than in a component because the three
-   * page-level plates paint from two tokens — the shell panes from
-   * `--glass-surface-shell`, the sign-in plate from `--glass-surface-gate` —
+   * The rule lives here rather than in a component because the two page-level
+   * plates paint from two tokens — the main page from `--glass-surface-shell`,
+   * the sign-in plate from `--glass-surface-gate` —
    * and a component-by-component switch would drift the moment one of them
    * was touched. */
   --line-solid-panel: #222326;
-  --line-solid-sidebar: #191b1f;
 
   /* Glass: a dark pane over the moving backdrop — the state this design had
    * before it was inverted. `rgba(10,12,16,0.45)` lets the colour field read
@@ -175,7 +173,6 @@
    * underneath it. Readability is not what pays for it — light ink on a darker
    * composite reads *better* the more veil there is. */
   --glass-surface-shell: rgba(10, 12, 16, 0.225);
-  --glass-surface-sidebar: rgba(8, 10, 14, 0.32);
   /* Light ink now, because the pane is a dark wash — the same pairing the rest
    * of the palette already uses for text on `#08090c`. */
   --glass-shell-ink: oklch(0.97 0.002 250);
@@ -293,6 +290,22 @@
 /* ─────────────────────── component opt-in rules ─────────────────────── */
 
 @layer components {
+  /* A glyph is a local, tree-shaken SVG mask: it inherits currentColor, sizes
+   * like the old SVG components, and adds no remote font request at startup. */
+  .line-symbol {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    flex: none;
+    background-color: currentColor;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+  }
+
   /* Panel surfaces, only while the new theme is active.
    *
    * No outline: a 1px border around every panel is the loudest thing on a dark
@@ -309,20 +322,16 @@
      * what a pane changes is its *fill*, not the ink. */
   }
 
-  /* The two large shell panes — the rail and the page area — sit over the
-   * animated backdrop. The glass finish is the requested subtle dark veil;
-   * solid swaps only these large plates to the darker opaque charcoal.
-   * `--glass-surface` remains the denser fill for nested cards and controls. */
-  [data-line-glass="main"],
+  /* Keep the navigation open to the animated backdrop. The page is its own
+   * readable plate, visually distinct from the rail without an extra seam. */
   [data-line-glass="sidebar"] {
-    background: var(--glass-surface-shell);
-    /* Reserve the scrollbar gutter in both panes whether or not they overflow.
-     * A page taller than the pane and a page shorter than it then occupy the
-     * same width, so navigating between them cannot shift the content. */
+    background: transparent;
     scrollbar-gutter: stable;
-    /* The pane is a thin dark wash, so the ink on it is light. The re-point
-     * stays scoped to the two shell panes; what changed with the dark wash is
-     * only the polarity, not the reason for it. */
+  }
+
+  [data-line-glass="main"] {
+    background: var(--glass-surface-shell);
+    scrollbar-gutter: stable;
     --foreground: var(--glass-shell-ink);
     --card-foreground: var(--glass-shell-ink);
     --popover-foreground: var(--glass-shell-ink);
@@ -331,9 +340,6 @@
     --accent-foreground: var(--glass-shell-ink);
     --sidebar-foreground: var(--glass-shell-ink);
     --sidebar-accent-foreground: var(--glass-shell-ink);
-    /* The filled action is deliberately not re-pointed: `--primary` stays the
-     * near-white accent, so the launch button keeps the colour it always had
-     * instead of turning into a dark chip. */
   }
 
   /* The sign-in gate's own plate: the pane a whole screen is built on. It is a
@@ -376,36 +382,24 @@
    * default, an override for solid) would make the launcher open on the shader
    * for the frame before the player's choice loads, then flip.
    *
-   * The animated backdrop stays: it is the beauty of the design. Only the
-   * main panels go opaque, so the shader shows in the gaps between them
-   * instead of through them. The page background is the shader, not a flat
-   * field, so --line-canvas is left alone. */
+   * The animated backdrop stays: glass shows it through the shared plate;
+   * solid hides it under that plate. The page background remains the shader,
+   * not a flat field, so --line-canvas is left alone. */
   :root:not([data-line-workspace="glass"]) {
     --glass-surface-shell: var(--line-solid-panel);
-    --glass-surface-sidebar: var(--line-solid-sidebar);
     --glass-surface-gate: var(--line-solid-panel);
   }
 
-  /* Paint the workspace choice directly on its actual surfaces as well as
-   * exposing the shared tokens above. This keeps the visible shell finish
-   * coupled to the root preference even when a component supplies its own
-   * background declaration. */
+  /* Paint the distinct main plate and sign-in gate from the saved finish;
+   * navigation stays transparent in either state. */
   :root[data-line-workspace="glass"] [data-line-glass="main"],
   :root[data-line-workspace="glass"] [data-line-glass="gate"] {
     background-color: rgba(10, 12, 16, 0.225);
   }
 
-  :root[data-line-workspace="glass"] [data-line-glass="sidebar"] {
-    background-color: var(--glass-surface-sidebar);
-  }
-
   :root:not([data-line-workspace="glass"]) [data-line-glass="main"],
   :root:not([data-line-workspace="glass"]) [data-line-glass="gate"] {
     background-color: var(--line-solid-panel);
-  }
-
-  :root:not([data-line-workspace="glass"]) [data-line-glass="sidebar"] {
-    background-color: var(--line-solid-sidebar);
   }
 
   /* Card hover: a faint lift of the fill ladder rather than a colour change, so

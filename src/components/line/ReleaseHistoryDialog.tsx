@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { History, RefreshCw } from "lucide-react";
+import { History, RefreshCw } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

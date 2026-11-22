@@ -5,7 +5,7 @@ import {
   domAnimation,
   m,
 } from "framer-motion";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { brand } from "@/brand/generated";
@@ -998,7 +998,7 @@ export default function LineLauncher() {
                 />
                 <div
                   data-testid="main-pane"
-                  className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+                  className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
                 >
                   <main
                     data-line-glass="main"

@@ -6,7 +6,7 @@ import {
   PackageX,
   ShieldCheck,
   ShieldX,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import {
   Select,

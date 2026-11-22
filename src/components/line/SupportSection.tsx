@@ -5,7 +5,7 @@ import {
   FolderOpen,
   Mail,
   MessageSquare,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import { useT } from "@/lib/line/i18n";

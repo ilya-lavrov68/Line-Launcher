@@ -6,8 +6,8 @@ import {
   Settings,
   Shirt,
   UserRound,
-  type LucideIcon,
-} from "lucide-react";
+  type LineIcon,
+} from "@/components/ui/icons";
 import { brand } from "@/brand/generated";
 import Attribution from "@/components/line/Attribution";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export interface SideNavProps {
 interface NavItem {
   id: LineSection;
   label: string;
-  icon: LucideIcon;
+  icon: LineIcon;
   disabled?: boolean;
   hint?: string;
 }
@@ -79,10 +79,7 @@ export default function SideNav({
         reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
       }
       data-line-glass="sidebar"
-      className={cn(
-        "relative z-20 flex min-h-0 shrink-0 flex-col",
-        "rounded-[var(--radius-item)]",
-      )}
+      className="relative z-20 flex min-h-0 shrink-0 flex-col"
     >
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2">
         {items.map((item) => {

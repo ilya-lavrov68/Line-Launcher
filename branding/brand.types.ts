@@ -34,7 +34,7 @@ export interface BrandProduct {
 export interface BrandAssets {
   /**
    * Header/logo mark rendered inside the UI. Relative to `branding/`.
-   * SVG or PNG. `null` keeps the built-in Lucide Layers2 mark.
+   * SVG or PNG. `null` keeps the built-in Material Symbols Rounded `layers` mark.
    */
   logo?: string | null;
   /**

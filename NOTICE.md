@@ -45,14 +45,17 @@ notice are in `LICENSES/Shadcn-MIT.txt` and are included in desktop bundles.
 
 ## Icons
 
-The default Line application mark uses the Lucide `Layers2` glyph. Lucide's
-license is preserved in `LICENSES/Lucide-LICENSE.txt` (ISC for Lucide icons,
-with the upstream Feather MIT notice included in that file). The editable
+The default desktop app-mark artwork is adapted from Lucide's `Layers2` glyph.
+Lucide's license is preserved in `LICENSES/Lucide-LICENSE.txt` (ISC for Lucide
+icons, with the upstream Feather MIT notice included in that file). The editable
 source is `branding/assets/app-icon.svg`; desktop PNG/ICO/ICNS assets are
-generated from it with `npm run brand` (which invokes `tauri icon`).
-Provider-supplied replacement assets are the provider's responsibility.
+generated from it with `npm run brand` (which invokes `tauri icon`). The app's
+interface icon set is Material Symbols Rounded, documented below. Provider-
+supplied replacement assets are the provider's responsibility.
 
 ## Fonts
+
+The icon interface uses **Material Symbols Rounded** (`@material-symbols/svg-400`), bundled as local SVG assets. The icons are licensed under Apache License 2.0; the package notice is preserved in `LICENSES/Material-Symbols-Apache-2.0.txt` and included in desktop bundles.
 
 The interface and the documentation renders use **Geist** (`@fontsource-variable/geist`
 at runtime). The two TTFs in `scripts/fonts/` are the same font in a rasteriser-readable

@@ -2,7 +2,12 @@ import { m } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { LayoutGrid, ListCollapse, RefreshCw, ShieldAlert } from "lucide-react";
+import {
+  LayoutGrid,
+  ListCollapse,
+  RefreshCw,
+  ShieldAlert,
+} from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import type { CatalogView, LineServer } from "@/types/line";
 import { cn } from "@/lib/utils";

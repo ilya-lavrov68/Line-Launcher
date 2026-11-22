@@ -8,7 +8,7 @@ import {
   Square,
   Wifi,
   WifiOff,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ServerDock, ServerDockPrimary } from "./ServerDock";

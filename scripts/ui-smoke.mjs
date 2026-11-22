@@ -689,6 +689,7 @@ try {
     (await page.evaluate(() => performance.timeOrigin)) === initialDocumentTime,
     "turning automatic heap on reloaded the page",
   );
+  await page.locator('[data-settings-category="appearance"]').click();
   const workspaceGlass = page
     .locator('[role="radio"]')
     .filter({ hasText: "Прозрачные панели" });
@@ -1368,6 +1369,17 @@ try {
   // controls. Same action, one place.
   await page.getByRole("button", { name: "Аккаунт", exact: true }).click();
   await page.getByRole("button", { name: "Выйти", exact: true }).click();
+  const logoutDialog = page.getByRole("alertdialog");
+  await logoutDialog
+    .getByRole("heading", { name: "Вы точно хотите выйти?" })
+    .waitFor();
+  check(
+    !(await page.evaluate(() =>
+      window.__calls.some((call) => call[0] === "line_logout"),
+    )),
+    "logout must wait for confirmation",
+  );
+  await logoutDialog.getByRole("button", { name: "Выйти" }).click();
   await page
     .getByText("Один вход — все серверы проекта.", { exact: false })
     .waitFor();

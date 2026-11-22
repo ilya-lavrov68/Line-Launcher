@@ -867,40 +867,6 @@ export default function LineLauncher() {
   }
 
   /**
-   * There is no other provider to switch to. This signs out and reconnects to the
-   * same baked address, which is what a player actually wants after an outage.
-   *
-   * The dev template is the exception: it may have no baked address at all, and
-   * in that case the address field is the only screen it can offer. It used to
-   * offer it *always* — `screen` was reset to "config" regardless of mode, and
-   * only an `auto` build then went on to connect, so in a dev run the sign-in
-   * screen became unreachable after one press: the player was left staring at a
-   * URL field with no way back to their account.
-   */
-  function reconnect() {
-    if (actionsBusy || loading) return;
-    void lineApi.logout().catch(() => undefined);
-    detailGeneration.current += 1;
-    setSelected(null);
-    setSession(null);
-    setError(undefined);
-    setSection("servers");
-    if (mode === "auto") {
-      setScreen("config");
-      void loadConfig(bakedProvider.configUrl, true);
-      return;
-    }
-    // A dev run that already has a working config stays connected to it and
-    // lands on the sign-in page; only one with nothing to reconnect to falls
-    // back to the address field.
-    if (snapshot) {
-      setScreen("account");
-      return;
-    }
-    setScreen("config");
-  }
-
-  /**
    * Signing in is a page, not a panel.
    *
    * It covers the whole window — no rail, no title bar of ours, no catalogue
@@ -1025,11 +991,9 @@ export default function LineLauncher() {
                 <SideNav
                   section={section}
                   collapsed={railCollapsed}
-                  actionsDisabled={actionsBusy || loading || !session}
                   navigationDisabled={!session}
                   onNavigate={navigate}
                   onToggleCollapsed={() => void toggleSidebar()}
-                  onChangeProvider={reconnect}
                   onAbout={() => setAboutOpen(true)}
                 />
                 <div

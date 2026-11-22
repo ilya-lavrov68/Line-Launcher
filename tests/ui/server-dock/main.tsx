@@ -94,10 +94,8 @@ function App() {
             section="servers"
             collapsed
             navigationDisabled={busy}
-            actionsDisabled={busy}
             onNavigate={() => {}}
             onToggleCollapsed={() => {}}
-            onChangeProvider={() => {}}
             onAbout={() => {}}
           />
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">

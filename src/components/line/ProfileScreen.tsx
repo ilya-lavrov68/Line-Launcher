@@ -1,3 +1,4 @@
+import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 import { LogOut, RefreshCw, Shirt, UserRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SectionIcon from "@/components/line/SectionIcon";
@@ -44,6 +45,7 @@ export default function ProfileScreen({
   const [activeName, setActiveName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   /**
    * The active skin, in whichever form exists.
@@ -195,7 +197,7 @@ export default function ProfileScreen({
               size="sm"
               variant="ghost"
               disabled={disabled}
-              onClick={onLogout}
+              onClick={() => setLogoutOpen(true)}
               className="text-muted-foreground hover:text-foreground cursor-pointer items-center gap-1.5 text-xs"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -219,6 +221,36 @@ export default function ProfileScreen({
           </p>
         </div>
       </div>
+      <AlertDialogPrimitive.Root open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Backdrop className="data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/35 supports-backdrop-filter:backdrop-blur-xs" />
+          <AlertDialogPrimitive.Popup
+            data-line-glass="raised"
+            className="text-popover-foreground ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100vh-2rem)] w-full max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-5 overflow-hidden rounded-xl p-5 text-sm ring-1 duration-150 outline-none sm:max-w-sm"
+          >
+            <AlertDialogPrimitive.Title className="font-heading text-base leading-snug font-semibold">
+              {t("profile.logoutConfirmTitle")}
+            </AlertDialogPrimitive.Title>
+            <div className="border-border/50 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+              <AlertDialogPrimitive.Close
+                render={<Button variant="outline" disabled={disabled} />}
+              >
+                {t("common.cancel")}
+              </AlertDialogPrimitive.Close>
+              <Button
+                variant="destructive"
+                disabled={disabled}
+                onClick={() => {
+                  setLogoutOpen(false);
+                  onLogout();
+                }}
+              >
+                {t("profile.logout")}
+              </Button>
+            </div>
+          </AlertDialogPrimitive.Popup>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
     </section>
   );
 }

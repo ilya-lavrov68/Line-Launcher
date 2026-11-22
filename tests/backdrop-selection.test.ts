@@ -3,15 +3,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { BACKDROP_THEMES, backdropTheme } from "../src/lib/line/backdrops.ts";
 
-// These are the four full configurations the player chose to keep, including
-// their geometry, colours, speed and shade. Editing only their names or ids
-// would also alter what a saved selection means.
-test("the four selected backdrops are preserved exactly", () => {
+// Pin the four accent themes after the intentional grain and focal-point
+// alignment updates, so palette or geometry edits stay reviewable.
+test("the selected backdrops retain their tuned seam-aligned configs", () => {
   const expected: Record<string, string> = {
-    mint: "6334d1a74681b0e07571a435c7748569739039d784e35a7c9828f6eba26698ad",
-    copper: "4094a6cc22ea88a5efb192299821b0f6ae538eca4ef25bee3c188d38d5f7aa07",
-    frost: "564c34ec3b9bb56487b2bd455ab6b0206f47d1d1fb1e4a479f2dd49d88466d3f",
-    azure: "6fb9579ceb64ba13b54b02dbb8bec8556d92bcf919c3d6e0732353a30dd37ecd",
+    mint: "390a70c1eefaa2ee663e1d4b5ef9002a63d54edb246dc714b7e6d9a481dc7254",
+    copper: "843fa99ef1ac37e10e06555e54bae7a86530124b2e51ea7111d4bcd6c74f759a",
+    frost: "77c6029de2bf891f58343c4d2588626d23460b5c07f39caca1254964511a8622",
+    azure: "7f9b69f16492e8ad911192563f11049d17094cf284b48c86bee85dcfa33f2966",
   };
   for (const [id, digest] of Object.entries(expected)) {
     const theme = BACKDROP_THEMES.find((entry) => entry.id === id);

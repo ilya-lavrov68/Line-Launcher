@@ -884,6 +884,16 @@ test("backdrop themes ship a persisted, validated choice", () => {
   assert.ok(shades >= 10, `expected a shade per theme, found ${shades}`);
 });
 
+test("profile logout requires an explicit confirmation", () => {
+  const profile = read("src/components/line/ProfileScreen.tsx");
+  assert.match(profile, /setLogoutOpen\(true\)/);
+  assert.match(profile, /AlertDialogPrimitive\.Root/);
+  assert.match(profile, /open=\{logoutOpen\}/);
+  assert.match(profile, /profile\.logoutConfirmTitle/);
+  assert.match(profile, /common\.cancel/);
+  assert.match(profile, /onLogout\(\)/);
+});
+
 test("the account page shows the active skin in 3D and falls back flat", () => {
   const profile = read("src/components/line/ProfileScreen.tsx");
   const viewer = read("src/components/line/SkinViewer3D.tsx");
@@ -1024,12 +1034,28 @@ test("backdrops are dim enough to read on, and none of them stands still", () =>
   const speeds = [...source.matchAll(/^\s*speed: ([\d.]+),/gm)].map((m) =>
     Number(m[1]),
   );
+  const grains = [...source.matchAll(/^\s*grain: ([\d.]+),/gm)].map((m) =>
+    Number(m[1]),
+  );
+  const animationCenters = [
+    ...source.matchAll(/^\s*center: \[([\d.]+), ([\d.]+)\],/gm),
+  ].map((match) => [Number(match[1]), Number(match[2])]);
   const motions = [...source.matchAll(/^\s*motion: "(\w+)",/gm)].map(
     (m) => m[1],
   );
   assert.equal(shades.length, 12);
   assert.equal(speeds.length, 12);
+  assert.equal(grains.length, 12);
+  assert.equal(animationCenters.length, 12);
   assert.equal(motions.length, 12);
+  assert.ok(
+    grains.every((grain) => grain === 0.443),
+    "every backdrop should match Copper Bush's grain strength",
+  );
+  assert.ok(
+    animationCenters.every(([x]) => x >= 0.16 && x <= 0.24),
+    "the animated fields should cluster around the sidebar-to-content seam",
+  );
 
   // The panels are translucent, so the backdrop is not decoration behind
   // glass — it is behind the text. At 0.26–0.46 the bright themes lifted the

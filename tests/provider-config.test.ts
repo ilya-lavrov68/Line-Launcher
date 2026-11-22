@@ -178,8 +178,10 @@ test("the shell has no provider choice and no player-facing URL field", () => {
 
   const nav = read("src/components/line/SideNav.tsx");
   assert.doesNotMatch(nav, /Сменить провайдера|ProviderPicker/);
-  // One action, translated: the label now comes from the catalogue.
-  assert.match(nav, /t\("nav\.reconnect"\)/);
+  // The fixed lower-rail action is the settings shortcut, not a fake reconnect.
+  assert.match(nav, /aria-label=\{t\("nav\.settings"\)\}/);
+  assert.match(nav, /onClick=\{\(\) => onNavigate\("settings"\)\}/);
+  assert.doesNotMatch(nav, /nav\.reconnect|onChangeProvider/);
 
   const connecting = read("src/components/line/ConnectingScreen.tsx");
   assert.doesNotMatch(connecting, /<Input|type="url"/, "no address field");
@@ -198,23 +200,12 @@ test("provider URLs are validated by the same rules as runtime URLs", () => {
   assert.match(fn, /fragment/);
 });
 
-test("reconnecting never strands a dev run on the address field", () => {
+test("the fake provider reconnect action is removed", () => {
   const shell = read("src/components/line/LineLauncher.tsx");
-
-  // `reconnect` used to reset `screen` to "config" for every mode and only an
-  // `auto` build went on to fetch the config, so in a dev run a single press of
-  // «Переподключиться» left the player on a URL field with the sign-in page
-  // unreachable — the app looked like it had no way to log in at all.
-  const reconnect = shell.slice(
-    shell.indexOf("function reconnect()"),
-    shell.indexOf("function reconnect()") + 1400,
-  );
-  assert.match(reconnect, /if \(mode === "auto"\)/);
-  // The dev branch keeps a working config and goes to the account screen...
-  assert.match(reconnect, /if \(snapshot\) \{\s*setScreen\("account"\);/);
-  // ...and the address field is only the last resort, for a dev run that has
-  // never successfully loaded a config.
-  assert.match(reconnect, /setScreen\("config"\);\s*\n\s*\}/);
+  const nav = read("src/components/line/SideNav.tsx");
+  assert.doesNotMatch(shell, /function reconnect\(\)/);
+  assert.doesNotMatch(nav, /Переподключиться|nav\.reconnect|onChangeProvider/);
+  assert.match(nav, /onNavigate\("settings"\)/);
 });
 
 test("an expired config is refreshed before it can block sign-in", () => {

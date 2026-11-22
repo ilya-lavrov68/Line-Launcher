@@ -2,7 +2,6 @@ import { m, useReducedMotion } from "framer-motion";
 import {
   ChevronLeft,
   Info,
-  RefreshCw,
   Server,
   Settings,
   Shirt,
@@ -27,9 +26,7 @@ export interface SideNavProps {
   collapsed: boolean;
   onNavigate: (section: LineSection) => void;
   onToggleCollapsed: () => void;
-  onChangeProvider: () => void;
   onAbout: () => void;
-  actionsDisabled?: boolean;
   navigationDisabled?: boolean;
 }
 
@@ -57,9 +54,7 @@ export default function SideNav({
   collapsed,
   onNavigate,
   onToggleCollapsed,
-  onChangeProvider,
   onAbout,
-  actionsDisabled = false,
   navigationDisabled = false,
 }: SideNavProps) {
   const reducedMotion = useReducedMotion();
@@ -73,7 +68,6 @@ export default function SideNav({
     // player sees what they look like in game, and the only place the session
     // state is explained.
     { id: "account", label: t("nav.account"), icon: UserRound },
-    { id: "settings", label: t("nav.settings"), icon: Settings },
   ];
 
   return (
@@ -148,22 +142,23 @@ export default function SideNav({
       <div className="flex shrink-0 flex-col gap-1 p-2">
         <Button
           variant="ghost"
-          disabled={actionsDisabled}
-          aria-label={t("nav.reconnect")}
-          title={collapsed ? t("nav.reconnect") : undefined}
-          onClick={onChangeProvider}
+          disabled={navigationDisabled}
+          aria-current={section === "settings" ? "page" : undefined}
+          aria-label={t("nav.settings")}
+          title={collapsed ? t("nav.settings") : undefined}
+          onClick={() => onNavigate("settings")}
           className={cn(
-            "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
+            "items-center gap-2.5 rounded-lg text-xs",
             collapsed
               ? "mx-auto h-10 w-10 justify-center px-0"
               : "h-12 w-full justify-start px-2.5",
+            section === "settings"
+              ? "bg-primary/10 text-primary hover:bg-primary/15"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <RefreshCw
-            className="h-[30px] w-[30px] shrink-0"
-            aria-hidden="true"
-          />
-          {!collapsed && <span className="truncate">{t("nav.reconnect")}</span>}
+          <Settings className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
+          {!collapsed && <span className="truncate">{t("nav.settings")}</span>}
         </Button>
         <Button
           variant="ghost"

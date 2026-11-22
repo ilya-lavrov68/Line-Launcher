@@ -139,17 +139,46 @@ test("the player's choice wins, then the system, then Russian", () => {
   assert.equal(isLanguage("it"), false);
 });
 
-test("the language picker is the first section in Settings", () => {
+test("settings are grouped into left-side categories", () => {
   const settings = read("src/components/line/SettingsScreen.tsx");
-  const languageAt = settings.indexOf('t("settings.lang")');
-  const memoryAt = settings.indexOf("icon={MemoryStick}");
-  const javaAt = settings.indexOf("icon={Coffee}");
-  assert.ok(languageAt > 0 && memoryAt > 0 && javaAt > 0, "sections missing");
-  assert.ok(
-    languageAt < memoryAt,
-    "the language picker must come before the memory section",
+  for (const group of [
+    "performance",
+    "appearance",
+    "java",
+    "window",
+    "storage",
+  ]) {
+    assert.match(settings, new RegExp(`data-settings-panel="${group}"`));
+  }
+  assert.match(settings, /data-settings-category=\{id\}/);
+  assert.match(settings, /setActiveGroup\(id\)/);
+  assert.match(settings, /data-settings-categories/);
+  assert.match(
+    settings,
+    /data-settings-panel="appearance"[\s\S]*?t\("settings\.lang"\)/,
   );
-  assert.ok(languageAt < javaAt, "the language picker must come before Java");
+  assert.match(
+    settings,
+    /data-settings-panel="performance"[\s\S]*?t\("settings\.memory"\)/,
+  );
+});
+
+test("new settings and logout confirmation labels exist in every locale", () => {
+  const keys = [
+    "profile.logoutConfirmTitle",
+    "settings.group.nav",
+    "settings.group.performance",
+    "settings.group.appearance",
+    "settings.group.java",
+    "settings.group.window",
+    "settings.group.storage",
+  ];
+  for (const language of LANGUAGES) {
+    const dictionary = DICTIONARIES[language] as Record<string, string>;
+    for (const key of keys) {
+      assert.ok(dictionary[key], `${language} is missing ${key}`);
+    }
+  }
 });
 
 test("every backdrop theme has a name in every language", () => {

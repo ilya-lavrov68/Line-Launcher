@@ -511,7 +511,12 @@ try {
   await page.getByRole("button", { name: "Настройки", exact: true }).click();
   await page.getByRole("heading", { name: "Память игры" }).waitFor();
   await shot("settings");
+  // The workspace finish lives in the Appearance category, not the default
+  // Performance panel. Open that category before scrolling to the section; the
+  // old capture waited for a heading that could never become visible.
+  await page.locator('[data-settings-category="appearance"]').click();
   const workspaceHeading = page.getByRole("heading", {
+    level: 3,
     name: "Рабочая зона",
   });
   await workspaceHeading.evaluate((element) =>

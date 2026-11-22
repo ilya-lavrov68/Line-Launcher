@@ -74,14 +74,14 @@ export default function SideNav({
     <m.nav
       aria-label={t("nav.primary")}
       initial={false}
-      animate={{ width: collapsed ? 60 : 208 }}
+      animate={{ width: collapsed ? 48 : 184 }}
       transition={
         reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }
       }
       data-line-glass="sidebar"
       className="relative z-20 flex min-h-0 shrink-0 flex-col"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-1.5">
         {items.map((item) => {
           const active = section === item.id;
           const Icon = item.icon;
@@ -102,13 +102,11 @@ export default function SideNav({
               onClick={() => onNavigate(item.id)}
               className={cn(
                 "items-center gap-2.5 rounded-lg text-xs font-medium",
-                // Collapsed targets are squares, not bars: the rail is 60px
-                // wide with 8px of padding each side, so 40x40 leaves 2px of
-                // air on both sides. 44 filled the rail edge to edge, which is
-                // why the highlight read as a slab against the sidebar.
+                // The compact rail is 48px wide: 36px square targets leave
+                // 6px of breathing room on each side without crowding the glyph.
                 collapsed
-                  ? "mx-auto h-10 w-10 justify-center px-0"
-                  : "h-12 w-full justify-start px-2.5",
+                  ? "mx-auto h-9 w-9 justify-center px-0"
+                  : "h-10 w-full justify-start px-2.5",
                 // focusableWhenDisabled drops the native :disabled styling, so
                 // the muted look is restored explicitly. It stays hoverable so
                 // the tooltip explaining the reason can still be read.
@@ -120,7 +118,7 @@ export default function SideNav({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Button>
           );
@@ -147,14 +145,14 @@ export default function SideNav({
           className={cn(
             "items-center gap-2.5 rounded-lg text-xs",
             collapsed
-              ? "mx-auto h-10 w-10 justify-center px-0"
-              : "h-12 w-full justify-start px-2.5",
+              ? "mx-auto h-9 w-9 justify-center px-0"
+              : "h-10 w-full justify-start px-2.5",
             section === "settings"
               ? "bg-primary/10 text-primary hover:bg-primary/15"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Settings className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
+          <Settings className="h-5 w-5 shrink-0" aria-hidden="true" />
           {!collapsed && <span className="truncate">{t("nav.settings")}</span>}
         </Button>
         <Button
@@ -165,11 +163,11 @@ export default function SideNav({
           className={cn(
             "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed
-              ? "mx-auto h-10 w-10 justify-center px-0"
-              : "h-12 w-full justify-start px-2.5",
+              ? "mx-auto h-9 w-9 justify-center px-0"
+              : "h-10 w-full justify-start px-2.5",
           )}
         >
-          <Info className="h-[30px] w-[30px] shrink-0" aria-hidden="true" />
+          <Info className="h-5 w-5 shrink-0" aria-hidden="true" />
           {!collapsed && <span className="truncate">{t("nav.about")}</span>}
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
@@ -188,13 +186,13 @@ export default function SideNav({
           className={cn(
             "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed
-              ? "mx-auto h-10 w-10 justify-center px-0"
+              ? "mx-auto h-9 w-9 justify-center px-0"
               : "h-11 w-full justify-start px-2.5",
           )}
         >
           <ChevronLeft
             className={cn(
-              "h-[30px] w-[30px] shrink-0 transition-transform",
+              "h-5 w-5 shrink-0 transition-transform",
               collapsed && "rotate-180",
             )}
             aria-hidden="true"

@@ -310,10 +310,9 @@ test("the login screen is one panel, not nested cards", () => {
   // keep the window's own frame, or a frameless window opened here could not be
   // moved or closed.
   assert.doesNotMatch(account, /className="bg-background[^"]*h-dvh/);
-  // The frame is still the window's own. It now takes the rail width so the
-  // brand lockup sits where the rail will be: this screen has no rail, and the
-  // logo must not jump when the launcher appears behind it.
-  assert.match(account, /<TitleBar railWidth=\{60\} collapsed \/>/);
+  // The logo is fixed in the same compact corner on the gate and launcher;
+  // its position must not depend on the expanded/collapsed rail state.
+  assert.match(account, /<TitleBar \/>/);
   assert.match(account, /data-line-signin/);
 });
 

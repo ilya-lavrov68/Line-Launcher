@@ -229,10 +229,16 @@ test("the title bar can actually control the window", () => {
   }
   const titleBar = read("src/components/line/TitleBar.tsx");
   assert.match(titleBar, /data-tauri-drag-region/);
-  // The labels moved into the catalogue with the four-language interface; the
-  // test now checks the component really names its buttons, and the catalogue
-  // test checks the names exist in every language.
-  for (const key of ["window.minimize", "window.close", "window.maximize"]) {
+  assert.match(titleBar, /actions\?: React\.ReactNode/);
+  assert.match(titleBar, /data-window-actions/);
+  assert.match(titleBar, /aria-label=\{t\("window\.actions"\)\}/);
+  // Window actions and every native caption use translated accessible names.
+  for (const key of [
+    "window.minimize",
+    "window.close",
+    "window.maximize",
+    "window.actions",
+  ]) {
     assert.ok(
       titleBar.includes(`t("${key}")`),
       `caption button ${key} is unnamed`,
@@ -947,7 +953,7 @@ test("opening the wardrobe never signs the player out", () => {
   assert.match(sync, /setSyncError\(errorMessage\(cause\)\)/);
 });
 
-test("the close button is vivid red with a white cross at rest", () => {
+test("the close button is neutral at rest and reveals red on hover or focus", () => {
   const bar = read("src/components/line/TitleBar.tsx");
   const close = bar.slice(
     bar.lastIndexOf(
@@ -956,10 +962,12 @@ test("the close button is vivid red with a white cross at rest", () => {
     ),
   );
   const button = close.slice(0, close.indexOf("</Button>"));
-  assert.match(button, /bg-destructive-strong/);
-  assert.match(button, /text-destructive-foreground/);
+  assert.doesNotMatch(button, /(?:^|\s)bg-destructive-strong(?:\s|$)/);
+  assert.match(button, /text-muted-foreground/);
   assert.match(button, /hover:bg-destructive-strong/);
   assert.match(button, /hover:text-destructive-foreground/);
+  assert.match(button, /focus-visible:bg-destructive-strong/);
+  assert.match(button, /focus-visible:text-destructive-foreground/);
 
   const css = read("src/index.css");
   assert.match(css, /--destructive-strong:\s*oklch\(0\.58 0\.24 27\)/);
@@ -1085,6 +1093,14 @@ test("server catalog search and install filters drive both catalogue views", () 
   assert.match(list, /catalogFilter === filter/);
   assert.match(list, /hasCatalogFilter/);
   assert.match(list, /catalog\.resultCount/);
+});
+
+test("catalogue controls share the same radius and height", () => {
+  const list = read("src/components/line/ServerList.tsx");
+  assert.doesNotMatch(list, /data-catalog-header-actions/);
+  assert.match(list, /rounded-\[var\(--radius-control\)\]/);
+  assert.match(list, /rounded-\[calc\(var\(--radius-control\)-2px\)\]/);
+  assert.match(list, /h-9 rounded-\[var\(--radius-control\)\]/);
 });
 
 test("the active sidebar destination uses white ink without a tile fill", () => {

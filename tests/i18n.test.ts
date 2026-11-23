@@ -172,6 +172,7 @@ test("new settings and logout confirmation labels exist in every locale", () => 
     "settings.group.java",
     "settings.group.window",
     "settings.group.storage",
+    "window.actions",
   ];
   for (const language of LANGUAGES) {
     const dictionary = DICTIONARIES[language] as Record<string, string>;

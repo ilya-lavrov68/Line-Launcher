@@ -255,7 +255,7 @@ export default function ServerList({
           <div
             role="group"
             aria-label={t("catalog.view")}
-            className="border-border/50 bg-fill-subtle flex items-center gap-0.5 rounded-[var(--radius-control)] border p-0.5"
+            className="border-border/50 bg-fill-subtle flex h-9 items-center gap-0.5 rounded-[var(--radius-control)] border p-0.5"
           >
             <button
               type="button"
@@ -264,7 +264,7 @@ export default function ServerList({
               title={t("catalog.grid")}
               onClick={() => onViewChange?.("grid")}
               className={cn(
-                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] px-2 text-[11px] font-medium transition-colors",
+                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2 text-[11px] font-medium transition-colors",
                 view === "grid"
                   ? "bg-fill-strong text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -280,7 +280,7 @@ export default function ServerList({
               title={t("catalog.harmony")}
               onClick={() => onViewChange?.("harmony")}
               className={cn(
-                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] px-2 text-[11px] font-medium transition-colors",
+                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2 text-[11px] font-medium transition-colors",
                 view === "harmony"
                   ? "bg-fill-strong text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -295,7 +295,7 @@ export default function ServerList({
             size="sm"
             onClick={onRefresh}
             disabled={refreshing || actionsDisabled}
-            className="flex cursor-pointer items-center gap-1.5 text-xs"
+            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-xs"
           >
             <RefreshCw
               className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
@@ -324,7 +324,7 @@ export default function ServerList({
             placeholder={t("catalog.search")}
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="h-9 pl-9"
+            className="h-9 rounded-[var(--radius-control)] pl-9"
           />
         </div>
         <div

@@ -607,6 +607,23 @@
   }
 }
 
+/* A quiet, warm light field behind the skin gives the 3D model a sense of place
+ * without a drop shadow or a boxed-in product-card look. */
+.skin-stage {
+  background:
+    radial-gradient(
+      ellipse at 50% 36%,
+      rgba(190, 156, 112, 0.13),
+      transparent 54%
+    ),
+    radial-gradient(
+      ellipse at 50% 4%,
+      rgba(255, 255, 255, 0.045),
+      transparent 64%
+    ),
+    var(--fill-subtle);
+}
+
 /* Reduced motion stops movement, not colour. The shader freezes at its first
  * frame (see AnimatedBackdrop) and the glass keeps its blur, so the window the
  * player chose looks the same — it just stops moving. An earlier rule painted

@@ -319,33 +319,42 @@ export default function SettingsScreen({
         </p>
       )}
 
-      <div className="grid min-w-0 gap-5 md:grid-cols-[168px_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col gap-5">
         <nav
           aria-label={t("settings.group.nav")}
           data-settings-categories
-          className="flex gap-1 overflow-x-auto pb-1 md:sticky md:top-4 md:flex-col md:self-start md:overflow-visible md:pb-0"
+          className="border-border/40 bg-fill-subtle min-w-0 overflow-x-auto rounded-[var(--radius-item)] border p-1"
         >
-          {settingsGroups.map(({ id, label, icon: Icon }) => {
-            const selected = activeGroup === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                data-settings-category={id}
-                aria-current={selected ? "page" : undefined}
-                onClick={() => setActiveGroup(id)}
-                className={cn(
-                  "flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-left text-xs font-medium transition-colors md:w-full",
-                  selected
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-fill-hover hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            );
-          })}
+          <div className="relative flex min-w-[640px] gap-1">
+            <span
+              aria-hidden="true"
+              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-4px)] border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
+              style={{
+                transform: `translateX(calc(${settingsGroups.findIndex(({ id }) => id === activeGroup)} * (100% + 0.25rem)))`,
+              }}
+            />
+            {settingsGroups.map(({ id, label, icon: Icon }) => {
+              const selected = activeGroup === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  data-settings-category={id}
+                  aria-current={selected ? "page" : undefined}
+                  onClick={() => setActiveGroup(id)}
+                  className={cn(
+                    "relative z-10 flex min-h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-center text-xs font-medium transition-colors",
+                    selected
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         <div className="min-w-0">

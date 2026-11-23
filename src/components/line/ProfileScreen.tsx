@@ -1,5 +1,11 @@
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
-import { LogOut, RefreshCw, Shirt, UserRound } from "@/components/ui/icons";
+import {
+  ChevronDown,
+  LogOut,
+  RefreshCw,
+  Shirt,
+  UserRound,
+} from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SectionIcon from "@/components/line/SectionIcon";
 import SkinViewer3D from "@/components/line/SkinViewer3D";
@@ -241,17 +247,24 @@ export default function ProfileScreen({
             animation={viewerPose}
           />
           <div
-            className="bg-fill-subtle grid grid-cols-3 gap-1 rounded-[var(--radius-control)] p-1"
+            className="border-border/40 bg-fill-subtle relative grid grid-cols-3 gap-1 rounded-[var(--radius-item)] border p-1"
             role="group"
             aria-label={t("profile.viewer.controls")}
           >
+            <span
+              aria-hidden="true"
+              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-1 bottom-1 left-1 w-[calc((100%-1.5rem)/3)] rounded-lg border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
+              style={{
+                transform: `translateX(calc(${["walk", "wave", "manual"].indexOf(viewerPose)} * (100% + 0.25rem)))`,
+              }}
+            />
             {(["walk", "wave", "manual"] as const).map((pose) => (
               <button
                 key={pose}
                 type="button"
                 aria-pressed={viewerPose === pose}
                 onClick={() => setViewerPose(pose)}
-                className={`min-h-8 rounded-md px-2 text-[11px] font-medium transition-colors ${viewerPose === pose ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                className={`relative z-10 min-h-9 cursor-pointer rounded-lg px-2 text-[11px] font-medium transition-colors ${viewerPose === pose ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {t(`profile.viewer.${pose}`)}
               </button>
@@ -271,12 +284,10 @@ export default function ProfileScreen({
           <span className="text-foreground text-sm font-semibold">
             {t("profile.statistics")}
           </span>
-          <span
+          <ChevronDown
             aria-hidden="true"
-            className="text-muted-foreground transition-transform group-open:rotate-180"
-          >
-            ⌄
-          </span>
+            className="text-muted-foreground size-4 shrink-0 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+          />
         </summary>
         <div className="border-border/40 flex flex-col gap-4 border-t p-4">
           <div className="flex flex-col gap-2 sm:max-w-sm">

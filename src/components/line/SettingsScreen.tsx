@@ -112,9 +112,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    // Each group is a quiet, outlined card: the thin contour groups related
-    // controls without competing with the category navigation.
-    <section className="border-border/50 bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] border p-4">
+    // Settings stay in one calm column; a hairline and generous rhythm separate
+    // groups without stacking another set of outlined cards inside the panel.
+    <section className="border-border/30 flex min-w-0 flex-col gap-3 border-b pb-6 last:border-b-0 last:pb-0">
       <div className="flex items-start gap-3">
         <SectionIcon icon={Icon} />
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -293,7 +293,7 @@ export default function SettingsScreen({
   return (
     <section
       data-line-settings
-      className="mx-auto flex w-full max-w-5xl flex-col gap-4"
+      className="mx-auto flex w-full max-w-4xl flex-col gap-4"
     >
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
@@ -331,14 +331,14 @@ export default function SettingsScreen({
           <div className="relative flex min-w-[640px] gap-1 md:min-w-0 md:flex-col">
             <span
               aria-hidden="true"
-              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-4px)] border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:hidden"
+              className="bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-4px)] transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:hidden"
               style={{
                 transform: `translateX(calc(${activeGroupIndex} * (100% + 0.25rem)))`,
               }}
             />
             <span
               aria-hidden="true"
-              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-0 left-0 hidden h-10 w-full rounded-lg border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:block"
+              className="bg-primary/12 pointer-events-none absolute top-0 left-0 hidden h-10 w-full rounded-lg transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:block"
               style={{
                 transform: `translateY(calc(${activeGroupIndex * 44}px))`,
               }}
@@ -372,7 +372,7 @@ export default function SettingsScreen({
             data-settings-panel="performance"
             hidden={activeGroup !== "performance"}
             className={
-              activeGroup === "performance" ? "flex flex-col gap-8" : "hidden"
+              activeGroup === "performance" ? "flex flex-col gap-6" : "hidden"
             }
           >
             <Section
@@ -499,7 +499,7 @@ export default function SettingsScreen({
             data-settings-panel="appearance"
             hidden={activeGroup !== "appearance"}
             className={
-              activeGroup === "appearance" ? "flex flex-col gap-8" : "hidden"
+              activeGroup === "appearance" ? "flex flex-col gap-6" : "hidden"
             }
           >
             <Section
@@ -639,7 +639,7 @@ export default function SettingsScreen({
             data-settings-panel="java"
             hidden={activeGroup !== "java"}
             className={
-              activeGroup === "java" ? "flex flex-col gap-8" : "hidden"
+              activeGroup === "java" ? "flex flex-col gap-6" : "hidden"
             }
           >
             <Section
@@ -767,7 +767,7 @@ export default function SettingsScreen({
             data-settings-panel="window"
             hidden={activeGroup !== "window"}
             className={
-              activeGroup === "window" ? "flex flex-col gap-8" : "hidden"
+              activeGroup === "window" ? "flex flex-col gap-6" : "hidden"
             }
           >
             <Section icon={RefreshCw} title={t("settings.window")}>
@@ -919,7 +919,7 @@ export default function SettingsScreen({
             data-settings-panel="storage"
             hidden={activeGroup !== "storage"}
             className={
-              activeGroup === "storage" ? "flex flex-col gap-8" : "hidden"
+              activeGroup === "storage" ? "flex flex-col gap-6" : "hidden"
             }
           >
             <Section

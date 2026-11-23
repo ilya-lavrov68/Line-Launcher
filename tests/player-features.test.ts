@@ -935,8 +935,13 @@ test("account and wardrobe pages use their canvas width without blank card stret
   const wardrobe = read("src/components/line/WardrobeScreen.tsx");
   assert.match(
     profile,
-    /grid items-start gap-4 sm:grid-cols-\[minmax\(0,1fr\)_320px\]/,
+    /overflow-hidden rounded-\[var\(--radius-panel\)\] border/,
   );
+  assert.match(profile, /skin-hero-viewer rounded-none/);
+  assert.match(profile, /height=\{420\}/);
+  assert.match(profile, /border-t p-4 sm:flex-row/);
+  assert.doesNotMatch(profile, /md:grid-cols-\[minmax\(0,1fr\)_280px\]/);
+  assert.match(read("src/components/line/Skeleton.tsx"), /h-\[420px\]/);
   assert.match(wardrobe, /mx-auto flex w-full max-w-3xl flex-col gap-4/);
   assert.match(
     wardrobe,
@@ -1113,6 +1118,15 @@ test("the title-bar brand mark stays pinned in the compact rail corner", () => {
   );
   assert.match(titleBar, /<BrandMark className="h-5 w-5 shrink-0" \/>/);
   assert.doesNotMatch(titleBar, /brand\.name|railWidth|collapsed/);
+});
+
+test("the selected server art rail leads the catalog without inventing content", () => {
+  const rail = read("src/components/line/ServerCatalogRail.tsx");
+  assert.match(rail, /data-line-server-featured/);
+  assert.match(rail, /server\.banner_url/);
+  assert.match(rail, /min-h-64[\s\S]*?sm:min-h-72/);
+  assert.match(rail, /t\("catalog\.lastSelected"\)/);
+  assert.match(rail, /server\.description/);
 });
 
 test("server catalog search and install filters drive both catalogue views", () => {

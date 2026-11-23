@@ -39,7 +39,7 @@
 </tr>
 <tr>
 <td><img src="docs/images/line-server.png" alt="Сервер готов к запуску"><br><sub><b>Сервер.</b> Установка, проверка сборки, запуск и откат — на одной странице.</sub></td>
-<td><img src="docs/images/line-profile.png" alt="Страница аккаунта с 3D-скином"><br><sub><b>Профиль.</b> Скин в 3D, ник и статистика — без переходов на сайт проекта.</sub></td>
+<td><img src="docs/images/line-profile.png" alt="Страница аккаунта с 3D-скином"><br><sub><b>Профиль.</b> Данные аккаунта и крупный 3D-просмотр скина; серверная статистика появится после согласования API.</sub></td>
 </tr>
 <tr>
 <td><img src="docs/images/line-minecraft.png" alt="Страница сервера в режиме Minecraft"><br><sub><b>Режим Minecraft.</b> Своя сборка, свой мир, тот же вход, что и на сервере проекта.</sub></td>
@@ -140,7 +140,8 @@ Windows, но текущие изменения требуют повторны�
 | [START.md](docs/START.md)               | Короткая инструкция для игрока, провайдера и разработчика                    |
 | [DEMO.md](docs/DEMO.md)                 | `npm run demo` — локальный провайдер и настоящее приложение                  |
 | [PROVIDER.md](docs/PROVIDER.md)         | Формат конфигурации и манифеста сборки                                       |
-| [VERIFICATION.md](docs/VERIFICATION.md) | Что и как проверялось                                                        |
+| [ROADMAP.md](docs/ROADMAP.md)           | Единственный список принятых незавершённых работ                             |
+| [VERIFICATION.md](docs/VERIFICATION.md) | Последние проверки и их границы                                              |
 
 ## Происхождение и лицензия
 

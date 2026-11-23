@@ -1066,6 +1066,8 @@ export default function LineLauncher() {
                                 onLogout={() => void logout()}
                                 onOpenWardrobe={() => navigate("wardrobe")}
                                 disabled={actionsBusy}
+                                servers={snapshot?.config.servers ?? []}
+                                recentServerId={selected?.id}
                               />
                             )}
                             {section === "account" && !session && (

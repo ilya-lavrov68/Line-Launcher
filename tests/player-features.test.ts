@@ -930,6 +930,37 @@ test("the account page shows the active skin in 3D and falls back flat", () => {
   assert.match(nav, /id: "account"/);
 });
 
+test("account and wardrobe pages use their canvas width without blank card stretch", () => {
+  const profile = read("src/components/line/ProfileScreen.tsx");
+  const wardrobe = read("src/components/line/WardrobeScreen.tsx");
+  assert.match(
+    profile,
+    /grid items-start gap-4 sm:grid-cols-\[minmax\(0,1fr\)_320px\]/,
+  );
+  assert.match(wardrobe, /mx-auto flex w-full max-w-3xl flex-col gap-4/);
+  assert.match(
+    wardrobe,
+    /sm:grid-cols-\[minmax\(0,0\.9fr\)_minmax\(0,1\.1fr\)\]/,
+  );
+});
+
+test("profile viewer is user-driven and server stats remain an honest empty shell", () => {
+  const profile = read("src/components/line/ProfileScreen.tsx");
+  const viewer = read("src/components/line/SkinViewer3D.tsx");
+  assert.match(profile, /viewerPose.*"walk"/);
+  assert.match(profile, /\["walk", "wave", "manual"\]/);
+  assert.match(profile, /profile\.viewer\.\$\{pose\}/);
+  assert.match(viewer, /viewer\.autoRotate = false/);
+  assert.match(profile, /profile\.statistics\.empty/);
+  assert.match(profile, /\["blocks", "mobs", "players", "deaths"\]/);
+  assert.match(profile, /\["minecraft", "mods"\]/);
+  assert.match(profile, /profile\.advancements\.\$\{group\}/);
+  assert.doesNotMatch(
+    profile,
+    /profileData|fetchServerProfile|serverProfile\(/,
+  );
+});
+
 test("opening the wardrobe never signs the player out", () => {
   const screen = read("src/components/line/WardrobeScreen.tsx");
 
@@ -1101,6 +1132,15 @@ test("catalogue controls share the same radius and height", () => {
   assert.match(list, /rounded-\[var\(--radius-control\)\]/);
   assert.match(list, /rounded-\[calc\(var\(--radius-control\)-2px\)\]/);
   assert.match(list, /h-9 rounded-\[var\(--radius-control\)\]/);
+});
+
+test("server details use a roomier responsive frame and handle motion and failed art", () => {
+  const detail = read("src/components/line/ServerDetail.tsx");
+  assert.match(detail, /max-w-3xl/);
+  assert.match(detail, /useReducedMotion\(\)/);
+  assert.match(detail, /reducedMotion \? false/);
+  assert.match(detail, /onError=\{\(\) => setBannerFailed\(true\)\}/);
+  assert.match(detail, /onError=\{\(\) => setIconFailed\(true\)\}/);
 });
 
 test("the active sidebar destination uses white ink without a tile fill", () => {

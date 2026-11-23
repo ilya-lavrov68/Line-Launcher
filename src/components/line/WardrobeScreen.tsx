@@ -345,7 +345,7 @@ export default function WardrobeScreen({
   }
 
   return (
-    <section className="mx-auto flex max-w-3xl flex-col gap-4">
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
           {t("wardrobe.title")}
@@ -355,7 +355,7 @@ export default function WardrobeScreen({
         </p>
       </div>
 
-      <div className="min-h-10" aria-live="polite">
+      <div className="min-h-5" aria-live="polite">
         {error && (
           <p
             role="alert"
@@ -375,252 +375,276 @@ export default function WardrobeScreen({
         )}
       </div>
 
-      <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-foreground text-sm font-semibold">
-            {t("wardrobe.add")}
-          </h3>
-          <span className="text-muted-foreground shrink-0 font-mono text-[12px]">
-            {t("wardrobe.pngHint")}
-          </span>
-        </div>
+      <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="bg-fill-subtle flex min-w-0 flex-col gap-4 rounded-[var(--radius-item)] p-4">
+          <div className="border-border/40 flex flex-col items-center gap-2 rounded-[var(--radius-control)] border p-4">
+            <p className="text-muted-foreground self-start text-xs">
+              {t("wardrobe.activePreview")}
+            </p>
+            {active ? (
+              <SkinThumb
+                skinId={active.id}
+                model={active.model}
+                scale={5}
+                className="h-44 w-24"
+              />
+            ) : (
+              <div className="text-muted-foreground flex h-44 items-center justify-center text-xs">
+                {t("wardrobe.standardSkin")}
+              </div>
+            )}
+            <p className="text-foreground max-w-full truncate text-xs font-medium">
+              {active?.name ?? t("wardrobe.standardSkin")}
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-foreground text-sm font-semibold">
+              {t("wardrobe.add")}
+            </h3>
+            <span className="text-muted-foreground shrink-0 font-mono text-[12px]">
+              {t("wardrobe.pngHint")}
+            </span>
+          </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-col gap-2">
-              <Label
-                htmlFor="skin-file"
-                className="text-muted-foreground text-xs"
-              >
-                {t("wardrobe.fileLabel")}
-              </Label>
-              {/* A real <input type="file">, kept for the keyboard path and
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="skin-file"
+                  className="text-muted-foreground text-xs"
+                >
+                  {t("wardrobe.fileLabel")}
+                </Label>
+                {/* A real <input type="file">, kept for the keyboard path and
                   for `setInputFiles` in the smoke test. It is `sr-only` rather
                   than `hidden`: `display:none` cannot receive focus or a click,
                   which is exactly what the label below forwards. */}
-              <input
-                id="skin-file"
-                ref={inputRef}
-                type="file"
-                accept="image/png"
-                disabled={controlsDisabled}
-                onChange={(event) => chooseFile(event.target.files?.[0])}
-                className="peer sr-only"
-              />
-              <label
-                htmlFor="skin-file"
-                className={cn(
-                  "border-input flex h-9 w-full cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border bg-transparent px-1.5 text-xs",
-                  "hover:bg-fill-subtle hover:border-foreground/25 transition-colors",
-                  "peer-focus-visible:border-ring peer-focus-visible:ring-ring/40 peer-focus-visible:ring-3",
-                  controlsDisabled && "pointer-events-none opacity-50",
-                )}
-              >
-                <span className="bg-fill text-foreground flex h-[26px] shrink-0 items-center rounded-[6px] px-3 font-medium">
-                  {t("wardrobe.chooseFile")}
-                </span>
-                <span className="text-muted-foreground min-w-0 flex-1 truncate">
-                  {pending?.name ?? t("wardrobe.noFile")}
-                </span>
-              </label>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label
-                htmlFor="skin-name"
-                className="text-muted-foreground text-xs"
-              >
-                {t("wardrobe.nameLabel")}
-              </Label>
-              <Input
-                id="skin-name"
-                value={name}
-                maxLength={64}
-                disabled={controlsDisabled}
-                placeholder={t("wardrobe.namePlaceholder")}
-                onChange={(event) => setName(event.target.value)}
-                className="text-xs"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label className="text-muted-foreground text-xs">
-                {t("wardrobe.modelLabel")}
-              </Label>
-              <Select
-                value={model}
-                disabled={controlsDisabled}
-                onValueChange={(value) => {
-                  setModel(value as SkinModel);
-                  // Chosen by hand from here on: stop claiming it was read.
-                  setModelDetected(false);
-                }}
-              >
-                <SelectTrigger className="w-full text-xs">
-                  <SelectValue>
-                    {(value: SkinModel | null) =>
-                      value === "slim"
-                        ? t("wardrobe.slim")
-                        : t("wardrobe.classic")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="classic">
-                    {t("wardrobe.classic")}
-                  </SelectItem>
-                  <SelectItem value="slim">{t("wardrobe.slim")}</SelectItem>
-                </SelectContent>
-              </Select>
-              {/* Says where the value came from. The player did not pick it and
+                <input
+                  id="skin-file"
+                  ref={inputRef}
+                  type="file"
+                  accept="image/png"
+                  disabled={controlsDisabled}
+                  onChange={(event) => chooseFile(event.target.files?.[0])}
+                  className="peer sr-only"
+                />
+                <label
+                  htmlFor="skin-file"
+                  className={cn(
+                    "border-input flex h-9 w-full cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border bg-transparent px-1.5 text-xs",
+                    "hover:bg-fill-subtle hover:border-foreground/25 transition-colors",
+                    "peer-focus-visible:border-ring peer-focus-visible:ring-ring/40 peer-focus-visible:ring-3",
+                    controlsDisabled && "pointer-events-none opacity-50",
+                  )}
+                >
+                  <span className="bg-fill text-foreground flex h-[26px] shrink-0 items-center rounded-[6px] px-3 font-medium">
+                    {t("wardrobe.chooseFile")}
+                  </span>
+                  <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                    {pending?.name ?? t("wardrobe.noFile")}
+                  </span>
+                </label>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="skin-name"
+                  className="text-muted-foreground text-xs"
+                >
+                  {t("wardrobe.nameLabel")}
+                </Label>
+                <Input
+                  id="skin-name"
+                  value={name}
+                  maxLength={64}
+                  disabled={controlsDisabled}
+                  placeholder={t("wardrobe.namePlaceholder")}
+                  onChange={(event) => setName(event.target.value)}
+                  className="text-xs"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label className="text-muted-foreground text-xs">
+                  {t("wardrobe.modelLabel")}
+                </Label>
+                <Select
+                  value={model}
+                  disabled={controlsDisabled}
+                  onValueChange={(value) => {
+                    setModel(value as SkinModel);
+                    // Chosen by hand from here on: stop claiming it was read.
+                    setModelDetected(false);
+                  }}
+                >
+                  <SelectTrigger className="w-full text-xs">
+                    <SelectValue>
+                      {(value: SkinModel | null) =>
+                        value === "slim"
+                          ? t("wardrobe.slim")
+                          : t("wardrobe.classic")
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="classic">
+                      {t("wardrobe.classic")}
+                    </SelectItem>
+                    <SelectItem value="slim">{t("wardrobe.slim")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {/* Says where the value came from. The player did not pick it and
                   should not have to wonder whether it is right. Placed under
                   the field rather than between it and its label: above, it
                   pushed this one field out of line with the button beside it. */}
-              {pending && modelDetected && (
-                <p className="text-muted-foreground text-[11px] leading-relaxed">
-                  {t("wardrobe.modelDetected")}
-                </p>
-              )}
+                {pending && modelDetected && (
+                  <p className="text-muted-foreground text-[11px] leading-relaxed">
+                    {t("wardrobe.modelDetected")}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-          {pending && (
-            <div className="flex shrink-0 flex-col items-center gap-2">
-              <Label className="text-muted-foreground text-xs">
-                {t("wardrobe.previewLabel")}
-              </Label>
-              <SkinPreview
-                src={pending.url}
-                model={model}
-                scale={4}
-                className="h-36 w-20"
-              />
-              <Button
-                size="sm"
-                disabled={controlsDisabled}
-                onClick={() => void save()}
-                className="cursor-pointer items-center gap-1.5 text-xs"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                <StableActionLabel
-                  busy={busy}
-                  idle={t("wardrobe.toHistory")}
-                  active={t("wardrobe.saving")}
+            {pending && (
+              <div className="flex shrink-0 flex-col items-center gap-2">
+                <Label className="text-muted-foreground text-xs">
+                  {t("wardrobe.previewLabel")}
+                </Label>
+                <SkinPreview
+                  src={pending.url}
+                  model={model}
+                  scale={4}
+                  className="h-36 w-20"
                 />
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
-        <div className="flex items-start gap-3">
-          <SectionIcon icon={History} />
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <h3 className="text-foreground text-sm font-semibold">
-              {t("wardrobe.local")}
-            </h3>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              {loading ? t("common.loading") : `${skins.length} / ${limit}`}
-            </p>
+                <Button
+                  size="sm"
+                  disabled={controlsDisabled}
+                  onClick={() => void save()}
+                  className="cursor-pointer items-center gap-1.5 text-xs"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <StableActionLabel
+                    busy={busy}
+                    idle={t("wardrobe.toHistory")}
+                    active={t("wardrobe.saving")}
+                  />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={controlsDisabled || !activeId}
-          onClick={() => void activate(null)}
-          aria-label={t("wardrobe.pickDefault")}
-          className={
-            !activeId
-              ? "bg-primary/10 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-default"
-              : "hover:bg-fill/60 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
-          }
-        >
-          <UserRound
-            data-line-icon
-            className="text-muted-foreground h-6 w-6 shrink-0"
-            aria-hidden="true"
-          />
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="text-foreground text-xs font-medium">
-              {t("wardrobe.standardSkin")}
-            </span>
-            <span className="text-muted-foreground text-[12px]">
-              {!activeId ? t("wardrobe.isActive") : t("wardrobe.backToDefault")}
-            </span>
-          </span>
-          {!activeId && (
-            <Check
-              className="text-primary h-4 w-4 shrink-0"
+        <div className="bg-fill-subtle flex min-w-0 flex-col gap-4 rounded-[var(--radius-item)] p-4">
+          <div className="flex items-start gap-3">
+            <SectionIcon icon={History} />
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <h3 className="text-foreground text-sm font-semibold">
+                {t("wardrobe.local")}
+              </h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {loading ? t("common.loading") : `${skins.length} / ${limit}`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={controlsDisabled || !activeId}
+            onClick={() => void activate(null)}
+            aria-label={t("wardrobe.pickDefault")}
+            className={
+              !activeId
+                ? "bg-primary/10 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-default"
+                : "hover:bg-fill/60 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+            }
+          >
+            <UserRound
+              data-line-icon
+              className="text-muted-foreground h-6 w-6 shrink-0"
               aria-hidden="true"
             />
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="text-foreground text-xs font-medium">
+                {t("wardrobe.standardSkin")}
+              </span>
+              <span className="text-muted-foreground text-[12px]">
+                {!activeId
+                  ? t("wardrobe.isActive")
+                  : t("wardrobe.backToDefault")}
+              </span>
+            </span>
+            {!activeId && (
+              <Check
+                className="text-primary h-4 w-4 shrink-0"
+                aria-hidden="true"
+              />
+            )}
+          </button>
+
+          {!loading && skins.length === 0 && (
+            <p className="text-muted-foreground py-6 text-center text-xs">
+              {t("wardrobe.emptyHistory")}
+            </p>
           )}
-        </button>
 
-        {!loading && skins.length === 0 && (
-          <p className="text-muted-foreground py-6 text-center text-xs">
-            {t("wardrobe.emptyHistory")}
-          </p>
-        )}
-
-        {skins.length > 0 && (
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {skins.map((skin) => {
-              const isActive = skin.id === activeId;
-              return (
-                <li
-                  key={skin.id}
-                  className={
-                    isActive
-                      ? "bg-primary/10 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
-                      : "bg-fill/60 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
-                  }
-                >
-                  <div className="flex items-center gap-2">
-                    <SkinThumb
-                      skinId={skin.id}
-                      model={skin.model}
-                      scale={2}
-                      className="h-16 w-8"
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="text-foreground truncate text-xs font-medium">
-                        {skin.name}
-                      </span>
-                      <span className="text-muted-foreground font-mono text-[12px]">
-                        {skin.width}×{skin.height} · {skin.model}
-                      </span>
+          {skins.length > 0 && (
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {skins.map((skin) => {
+                const isActive = skin.id === activeId;
+                return (
+                  <li
+                    key={skin.id}
+                    className={
+                      isActive
+                        ? "bg-primary/10 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
+                        : "bg-fill/60 flex flex-col gap-2 rounded-[var(--radius-control)] p-2"
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      <SkinThumb
+                        skinId={skin.id}
+                        model={skin.model}
+                        scale={2}
+                        className="h-16 w-8"
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-foreground truncate text-xs font-medium">
+                          {skin.name}
+                        </span>
+                        <span className="text-muted-foreground font-mono text-[12px]">
+                          {skin.width}×{skin.height} · {skin.model}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-1">
-                    <button
-                      type="button"
-                      disabled={controlsDisabled || isActive}
-                      onClick={() => void activate(skin.id)}
-                      aria-label={t("wardrobe.activateNamed", {
-                        name: skin.name,
-                      })}
-                      aria-pressed={isActive}
-                      className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 px-1 py-0.5 text-[12px] font-medium enabled:hover:bg-transparent disabled:cursor-default disabled:opacity-60"
-                    >
-                      {isActive ? t("wardrobe.active") : t("wardrobe.select")}
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={controlsDisabled}
-                      onClick={() => void remove(skin.id)}
-                      aria-label={t("wardrobe.removeNamed", {
-                        name: skin.name,
-                      })}
-                      className="text-muted-foreground hover:text-destructive cursor-pointer"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        disabled={controlsDisabled || isActive}
+                        onClick={() => void activate(skin.id)}
+                        aria-label={t("wardrobe.activateNamed", {
+                          name: skin.name,
+                        })}
+                        aria-pressed={isActive}
+                        className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 px-1 py-0.5 text-[12px] font-medium enabled:hover:bg-transparent disabled:cursor-default disabled:opacity-60"
+                      >
+                        {isActive ? t("wardrobe.active") : t("wardrobe.select")}
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled={controlsDisabled}
+                        onClick={() => void remove(skin.id)}
+                        aria-label={t("wardrobe.removeNamed", {
+                          name: skin.name,
+                        })}
+                        className="text-muted-foreground hover:text-destructive cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="bg-fill-subtle flex items-start gap-3 rounded-[var(--radius-item)] p-4">

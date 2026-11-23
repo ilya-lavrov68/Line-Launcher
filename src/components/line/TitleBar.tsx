@@ -137,7 +137,7 @@ export default function TitleBar({ context, actions }: TitleBarProps) {
                 size="icon"
                 onClick={() => void closeWindow()}
                 aria-label={t("window.close")}
-                className="text-muted-foreground hover:bg-destructive-strong hover:text-destructive-foreground focus-visible:bg-destructive-strong focus-visible:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
+                className="text-muted-foreground hover:!bg-destructive-strong hover:text-destructive-foreground focus-visible:!bg-destructive-strong focus-visible:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </Button>

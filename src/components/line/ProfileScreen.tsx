@@ -5,9 +5,16 @@ import SectionIcon from "@/components/line/SectionIcon";
 import SkinViewer3D from "@/components/line/SkinViewer3D";
 import { Button } from "@/components/ui/button";
 import { errorMessage, lineApi } from "@/lib/line/api";
-import type { AuthSessionInfo, SkinState } from "@/types/line";
+import type { AuthSessionInfo, LineServer, SkinState } from "@/types/line";
 import { useT } from "@/lib/line/i18n";
 import { SkeletonProfile } from "@/components/line/Skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface ProfileScreenProps {
   session: AuthSessionInfo;
@@ -17,6 +24,8 @@ export interface ProfileScreenProps {
   onLogout: () => void;
   onOpenWardrobe: () => void;
   disabled?: boolean;
+  servers?: LineServer[];
+  recentServerId?: string;
 }
 
 /**
@@ -39,6 +48,8 @@ export default function ProfileScreen({
   onLogout,
   onOpenWardrobe,
   disabled = false,
+  servers = [],
+  recentServerId,
 }: ProfileScreenProps) {
   const t = useT();
   const [skin, setSkin] = useState<SkinState | null>(null);
@@ -46,6 +57,22 @@ export default function ProfileScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [viewerPose, setViewerPose] = useState<"walk" | "wave" | "manual">(
+    "walk",
+  );
+  const [statsServerId, setStatsServerId] = useState(
+    recentServerId ?? servers[0]?.id ?? "",
+  );
+  useEffect(() => {
+    if (
+      recentServerId &&
+      servers.some((server) => server.id === recentServerId)
+    ) {
+      setStatsServerId(recentServerId);
+    } else if (!servers.some((server) => server.id === statsServerId)) {
+      setStatsServerId(servers[0]?.id ?? "");
+    }
+  }, [recentServerId, servers, statsServerId]);
 
   /**
    * The active skin, in whichever form exists.
@@ -104,7 +131,7 @@ export default function ProfileScreen({
   // square and already in place when the texture lands.
   if (loading && !skin) {
     return (
-      <section className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-foreground text-xl font-bold tracking-tight">
             {t("profile.title")}
@@ -116,7 +143,7 @@ export default function ProfileScreen({
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
           {t("profile.title")}
@@ -135,7 +162,7 @@ export default function ProfileScreen({
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_288px]">
+      <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_320px]">
         <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
           <div className="flex items-start gap-3">
             <SectionIcon icon={UserRound} />
@@ -210,8 +237,26 @@ export default function ProfileScreen({
           <SkinViewer3D
             src={skin?.textureUrl}
             model={skin?.model ?? "classic"}
-            height={288}
+            height={360}
+            animation={viewerPose}
           />
+          <div
+            className="bg-fill-subtle grid grid-cols-3 gap-1 rounded-[var(--radius-control)] p-1"
+            role="group"
+            aria-label={t("profile.viewer.controls")}
+          >
+            {(["walk", "wave", "manual"] as const).map((pose) => (
+              <button
+                key={pose}
+                type="button"
+                aria-pressed={viewerPose === pose}
+                onClick={() => setViewerPose(pose)}
+                className={`min-h-8 rounded-md px-2 text-[11px] font-medium transition-colors ${viewerPose === pose ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {t(`profile.viewer.${pose}`)}
+              </button>
+            ))}
+          </div>
           <p className="text-muted-foreground text-[11px] leading-relaxed">
             {skin
               ? canSync
@@ -221,6 +266,84 @@ export default function ProfileScreen({
           </p>
         </div>
       </div>
+      <details className="group border-border/50 bg-fill-subtle rounded-[var(--radius-item)] border">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="text-foreground text-sm font-semibold">
+            {t("profile.statistics")}
+          </span>
+          <span
+            aria-hidden="true"
+            className="text-muted-foreground transition-transform group-open:rotate-180"
+          >
+            ⌄
+          </span>
+        </summary>
+        <div className="border-border/40 flex flex-col gap-4 border-t p-4">
+          <div className="flex flex-col gap-2 sm:max-w-sm">
+            <label
+              className="text-muted-foreground text-xs"
+              htmlFor="profile-stats-server"
+            >
+              {t("profile.statistics.server")}
+            </label>
+            <Select
+              value={statsServerId}
+              onValueChange={(value) => {
+                if (value) setStatsServerId(value);
+              }}
+              disabled={servers.length === 0}
+            >
+              <SelectTrigger
+                id="profile-stats-server"
+                className="w-full text-xs"
+              >
+                <SelectValue>
+                  {servers.find((server) => server.id === statsServerId)
+                    ?.name ?? t("profile.statistics.noServers")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {servers.map((server) => (
+                  <SelectItem key={server.id} value={server.id}>
+                    {server.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {["blocks", "mobs", "players", "deaths"].map((metric) => (
+              <div
+                key={metric}
+                className="border-border/40 text-muted-foreground rounded-[var(--radius-control)] border px-3 py-2 text-xs"
+              >
+                {t(`profile.statistics.${metric}`)}
+              </div>
+            ))}
+          </div>
+          <p
+            className="text-muted-foreground border-border/40 rounded-[var(--radius-control)] border p-3 text-xs leading-relaxed"
+            role="status"
+          >
+            {t("profile.statistics.empty")}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {["minecraft", "mods"].map((group) => (
+              <section
+                key={group}
+                className="border-border/40 flex flex-col gap-2 rounded-[var(--radius-control)] border p-3"
+              >
+                <h4 className="text-foreground text-xs font-semibold">
+                  {t(`profile.advancements.${group}`)}
+                </h4>
+                <p className="text-muted-foreground text-xs">
+                  {t("profile.advancements.empty")}
+                </p>
+              </section>
+            ))}
+          </div>
+        </div>
+      </details>
       <AlertDialogPrimitive.Root open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogPrimitive.Portal>
           <AlertDialogPrimitive.Backdrop className="data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/35 supports-backdrop-filter:backdrop-blur-xs" />

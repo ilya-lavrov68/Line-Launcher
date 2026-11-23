@@ -1,8 +1,9 @@
-import { m } from "framer-motion";
-import { useState } from "react";
+import { m, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   FolderInput,
+  Server,
   PackageX,
   ShieldCheck,
   ShieldX,
@@ -143,6 +144,11 @@ export default function ServerDetail(props: ServerDetailProps) {
     onBack,
   } = props;
   const t = useT();
+  const reducedMotion = useReducedMotion();
+  const [bannerFailed, setBannerFailed] = useState(false);
+  const [iconFailed, setIconFailed] = useState(false);
+  useEffect(() => setBannerFailed(false), [server.banner_url]);
+  useEffect(() => setIconFailed(false), [server.icon_url, server.logo_url]);
   const phase = phaseOf(server, receipt, progress, status);
   const legacy = actionsBusy || installing || launching;
   // Explicit opt-in from the provider, never inferred from the presence of an
@@ -152,7 +158,7 @@ export default function ServerDetail(props: ServerDetailProps) {
   return (
     // Keep controls in normal document flow: dynamic progress below them must
     // not pull the entire dock upward as its height changes.
-    <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
+    <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
       <Button
         variant="ghost"
         size="sm"
@@ -169,12 +175,22 @@ export default function ServerDetail(props: ServerDetailProps) {
               the top of the screen was a heading over an empty field. */}
       {server.banner_url && (
         <div className="bg-fill-subtle relative aspect-[16/5] w-full overflow-hidden rounded-[var(--radius-panel)]">
-          <img
-            src={server.banner_url}
-            alt=""
-            className="size-full object-cover"
-            referrerPolicy="no-referrer"
-          />
+          {!bannerFailed ? (
+            <img
+              src={server.banner_url}
+              alt=""
+              className="size-full object-cover"
+              referrerPolicy="no-referrer"
+              onError={() => setBannerFailed(true)}
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="text-muted-foreground/15 grid size-full place-items-center"
+            >
+              <Server className="size-16" />
+            </div>
+          )}
         </div>
       )}
 
@@ -183,12 +199,13 @@ export default function ServerDetail(props: ServerDetailProps) {
           data-line-icon
           className="bg-fill flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-item)]"
         >
-          {server.icon_url || server.logo_url ? (
+          {(server.icon_url || server.logo_url) && !iconFailed ? (
             <img
               src={server.icon_url ?? server.logo_url}
               alt=""
               className="size-full object-cover"
               referrerPolicy="no-referrer"
+              onError={() => setIconFailed(true)}
             />
           ) : (
             <span className="text-muted-foreground text-lg font-semibold">
@@ -266,9 +283,14 @@ export default function ServerDetail(props: ServerDetailProps) {
       <m.div
         key={server.id}
         className="w-full"
-        initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+        initial={
+          reducedMotion ? false : { opacity: 0, y: 8, filter: "blur(4px)" }
+        }
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        transition={{
+          duration: reducedMotion ? 0 : 0.22,
+          ease: [0.22, 1, 0.36, 1],
+        }}
       >
         {isMinecraft ? (
           /* A minecraft-mode server has no provider archive, so the ZIP dock

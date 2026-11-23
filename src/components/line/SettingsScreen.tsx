@@ -112,10 +112,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    // A settings section is a heading and a control, separated from the next by
-    // space and a hairline — not a filled card. Four grey boxes stacked down the
-    // page were the loudest thing on it.
-    <section className="border-border/40 flex flex-col gap-4 border-b pb-6 last:border-b-0 last:pb-0">
+    // Each group is a quiet, outlined card: the thin contour groups related
+    // controls without competing with the category navigation.
+    <section className="border-border/50 bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] border p-4">
       <div className="flex items-start gap-3">
         <SectionIcon icon={Icon} />
         <div className="flex min-w-0 flex-col gap-0.5">

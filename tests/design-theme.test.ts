@@ -603,7 +603,7 @@ test("the backdrop picker shows names, and only the live preview shows the art",
   assert.match(picker, /role="radio"/);
 });
 
-test("the 3D skin is centred, and its turn does not depend on the frame rate", () => {
+test("the 3D skin is centred and only moves when the player chooses", () => {
   const viewer = read("src/components/line/SkinViewer3D.tsx");
   // The canvas was appended into an absolutely-positioned host with no layout:
   // a 216px surface in a 288px field, hard against the left edge.
@@ -611,14 +611,13 @@ test("the 3D skin is centred, and its turn does not depend on the frame rate", (
   assert.match(viewer, /mx-auto|items-center justify-center/);
   assert.match(viewer, /setSize\(width, height\)/);
 
-  // `autoRotate` advances a fixed angle per frame, so the model span 2.4x
-  // faster on a 144 Hz display than on a 60 Hz one.
+  // No background turn: rotation is through the viewer's native drag controls.
+  // The player can choose a walk, wave or still/manual pose in the profile UI.
   assert.match(viewer, /viewer\.autoRotate = false/);
-  assert.match(viewer, /function startSpin/);
-  assert.match(viewer, /performance\.now\(\)/);
-  assert.match(viewer, /maxDeltaMs/);
-  // Reduced motion must still mean no rotation at all.
-  assert.match(viewer, /reduced \? null : startSpin/);
+  assert.match(viewer, /new WalkingAnimation\(\)/);
+  assert.match(viewer, /new WaveAnimation\("right"\)/);
+  assert.match(viewer, /pose === "manual"/);
+  assert.doesNotMatch(viewer, /function startSpin|autoRotate = true/);
 });
 
 test("signing out does not flash a connection error before the gate", () => {

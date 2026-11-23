@@ -11,38 +11,7 @@ export interface SkinViewer3DProps {
   className?: string;
   /** Height of the viewport, in pixels. The box keeps a 3:4 ratio. */
   height?: number;
-}
-
-/**
- * A slow, frame-rate independent turn.
- *
- * `OrbitControls` is driven directly: the library's own auto-rotate adds a
- * constant angle per rendered frame, which makes the speed depend on the
- * display. This advances by elapsed milliseconds with a cap, so a frame that
- * arrives late does not jump the model.
- *
- * Returns the cancel function. The loop stops as soon as the viewer is disposed.
- */
-function startSpin(player: { rotation: { y: number } }): () => void {
-  // One full turn in about 45 seconds — slow enough to read as a product shot,
-  // fast enough that the back of the skin is reachable without waiting.
-  const radiansPerMs = (Math.PI * 2) / 45_000;
-  // A tab restored after being backgrounded hands back one enormous delta;
-  // clamp it so the model does not teleport half a revolution.
-  const maxDeltaMs = 64;
-  let last = performance.now();
-  let frame = 0;
-  const tick = (now: number) => {
-    const delta = Math.min(maxDeltaMs, Math.max(0, now - last));
-    last = now;
-    // Turning the model rather than the camera: the orbit controls stay where
-    // the player put them, so a drag still means what it says, and the rotation
-    // is one continuous angle instead of a per-frame step.
-    player.rotation.y += delta * radiansPerMs;
-    frame = window.requestAnimationFrame(tick);
-  };
-  frame = window.requestAnimationFrame(tick);
-  return () => window.cancelAnimationFrame(frame);
+  animation?: "walk" | "wave" | "manual";
 }
 
 /**
@@ -64,18 +33,23 @@ function startSpin(player: { rotation: { y: number } }): () => void {
  * 3. **It disposes.** A WebGL context is a scarce resource; `dispose()` frees
  *    it, and it is called on unmount and whenever the skin changes.
  *
- * The spin is a slow product-shot turn — a skin has a back, and it is worth
- * seeing. `autoRotateSpeed` is frames-based inside the library, so it is capped
- * low enough that 144 Hz does not turn it into a fan.
+ * Walking is the default presentation. Rotation remains directly user-driven
+ * through skinview3d controls; no automatic spin runs in the background.
  */
 export default function SkinViewer3D({
   src,
   model,
   className,
   height = 288,
+  animation = "walk",
 }: SkinViewer3DProps) {
   const t = useT();
   const hostRef = useRef<HTMLDivElement>(null);
+  const applyPoseRef = useRef<
+    ((pose: SkinViewer3DProps["animation"]) => void) | null
+  >(null);
+  const animationRef = useRef(animation);
+  animationRef.current = animation;
   const [status, setStatus] = useState<"loading" | "ready" | "flat">(
     src ? "loading" : "flat",
   );
@@ -102,7 +76,8 @@ export default function SkinViewer3D({
 
     void (async () => {
       try {
-        const { SkinViewer } = await import("skinview3d");
+        const { SkinViewer, WalkingAnimation, WaveAnimation, IdleAnimation } =
+          await import("skinview3d");
 
         // The texture must be CORS-readable before three can upload it, and
         // `skinview3d` throws deep inside when it is not. Probing with a plain
@@ -156,17 +131,22 @@ export default function SkinViewer3D({
         // model is not rendered for a narrower surface and then stretched by
         // CSS into one that is wider.
         viewer.setSize(width, height);
-        // Turned here rather than with `autoRotate`, which advances by a fixed
-        // angle *per frame*: the same skin span at 144 Hz that looks like a
-        // product shot at 60 Hz, so on a high-refresh monitor the model spins
-        // 2.4x faster and reads as jerky. Driving the orbit by elapsed time
-        // makes it the same speed everywhere — and smooth, because the angle
-        // is continuous rather than quantised to whole frames.
+        // No ambient spin: the viewer's native drag controls give the player
+        // direct, intentional rotation. Reduced-motion users get a still pose.
         viewer.autoRotate = false;
-        const spin = reduced ? null : startSpin(viewer.playerWrapper);
+        const applyPose = (pose: SkinViewer3DProps["animation"]) => {
+          viewer.animation =
+            reduced || pose === "manual"
+              ? new IdleAnimation()
+              : pose === "wave"
+                ? new WaveAnimation("right")
+                : new WalkingAnimation();
+        };
+        applyPoseRef.current = applyPose;
+        applyPose(animationRef.current);
 
         dispose = () => {
-          spin?.();
+          applyPoseRef.current = null;
           viewer.dispose();
           host.replaceChildren();
         };
@@ -189,6 +169,10 @@ export default function SkinViewer3D({
       }
     };
   }, [src, model, height]);
+
+  useEffect(() => {
+    applyPoseRef.current?.(animation);
+  }, [animation]);
 
   return (
     <div

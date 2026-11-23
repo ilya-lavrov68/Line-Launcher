@@ -1,9 +1,12 @@
-# Installation audit: open risks and acceptance gates
+# Installation audit: technical risks and acceptance checks
 
-This audit concerns the implementation in draft PR #71, not a release or proof
-of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases.
+This is the detailed technical risk register behind the active work in
+[ROADMAP.md](ROADMAP.md), not a separate roadmap. It records implementation
+limits and the evidence needed to close them; it is not a release claim or proof
+of Windows compatibility. The current local test snapshot is
+[VERIFICATION.md](VERIFICATION.md).
 
-## Critical issues to resolve before release
+## Open technical risks
 
 1. **ZIP replacement at the same digest:** replacement now retains the old
    directory in a recoverable sibling until publication, and recovery runs under
@@ -54,7 +57,7 @@ of Windows compatibility. `INSTALLATION-ROADMAP.md` contains the intended phases
    distribution rights and unavailable-file UX must be designed and tested;
    do not bypass provider restrictions or assume every file is downloadable.
 
-## Further validation and design work
+## Detailed validation evidence
 
 - **Source cancellation:** source install now runs in a supervisor, with caller
   cancellation signalling the worker and the worker owning the server lock until

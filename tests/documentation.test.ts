@@ -25,21 +25,27 @@ test("README and every documentation page have valid local markdown links", () =
   }
 });
 
-test("current guides distinguish historical verification, mocked screenshots and partial repairs", () => {
+test("documentation has one active roadmap and labels current integration limits", () => {
   const read = (file: string) => readFileSync(path.join(root, file), "utf8");
+  const roadmap = read("docs/ROADMAP.md");
+  const verification = read("docs/VERIFICATION.md");
+  assert.match(roadmap, /Единственное место для активных планов проекта/);
+  assert.match(roadmap, /не передавать UUID из\s+интерфейса лаунчера/i);
+  assert.match(roadmap, /не добавлять endpoint, поля ответа, mock-метрики/i);
+  assert.match(verification, /422 total, 421 passed, 1 skipped, 0 failed/);
   assert.match(
-    read("docs/VERIFICATION.md"),
-    /Historical desktop-fix pass \(not current status\)/,
+    verification,
+    /Playwright could not find its Chromium\s+executable/,
   );
   assert.match(
-    read("docs/VERIFICATION.md"),
-    /mocked Tauri IPC layer, and fixture installation\/skin data/,
+    read("CONTRIBUTING.md"),
+    /Обновляйте документацию в том же изменении/,
   );
-  assert.match(
-    read("docs/INSTALLATION-ROADMAP.md"),
-    /not an exhaustive download manifest/,
+  assert.equal(
+    existsSync(path.join(root, "docs/INSTALLATION-ROADMAP.md")),
+    false,
   );
-  assert.match(read("docs/PLAN-0.12-0.15.md"), /Исторический план/);
+  assert.equal(existsSync(path.join(root, "docs/PLAN-0.12-0.15.md")), false);
   assert.doesNotMatch(
     read("docs/PROVIDER.md"),
     /автоматический выбор JRE из сети и загрузка Java лаунчером не реализованы/,

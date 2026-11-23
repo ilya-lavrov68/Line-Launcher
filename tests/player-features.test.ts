@@ -964,9 +964,9 @@ test("the close button is neutral at rest and reveals red on hover or focus", ()
   const button = close.slice(0, close.indexOf("</Button>"));
   assert.doesNotMatch(button, /(?:^|\s)bg-destructive-strong(?:\s|$)/);
   assert.match(button, /text-muted-foreground/);
-  assert.match(button, /hover:bg-destructive-strong/);
+  assert.match(button, /hover:!bg-destructive-strong/);
   assert.match(button, /hover:text-destructive-foreground/);
-  assert.match(button, /focus-visible:bg-destructive-strong/);
+  assert.match(button, /focus-visible:!bg-destructive-strong/);
   assert.match(button, /focus-visible:text-destructive-foreground/);
 
   const css = read("src/index.css");

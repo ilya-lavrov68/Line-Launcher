@@ -947,7 +947,7 @@ test("opening the wardrobe never signs the player out", () => {
   assert.match(sync, /setSyncError\(errorMessage\(cause\)\)/);
 });
 
-test("the close button's hover glyph does not disappear into its own fill", () => {
+test("the close button is vivid red with a white cross at rest", () => {
   const bar = read("src/components/line/TitleBar.tsx");
   const close = bar.slice(
     bar.lastIndexOf(
@@ -956,73 +956,14 @@ test("the close button's hover glyph does not disappear into its own fill", () =
     ),
   );
   const button = close.slice(0, close.indexOf("</Button>"));
-
-  // Rest state is the same grey as minimise and maximise — that was never the
-  // complaint.
-  const classes = (button.match(/className="([^"]*)"/)?.[1] ?? "").split(/\s+/);
-  assert.ok(classes.includes("text-muted-foreground"), "rest glyph stays grey");
-  assert.ok(!classes.includes("text-destructive"), "rest glyph is not red");
-  // Hover is the solid red fill that was reported as too dim. It fills from
-  // `destructive-strong`, not `destructive`: the latter is the error-text
-  // colour, and at 0.66 lightness it read as pale coral once it covered a
-  // whole 44×36 square.
+  assert.match(button, /bg-destructive-strong/);
+  assert.match(button, /text-destructive-foreground/);
   assert.match(button, /hover:bg-destructive-strong/);
   assert.match(button, /hover:text-destructive-foreground/);
 
-  // The glyph on that fill was `--destructive-foreground: oklch(0.72 0.19 22)`
-  // — #ff696d, a red a shade lighter than the #f84a54 fill under it, contrast
-  // 1.23:1. The ✕ was painted red-on-red, so the square read as one flat dim
-  // smudge instead of a red button with a symbol on it. This token has exactly
-  // one consumer — this button — so it is checked here.
-  //
-  // It must stay *red*: the button is meant to read red as a whole, and a
-  // white cross on a red square is a different design. What it needs is
-  // distance in lightness from the fill while the hue holds.
   const css = read("src/index.css");
-  const token = css.match(
-    /--destructive-foreground:\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/,
-  );
-  assert.ok(token, "--destructive-foreground must be an oklch triple");
-  const glyphL = Number(token[1]);
-  const glyphC = Number(token[2]);
-  const glyphH = Number(token[3]);
-  assert.ok(
-    glyphC >= 0.14,
-    `the hover glyph must still be red, got chroma ${glyphC}`,
-  );
-  assert.ok(
-    glyphL < 0.85,
-    `a near-white glyph was rejected as pink, got lightness ${glyphL}`,
-  );
-  assert.ok(
-    Math.abs(glyphH - 25) <= 8,
-    `it must stay on the same red hue, got ${glyphH}`,
-  );
-
-  // The fill it sits on: saturated, deep, and far enough from the glyph that
-  // the ✕ never blends into its own background again.
-  const fill = css.match(
-    /--destructive-strong:\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/,
-  );
-  assert.ok(fill, "--destructive-strong must be an oklch triple");
-  const fillL = Number(fill[1]);
-  const fillChroma = Number(fill[2]);
-  assert.ok(
-    fillChroma >= 0.22,
-    `the fill must stay saturated, got chroma ${fillChroma}`,
-  );
-  assert.ok(fillL <= 0.58, `the fill must be deep, got lightness ${fillL}`);
-  // Perceptually the two must be far apart: the old pair was 0.72 vs 0.66 in
-  // lightness at nearly the same chroma, which is why it disappeared.
-  assert.ok(
-    glyphL - fillL >= 0.18,
-    `glyph and fill are ${glyphL - fillL} apart in lightness`,
-  );
-  assert.ok(
-    glyphC - fillChroma <= 0.02,
-    "the glyph must not be more saturated than the fill",
-  );
-  // And the button colour must not leak into error text.
+  assert.match(css, /--destructive-strong:\s*oklch\(0\.58 0\.24 27\)/);
+  assert.match(css, /--destructive-foreground:\s*#fff/);
   assert.match(css, /--line-error:\s*var\(--destructive\)/);
 });
 
@@ -1135,6 +1076,35 @@ test("the title-bar brand mark stays pinned in the compact rail corner", () => {
   assert.doesNotMatch(titleBar, /brand\.name|railWidth|collapsed/);
 });
 
+test("server catalog search and install filters drive both catalogue views", () => {
+  const list = read("src/components/line/ServerList.tsx");
+  assert.match(list, /type="search"/);
+  assert.match(list, /aria-label=\{t\("catalog\.search"\)\}/);
+  assert.match(list, /filterServerCatalog\(servers/);
+  assert.match(list, /servers=\{visibleServers\}/);
+  assert.match(list, /catalogFilter === filter/);
+  assert.match(list, /hasCatalogFilter/);
+  assert.match(list, /catalog\.resultCount/);
+});
+
+test("the active sidebar destination uses white ink without a tile fill", () => {
+  const nav = read("src/components/line/SideNav.tsx");
+  assert.match(nav, /aria-current=\{active \? "page" : undefined\}/);
+  assert.match(nav, /active\s*\?\s*"text-foreground hover:bg-transparent"/);
+  assert.match(
+    nav,
+    /section === "settings"[\s\S]{0,90}\? "text-foreground hover:bg-transparent"/,
+  );
+  assert.doesNotMatch(nav, /bg-primary\/10 text-primary/);
+});
+
+test("grid server cards stand off the solid main panel", () => {
+  const card = read("src/components/line/ServerCard.tsx");
+  assert.match(card, /border-border\/50 bg-fill/);
+  assert.match(card, /hover:bg-fill-strong\/85/);
+  assert.doesNotMatch(card, /hover:border-transparent/);
+});
+
 test("collapsed sidebar buttons are direct centered flex items", () => {
   const nav = read("src/components/line/SideNav.tsx");
   assert.match(nav, /<Button\s+key=\{item\.id\}/);
@@ -1166,7 +1136,7 @@ test("the animated backdrop keeps its saturation lift across theme changes", () 
   assert.match(smoke, /backdropFilterAfter/);
 });
 
-test("the sidebar is narrower with smaller Material Symbols and usable targets", () => {
+test("the sidebar is compact and uses Lucide icons with usable targets", () => {
   const nav = read("src/components/line/SideNav.tsx");
   assert.match(nav, /animate=\{\{ width: collapsed \? 48 : 184 \}\}/);
   assert.match(nav, /<Icon className="h-5 w-5 shrink-0"/);
@@ -1176,9 +1146,5 @@ test("the sidebar is narrower with smaller Material Symbols and usable targets",
   assert.match(nav, /collapsed\s*\?\s*"mx-auto h-9 w-9 justify-center px-0"/);
   assert.match(nav, /"h-10 w-full justify-start px-2\.5"/);
   const icons = read("src/components/ui/icons.tsx");
-  assert.match(
-    icons,
-    /import apparel from "@material-symbols\/svg-400\/rounded\/apparel\.svg"/,
-  );
-  assert.match(icons, /export const Shirt = materialSymbol\(apparel\)/);
+  assert.match(icons, /Shirt,[\s\S]*?from "lucide-react"/);
 });

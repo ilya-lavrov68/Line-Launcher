@@ -998,7 +998,7 @@ export default function LineLauncher() {
                 >
                   <main
                     data-line-glass="main"
-                    className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] p-6"
+                    className="border-border/50 relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] border p-6"
                   >
                     {/* A stretched column all the way down. Pages that pin a
                       control to the bottom edge (the server dock) need the
@@ -1146,6 +1146,7 @@ export default function LineLauncher() {
                               screen === "servers" &&
                               snapshot && (
                                 <ServerList
+                                  providerName={snapshot.config.provider.name}
                                   layout={normalizeLayout(
                                     settings?.settings.serverLayout,
                                   )}
@@ -1168,7 +1169,6 @@ export default function LineLauncher() {
                                       ? t("servers.ready")
                                       : undefined
                                   }
-                                  providerName={snapshot.config.provider.name}
                                   servers={snapshot.config.servers}
                                   installedIds={installedIds}
                                   view={

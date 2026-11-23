@@ -131,11 +131,17 @@ test("the view switch stays visible with saved sections and restores the grouped
     list,
     /layout === undefined \|\| layout\.sections\.length === 0 \?/,
   );
-  assert.match(list, /\{view === "harmony" \? \(/);
-  assert.match(list, /\{view === "grid" &&\s*targets\.map/);
   assert.match(
     list,
-    /view === "grid" &&\s*layout !== undefined &&\s*layout\.sections\.length === 0/,
+    /\{view === "harmony" && visibleServers\.length > 0 \? \(/,
+  );
+  assert.match(
+    list,
+    /\{view === "grid" &&\s*visibleServers\.length > 0 &&\s*targets\.map/,
+  );
+  assert.match(
+    list,
+    /view === "grid" &&\s*visibleServers\.length > 0 &&\s*layout !== undefined &&\s*layout\.sections\.length === 0/,
   );
 });
 

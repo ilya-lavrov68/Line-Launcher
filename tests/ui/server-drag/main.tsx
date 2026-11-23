@@ -41,7 +41,7 @@ function App() {
       <main style={{ width: 900, margin: 40 }}>
         <span data-opened>{opened}</span>
         <ServerList
-          providerName="Provider"
+          providerName="Example project"
           servers={servers}
           layout={layout}
           onLayoutChange={(next) => {

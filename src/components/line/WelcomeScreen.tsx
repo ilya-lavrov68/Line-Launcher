@@ -34,12 +34,9 @@ export interface WelcomeScreenProps {
    * Never leave before this many milliseconds have passed, even if the word
    * finished early.
    *
-   * The greeting used to be a fixed 1.1s regardless of what was behind it, so
-   * on a cold start the backdrop — a WebGL haze whose module is imported after
-   * the first paint — was still arriving when the word faded, and the player
-   * watched an empty colour field finish resolving after the greeting had
-   * already gone. A greeting is the one moment where waiting reads as care, so
-   * it now holds until the backdrop has had a moment to land.
+   * The backdrop shader now starts loading immediately after the first paint,
+   * alongside the greeting stroke. This floor is for the word itself to remain
+   * readable, not to wait for a decorative asset.
    */
   minMs?: number;
 }

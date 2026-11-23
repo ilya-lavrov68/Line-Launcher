@@ -219,8 +219,8 @@ test("the catalogue rail is tryliner's now-playing strip, translated", () => {
   // One region, one action. A play button here would promise a launch that may
   // need an install first, so the strip only opens the server screen.
   assert.match(rail, /role="region"/);
-  assert.match(rail, /aria-label=\{t\("servers\.rail"\)\}/);
-  assert.match(rail, /\{t\("servers\.openShort"\)\}/);
+  assert.match(rail, /aria-label=\{t\("catalog\.lastSelected"\)\}/);
+  assert.match(rail, /\{t\("catalog\.details"\)\}/);
   assert.doesNotMatch(rail, /Играть|Остановить/);
   // Progress is a hairline with a real progressbar role, not a decoration.
   assert.match(rail, /role="progressbar"/);
@@ -329,10 +329,19 @@ test("the greeting draws itself and ends without waiting for the network", () =>
   // With reduced motion there is no draw to watch, so the screen needs a floor
   // of its own — it used to last 620ms and flashed past unread.
   assert.match(welcome, /REDUCED_MIN_MS/);
-  // The floor is not only the reduced-motion one: the greeting also waits for
-  // `minMs` so the backdrop's lazily-imported shader can land before the word
-  // fades. Ending on a still-empty colour field was the complaint.
+  // `minMs` keeps the greeting readable; it is no longer an artificial wait
+  // for the shader, which now starts loading alongside the stroke.
   assert.match(welcome, /Math\.max\(drawMs \+ holdMs, minMs, REDUCED_MIN_MS\)/);
+  const backdrop = read("src/components/line/AnimatedBackdrop.tsx");
+  assert.match(
+    backdrop,
+    /requestAnimationFrame\(\(\) => setHazeReady\(true\)\)/,
+  );
+  assert.match(backdrop, /void import\("hazeglow"\)/);
+  assert.doesNotMatch(
+    backdrop,
+    /HAZE_DEFER_MS|setTimeout\(\(\) => setHazeReady/,
+  );
   // No fetch, no session check, no promise: only the timer decides.
   assert.doesNotMatch(welcome, /\bawait\b|\bPromise\b|lineApi\./);
 
@@ -367,7 +376,6 @@ test("the greeting draws itself and ends without waiting for the network", () =>
 
   // The same background wash stays behind every screen; the welcome fade
   // must not remove it and make the colours look washed out afterwards.
-  const backdrop = read("src/components/line/AnimatedBackdrop.tsx");
   assert.doesNotMatch(welcome, /WASH|style=\{\{ background/);
   assert.match(backdrop, /data-line-backdrop-wash/);
   assert.match(backdrop, /style=\{\{ background: BACKDROP_WASH \}\}/);
@@ -774,19 +782,19 @@ test("the page cannot shift sideways when a screen starts overflowing", () => {
   );
 });
 
-test("the catalogue rail shares the cards' corner radius", () => {
-  // Measured defect: the strip above the grid was the only 90° rectangle on a
-  // screen built from 12px surfaces. It reads as a leftover, not as a pane.
+test("the featured catalogue server reads as an immersive panel", () => {
   const rail = read("src/components/line/ServerCatalogRail.tsx");
   const section = rail.slice(
-    rail.indexOf("data-line-glass"),
+    rail.indexOf("data-line-server-featured"),
     rail.indexOf("</section>"),
   );
   assert.match(
     section,
-    /rounded-\[var\(--radius-item\)\]/,
-    "the rail must use the item radius, like the cards below it",
+    /rounded-\[var\(--radius-panel\)\]/,
+    "the featured server should use the larger panel radius",
   );
+  assert.match(section, /min-h-56/);
+  assert.match(section, /bg-gradient-to-r/);
 });
 
 test("the sign-in plate is half the density of the shared pane", () => {
@@ -882,6 +890,16 @@ test("the sidebar blends into the backdrop while the main page stays distinct", 
     /<SideNav[\s\S]*?<main\s+data-line-glass="main"/,
     "navigation and page remain separate surfaces",
   );
+  const mainStart = launcher.lastIndexOf(
+    "<main",
+    launcher.indexOf('data-line-glass="main"'),
+  );
+  const main = launcher.slice(mainStart, launcher.indexOf(">", mainStart));
+  assert.match(main, /border-border\/50/);
+  assert.match(main, /rounded-\[var\(--radius-item\)\].*border/);
+  const serverCard = read("src/components/line/ServerCard.tsx");
+  assert.match(serverCard, /border-border\/50 bg-fill/);
+  assert.match(serverCard, /hover:bg-fill-strong\/85/);
   assert.match(
     launcher,
     /className="flex min-h-0 w-full flex-1 gap-1\.5 overflow-hidden"/,

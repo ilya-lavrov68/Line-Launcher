@@ -6,10 +6,16 @@ import {
   LayoutGrid,
   ListCollapse,
   RefreshCw,
+  Search,
   ShieldAlert,
 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { CatalogView, LineServer } from "@/types/line";
+import {
+  filterServerCatalog,
+  type ServerCatalogFilter,
+} from "@/lib/line/server-catalog";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/line/i18n";
 import {
@@ -79,6 +85,10 @@ export default function ServerList({
   onViewChange,
 }: ServerListProps) {
   const t = useT();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [catalogFilter, setCatalogFilter] =
+    useState<ServerCatalogFilter>("all");
+  const hasCatalogFilter = searchTerm.trim() !== "" || catalogFilter !== "all";
   const listRef = useRef<HTMLElement>(null);
   const cleanupDrag = useRef<(() => void) | null>(null);
   const suppressClick = useRef(false);
@@ -95,6 +105,7 @@ export default function ServerList({
     layout &&
     onLayoutChange &&
     layout.sections.length > 0 &&
+    !hasCatalogFilter &&
     !refreshing &&
     !actionsDisabled,
   );
@@ -195,32 +206,47 @@ export default function ServerList({
   }
   // One call decides the shape; the component only renders it. `layout`
   // undefined means the flat catalogue, so grouping is opt-in by the caller.
+  const visibleServers = filterServerCatalog(servers, {
+    query: searchTerm,
+    filter: catalogFilter,
+    installedIds,
+  });
   const groups =
     layout === undefined
-      ? groupServers(servers, EMPTY_LAYOUT)
-      : groupServers(servers, layout);
+      ? groupServers(visibleServers, EMPTY_LAYOUT)
+      : groupServers(visibleServers, layout);
+  // Hide empty sections only while narrowing the catalogue; otherwise the
+  // player's intentionally created empty sections remain available to manage.
+  const visibleGroups = hasCatalogFilter
+    ? groups.filter((group) => group.servers.length > 0)
+    : groups;
   // The implicit group normally disappears when empty, but it must remain a
   // drop target while dragging so every server can be moved back out.
   const targets =
-    dragging && !groups.some((group) => group.id === NO_SECTION)
-      ? [...groups, { id: NO_SECTION, name: "", collapsed: false, servers: [] }]
-      : groups;
+    dragging && !visibleGroups.some((group) => group.id === NO_SECTION)
+      ? [
+          ...visibleGroups,
+          { id: NO_SECTION, name: "", collapsed: false, servers: [] },
+        ]
+      : visibleGroups;
   return (
     <section
       ref={listRef}
       aria-labelledby="server-list-title"
       className="flex flex-col gap-6"
     >
-      {rail}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* The provider name is the section title. A «Провайдер» kicker above
-            it named the same thing twice and pushed the name down a line. */}
-        <h2
-          id="server-list-title"
-          className="text-foreground text-xl font-bold tracking-tight"
-        >
-          {providerName}
-        </h2>
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div className="min-w-0">
+          <h2
+            id="server-list-title"
+            className="text-foreground text-3xl font-bold tracking-tight"
+          >
+            {providerName}
+          </h2>
+          <p className="text-muted-foreground mt-1 max-w-xl text-sm leading-relaxed">
+            {t("catalog.subtitle")}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           {/* Keep both catalogue layouts available even when the player has
               sections: Harmony is a temporary presentation choice, not an edit
@@ -284,6 +310,59 @@ export default function ServerList({
         </div>
       </div>
 
+      {rail}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="search" className="relative min-w-48 flex-1 sm:max-w-sm">
+          <Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            aria-label={t("catalog.search")}
+            placeholder={t("catalog.search")}
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="h-9 pl-9"
+          />
+        </div>
+        <div
+          role="group"
+          aria-label={t("catalog.filter")}
+          className="border-border/50 bg-fill-subtle flex items-center gap-0.5 rounded-[var(--radius-control)] border p-0.5"
+        >
+          {(
+            [
+              ["all", t("catalog.all")],
+              ["installed", t("catalog.installed")],
+              ["not-installed", t("catalog.notInstalled")],
+            ] as const
+          ).map(([filter, label]) => (
+            <button
+              key={filter}
+              type="button"
+              aria-pressed={catalogFilter === filter}
+              onClick={() => setCatalogFilter(filter)}
+              className={cn(
+                "h-8 cursor-pointer rounded-[6px] px-2.5 text-[11px] font-medium transition-colors",
+                catalogFilter === filter
+                  ? "bg-fill-strong text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-muted-foreground ml-auto text-[11px] tabular-nums">
+          {t("catalog.resultCount", {
+            shown: visibleServers.length,
+            total: servers.length,
+          })}
+        </span>
+      </div>
+
       {stale && (
         <p
           role="status"
@@ -295,6 +374,7 @@ export default function ServerList({
       )}
 
       {view === "grid" &&
+        visibleServers.length > 0 &&
         layout !== undefined &&
         layout.sections.length === 0 && (
           <p className="text-muted-foreground text-xs leading-relaxed">
@@ -303,6 +383,8 @@ export default function ServerList({
         )}
 
       {view === "grid" &&
+        visibleServers.length > 0 &&
+        !hasCatalogFilter &&
         layout !== undefined &&
         layout.sections.length > 0 && (
           <p className="text-muted-foreground text-xs leading-relaxed">
@@ -310,13 +392,22 @@ export default function ServerList({
           </p>
         )}
 
+      {visibleServers.length === 0 && (
+        <p
+          role="status"
+          className="text-muted-foreground border-border/40 bg-fill-subtle rounded-[var(--radius-item)] border p-6 text-center text-sm"
+        >
+          {servers.length === 0 ? t("servers.empty") : t("catalog.noResults")}
+        </p>
+      )}
+
       {/* Harmony temporarily replaces the grouped grid; the saved sections
           remain untouched and return when the player switches back. Keep grid
           editing controls out of this presentation so every visible gesture
           continues to work. */}
-      {view === "harmony" ? (
+      {view === "harmony" && visibleServers.length > 0 ? (
         <HarmonyCatalog
-          servers={servers}
+          servers={visibleServers}
           installedIds={installedIds}
           statusFor={statusFor}
           disabled={refreshing || actionsDisabled}
@@ -325,6 +416,7 @@ export default function ServerList({
       ) : null}
 
       {view === "grid" &&
+        visibleServers.length > 0 &&
         targets.map((group) => (
           <div
             key={group.id || "unsorted"}
@@ -432,7 +524,7 @@ export default function ServerList({
           document.body,
         )}
 
-      {view === "grid" && layout !== undefined && (
+      {view === "grid" && !hasCatalogFilter && layout !== undefined && (
         <AddSectionButton
           layout={layout}
           disabled={actionsDisabled || refreshing}

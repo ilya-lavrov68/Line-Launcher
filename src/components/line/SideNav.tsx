@@ -114,7 +114,7 @@ export default function SideNav({
                   ? "cursor-not-allowed opacity-50 hover:bg-transparent"
                   : "cursor-pointer",
                 active
-                  ? "bg-primary/10 text-primary hover:bg-primary/15"
+                  ? "text-foreground hover:bg-transparent"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -148,7 +148,7 @@ export default function SideNav({
               ? "mx-auto h-9 w-9 justify-center px-0"
               : "h-10 w-full justify-start px-2.5",
             section === "settings"
-              ? "bg-primary/10 text-primary hover:bg-primary/15"
+              ? "text-foreground hover:bg-transparent"
               : "text-muted-foreground hover:text-foreground",
           )}
         >

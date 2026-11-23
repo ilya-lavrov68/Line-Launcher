@@ -151,8 +151,8 @@ function Catalogue() {
       <MotionConfig reducedMotion="always">
         <main style={{ maxWidth: 900, margin: 40 }}>
           <ServerList
+            providerName="Example project"
             servers={[minecraft]}
-            providerName="Provider"
             layout={{ sections: [], assignments: {} }}
             refreshing={refreshing}
             onRefresh={() => setRefreshing(true)}

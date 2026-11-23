@@ -88,7 +88,7 @@ export default function SectionHeader({
             onKeyDown={(event) => {
               if (event.key === "Escape") setRenaming(false);
             }}
-            className="border-input bg-background text-foreground h-7 min-w-0 flex-1 rounded-[var(--radius-control)] border px-2 text-sm"
+            className="border-input bg-background text-foreground h-7 min-w-0 flex-1 rounded-lg border px-2 text-sm"
           />
           <Button
             type="submit"
@@ -158,7 +158,7 @@ export default function SectionHeader({
                 <button
                   role="menuitem"
                   type="button"
-                  className="hover:bg-accent flex w-full cursor-pointer rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs"
+                  className="hover:bg-accent flex w-full cursor-pointer rounded-lg px-2 py-1.5 text-left text-xs"
                   onClick={() => {
                     setDraft(name);
                     setMenu(false);
@@ -170,7 +170,7 @@ export default function SectionHeader({
                 <button
                   role="menuitem"
                   type="button"
-                  className="hover:bg-destructive/15 text-destructive flex w-full cursor-pointer rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs"
+                  className="hover:bg-destructive/15 text-destructive flex w-full cursor-pointer rounded-lg px-2 py-1.5 text-left text-xs"
                   onClick={() => {
                     setMenu(false);
                     onRemove();

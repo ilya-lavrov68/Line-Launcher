@@ -431,7 +431,7 @@ export default function WardrobeScreen({
                 <label
                   htmlFor="skin-file"
                   className={cn(
-                    "border-input flex h-9 w-full cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border bg-transparent px-1.5 text-xs",
+                    "border-input flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border bg-transparent px-1.5 text-xs",
                     "hover:bg-fill-subtle hover:border-foreground/25 transition-colors",
                     "peer-focus-visible:border-ring peer-focus-visible:ring-ring/40 peer-focus-visible:ring-3",
                     controlsDisabled && "pointer-events-none opacity-50",
@@ -551,8 +551,8 @@ export default function WardrobeScreen({
             aria-label={t("wardrobe.pickDefault")}
             className={
               !activeId
-                ? "bg-primary/10 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-default"
-                : "hover:bg-fill/60 flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                ? "bg-primary/10 flex cursor-pointer items-center gap-3 rounded-lg p-2 text-left disabled:cursor-default"
+                : "hover:bg-fill/60 flex cursor-pointer items-center gap-3 rounded-lg p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
             }
           >
             <UserRound

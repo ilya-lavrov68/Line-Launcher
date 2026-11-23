@@ -97,7 +97,7 @@ export default function BackdropPicker({
             name: t(backdropNameKey(active.id)),
           })}
           className={cn(
-            "border-input bg-fill-subtle hover:bg-fill group flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[var(--radius-control)] border px-2.5 text-left transition-colors",
+            "border-input bg-fill-subtle hover:bg-fill group flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 text-left transition-colors",
             "focus-visible:ring-ring/40 focus-visible:ring-2 focus-visible:outline-none",
             disabled && "pointer-events-none opacity-50",
           )}
@@ -148,7 +148,7 @@ export default function BackdropPicker({
                   onFocus={() => setPeeked(theme.id)}
                   onBlur={() => peek(null)}
                   className={cn(
-                    "group flex cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-1.5 py-[5px] text-left transition-colors",
+                    "group flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-[5px] text-left transition-colors",
                     selected ? "bg-fill" : "hover:bg-fill-subtle",
                   )}
                 >

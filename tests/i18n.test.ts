@@ -153,6 +153,13 @@ test("settings are grouped into left-side categories", () => {
   assert.match(settings, /data-settings-category=\{id\}/);
   assert.match(settings, /setActiveGroup\(id\)/);
   assert.match(settings, /data-settings-categories/);
+  assert.match(settings, /md:grid-cols-\[168px_minmax\(0,1fr\)\]/);
+  assert.match(settings, /md:flex-col/);
+  assert.match(
+    settings,
+    /translateY\(calc\(\$\{activeGroupIndex \* 44\}px\)\)/,
+  );
+  assert.match(settings, /motion-reduce:transition-none/);
   assert.match(
     settings,
     /data-settings-panel="appearance"[\s\S]*?t\("settings\.lang"\)/,

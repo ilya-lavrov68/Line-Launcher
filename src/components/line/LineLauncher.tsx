@@ -998,7 +998,7 @@ export default function LineLauncher() {
                 >
                   <main
                     data-line-glass="main"
-                    className="border-border/50 relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] border p-6"
+                    className="border-border/50 relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[var(--radius-item)] border p-4 sm:p-5 lg:p-6"
                   >
                     {/* A stretched column all the way down. Pages that pin a
                       control to the bottom edge (the server dock) need the

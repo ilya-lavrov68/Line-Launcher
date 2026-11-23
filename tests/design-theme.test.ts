@@ -792,7 +792,7 @@ test("the featured catalogue server reads as an immersive panel", () => {
     /rounded-\[var\(--radius-panel\)\]/,
     "the featured server should use the larger panel radius",
   );
-  assert.match(section, /min-h-56/);
+  assert.match(section, /min-h-64[\s\S]*?sm:min-h-72/);
   assert.match(section, /bg-gradient-to-r/);
 });
 

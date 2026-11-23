@@ -624,6 +624,18 @@
     var(--fill-subtle);
 }
 
+/* A quiet, wide skin stage: enough warm light to separate the model, without
+ * turning the minimal account page into a cinematic poster. */
+.skin-stage.skin-hero-viewer {
+  background:
+    radial-gradient(
+      ellipse at 50% 42%,
+      rgba(204, 172, 135, 0.14),
+      transparent 52%
+    ),
+    #111318;
+}
+
 /* Reduced motion stops movement, not colour. The shader freezes at its first
  * frame (see AnimatedBackdrop) and the glass keeps its blur, so the window the
  * player chose looks the same — it just stops moving. An earlier rule painted

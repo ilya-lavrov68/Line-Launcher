@@ -7,7 +7,6 @@ import {
   UserRound,
 } from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import SectionIcon from "@/components/line/SectionIcon";
 import SkinViewer3D from "@/components/line/SkinViewer3D";
 import { Button } from "@/components/ui/button";
 import { errorMessage, lineApi } from "@/lib/line/api";
@@ -168,94 +167,42 @@ export default function ProfileScreen({
         </p>
       )}
 
-      <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="bg-fill-subtle flex flex-col gap-4 rounded-[var(--radius-item)] p-4">
-          <div className="flex items-start gap-3">
-            <SectionIcon icon={UserRound} />
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <h3 className="text-foreground text-sm font-semibold">
-                {session.username}
-              </h3>
-              <p className="text-muted-foreground text-xs">{providerName}</p>
-            </div>
-          </div>
-
-          {/*
-            The session expiry is the only account state the launcher actually
-            holds. Shown as a date, not a timestamp: "истекает 12 ноября" is
-            something a player can act on; a millisecond epoch is not.
-          */}
-          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
-            <dt className="text-muted-foreground">
-              {t("profile.sessionExpires")}
-            </dt>
-            <dd className="text-foreground">
-              {new Date(session.expiresAt).toLocaleString(t.language, {
-                day: "numeric",
-                month: "long",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </dd>
-            <dt className="text-muted-foreground">{t("profile.skin")}</dt>
-            <dd className="text-foreground truncate">
-              {loading
-                ? t("common.loading")
-                : (activeName ?? t("profile.standard"))}
-            </dd>
-          </dl>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={disabled || loading}
-              onClick={() => void load()}
-              className="cursor-pointer items-center gap-1.5 text-xs"
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              {t("servers.refresh")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={disabled}
-              onClick={onOpenWardrobe}
-              className="cursor-pointer items-center gap-1.5 text-xs"
-            >
-              <Shirt className="h-4 w-4" aria-hidden="true" />
-              {t("nav.wardrobe")}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={disabled}
-              onClick={() => setLogoutOpen(true)}
-              className="text-muted-foreground hover:text-foreground cursor-pointer items-center gap-1.5 text-xs"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-              {t("profile.logout")}
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
+      <div className="border-border/40 bg-fill-subtle overflow-hidden rounded-[var(--radius-panel)] border">
+        <div className="relative">
           <SkinViewer3D
             src={skin?.textureUrl}
             model={skin?.model ?? "classic"}
-            height={360}
+            height={420}
             animation={viewerPose}
+            className="skin-hero-viewer rounded-none"
           />
           <div
-            className="border-border/40 bg-fill-subtle relative grid grid-cols-3 gap-1 rounded-[var(--radius-item)] border p-1"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent"
+          />
+          <div className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] flex-col gap-0.5">
+            <span className="text-[10px] font-medium tracking-[0.12em] text-white/65 uppercase">
+              {t("profile.skin")}
+            </span>
+            {activeName && (
+              <span className="text-xs font-medium text-white">
+                {activeName}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="border-border/40 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+          <div
+            className="bg-fill-subtle relative grid grid-cols-3 gap-0.5 rounded-lg p-1"
             role="group"
             aria-label={t("profile.viewer.controls")}
           >
             <span
               aria-hidden="true"
-              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-1 bottom-1 left-1 w-[calc((100%-1.5rem)/3)] rounded-lg border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
+              className="bg-fill-strong pointer-events-none absolute top-1 bottom-1 left-1 w-[calc((100%-0.75rem)/3)] rounded-md transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
               style={{
-                transform: `translateX(calc(${["walk", "wave", "manual"].indexOf(viewerPose)} * (100% + 0.25rem)))`,
+                transform: `translateX(calc(${["walk", "wave", "manual"].indexOf(viewerPose)} * (100% + 0.125rem)))`,
               }}
             />
             {(["walk", "wave", "manual"] as const).map((pose) => (
@@ -264,13 +211,13 @@ export default function ProfileScreen({
                 type="button"
                 aria-pressed={viewerPose === pose}
                 onClick={() => setViewerPose(pose)}
-                className={`relative z-10 min-h-9 cursor-pointer rounded-lg px-2 text-[11px] font-medium transition-colors ${viewerPose === pose ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                className={`relative z-10 min-h-8 cursor-pointer rounded-md px-2.5 text-[11px] font-medium transition-colors ${viewerPose === pose ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {t(`profile.viewer.${pose}`)}
               </button>
             ))}
           </div>
-          <p className="text-muted-foreground text-[11px] leading-relaxed">
+          <p className="text-muted-foreground w-full min-w-0 text-left text-[11px] leading-relaxed sm:ml-auto sm:w-auto sm:flex-1 sm:text-right">
             {skin
               ? canSync
                 ? t("profile.synced")
@@ -278,7 +225,75 @@ export default function ProfileScreen({
               : t("profile.pickSkin")}
           </p>
         </div>
+
+        <div className="border-border/40 flex flex-col gap-4 border-t p-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <UserRound
+                className="text-muted-foreground size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <h3 className="text-foreground truncate text-sm font-semibold">
+                  {session.username}
+                </h3>
+                <p className="text-muted-foreground truncate text-[11px]">
+                  {providerName}
+                </p>
+              </div>
+            </div>
+            <dl className="flex flex-col gap-0.5">
+              <dt className="text-muted-foreground text-[10px]">
+                {t("profile.sessionExpires")}
+              </dt>
+              <dd className="text-foreground text-xs">
+                {new Date(session.expiresAt).toLocaleString(t.language, {
+                  day: "numeric",
+                  month: "long",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </dd>
+            </dl>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              onClick={onOpenWardrobe}
+              className="cursor-pointer items-center gap-1.5 text-xs"
+            >
+              <Shirt className="size-4" aria-hidden="true" />
+              {t("nav.wardrobe")}
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="outline"
+              aria-label={t("servers.refresh")}
+              disabled={disabled || loading}
+              onClick={() => void load()}
+            >
+              <RefreshCw
+                className={loading ? "size-4 animate-spin" : "size-4"}
+                aria-hidden="true"
+              />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              onClick={() => setLogoutOpen(true)}
+              className="text-muted-foreground hover:text-foreground cursor-pointer items-center gap-1.5 text-xs"
+            >
+              <LogOut className="size-4" aria-hidden="true" />
+              {t("profile.logout")}
+            </Button>
+          </div>
+        </div>
       </div>
+
       <details className="group border-border/50 bg-fill-subtle rounded-[var(--radius-item)] border">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
           <span className="text-foreground text-sm font-semibold">

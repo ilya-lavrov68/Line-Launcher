@@ -52,7 +52,7 @@ export function ServerCatalogRail({
             data-line-server-featured
             role="region"
             aria-label={t("catalog.lastSelected")}
-            className="border-border/50 bg-fill relative isolate flex min-h-56 overflow-hidden rounded-[var(--radius-panel)] border"
+            className="border-border/50 bg-fill relative isolate flex min-h-64 overflow-hidden rounded-[var(--radius-panel)] border sm:min-h-72"
           >
             {server.banner_url && !bannerFailed ? (
               <img
@@ -80,7 +80,7 @@ export function ServerCatalogRail({
               className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10"
             />
 
-            <div className="relative flex min-h-56 w-full flex-col justify-end gap-6 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
+            <div className="relative flex min-h-64 w-full flex-col justify-end gap-6 p-6 sm:min-h-72 sm:flex-row sm:items-end sm:justify-between sm:p-8">
               <div className="flex max-w-2xl min-w-0 flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-white/85 uppercase backdrop-blur-sm">

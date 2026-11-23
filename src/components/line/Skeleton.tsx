@@ -123,9 +123,8 @@ export function SkeletonSettings() {
 }
 
 /**
- * The account page: the 3D viewer's box on the left, the session facts on the
- * right. The box is a square because the viewer is one — a resized canvas after
- * load is exactly the jump skeletons exist to prevent.
+ * The account page: a full-width skin stage with compact controls and account
+ * details below, matching the minimal hero composition.
  */
 export function SkeletonProfile() {
   return (
@@ -133,20 +132,39 @@ export function SkeletonProfile() {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      className="flex flex-col gap-6 sm:flex-row sm:items-start"
+      className="border-border/40 bg-fill-subtle overflow-hidden rounded-[var(--radius-panel)] border"
     >
-      <SkeletonBlock
-        className="aspect-square w-full max-w-[260px]"
-        rounded="md"
-      />
-      <div className="flex flex-1 flex-col gap-4">
-        <SkeletonBlock className="h-6 w-1/3" />
-        <SkeletonBlock className="h-3 w-1/4" />
-        <div className="flex flex-col gap-2">
-          <SkeletonBlock className="h-3 w-full" />
-          <SkeletonBlock className="h-3 w-5/6" />
+      <div className="skin-stage relative flex h-[420px] items-center justify-center">
+        <SkeletonBlock className="h-64 w-28 rounded-lg" />
+        <SkeletonBlock className="absolute bottom-4 left-4 h-3 w-24" />
+      </div>
+      <div className="border-border/40 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+        <div className="bg-fill-subtle grid grid-cols-3 gap-0.5 rounded-lg p-1">
+          {[0, 1, 2].map((item) => (
+            <SkeletonBlock key={item} className="h-8 w-20 rounded-md" />
+          ))}
         </div>
-        <SkeletonBlock className="h-9 w-36" rounded="md" />
+        <SkeletonBlock className="h-3 w-40" />
+      </div>
+      <div className="border-border/40 flex flex-col gap-4 border-t p-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2.5">
+            <SkeletonBlock className="size-4 rounded-full" />
+            <div className="flex flex-col gap-1.5">
+              <SkeletonBlock className="h-3.5 w-24" />
+              <SkeletonBlock className="h-2.5 w-32" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <SkeletonBlock className="h-2.5 w-20" />
+            <SkeletonBlock className="h-3 w-28" />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SkeletonBlock className="h-7 w-24 rounded-lg" />
+          <SkeletonBlock className="size-7 rounded-lg" />
+          <SkeletonBlock className="h-7 w-20 rounded-lg" />
+        </div>
       </div>
     </div>
   );

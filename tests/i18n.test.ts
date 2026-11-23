@@ -170,6 +170,31 @@ test("settings are grouped into left-side categories", () => {
   );
 });
 
+test("settings use balanced spacing and a flat active category marker", () => {
+  const settings = read("src/components/line/SettingsScreen.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  assert.match(settings, /max-w-4xl flex-col gap-4/);
+  assert.match(
+    settings,
+    /border-border\/30 flex min-w-0 flex-col gap-3 border-b pb-6 last:border-b-0 last:pb-0/,
+  );
+  assert.match(settings, /flex flex-col gap-6/);
+  const categoryNav = settings.match(
+    /<nav[\s\S]*?data-settings-categories[\s\S]*?<\/nav>/,
+  )?.[0];
+  assert.ok(categoryNav);
+  assert.match(categoryNav, /bg-primary\/12/);
+  assert.doesNotMatch(
+    categoryNav,
+    /border-primary\/20|border transition-transform/,
+  );
+  assert.match(settings, /role="radio"[\s\S]*?rounded-lg border p-2/);
+  assert.match(
+    launcher,
+    /rounded-\[var\(--radius-item\)\] border p-4 sm:p-5 lg:p-6/,
+  );
+});
+
 test("new settings and logout confirmation labels exist in every locale", () => {
   const keys = [
     "profile.logoutConfirmTitle",

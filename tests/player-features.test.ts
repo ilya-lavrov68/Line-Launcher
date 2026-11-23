@@ -1126,12 +1126,28 @@ test("server catalog search and install filters drive both catalogue views", () 
   assert.match(list, /catalog\.resultCount/);
 });
 
-test("catalogue controls share the same radius and height", () => {
+test("catalogue buttons and filters use the shared navbar corner radius", () => {
   const list = read("src/components/line/ServerList.tsx");
   assert.doesNotMatch(list, /data-catalog-header-actions/);
-  assert.match(list, /rounded-\[var\(--radius-control\)\]/);
-  assert.match(list, /rounded-\[calc\(var\(--radius-control\)-2px\)\]/);
-  assert.match(list, /h-9 rounded-\[var\(--radius-control\)\]/);
+  assert.match(list, /rounded-lg border p-0\.5/);
+  assert.match(list, /rounded-lg px-2 text-\[11px\] font-medium/);
+  assert.match(list, /h-9 rounded-lg pl-9/);
+  assert.doesNotMatch(
+    list,
+    /rounded-\[calc\(var\(--radius-control\)-2px\)\]|rounded-\[6px\]/,
+  );
+});
+
+test("shared buttons, tabs and switches use the navbar corner radius", () => {
+  const button = read("src/components/ui/button.tsx");
+  const tabs = read("src/components/ui/tabs.tsx");
+  const select = read("src/components/ui/select.tsx");
+  const toggle = read("src/components/ui/switch.tsx");
+  assert.match(button, /rounded-lg border border-transparent/);
+  assert.doesNotMatch(button, /rounded-\[min\(var\(--radius-md\)/);
+  assert.match(tabs, /gap-1\.5 rounded-lg border/);
+  assert.match(select, /data-\[size=sm\]:rounded-lg/);
+  assert.match(toggle, /items-center rounded-lg border/);
 });
 
 test("server details use a roomier responsive frame and handle motion and failed art", () => {

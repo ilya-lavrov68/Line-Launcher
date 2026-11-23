@@ -98,7 +98,7 @@ export default function QuarantineDialog({
           {paths.map((path) => (
             <li key={path}>
               <label
-                className="hover:bg-fill-subtle flex cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 transition-colors"
+                className="hover:bg-fill-subtle flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
                 title={path}
               >
                 <input

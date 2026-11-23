@@ -164,7 +164,7 @@ export function ServerCatalogRail({
                 variant="secondary"
                 disabled={busy}
                 onClick={() => onOpen(server)}
-                className="text-background h-10 shrink-0 gap-2 rounded-[var(--radius-control)] bg-white px-4 text-sm font-semibold hover:bg-white/90"
+                className="text-background h-10 shrink-0 gap-2 rounded-lg bg-white px-4 text-sm font-semibold hover:bg-white/90"
               >
                 <span>{t("catalog.details")}</span>
                 <ChevronRight className="size-4" aria-hidden="true" />

@@ -125,7 +125,7 @@ export default function ConfigUrlInput({
         <Button
           type="submit"
           disabled={loading || !url.trim()}
-          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold"
+          className="h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg text-sm font-semibold"
         >
           {loading ? (
             <RefreshCw className="h-4 w-4 animate-spin" />

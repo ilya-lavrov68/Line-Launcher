@@ -166,6 +166,9 @@ export default function SettingsScreen({
     { id: "window", label: t("settings.group.window"), icon: MonitorCog },
     { id: "storage", label: t("settings.group.storage"), icon: HardDrive },
   ] as const;
+  const activeGroupIndex = settingsGroups.findIndex(
+    ({ id }) => id === activeGroup,
+  );
 
   useEffect(() => {
     setHeap(settings.heapMb ?? suggestedHeapMb);
@@ -319,18 +322,25 @@ export default function SettingsScreen({
         </p>
       )}
 
-      <div className="flex min-w-0 flex-col gap-5">
+      <div className="grid min-w-0 gap-5 md:grid-cols-[168px_minmax(0,1fr)]">
         <nav
           aria-label={t("settings.group.nav")}
           data-settings-categories
-          className="border-border/40 bg-fill-subtle min-w-0 overflow-x-auto rounded-[var(--radius-item)] border p-1"
+          className="border-border/40 bg-fill-subtle min-w-0 overflow-x-auto rounded-[var(--radius-item)] border p-1 md:self-start md:overflow-visible"
         >
-          <div className="relative flex min-w-[640px] gap-1">
+          <div className="relative flex min-w-[640px] gap-1 md:min-w-0 md:flex-col">
             <span
               aria-hidden="true"
-              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-4px)] border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
+              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-4px)] border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:hidden"
               style={{
-                transform: `translateX(calc(${settingsGroups.findIndex(({ id }) => id === activeGroup)} * (100% + 0.25rem)))`,
+                transform: `translateX(calc(${activeGroupIndex} * (100% + 0.25rem)))`,
+              }}
+            />
+            <span
+              aria-hidden="true"
+              className="border-primary/20 bg-primary/12 pointer-events-none absolute top-0 left-0 hidden h-10 w-full rounded-lg border transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:block"
+              style={{
+                transform: `translateY(calc(${activeGroupIndex * 44}px))`,
               }}
             />
             {settingsGroups.map(({ id, label, icon: Icon }) => {
@@ -343,7 +353,7 @@ export default function SettingsScreen({
                   aria-current={selected ? "page" : undefined}
                   onClick={() => setActiveGroup(id)}
                   className={cn(
-                    "relative z-10 flex min-h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-center text-xs font-medium transition-colors",
+                    "relative z-10 flex min-h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-center text-xs font-medium transition-colors md:w-full md:flex-none md:justify-start md:text-left",
                     selected
                       ? "text-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -575,7 +585,7 @@ export default function SettingsScreen({
                         void persist({ ...settings, workspace: option.id })
                       }
                       className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border p-2 text-left transition-colors",
+                        "flex cursor-pointer items-center gap-3 rounded-lg border p-2 text-left transition-colors",
                         active
                           ? "border-foreground/30 bg-fill-subtle"
                           : "border-border/40 hover:border-foreground/20 hover:bg-fill-subtle/60",
@@ -846,7 +856,7 @@ export default function SettingsScreen({
                           }}
                           className={cn(
                             "border-input focus-visible:border-ring bg-transparent",
-                            "focus-visible:ring-ring/50 h-9 w-28 rounded-[var(--radius-control)] border py-0 pr-8 pl-3",
+                            "focus-visible:ring-ring/50 h-9 w-28 rounded-lg border py-0 pr-8 pl-3",
                             "font-mono text-xs outline-none focus-visible:ring-3",
                           )}
                         />

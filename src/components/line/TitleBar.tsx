@@ -16,6 +16,8 @@ import { useT } from "@/lib/line/i18n";
 export interface TitleBarProps {
   /** Breadcrumb shown after the fixed brand mark. */
   context?: string;
+  /** App-level feature actions, such as official news; omitted until implemented. */
+  actions?: React.ReactNode;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface TitleBarProps {
  * `data-tauri-drag-region` marks the draggable area; interactive children opt out
  * automatically because Tauri ignores the drag region on interactive elements.
  */
-export default function TitleBar({ context }: TitleBarProps) {
+export default function TitleBar({ context, actions }: TitleBarProps) {
   const t = useT();
   const [maximized, setMaximized] = useState(false);
 
@@ -90,41 +92,57 @@ export default function TitleBar({ context }: TitleBarProps) {
           </>
         )}
       </div>
-      {hasCustomFrame && (
-        <div className="flex shrink-0 items-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => void minimizeWindow()}
-            aria-label={t("window.minimize")}
-            className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
-          >
-            <Minus className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => void toggleMaximizeWindow()}
-            aria-label={maximized ? t("window.restore") : t("window.maximize")}
-            className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
-          >
-            {maximized ? (
-              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-            ) : (
-              <CropSquare className="h-3.5 w-3.5" aria-hidden="true" />
-            )}
-          </Button>
-          {/* The close control stays vividly red, with a white cross, so its
-              destructive action is clear without relying on hover. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => void closeWindow()}
-            aria-label={t("window.close")}
-            className="bg-destructive-strong text-destructive-foreground hover:bg-destructive-strong hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </Button>
+      {(actions || hasCustomFrame) && (
+        <div className="flex shrink-0 items-center gap-2">
+          {actions && (
+            <div
+              data-window-actions
+              role="group"
+              aria-label={t("window.actions")}
+              className="flex items-center gap-1"
+            >
+              {actions}
+            </div>
+          )}
+          {hasCustomFrame && (
+            <div className="flex shrink-0 items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void minimizeWindow()}
+                aria-label={t("window.minimize")}
+                className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
+              >
+                <Minus className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void toggleMaximizeWindow()}
+                aria-label={
+                  maximized ? t("window.restore") : t("window.maximize")
+                }
+                className="text-muted-foreground hover:text-foreground h-9 w-11 cursor-pointer rounded-none"
+              >
+                {maximized ? (
+                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <CropSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+              </Button>
+              {/* Keep the close control quiet at rest like its neighbors; reveal
+                  the destructive red surface on hover and keyboard focus. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void closeWindow()}
+                aria-label={t("window.close")}
+                className="text-muted-foreground hover:bg-destructive-strong hover:text-destructive-foreground focus-visible:bg-destructive-strong focus-visible:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </header>

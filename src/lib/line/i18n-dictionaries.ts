@@ -45,6 +45,7 @@ export const ru = {
   "window.maximize": "Развернуть",
   "window.restore": "Восстановить",
   "window.close": "Закрыть",
+  "window.actions": "Действия приложения",
   "window.connecting": "Подключение",
 
   "signin.tagline": "Один вход — все серверы проекта.",
@@ -565,6 +566,7 @@ const en: Dictionary = {
   "window.maximize": "Maximise",
   "window.restore": "Restore",
   "window.close": "Close",
+  "window.actions": "App actions",
   "window.connecting": "Connecting",
 
   "signin.tagline": "One sign-in — every server in the project.",
@@ -1085,6 +1087,7 @@ const de: Dictionary = {
   "window.maximize": "Maximieren",
   "window.restore": "Wiederherstellen",
   "window.close": "Schließen",
+  "window.actions": "App-Aktionen",
   "window.connecting": "Verbindung",
 
   "signin.tagline": "Eine Anmeldung — alle Server des Projekts.",
@@ -1614,6 +1617,7 @@ const fr: Dictionary = {
   "window.maximize": "Agrandir",
   "window.restore": "Restaurer",
   "window.close": "Fermer",
+  "window.actions": "Actions de l’application",
   "window.connecting": "Connexion",
 
   "signin.tagline": "Une connexion — tous les serveurs du projet.",

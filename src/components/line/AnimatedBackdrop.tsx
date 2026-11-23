@@ -40,9 +40,9 @@ import {
  * normaliser in with it, and importing it eagerly put all of that in front of
  * the first paint — the greeting and the sign-in card waited for a shader to
  * arrive before they could be shown. It is now a dynamic import started *after*
- * the window has painted (and only when WebGL2 exists at all): the CSS colour
- * field is already on screen, so the canvas fades in a moment later instead of
- * holding the page back. `HazeLayer` is the boundary where that happens.
+ * the first frame has painted (and only when WebGL2 exists at all): the CSS
+ * colour field is already on screen, so the canvas can load alongside the
+ * greeting instead of holding the page back.
  *
  * ## Switching themes smoothly
  *
@@ -70,15 +70,11 @@ import {
 /** How long the old theme stays underneath while the new one fades in. */
 const CROSSFADE_MS = 600;
 
-/**
- * How long after mount the shader import may start.
- *
- * Long enough that the first paint, the greeting's animation and the settings
- * IPC have all had their turn on the main thread; short enough that the haze is
- * there by the time the greeting is over. The CSS field is what is on screen
- * until then, so a late start costs nothing visually.
- */
-const HAZE_DEFER_MS = 350;
+type ShaderComponent = ComponentType<{
+  config: BackdropTheme["config"];
+  className?: string;
+  onUnsupported?: () => void;
+}>;
 
 // This was previously painted only by WelcomeScreen and faded out with the
 // greeting, washing the colours out when the rest of the interface appeared.
@@ -151,18 +147,19 @@ class BackdropBoundary extends Component<
  * effect (not a timer inside the style) also means the browser has a real
  * starting value to interpolate from.
  *
- * `Hazeglow` arrives through `import("hazeglow")` in an effect, so the renderer
- * is not part of the startup bundle: this component renders nothing until the
- * chunk has landed, and the CSS field underneath is what the player sees until
- * then. A chunk that never arrives (offline dev server, a broken cache) simply
- * leaves the CSS field in place — the same fallback as a driver that refuses the
- * context.
+ * `Hazeglow` arrives through a dynamic import started after the first paint,
+ * so the renderer is not part of the startup bundle. This component renders
+ * nothing until the chunk has landed, and the CSS field underneath is what the
+ * player sees until then. A chunk that never arrives (offline dev server, a
+ * broken cache) simply leaves the CSS field in place — the same fallback as a
+ * driver that refuses the context.
  */
 function HazeLayer({
   theme,
   enter,
   exit,
   reduced,
+  Shader,
   onUnsupported,
 }: {
   theme: BackdropTheme;
@@ -171,27 +168,10 @@ function HazeLayer({
   /** Outgoing layers fade away beneath the incoming theme. */
   exit: boolean;
   reduced: boolean;
+  Shader: ShaderComponent | null;
   onUnsupported: () => void;
 }) {
   const [shown, setShown] = useState(!enter);
-  type ShaderComponent = ComponentType<{
-    config: BackdropTheme["config"];
-    className?: string;
-    onUnsupported?: () => void;
-  }>;
-  const [Shader, setShader] = useState<ShaderComponent | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void import("hazeglow")
-      .then((module) => {
-        if (!cancelled) setShader(() => module.Hazeglow);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!enter) {
@@ -241,12 +221,11 @@ export default function AnimatedBackdrop({
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
   );
   const [supported, setSupported] = useState(hasWebgl2);
-  /**
-   * The shader waits for the first paint. `false` on the very first render, then
-   * flipped by a timer: this is the whole startup optimisation for decoration —
-   * the import request is not even issued until the window has something on it.
-   */
+  // Keep the heavy shader out of the first paint, but start downloading its
+  // chunk immediately after that paint. This puts WebGL work alongside the
+  // welcome stroke instead of hundreds of milliseconds after it.
   const [hazeReady, setHazeReady] = useState(false);
+  const [Shader, setShader] = useState<ShaderComponent | null>(null);
 
   const active = backdropTheme(themeId);
   // `layers` holds the theme currently painted plus, during a switch, the one
@@ -254,9 +233,19 @@ export default function AnimatedBackdrop({
   const [layers, setLayers] = useState<BackdropTheme[]>([active]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setHazeReady(true), HAZE_DEFER_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
+    if (!supported) return;
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => setHazeReady(true));
+    void import("hazeglow")
+      .then((module) => {
+        if (!cancelled) setShader(() => module.Hazeglow);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [supported]);
 
   // Follow the preference live: someone who turns it on mid-session should not
   // have to restart the launcher for the page to settle.
@@ -335,6 +324,7 @@ export default function AnimatedBackdrop({
               enter={index === layers.length - 1 && layers.length > 1}
               exit={index < layers.length - 1}
               reduced={reduced}
+              Shader={Shader}
               onUnsupported={() => setSupported(false)}
             />
           ))}

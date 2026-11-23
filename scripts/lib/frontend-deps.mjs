@@ -12,7 +12,7 @@ export function missingFrontendDependencies(root) {
     "@tailwindcss/vite",
     "tailwindcss/index.css",
     "typescript",
-    "@material-symbols/svg-400/rounded/error.svg",
+    "lucide-react",
   ];
   const missing = modules.filter((name) => {
     try {

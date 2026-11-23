@@ -114,22 +114,14 @@ export default function TitleBar({ context }: TitleBarProps) {
               <CropSquare className="h-3.5 w-3.5" aria-hidden="true" />
             )}
           </Button>
-          {/*
-            Grey at rest like the other two, red on hover — the hover was the
-            complaint, and it had two faults. The fill was `--destructive`, a
-            pale coral chosen for error *text*; and `--destructive-foreground`
-            pointed at a red of its own, so the ✕ was drawn red-on-red (1.23:1,
-            invisible) and the square read as one dim smudge instead of a red
-            button. Both are fixed: `--destructive-strong` fills the square,
-            `--destructive-foreground` is near-white, and this button is the
-            only consumer of either.
-          */}
+          {/* The close control stays vividly red, with a white cross, so its
+              destructive action is clear without relying on hover. */}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => void closeWindow()}
             aria-label={t("window.close")}
-            className="text-muted-foreground hover:bg-destructive-strong hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
+            className="bg-destructive-strong text-destructive-foreground hover:bg-destructive-strong hover:text-destructive-foreground h-9 w-11 cursor-pointer rounded-none"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>

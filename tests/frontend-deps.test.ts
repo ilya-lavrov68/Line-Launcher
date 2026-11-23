@@ -8,17 +8,16 @@ import {
   frontendDependenciesHelp,
 } from "../scripts/lib/frontend-deps.mjs";
 
-test("frontend preflight catches a missing Material Symbols asset before Vite builds", () => {
+test("frontend preflight catches a missing Lucide package before Vite builds", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "line-frontdeps-icons-"));
   try {
     writeFileSync(path.join(root, "package.json"), "{}");
-    const icon = "@material-symbols/svg-400/rounded/error.svg";
-    assert.ok(missingFrontendDependencies(root).includes(icon));
+    assert.ok(missingFrontendDependencies(root).includes("lucide-react"));
 
-    const file = path.join(root, "node_modules", ...icon.split("/"));
-    mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, "<svg/>");
-    assert.ok(!missingFrontendDependencies(root).includes(icon));
+    const directory = path.join(root, "node_modules", "lucide-react");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(path.join(directory, "index.js"), "export {};");
+    assert.ok(!missingFrontendDependencies(root).includes("lucide-react"));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

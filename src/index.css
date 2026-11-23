@@ -41,13 +41,9 @@
   --accent: rgba(255, 255, 255, 0.08);
   --accent-foreground: oklch(0.98 0.002 250);
   --destructive: oklch(0.66 0.21 22);
-  /* The red behind a destructive *button*, which is not the same job as the red
-   * of an error line. An error is read as text, so it needs lightness; a button
-   * that fills its whole square on hover can be deep and saturated without
-   * costing legibility, and at 0.66 it looked washed out — a pale coral rather
-   * than a red. Kept separate from `--destructive` so fixing the button does not
-   * darken «Не удалось подключиться» along with it. */
-  --destructive-strong: oklch(0.55 0.24 27);
+  /* Saturated red reserved for the window close control; error copy keeps its
+   * own lighter semantic color above. */
+  --destructive-strong: oklch(0.58 0.24 27);
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
   --ring: oklch(0.92 0.004 286.32 / 45%);
@@ -59,15 +55,8 @@
   --sidebar-accent-foreground: oklch(0.98 0.002 250);
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: var(--ring);
-  /* The glyph *on* a destructive fill — and it stays red, because the whole
-   * button is meant to read as red, not as a red square with a white cross on
-   * it. What it must not be is the same red as the fill: this token used to be
-   * oklch(0.72 0.19 22) = #ff696d against a #f84a54 fill, and at 1.23:1 the ✕
-   * vanished into its own square. The fix is distance in *lightness* while the
-   * hue holds: a saturated coral red at 0.78 against the 0.55 fill gives 2.5:1,
-   * so both read as red and the shape still has an edge. 0.86 was tried and
-   * looked pink, closer to a white cross than a red one. */
-  --destructive-foreground: oklch(0.78 0.17 22);
+  /* Pure white on the vivid red close control for clear, high-contrast shape. */
+  --destructive-foreground: #fff;
 
   /* ── the quiet-fill ladder and the glass surface ──
    *
@@ -290,22 +279,6 @@
 /* ─────────────────────── component opt-in rules ─────────────────────── */
 
 @layer components {
-  /* A glyph is a local, tree-shaken SVG mask: it inherits currentColor, sizes
-   * like the old SVG components, and adds no remote font request at startup. */
-  .line-symbol {
-    display: inline-block;
-    width: 1em;
-    height: 1em;
-    flex: none;
-    background-color: currentColor;
-    mask-repeat: no-repeat;
-    mask-position: center;
-    mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    -webkit-mask-size: contain;
-  }
-
   /* Panel surfaces, only while the new theme is active.
    *
    * No outline: a 1px border around every panel is the loudest thing on a dark

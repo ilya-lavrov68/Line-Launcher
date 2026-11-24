@@ -174,7 +174,7 @@ export default function ServerDetail(props: ServerDetailProps) {
               Liner opens on the cover of what you are about to play. Without it
               the top of the screen was a heading over an empty field. */}
       {server.banner_url && (
-        <div className="bg-fill-subtle relative aspect-[16/5] w-full overflow-hidden rounded-[var(--radius-panel)]">
+        <div className="bg-fill-subtle relative aspect-[4/1] w-full overflow-hidden rounded-[var(--radius-panel)]">
           {!bannerFailed ? (
             <img
               src={server.banner_url}
@@ -203,7 +203,7 @@ export default function ServerDetail(props: ServerDetailProps) {
             <img
               src={server.icon_url ?? server.logo_url}
               alt=""
-              className="size-full object-cover"
+              className="size-full object-contain p-1"
               referrerPolicy="no-referrer"
               onError={() => setIconFailed(true)}
             />

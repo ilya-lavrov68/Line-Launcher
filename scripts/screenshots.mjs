@@ -5,8 +5,8 @@
 //
 // The images are real renders of the real components, driven by a test-only
 // Tauri IPC stub and the demo provider from examples/config.json. Artwork is
-// generated here (gradients, not the 1x1 red pixel the smoke suite uses) so the
-// documentation shows what a configured project actually looks like.
+// authored in scripts/lib/demo-art.mjs (abstract vector design, no external
+// image hosts) so the documentation matches the reference provider.
 //
 // Captures are staged and published only when the whole gallery succeeds.
 // The transient connecting screen is not part of the gallery.
@@ -21,6 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 import { browserHelp, findBrowser } from "./lib/find-browser.mjs";
+import { demoBannerDataUrl, demoIconDataUrl } from "./lib/demo-art.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs/images");
@@ -43,40 +44,10 @@ const config = JSON.parse(
 );
 config.provider.name = "Plus In Plus Demo";
 
-/** Gradient artwork as an inline SVG data URL. */
-function art(from, to, glyph) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>
-    </linearGradient>
-  </defs>
-  <rect width="640" height="200" fill="url(#g)"/>
-  <g fill="#ffffff" opacity="0.07">
-    <circle cx="548" cy="34" r="96"/><circle cx="96" cy="188" r="72"/>
-  </g>
-  <g fill="#ffffff" opacity="0.13">
-    <rect x="40" y="120" width="26" height="26" rx="4"/>
-    <rect x="74" y="94" width="26" height="52" rx="4"/>
-    <rect x="108" y="108" width="26" height="38" rx="4"/>
-  </g>
-  <text x="320" y="112" font-family="DejaVu Sans, sans-serif" font-size="30"
-        font-weight="700" fill="#ffffff" opacity="0.9" text-anchor="middle">${glyph}</text>
-</svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
-
-function icon(from, to, letter) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>
-  </linearGradient></defs>
-  <rect width="128" height="128" rx="28" fill="url(#g)"/>
-  <text x="64" y="86" font-family="DejaVu Sans, sans-serif" font-size="62"
-        font-weight="700" fill="#ffffff" text-anchor="middle">${letter}</text>
-</svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
+// Use the same authored vector artwork as the reference provider. Keeping one
+// source of truth prevents the README screenshots from drifting into a separate
+// visual language or falling back to generic gradient placeholders.
+const artThemes = ["survival", "skyblock", "creative"];
 
 // The demo config ships without launch endpoints. Enable them so the screenshots
 // show the real play state rather than "Запуск не настроен".
@@ -93,17 +64,12 @@ config.servers[1] = {
   minecraft_version: "1.21.1",
 };
 
-const themes = [
-  ["#0f766e", "#052e2b", "SURVIVAL", "S"],
-  ["#1d4ed8", "#0b1a3a", "SKYBLOCK", "K"],
-  ["#b45309", "#3b1004", "CREATIVE", "C"],
-];
 config.servers = config.servers.map((server, index) => {
-  const [from, to, glyph, letter] = themes[index % themes.length];
+  const theme = artThemes[index % artThemes.length];
   return {
     ...server,
-    banner_url: art(from, to, glyph),
-    icon_url: icon(from, to, letter),
+    banner_url: demoBannerDataUrl(theme),
+    icon_url: demoIconDataUrl(theme),
   };
 });
 
@@ -323,11 +289,9 @@ await page.addInitScript(
               // default the first run actually opens with.
               sidebarCollapsed: true,
               afterLaunch: "minimize",
-              // Explicitly capture the shipped defaults: grid catalog and
-              // opaque charcoal panels. The animated copper backdrop remains
-              // visible around the panels in the solid finish.
+              // Capture the unified server directory and opaque panels. The
+              // animated backdrop remains visible around panels in solid mode.
               backdrop: "copper",
-              catalogView: "grid",
               workspace: "solid",
               windowWidth: 1280,
               windowHeight: 860,
@@ -474,15 +438,17 @@ try {
   await page.getByLabel("Пароль", { exact: true }).fill("demo-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).waitFor();
-  await shot("servers");
 
-  // The optional accordion view is a separate screenshot so the README shows
-  // both the grid default and the compact view for scanning a longer catalog.
-  await page.getByRole("button", { name: "Гармонь", exact: true }).click();
-  await page.locator("[data-line-harmony]").waitFor();
-  await shot("harmony");
-  await page.getByRole("button", { name: "Сетка", exact: true }).click();
-  await page.locator("[data-line-harmony]").waitFor({ state: "detached" });
+  // Return once from a server so the directory captures its real
+  // continue-playing hero, not the empty first-run state before a server has
+  // ever been selected. This is still the live component and app state.
+  await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
+  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Все серверы" }).click();
+  await page
+    .getByRole("region", { name: "Последний выбранный сервер" })
+    .waitFor();
+  await shot("servers");
 
   // Every server is already unlocked: no second login, straight to the build.
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
@@ -533,7 +499,6 @@ try {
       "welcome",
       "account",
       "servers",
-      "harmony",
       "server",
       "minecraft",
       "wardrobe",

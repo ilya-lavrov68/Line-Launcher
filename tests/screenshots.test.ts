@@ -30,7 +30,6 @@ const SCREENS = [
   "account",
   "profile",
   "servers",
-  "harmony",
   "server",
   "minecraft",
   "wardrobe",
@@ -162,14 +161,16 @@ test("browser capture stages the entire gallery before publishing", () => {
     /rmSync\(staging, \{ recursive: true, force: true \}\)/,
   );
   assert.match(browser, /shot\("minecraft"\)/);
-  assert.match(browser, /shot\("harmony"\)/);
-  assert.match(browser, /shot\("workspace"\)/);
-  assert.match(browser, /catalogView: "grid"/);
-  assert.match(browser, /workspace: "solid"/);
-  assert.match(
-    browser,
-    /getByRole\("button", \{ name: "Гармонь", exact: true \}\)/,
+  assert.doesNotMatch(browser, /shot\("harmony"\)|catalogView|Гармонь/);
+  assert.match(browser, /demoBannerDataUrl/);
+  assert.ok(
+    browser.indexOf(
+      'getByRole("region", { name: "Последний выбранный сервер" })',
+    ) < browser.indexOf('shot("servers")'),
+    "the directory screenshot must include the selected-server continuation hero",
   );
+  assert.match(browser, /shot\("servers"\)/);
+  assert.match(browser, /workspace: "solid"/);
 });
 
 test("UI smoke holds only the first mocked installation", () => {

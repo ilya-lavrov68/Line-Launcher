@@ -245,12 +245,6 @@ export interface LauncherSettings {
    */
   serverLayout?: ServerLayout | null;
   /**
-   * How the catalogue is drawn: `grid` (every server a card) or `harmony`
-   * (one expanded, the rest collapsed rows). Absent or unknown = grid, so a
-   * hand-edited file never leaves an empty catalogue.
-   */
-  catalogView?: CatalogView | null;
-  /**
    * How the workspace behind the panels is painted: `glass` lets the animated
    * backdrop read through, `solid` paints an opaque, deep charcoal field.
    * Absent = the theme's default, so changing that default does not require
@@ -258,9 +252,6 @@ export interface LauncherSettings {
    */
   workspace?: WorkspaceFinish | null;
 }
-
-/** The catalogue's two layouts. */
-export type CatalogView = "grid" | "harmony";
 
 /** The two finishes the workspace can be painted in. */
 export type WorkspaceFinish = "glass" | "solid";

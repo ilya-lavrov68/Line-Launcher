@@ -2,16 +2,10 @@ import { m } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import {
-  LayoutGrid,
-  ListCollapse,
-  RefreshCw,
-  Search,
-  ShieldAlert,
-} from "@/components/ui/icons";
+import { RefreshCw, Search, ShieldAlert } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { CatalogView, LineServer } from "@/types/line";
+import type { LineServer } from "@/types/line";
 import {
   filterServerCatalog,
   type ServerCatalogFilter,
@@ -29,7 +23,6 @@ import {
   setCollapsed,
   type ServerLayout,
 } from "@/lib/line/server-layout";
-import HarmonyCatalog from "./HarmonyCatalog";
 import ServerCard from "./ServerCard";
 import StableActionLabel from "./StableActionLabel";
 import SectionHeader, { AddSectionButton } from "./SectionHeader";
@@ -51,22 +44,16 @@ export interface ServerListProps {
    */
   statusFor?: (server: LineServer) => string | undefined;
   /**
-   * The player's grouping. Absent = one flat grid, which is what a fresh
+   * The player's grouping. Absent = one flat directory, which is what a fresh
    * install has and what the provider's contract describes.
    */
   layout?: ServerLayout;
   onLayoutChange?: (next: ServerLayout) => void;
-  /**
-   * `grid` draws every server as a card; `harmony` folds all but one into rows.
-   * The control that switches it lives in the header, next to Refresh.
-   */
-  view?: CatalogView;
-  onViewChange?: (next: CatalogView) => void;
 }
 
 /**
- * Provider showcase. The stale-config warning is a tinted surface with an icon
- * and amber text — no outline, because the colour and the icon already carry it.
+ * Provider directory. A single compact row layout keeps the server list
+ * scannable; the last-opened server remains the artwork-led continuation above.
  */
 export default function ServerList({
   providerName,
@@ -81,8 +68,6 @@ export default function ServerList({
   statusFor,
   layout,
   onLayoutChange,
-  view = "grid",
-  onViewChange,
 }: ServerListProps) {
   const t = useT();
   const [searchTerm, setSearchTerm] = useState("");
@@ -248,48 +233,6 @@ export default function ServerList({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Keep both catalogue layouts available even when the player has
-              sections: Harmony is a temporary presentation choice, not an edit
-              to those saved groups. Labeled buttons make the less familiar
-              horizontal accordion discoverable without relying on tooltips. */}
-          <div
-            role="group"
-            aria-label={t("catalog.view")}
-            className="border-border/50 bg-fill-subtle flex h-9 items-center gap-0.5 rounded-lg border p-0.5"
-          >
-            <button
-              type="button"
-              aria-pressed={view === "grid"}
-              aria-label={t("catalog.grid")}
-              title={t("catalog.grid")}
-              onClick={() => onViewChange?.("grid")}
-              className={cn(
-                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition-colors",
-                view === "grid"
-                  ? "bg-fill-strong text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <LayoutGrid className="size-3.5" aria-hidden="true" />
-              <span>{t("catalog.grid")}</span>
-            </button>
-            <button
-              type="button"
-              aria-pressed={view === "harmony"}
-              aria-label={t("catalog.harmony")}
-              title={t("catalog.harmony")}
-              onClick={() => onViewChange?.("harmony")}
-              className={cn(
-                "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition-colors",
-                view === "harmony"
-                  ? "bg-fill-strong text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <ListCollapse className="size-3.5" aria-hidden="true" />
-              <span>{t("catalog.harmony")}</span>
-            </button>
-          </div>
           <Button
             variant="outline"
             size="sm"
@@ -373,8 +316,7 @@ export default function ServerList({
         </p>
       )}
 
-      {view === "grid" &&
-        visibleServers.length > 0 &&
+      {visibleServers.length > 0 &&
         layout !== undefined &&
         layout.sections.length === 0 && (
           <p className="text-muted-foreground text-xs leading-relaxed">
@@ -382,8 +324,7 @@ export default function ServerList({
           </p>
         )}
 
-      {view === "grid" &&
-        visibleServers.length > 0 &&
+      {visibleServers.length > 0 &&
         !hasCatalogFilter &&
         layout !== undefined &&
         layout.sections.length > 0 && (
@@ -395,105 +336,92 @@ export default function ServerList({
       {visibleServers.length === 0 && (
         <p
           role="status"
-          className="text-muted-foreground border-border/40 bg-fill-subtle rounded-[var(--radius-item)] border p-6 text-center text-sm"
+          className="text-muted-foreground bg-fill-subtle rounded-[var(--radius-item)] p-6 text-center text-sm"
         >
           {servers.length === 0 ? t("servers.empty") : t("catalog.noResults")}
         </p>
       )}
 
-      {/* Harmony temporarily replaces the grouped grid; the saved sections
-          remain untouched and return when the player switches back. Keep grid
-          editing controls out of this presentation so every visible gesture
-          continues to work. */}
-      {view === "harmony" && visibleServers.length > 0 ? (
-        <HarmonyCatalog
-          servers={visibleServers}
-          installedIds={installedIds}
-          statusFor={statusFor}
-          disabled={refreshing || actionsDisabled}
-          onSelect={onSelect}
-        />
-      ) : null}
-
-      {view === "grid" &&
-        visibleServers.length > 0 &&
-        targets.map((group) => (
-          <div
-            key={group.id || "unsorted"}
-            data-section-drop={group.id || "unassigned"}
-            data-section-id={group.id}
-            className={`flex flex-col rounded-lg ${dropTarget === group.id ? "bg-primary/10 ring-primary/60 ring-2" : ""}`}
-          >
-            {/* A single flat group with no name is the pre-sections catalogue;
-              a heading saying "No section" over every server would be noise. */}
-            {(layout !== undefined || group.id !== "") && (
-              <SectionHeader
-                name={group.name}
-                count={group.servers.length}
-                collapsed={group.collapsed}
-                implicit={group.id === ""}
-                disabled={refreshing || actionsDisabled}
-                onToggle={() =>
-                  onLayoutChange?.(
-                    setCollapsed(
-                      layout ?? EMPTY_LAYOUT,
-                      group.id,
-                      !group.collapsed,
-                    ),
-                  )
-                }
-                onRename={(name) =>
-                  onLayoutChange?.(
-                    renameSection(layout ?? EMPTY_LAYOUT, group.id, name),
-                  )
-                }
-                onRemove={() =>
-                  onLayoutChange?.(
-                    removeSection(layout ?? EMPTY_LAYOUT, group.id),
-                  )
-                }
-              />
-            )}
-            {!group.collapsed && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {group.servers.map((server, index) => (
-                  <m.div
-                    key={server.id}
-                    data-server-drag={server.id}
-                    onPointerDown={(event) => beginDrag(event, server)}
-                    onDragStart={(event) => event.preventDefault()}
-                    className={`${canMove ? "cursor-grab select-none active:cursor-grabbing" : ""} ${dragging?.server.id === server.id ? "opacity-30" : ""}`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{
-                      opacity: dragging?.server.id === server.id ? 0.3 : 1,
-                      y: 0,
-                    }}
-                    transition={{
-                      duration: 0.2,
-                      delay: Math.min(index * 0.035, 0.2),
-                    }}
-                  >
-                    <ServerCard
-                      name={server.name}
-                      description={server.description}
-                      iconUrl={server.icon_url ?? server.logo_url}
-                      bannerUrl={server.banner_url}
-                      version={server.version}
-                      minecraftVersion={server.minecraft_version}
-                      installed={installedIds.has(server.id)}
-                      statusLabel={statusFor?.(server)}
-                      hasPack={Boolean(server.pack_manifest_url)}
-                      disabled={refreshing || actionsDisabled}
-                      onClick={() => {
-                        if (!suppressClick.current) onSelect(server);
+      {visibleServers.length > 0 && (
+        <div
+          role="list"
+          aria-label={t("catalog.servers")}
+          className="flex flex-col gap-2"
+        >
+          {targets.map((group) => (
+            <div
+              key={group.id || "unsorted"}
+              data-section-drop={group.id || "unassigned"}
+              data-section-id={group.id}
+              className={`flex flex-col rounded-[var(--radius-item)] ${dropTarget === group.id ? "bg-primary/10 ring-primary/60 ring-2" : ""}`}
+            >
+              {(layout !== undefined || group.id !== "") && (
+                <SectionHeader
+                  name={group.name}
+                  count={group.servers.length}
+                  collapsed={group.collapsed}
+                  implicit={group.id === ""}
+                  disabled={refreshing || actionsDisabled}
+                  onToggle={() =>
+                    onLayoutChange?.(
+                      setCollapsed(
+                        layout ?? EMPTY_LAYOUT,
+                        group.id,
+                        !group.collapsed,
+                      ),
+                    )
+                  }
+                  onRename={(name) =>
+                    onLayoutChange?.(
+                      renameSection(layout ?? EMPTY_LAYOUT, group.id, name),
+                    )
+                  }
+                  onRemove={() =>
+                    onLayoutChange?.(
+                      removeSection(layout ?? EMPTY_LAYOUT, group.id),
+                    )
+                  }
+                />
+              )}
+              {!group.collapsed && (
+                <div className="flex flex-col gap-2">
+                  {group.servers.map((server) => (
+                    <m.div
+                      key={server.id}
+                      role="listitem"
+                      data-server-drag={server.id}
+                      onPointerDown={(event) => beginDrag(event, server)}
+                      onDragStart={(event) => event.preventDefault()}
+                      className={`${canMove ? "cursor-grab select-none active:cursor-grabbing" : ""} ${dragging?.server.id === server.id ? "opacity-30" : ""}`}
+                      initial={false}
+                      animate={{
+                        opacity: dragging?.server.id === server.id ? 0.3 : 1,
                       }}
-                    />
-                  </m.div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+                      transition={{ duration: 0.14 }}
+                    >
+                      <ServerCard
+                        name={server.name}
+                        description={server.description}
+                        iconUrl={server.icon_url ?? server.logo_url}
+                        bannerUrl={server.banner_url}
+                        version={server.version}
+                        minecraftVersion={server.minecraft_version}
+                        installed={installedIds.has(server.id)}
+                        statusLabel={statusFor?.(server)}
+                        hasPack={Boolean(server.pack_manifest_url)}
+                        disabled={refreshing || actionsDisabled}
+                        onClick={() => {
+                          if (!suppressClick.current) onSelect(server);
+                        }}
+                      />
+                    </m.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {dragging &&
         createPortal(
@@ -524,7 +452,7 @@ export default function ServerList({
           document.body,
         )}
 
-      {view === "grid" && !hasCatalogFilter && layout !== undefined && (
+      {!hasCatalogFilter && layout !== undefined && (
         <AddSectionButton
           layout={layout}
           disabled={actionsDisabled || refreshing}

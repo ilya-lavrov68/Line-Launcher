@@ -15,7 +15,6 @@ import { isNewerGameStatus } from "@/types/line";
 import type {
   AuthMode,
   AuthSessionInfo,
-  CatalogView,
   ConfigSnapshot,
   InstallProgress as ProgressData,
   McInstallProgress,
@@ -841,32 +840,6 @@ export default function LineLauncher() {
   }
 
   /**
-   * The catalogue's view is a setting, not local state.
-   *
-   * It looks like a display preference — and it is — but the catalogue is the
-   * screen the launcher opens on, so "which view was I looking at" has to
-   * survive a restart or the player re-picks it every morning. Written straight
-   * through rather than debounced: a view change is one click, and there is no
-   * dragging gesture that would produce a burst of writes.
-   *
-   * Optimistic on purpose. A failed write keeps the new view on screen and
-   * reverts only the stored copy: the player asked to see the list, and showing
-   * them the old one while nothing explains why is worse than a preference that
-   * does not persist.
-   */
-  async function changeCatalogView(view: CatalogView) {
-    if (!settings) return;
-    const next = { ...settings.settings, catalogView: view };
-    const previous = settings;
-    setSettings({ ...settings, settings: next });
-    try {
-      setSettings(await lineApi.saveSettings(next));
-    } catch {
-      setSettings(previous);
-    }
-  }
-
-  /**
    * Signing in is a page, not a panel.
    *
    * It covers the whole window — no rail, no title bar of ours, no catalogue
@@ -1173,14 +1146,6 @@ export default function LineLauncher() {
                                   }
                                   servers={snapshot.config.servers}
                                   installedIds={installedIds}
-                                  view={
-                                    settings?.settings.catalogView === "harmony"
-                                      ? "harmony"
-                                      : "grid"
-                                  }
-                                  onViewChange={(next) =>
-                                    void changeCatalogView(next)
-                                  }
                                   stale={snapshot.stale}
                                   refreshing={refreshing}
                                   actionsDisabled={actionsBusy || layoutSaving}
@@ -1352,7 +1317,7 @@ export default function LineLauncher() {
                     build it came from. */}
                 {isPrerelease(LAUNCHER_VERSION) && (
                   <span
-                    className="border-border/50 text-muted-foreground rounded-[4px] border px-1.5 py-px text-[10px] leading-normal uppercase"
+                    className="text-muted-foreground/80 text-[10px] leading-normal uppercase"
                     title={t("about.channelPreview")}
                   >
                     {t("about.channelPreviewShort")}

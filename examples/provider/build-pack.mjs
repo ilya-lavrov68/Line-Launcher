@@ -34,6 +34,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { zip } from "../../scripts/lib/zip.mjs";
+import { demoBannerSvg, demoIconSvg } from "../../scripts/lib/demo-art.mjs";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -130,37 +131,6 @@ function compileClientJar() {
   ]);
 }
 
-/** Deterministic vector art: no binary assets in the repository. */
-function icon(letter, from, to) {
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">` +
-      `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
-      `<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>` +
-      `</linearGradient></defs>` +
-      `<rect width="128" height="128" rx="28" fill="url(#g)"/>` +
-      `<text x="64" y="86" font-family="Geist,Arial,sans-serif" font-size="64" font-weight="700" ` +
-      `fill="#ffffff" text-anchor="middle">${letter}</text></svg>\n`,
-  );
-}
-
-function banner(title, subtitle, from, to) {
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400">` +
-      `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
-      `<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>` +
-      `</linearGradient></defs>` +
-      `<rect width="1600" height="400" fill="url(#g)"/>` +
-      `<circle cx="1330" cy="70" r="190" fill="#ffffff" opacity="0.08"/>` +
-      `<rect x="120" y="250" width="46" height="90" fill="#ffffff" opacity="0.18"/>` +
-      `<rect x="180" y="210" width="46" height="130" fill="#ffffff" opacity="0.22"/>` +
-      `<rect x="240" y="270" width="46" height="70" fill="#ffffff" opacity="0.16"/>` +
-      `<text x="800" y="200" font-family="Geist,Arial,sans-serif" font-size="86" font-weight="800" ` +
-      `fill="#ffffff" text-anchor="middle" letter-spacing="6">${title}</text>` +
-      `<text x="800" y="255" font-family="Geist,Arial,sans-serif" font-size="30" ` +
-      `fill="#ffffff" opacity="0.75" text-anchor="middle">${subtitle}</text></svg>\n`,
-  );
-}
-
 /**
  * A valid 64×64 skin, so the wardrobe can be tested without hunting for a PNG.
  * Built with node:zlib — no binary assets in the repository.
@@ -220,27 +190,12 @@ function skinPng([r, g, b]) {
 }
 
 const ART = {
-  "demo-icon.svg": icon("S", "#0f766e", "#14b8a6"),
-  "demo-banner.svg": banner(
-    "DEMO SURVIVAL",
-    "Установка, запуск, приватный IPC",
-    "#0f766e",
-    "#0d9488",
-  ),
-  "creative-icon.svg": icon("C", "#6d28d9", "#a855f7"),
-  "creative-banner.svg": banner(
-    "DEMO CREATIVE",
-    "Второй сервер того же аккаунта",
-    "#6d28d9",
-    "#9333ea",
-  ),
-  "showcase-icon.svg": icon("V", "#b45309", "#f59e0b"),
-  "showcase-banner.svg": banner(
-    "DEMO SHOWCASE",
-    "Витрина без запуска игры",
-    "#b45309",
-    "#d97706",
-  ),
+  "demo-icon.svg": Buffer.from(demoIconSvg("survival")),
+  "demo-banner.svg": Buffer.from(demoBannerSvg("survival")),
+  "creative-icon.svg": Buffer.from(demoIconSvg("creative")),
+  "creative-banner.svg": Buffer.from(demoBannerSvg("creative")),
+  "showcase-icon.svg": Buffer.from(demoIconSvg("showcase")),
+  "showcase-banner.svg": Buffer.from(demoBannerSvg("showcase")),
 };
 
 try {

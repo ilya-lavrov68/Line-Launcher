@@ -931,69 +931,37 @@ try {
     "a design preference is being written",
   );
 
-  // Back from the server screen lands on a catalogue with exactly one card per
-  // server and no second «Открыть сервер <name>» shortcut anywhere. The
-  // «Текущий сервер» rail that used to sit above the catalogue was removed: on
-  // a screen that already lists every server, it repeated one card and its
-  // Back to the catalogue: the wardrobe block above left the rail on its own
-  // section, and every assertion below is about the server list.
+  // Back from the server screen lands on the single compact directory. The
+  // last-opened server remains a single, honest region above the rows; no second
+  // presentation toggle or duplicate launch shortcut is shown.
   await page.getByRole("button", { name: "Серверы", exact: true }).click();
   await page
     .getByRole("button", { name: /^Открыть сервер/ })
     .first()
     .waitFor();
-
-  // action, so it is a regression if it comes back.
-  check(
-    (await page.getByRole("region", { name: "Текущий сервер" }).count()) === 0,
-    "the catalogue rail duplicated the server card again",
-  );
-  check(
-    (await page.getByRole("button", { name: /^Открыть сервер/ }).count()) ===
-      (await page.getByText(/^Minecraft 1\./).count()),
-    "the catalogue gained a shortcut that is not a server card",
-  );
-
-  // The horizontal Harmony accordion stays available even with saved sections;
-  // it is a temporary presentation and switching back restores the same groups.
-  await page.getByRole("button", { name: "Добавить секцию" }).click();
-  await page.getByRole("button", { name: "Гармонь", exact: true }).click();
-  const harmony = page.locator("[data-line-harmony]");
-  await harmony.waitFor();
-  check(
-    (await page.locator("[data-harmony-row]").count()) === 3 &&
-      (await page.locator("[data-harmony-row] img").count()) >= 4,
-    "Harmony must show the available banner art and server logos",
-  );
-  await page.locator('[data-harmony-row="skyblock"] > button').click();
-  await page.locator('[data-harmony-row="skyblock"][data-open]').waitFor();
   check(
     (await page
-      .locator('[data-harmony-row="skyblock"] [data-harmony-art-fallback]')
-      .count()) === 1 &&
-      (await page
-        .locator('[data-harmony-row="skyblock"] [data-harmony-logo-fallback]')
-        .count()) === 1,
-    "a server with no art or logo must use the neutral icon fallback",
+      .getByRole("region", { name: "Последний выбранный сервер" })
+      .count()) === 1,
+    "the last-opened server should be shown once above the directory",
   );
-  await page.locator('[data-harmony-row="skyblock"] > button').click();
   check(
-    (await page.locator("[data-harmony-row][data-open]").count()) === 1,
-    "the accordion must retain one expanded server when its open header is clicked",
+    (await page.locator("[data-line-card]").count()) === 3,
+    "the unified directory must show one row per configured server",
   );
-  await page.locator('[data-harmony-row="creative"] > button').click();
-  await page.waitForFunction(() => {
-    const open = document.querySelector('[data-harmony-row="creative"]');
-    const folded = document.querySelector('[data-harmony-row="survival"]');
-    return (
-      open?.hasAttribute("data-open") &&
-      folded &&
-      open.getBoundingClientRect().width >
-        folded.getBoundingClientRect().width * 2
-    );
-  });
-  await page.getByRole("button", { name: "Сетка", exact: true }).click();
-  await page.locator("[data-section-drop]").first().waitFor();
+  check(
+    !(await page
+      .getByRole("button", { name: "Гармонь", exact: true })
+      .count()) &&
+      !(await page.getByRole("button", { name: "Сетка", exact: true }).count()),
+    "the retired catalog view switch is still visible",
+  );
+
+  // Personal sections and dragging remain independent of the presentation.
+  await page.getByRole("button", { name: "Добавить секцию" }).click();
+  await page
+    .getByRole("button", { name: "Свернуть секцию Секция 1" })
+    .waitFor();
 
   // Dragging changes the same player-owned layout as the section selector.
   // Exercise an empty, collapsed destination and the return to "no section".

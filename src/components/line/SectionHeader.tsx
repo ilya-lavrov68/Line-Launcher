@@ -207,11 +207,11 @@ export function AddSectionButton({
   const next = layout.sections.length + 1;
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="sm"
       disabled={disabled}
       onClick={() => onAdd(t("sections.defaultName", { n: next }))}
-      className="cursor-pointer self-start text-xs"
+      className="text-muted-foreground hover:text-foreground cursor-pointer self-start px-1.5 text-xs"
     >
       <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
       {t("sections.add")}

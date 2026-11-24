@@ -52,43 +52,46 @@ export function ServerCatalogRail({
             data-line-server-featured
             role="region"
             aria-label={t("catalog.lastSelected")}
-            className="border-border/50 bg-fill relative isolate flex min-h-64 overflow-hidden rounded-[var(--radius-panel)] border sm:min-h-72"
+            className="border-border/50 bg-fill relative isolate flex aspect-[4/1] min-h-64 overflow-hidden rounded-[var(--radius-panel)] border sm:min-h-72"
           >
             {server.banner_url && !bannerFailed ? (
               <img
                 src={server.banner_url}
                 alt=""
+                width={1600}
+                height={400}
                 className="absolute inset-0 size-full object-cover"
-                loading="lazy"
+                loading="eager"
+                fetchPriority="high"
                 referrerPolicy="no-referrer"
                 onError={() => setBannerFailed(true)}
               />
             ) : (
-              <div className="from-fill-strong via-background to-fill absolute inset-0 bg-gradient-to-br">
+              <div className="bg-fill-strong absolute inset-0">
                 <ServerIcon
-                  className="text-foreground/5 absolute -right-3 -bottom-16 size-64"
+                  className="text-foreground/10 absolute -right-3 -bottom-16 size-64"
                   aria-hidden="true"
+                />
+                <div
+                  aria-hidden="true"
+                  className="bg-primary/20 absolute inset-y-0 right-1/4 w-px"
                 />
               </div>
             )}
             <div
               aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/15"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10"
+              className="bg-background/75 absolute inset-y-0 left-0 w-full sm:w-[72%]"
             />
 
             <div className="relative flex min-h-64 w-full flex-col justify-end gap-6 p-6 sm:min-h-72 sm:flex-row sm:items-end sm:justify-between sm:p-8">
               <div className="flex max-w-2xl min-w-0 flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-white/85 uppercase backdrop-blur-sm">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-[10px] font-semibold tracking-[0.1em] text-white/70 uppercase">
                     {t("catalog.lastSelected")}
                   </span>
                   <span
                     role="status"
-                    className="rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm"
+                    className="text-[11px] font-medium text-white/80"
                   >
                     {status}
                   </span>
@@ -103,7 +106,9 @@ export function ServerCatalogRail({
                       <img
                         src={server.icon_url ?? server.logo_url}
                         alt=""
-                        className="size-full object-cover"
+                        width={48}
+                        height={48}
+                        className="size-full object-contain p-1"
                         referrerPolicy="no-referrer"
                         onError={() => setIconFailed(true)}
                       />

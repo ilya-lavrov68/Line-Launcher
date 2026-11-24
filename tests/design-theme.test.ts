@@ -688,7 +688,7 @@ test("panes are a darkening tint over the moving backdrop", () => {
   // backdrop's colour to read through it, and stay dark.
   assert.match(
     indexCss,
-    /--background:\s*#08090c/,
+    /--background:\s*#0b0c0b/,
     "the ground stays dark; the backdrop paints over it",
   );
 
@@ -725,7 +725,7 @@ test("panes are a darkening tint over the moving backdrop", () => {
   // Light text: the pane is dark, so the ink is near-white.
   assert.match(
     indexCss,
-    /--foreground:\s*oklch\(0\.9[0-9]/,
+    /--foreground:\s*#f2f1ec/,
     "the ink is light, because the ground is dark",
   );
 
@@ -793,7 +793,9 @@ test("the featured catalogue server reads as an immersive panel", () => {
     "the featured server should use the larger panel radius",
   );
   assert.match(section, /min-h-64[\s\S]*?sm:min-h-72/);
-  assert.match(section, /bg-gradient-to-r/);
+  assert.match(section, /bg-background\/75[^"]*sm:w-\[72%\]/);
+  assert.doesNotMatch(section, /bg-gradient/);
+  assert.match(section, /fetchPriority="high"/);
 });
 
 test("the sign-in plate is half the density of the shared pane", () => {
@@ -897,14 +899,19 @@ test("the sidebar blends into the backdrop while the main page stays distinct", 
   assert.match(main, /border-border\/50/);
   assert.match(main, /rounded-\[var\(--radius-item\)\].*border/);
   const serverCard = read("src/components/line/ServerCard.tsx");
-  assert.match(serverCard, /border-border\/50 bg-fill/);
-  assert.match(serverCard, /hover:bg-fill-strong\/85/);
+  assert.match(serverCard, /bg-fill-subtle hover:bg-fill/);
+  assert.match(serverCard, /min-h-\[6\.5rem\]/);
+  assert.doesNotMatch(
+    serverCard,
+    /border-border\/50 bg-fill/,
+    "directory rows use tonal separation instead of another card outline",
+  );
   assert.match(
     launcher,
     /className="flex min-h-0 w-full flex-1 gap-1\.5 overflow-hidden"/,
     "a small gap preserves the separation between rail and page",
   );
-  assert.match(css, /--line-solid-panel:\s*#222326/);
+  assert.match(css, /--line-solid-panel:\s*#21221f/);
   assert.doesNotMatch(
     css,
     /--glass-surface-shell:\s*rgba\(230,/,

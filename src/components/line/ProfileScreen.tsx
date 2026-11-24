@@ -2,6 +2,7 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import {
   ChevronDown,
   LogOut,
+  MoreHorizontal,
   RefreshCw,
   Shirt,
   UserRound,
@@ -9,6 +10,11 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import SkinViewer3D from "@/components/line/SkinViewer3D";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type { AuthSessionInfo, LineServer, SkinState } from "@/types/line";
 import { useT } from "@/lib/line/i18n";
@@ -62,6 +68,7 @@ export default function ProfileScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [viewerPose, setViewerPose] = useState<"walk" | "wave" | "manual">(
     "walk",
   );
@@ -131,12 +138,11 @@ export default function ProfileScreen({
   }, [load, disposeUrl, session.username]);
 
   // The skin is a library read plus a texture decode, so the first paint of this
-  // page has no picture and no skin name. Showing the page's own two-column
-  // geometry during that beat is why the skeleton exists: the viewer box is
-  // square and already in place when the texture lands.
+  // page has no picture and no skin name. The loading state reserves the same
+  // full-width hero footprint so the page does not jump when the texture lands.
   if (loading && !skin) {
     return (
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <section className="flex w-full flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-foreground text-xl font-bold tracking-tight">
             {t("profile.title")}
@@ -148,7 +154,7 @@ export default function ProfileScreen({
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+    <section className="flex w-full flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-foreground text-xl font-bold tracking-tight">
           {t("profile.title")}
@@ -176,11 +182,7 @@ export default function ProfileScreen({
             animation={viewerPose}
             className="skin-hero-viewer rounded-none"
           />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent"
-          />
-          <div className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] flex-col gap-0.5">
+          <div className="bg-background/80 absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] flex-col gap-0.5 rounded-[var(--radius-control)] px-3 py-2">
             <span className="text-[10px] font-medium tracking-[0.12em] text-white/65 uppercase">
               {t("profile.skin")}
             </span>
@@ -257,39 +259,66 @@ export default function ProfileScreen({
             </dl>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={disabled}
-              onClick={onOpenWardrobe}
-              className="cursor-pointer items-center gap-1.5 text-xs"
-            >
-              <Shirt className="size-4" aria-hidden="true" />
-              {t("nav.wardrobe")}
-            </Button>
-            <Button
-              size="icon-sm"
-              variant="outline"
-              aria-label={t("servers.refresh")}
-              disabled={disabled || loading}
-              onClick={() => void load()}
-            >
-              <RefreshCw
-                className={loading ? "size-4 animate-spin" : "size-4"}
-                aria-hidden="true"
-              />
-            </Button>
+          <div className="flex flex-wrap items-center gap-1">
             <Button
               size="sm"
               variant="ghost"
               disabled={disabled}
-              onClick={() => setLogoutOpen(true)}
-              className="text-muted-foreground hover:text-foreground cursor-pointer items-center gap-1.5 text-xs"
+              onClick={onOpenWardrobe}
+              className="text-muted-foreground hover:text-foreground cursor-pointer items-center gap-1.5 px-2 text-xs"
             >
-              <LogOut className="size-4" aria-hidden="true" />
-              {t("profile.logout")}
+              <Shirt className="size-4" aria-hidden="true" />
+              {t("nav.wardrobe")}
             </Button>
+            <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("common.more")}
+                    disabled={disabled}
+                    className="text-muted-foreground hover:text-foreground"
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" aria-hidden="true" />
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-48 min-w-0 gap-0.5 rounded-[var(--radius-control)] p-1"
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled || loading}
+                  onClick={() => {
+                    setActionsOpen(false);
+                    void load();
+                  }}
+                  className="w-full justify-start text-xs"
+                >
+                  <RefreshCw
+                    className={loading ? "size-4 animate-spin" : "size-4"}
+                    aria-hidden="true"
+                  />
+                  {t("servers.refresh")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() => {
+                    setActionsOpen(false);
+                    setLogoutOpen(true);
+                  }}
+                  className="text-muted-foreground hover:text-foreground w-full justify-start text-xs"
+                >
+                  <LogOut className="size-4" aria-hidden="true" />
+                  {t("profile.logout")}
+                </Button>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </div>

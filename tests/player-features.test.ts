@@ -939,6 +939,8 @@ test("account and wardrobe pages use their canvas width without blank card stret
   );
   assert.match(profile, /skin-hero-viewer rounded-none/);
   assert.match(profile, /height=\{420\}/);
+  assert.match(profile, /className="flex w-full flex-col gap-4"/);
+  assert.doesNotMatch(profile, /max-w-4xl/);
   assert.match(profile, /border-t p-4 sm:flex-row/);
   assert.doesNotMatch(profile, /md:grid-cols-\[minmax\(0,1fr\)_280px\]/);
   assert.match(read("src/components/line/Skeleton.tsx"), /h-\[420px\]/);
@@ -1129,12 +1131,13 @@ test("the selected server art rail leads the catalog without inventing content",
   assert.match(rail, /server\.description/);
 });
 
-test("server catalog search and install filters drive both catalogue views", () => {
+test("server catalog search and install filters drive the unified directory", () => {
   const list = read("src/components/line/ServerList.tsx");
   assert.match(list, /type="search"/);
   assert.match(list, /aria-label=\{t\("catalog\.search"\)\}/);
   assert.match(list, /filterServerCatalog\(servers/);
-  assert.match(list, /servers=\{visibleServers\}/);
+  assert.match(list, /groupServers\(visibleServers/);
+  assert.match(list, /group\.servers\.map\(\(server\) =>/);
   assert.match(list, /catalogFilter === filter/);
   assert.match(list, /hasCatalogFilter/);
   assert.match(list, /catalog\.resultCount/);
@@ -1144,7 +1147,7 @@ test("catalogue buttons and filters use the shared navbar corner radius", () => 
   const list = read("src/components/line/ServerList.tsx");
   assert.doesNotMatch(list, /data-catalog-header-actions/);
   assert.match(list, /rounded-lg border p-0\.5/);
-  assert.match(list, /rounded-lg px-2 text-\[11px\] font-medium/);
+  assert.match(list, /rounded-lg px-2\.5 text-\[11px\] font-medium/);
   assert.match(list, /h-9 rounded-lg pl-9/);
   assert.doesNotMatch(
     list,
@@ -1184,11 +1187,13 @@ test("the active sidebar destination uses white ink without a tile fill", () => 
   assert.doesNotMatch(nav, /bg-primary\/10 text-primary/);
 });
 
-test("grid server cards stand off the solid main panel", () => {
+test("directory rows stand off the solid main panel without redundant outlines", () => {
   const card = read("src/components/line/ServerCard.tsx");
-  assert.match(card, /border-border\/50 bg-fill/);
-  assert.match(card, /hover:bg-fill-strong\/85/);
-  assert.doesNotMatch(card, /hover:border-transparent/);
+  assert.match(card, /bg-fill-subtle hover:bg-fill/);
+  assert.match(card, /min-h-\[6\.5rem\]/);
+  assert.match(card, /w-28 shrink-0/);
+  assert.match(card, /group-hover:scale-\[1\.025\]/);
+  assert.doesNotMatch(card, /border-border\/50 bg-fill/);
 });
 
 test("collapsed sidebar buttons are direct centered flex items", () => {

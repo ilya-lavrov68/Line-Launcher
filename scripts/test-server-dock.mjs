@@ -45,8 +45,39 @@ try {
     const beforePlay = await play.boundingBox();
     const beforeTest = await testMode.boundingBox();
     assert.ok(beforePlay && beforeTest);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await play.click();
     await page.waitForFunction(() => window.requestCount() === 1);
+    const sweep = region.locator('[data-slot="dock-sweep"] .dock-sweep');
+    await sweep.waitFor({ state: "attached" });
+    const sweepMotion = await sweep.evaluate((element) => {
+      const animation = element
+        .getAnimations()
+        .find((entry) => entry.animationName === "line-dock-sweep");
+      if (!animation?.effect) return null;
+      const timing = animation.effect.getTiming();
+      const frames = animation.effect.getKeyframes();
+      return {
+        easing: getComputedStyle(element).animationTimingFunction,
+        iterations: timing.iterations,
+        from: frames[0]?.transform,
+        to: frames.at(-1)?.transform,
+      };
+    });
+    assert.deepEqual(sweepMotion, {
+      easing: "linear",
+      iterations: Infinity,
+      from: "translateX(-100%)",
+      to: "translateX(300%)",
+    });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.waitForFunction(
+      () =>
+        getComputedStyle(document.querySelector(".dock-sweep")).display ===
+        "none",
+    );
+    assert.equal(await region.getByRole("status").isVisible(), true);
+    assert.equal(await play.locator("svg.animate-spin").isVisible(), true);
     await page.evaluate(() => window.pushProgress());
     await region.getByRole("progressbar").waitFor({ state: "attached" });
     const afterPlay = await play.boundingBox();
@@ -154,7 +185,7 @@ try {
     await page.close();
   }
   console.log(
-    "Server dock: action positions, progress, navigation lock and archive mode passed at both widths (mock backend).",
+    "Server dock: sweep/reduced-motion behavior, action positions, progress, navigation lock and archive mode passed at both widths (mock backend).",
   );
 } finally {
   await browser.close();

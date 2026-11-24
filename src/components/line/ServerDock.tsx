@@ -135,10 +135,9 @@ export function ServerDockPrimary({
           />
         )}
         {busy && indeterminate && (
-          // The launch shape: the pack is already installed, so there is no
-          // percentage to show — the work is starting the JVM, not copying
-          // bytes. A third of the surface slides left to right and repeats,
-          // which says "working, length unknown" without inventing a number.
+          // The indeterminate shape: this stage has no denominator, so a third
+          // of the surface travels across the clipped button and loops. It says
+          // "working, length unknown" without inventing a percentage.
           //
           // It is a separate element from the fill above rather than a mode of
           // it: the fill is anchored (`origin-left`, scale) and the sweep

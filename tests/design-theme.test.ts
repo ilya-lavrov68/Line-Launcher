@@ -139,9 +139,16 @@ test("ServerActionPanel is the dock: one status, one progress, one button", () =
   assert.match(primarySource, /className="dock-sweep /);
   // The sweep must actually travel; a static third was the rejected version.
   assert.match(read("src/index.css"), /@keyframes line-dock-sweep/);
+  const css = read("src/index.css");
+  assert.match(css, /animation: line-dock-sweep 1\.4s linear infinite/);
+  assert.match(css, /transform: translateX\(300%\)/);
   assert.match(
-    read("src/index.css"),
-    /\.dock-sweep \{[\s\S]{0,200}animation: line-dock-sweep/,
+    css,
+    /@media \(prefers-reduced-motion: no-preference\) \{\s*\.dock-sweep \{\s*animation:/,
+  );
+  assert.match(
+    css,
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.dock-sweep \{\s*display: none;/,
   );
   // Ни отдельного прогресса, ни имени файла: стадия — из словаря.
   assert.doesNotMatch(panel, /<ActionProgress/);

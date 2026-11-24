@@ -694,25 +694,31 @@
   }
 }
 
-/* The launch bar inside the dock's primary button: a third of the plate
- * travelling left to right, for a stage that has no percentage to show (the
- * pack is installed and the JVM is starting). The install stage keeps its
- * anchored fill instead — see `ServerDockPrimary`.
+/* The launch tile has no percentage to show (the pack is ready and the JVM
+ * is starting), so it travels across the button and fully clears the far edge.
+ * The install stage keeps its anchored, measured fill instead — see
+ * `ServerDockPrimary`.
  *
- * The element is 1/3 wide and travels 200 % of its own width, which puts its
- * left edge exactly one plate-width to the right: it enters from off-plate and
- * exits off-plate, so the loop never shows a jump back to the start. */
+ * At 1/3 of the button width, 300% moves the tile by one full button width.
+ * Both ends are fully outside the clipped button; a linear loop therefore
+ * resets while invisible instead of easing to a visible stop. */
 @keyframes line-dock-sweep {
   0% {
     transform: translateX(-100%);
   }
   100% {
-    transform: translateX(200%);
+    transform: translateX(300%);
   }
 }
 
 .dock-sweep {
-  animation: line-dock-sweep 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dock-sweep {
+    animation: line-dock-sweep 1.4s linear infinite;
+  }
 }
 
 /* Movement is a preference, colour is not: with reduced motion the field keeps
@@ -728,15 +734,10 @@
     animation: none;
   }
 
-  /* A bar that cannot travel still has to say "working". Holding it across the
-   * whole plate reads as a full bar, which is a lie; holding the third in place
-   * reads as a bar that stopped. Pulse the third's opacity instead — motion is
-   * the preference, "still here" is not. */
+  /* The text status and launch spinner still identify the active operation;
+   * a stopped tile would look like a stalled progress bar, so hide it. */
   .dock-sweep {
-    animation: none;
-    transform: none;
-    width: 100%;
-    opacity: 0.55;
+    display: none;
   }
 }
 

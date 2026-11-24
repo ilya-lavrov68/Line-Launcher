@@ -42,7 +42,8 @@
     "check:tauri": "node scripts/check-tauri-versions.mjs",
     "test:drag": "node scripts/test-server-drag.mjs",
     "source:check-modrinth": "node scripts/check-modrinth.mjs",
-    "test:dock": "node scripts/test-server-dock.mjs"
+    "test:dock": "node scripts/test-server-dock.mjs",
+    "test:catalog-rail": "node scripts/test-catalog-rail.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

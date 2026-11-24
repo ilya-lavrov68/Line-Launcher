@@ -22,6 +22,8 @@ import type {
   LineServer,
   GameStatus,
   ReleaseHistory,
+  TelemetryOutcome,
+  TelemetryStage,
 } from "@/types/line";
 import Attribution from "./Attribution";
 import ConfigUrlInput from "./ConfigUrlInput";
@@ -45,13 +47,18 @@ import { ServerCatalogRail } from "./ServerCatalogRail";
 import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
 import WelcomeScreen from "./WelcomeScreen";
+import FirstRunSetup from "./FirstRunSetup";
 import {
   closeWindow,
   hideWindow,
   minimizeWindow,
   restoreWindow,
 } from "@/lib/line/window";
-import { toLineError, type SettingsSnapshot } from "@/types/line";
+import {
+  toLineError,
+  type LauncherSettings,
+  type SettingsSnapshot,
+} from "@/types/line";
 import { initialLanguage, setLanguage, useT } from "@/lib/line/i18n";
 import { displayVersion, isPrerelease } from "@/lib/line/version";
 import {
@@ -434,10 +441,29 @@ export default function LineLauncher() {
     mode: AuthMode,
     username: string,
     password: string,
+    shareTelemetry = false,
   ) {
     if (authLoading) return;
     setAuthLoading(true);
     setAuthError(undefined);
+    const startedAt = performance.now();
+    const telemetryConfigured = Boolean(
+      snapshot?.config.provider.telemetry_url &&
+      snapshot.config.provider.privacy_url,
+    );
+    const consentSave =
+      telemetryConfigured && settings
+        ? lineApi
+            .saveSettings({
+              ...settings.settings,
+              telemetryConsent: shareTelemetry,
+            })
+            .then((saved) => {
+              if (mounted.current) setSettings(saved);
+              return saved.settings.telemetryConsent;
+            })
+            .catch(() => false)
+        : Promise.resolve(false);
     try {
       // Sign-in is the third action with the same prerequisite, and the one
       // where an expired config used to surface as a message the player could
@@ -447,6 +473,15 @@ export default function LineLauncher() {
       const next = await lineApi.authenticate(mode, { username, password });
       if (!mounted.current) return;
       setSession(next);
+      void consentSave.then((consented) => {
+        if (telemetryConfigured && shareTelemetry && consented) {
+          void lineApi.sendTelemetry({
+            stage: mode,
+            durationMs: Math.round(performance.now() - startedAt),
+            outcome: "success",
+          });
+        }
+      });
       setScreen("servers");
       setSection("servers");
       // A different account must not inherit the previous player's uploaded
@@ -454,6 +489,15 @@ export default function LineLauncher() {
       void lineApi.forgetSyncedSkin().catch(() => undefined);
     } catch (cause) {
       if (mounted.current) setAuthError(errorMessage(cause));
+      void consentSave.then((consented) => {
+        if (telemetryConfigured && shareTelemetry && consented) {
+          void lineApi.sendTelemetry({
+            stage: mode,
+            durationMs: Math.round(performance.now() - startedAt),
+            outcome: "failure",
+          });
+        }
+      });
     } finally {
       if (mounted.current) setAuthLoading(false);
     }
@@ -511,6 +555,7 @@ export default function LineLauncher() {
       setAuthError(t("status.authExpired"));
       return;
     }
+    const startedAt = performance.now();
     const id = crypto.randomUUID();
     operation.current = id;
     setInstalling(true);
@@ -523,6 +568,12 @@ export default function LineLauncher() {
         if (mounted.current) setProgress(next);
       });
       const result = await lineApi.install(selected.id, id);
+      trackTelemetry(
+        "install",
+        "success",
+        startedAt,
+        selected.distribution.size_bytes,
+      );
       if (!mounted.current) return;
       setReceipt(result);
       setInstalledIds((previous) => new Set(previous).add(result.serverId));
@@ -543,6 +594,12 @@ export default function LineLauncher() {
           },
       );
     } catch (cause) {
+      trackTelemetry(
+        "install",
+        toLineError(cause).code === "CANCELLED" ? "cancelled" : "failure",
+        startedAt,
+        selected.distribution.size_bytes,
+      );
       if (!mounted.current) return;
       const message = errorMessage(cause);
       // An install can fail because the session died mid-download; it can also
@@ -635,12 +692,20 @@ export default function LineLauncher() {
 
   async function launch() {
     if (!selected || !session || actionsBusy) return;
+    const startedAt = performance.now();
     const generation = detailGeneration.current;
     setLaunching(true);
     setLaunchError(undefined);
     try {
       await refreshConfigIfStale();
       const status = await lineApi.launch(selected.id);
+      trackTelemetry(
+        "launch",
+        status.phase === "starting" || status.phase === "running"
+          ? "success"
+          : "failure",
+        startedAt,
+      );
       if (mounted.current && generation === detailGeneration.current)
         setGameStatus((previous) =>
           isNewerGameStatus(previous, status) ? status : previous,
@@ -656,6 +721,7 @@ export default function LineLauncher() {
         else if (behaviour === "close") void closeWindow();
       }
     } catch (cause) {
+      trackTelemetry("launch", "failure", startedAt);
       if (mounted.current && generation === detailGeneration.current) {
         setLaunchError(errorMessage(cause));
         // A refusal may have been about unproved mods, and the message cannot
@@ -859,13 +925,37 @@ export default function LineLauncher() {
    * A dev-url build must also expose its configuration form until a provider
    * exists; otherwise an inert form sits behind a sign-in page that cannot work.
    */
+  const setupRequired =
+    introDone && settings?.settings.onboardingCompleted !== true;
   const signedOut =
     introDone &&
+    !setupRequired &&
     !session &&
     mode !== "unconfigured" &&
     !(mode === "dev-url" && !snapshot);
-  /** The shell is not the player's until they are in. */
-  const shellLocked = signedOut || !introDone;
+  /** The shell and account gate remain closed until setup and first-run welcome finish. */
+  const shellLocked = signedOut || !introDone || setupRequired;
+
+  async function completeFirstRun(nextSettings: LauncherSettings) {
+    const saved = await lineApi.saveSettings(nextSettings);
+    setSettings(saved);
+    setLanguage(initialLanguage(saved.settings.language));
+  }
+
+  function trackTelemetry(
+    stage: TelemetryStage,
+    outcome: TelemetryOutcome,
+    startedAt: number,
+    dataBytes?: number,
+  ) {
+    if (!settings?.settings.telemetryConsent) return;
+    void lineApi.sendTelemetry({
+      stage,
+      outcome,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      ...(dataBytes && dataBytes > 0 ? { dataBytes } : {}),
+    });
+  }
 
   return (
     <LazyMotion features={domAnimation} strict>
@@ -885,6 +975,11 @@ export default function LineLauncher() {
             <AnimatedBackdrop
               imageUrl={selected?.banner_url}
               themeId={settings?.settings.backdrop ?? undefined}
+              motion={
+                settings?.settings.backdropMotion === "static"
+                  ? "static"
+                  : "live"
+              }
               className="line-backdrop-saturation"
             />
             {/* The gate sits on the same backdrop as the app. It is painted
@@ -911,8 +1006,22 @@ export default function LineLauncher() {
                     )}
                     loading={authLoading}
                     error={authError}
-                    onSubmit={(mode, username, password) =>
-                      void authenticate(mode, username, password)
+                    telemetryPrivacyUrl={
+                      snapshot?.config.provider.telemetry_url &&
+                      snapshot.config.provider.privacy_url
+                        ? snapshot.config.provider.privacy_url
+                        : undefined
+                    }
+                    telemetryConsent={
+                      settings?.settings.telemetryConsent ?? false
+                    }
+                    onSubmit={(mode, username, password, telemetryConsent) =>
+                      void authenticate(
+                        mode,
+                        username,
+                        password,
+                        telemetryConsent,
+                      )
                     }
                   />
                 </m.div>
@@ -924,6 +1033,35 @@ export default function LineLauncher() {
                   key="welcome"
                   onDone={() => setIntroDone(true)}
                 />
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {setupRequired && (
+                <m.div
+                  key="first-run-setup"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.16 }}
+                  className="bg-background/90 fixed inset-0 z-40 flex flex-col"
+                >
+                  <div className="shrink-0 px-1.5 pt-1.5">
+                    <TitleBar />
+                  </div>
+                  {settings ? (
+                    <FirstRunSetup
+                      snapshot={settings}
+                      onComplete={completeFirstRun}
+                    />
+                  ) : (
+                    <div
+                      role="status"
+                      className="text-muted-foreground flex flex-1 items-center justify-center text-sm"
+                    >
+                      {t("common.loading")}
+                    </div>
+                  )}
+                </m.div>
               )}
             </AnimatePresence>
             {/* Floating frame: one 6px inset around the whole window, and the
@@ -1025,6 +1163,16 @@ export default function LineLauncher() {
                                 disabled={actionsBusy}
                                 providerEmail={
                                   snapshot?.config.provider.support_email
+                                }
+                                telemetryAvailable={Boolean(
+                                  snapshot?.config.provider.telemetry_url &&
+                                  snapshot.config.provider.privacy_url,
+                                )}
+                                telemetryPrivacyUrl={
+                                  snapshot?.config.provider.telemetry_url &&
+                                  snapshot.config.provider.privacy_url
+                                    ? snapshot.config.provider.privacy_url
+                                    : undefined
                                 }
                               />
                             )}
@@ -1164,6 +1312,9 @@ export default function LineLauncher() {
                         >
                           <ServerDetail
                             key={selected.id}
+                            active={
+                              section === "servers" && screen === "detail"
+                            }
                             sections={
                               normalizeLayout(settings?.settings.serverLayout)
                                 .sections
@@ -1211,6 +1362,7 @@ export default function LineLauncher() {
                             installError={installError}
                             launchError={launchError}
                             unprovedMods={unprovedMods}
+                            onUnprovedModsChange={setUnprovedMods}
                             onQuarantine={() => setQuarantineOpen(true)}
                             availability={
                               selected.launch_mode === "offline" ||

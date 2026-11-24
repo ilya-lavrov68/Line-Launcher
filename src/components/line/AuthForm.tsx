@@ -1,6 +1,6 @@
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Eye, EyeOff, LogIn, RefreshCw, UserPlus } from "@/components/ui/icons";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import FieldMessage from "./FieldMessage";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,15 @@ export interface AuthFormProps {
   registrationAvailable?: boolean;
   loading?: boolean;
   error?: string;
-  onSubmit: (mode: AuthMode, username: string, password: string) => void;
+  /** Only passed when provider config supplies both HTTPS telemetry URLs. */
+  telemetryPrivacyUrl?: string;
+  telemetryConsent?: boolean;
+  onSubmit: (
+    mode: AuthMode,
+    username: string,
+    password: string,
+    telemetryConsent: boolean,
+  ) => void;
 }
 
 /**
@@ -28,6 +36,8 @@ export default function AuthForm({
   registrationAvailable = true,
   loading = false,
   error,
+  telemetryPrivacyUrl,
+  telemetryConsent = false,
   onSubmit,
 }: AuthFormProps) {
   const id = useId();
@@ -40,6 +50,8 @@ export default function AuthForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [validation, setValidation] = useState<string>();
+  const [shareTelemetry, setShareTelemetry] = useState(telemetryConsent);
+  useEffect(() => setShareTelemetry(telemetryConsent), [telemetryConsent]);
   // Only complains once the player has typed something in the second field:
   // an empty confirmation on a half-filled form is not a mistake yet, it is
   // just a form being filled in.
@@ -80,7 +92,7 @@ export default function AuthForm({
       return;
     }
     setValidation(undefined);
-    onSubmit(mode, username, password);
+    onSubmit(mode, username, password, shareTelemetry);
     setPassword("");
     setConfirm("");
     setShowConfirm(false);
@@ -307,6 +319,34 @@ export default function AuthForm({
         <div className="min-h-4" aria-live="polite" aria-atomic="true">
           {message && <FieldMessage id={`${id}-error`}>{message}</FieldMessage>}
         </div>
+
+        {telemetryPrivacyUrl && (
+          <label
+            htmlFor={`${id}-telemetry`}
+            className="text-muted-foreground flex cursor-pointer items-start gap-2 text-[11px] leading-relaxed"
+          >
+            <input
+              id={`${id}-telemetry`}
+              type="checkbox"
+              checked={shareTelemetry}
+              disabled={loading}
+              onChange={(event) => setShareTelemetry(event.target.checked)}
+              className="accent-foreground mt-0.5 size-4 shrink-0"
+            />
+            <span>
+              {t("telemetry.authConsent")}{" "}
+              <a
+                href={telemetryPrivacyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground underline underline-offset-2"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {t("telemetry.privacyLink")}
+              </a>
+            </span>
+          </label>
+        )}
 
         <Button
           type="submit"

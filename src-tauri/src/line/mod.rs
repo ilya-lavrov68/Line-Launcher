@@ -36,6 +36,8 @@ pub mod settings;
 pub mod skin_library;
 pub mod source;
 pub mod state;
+pub mod status;
+pub mod telemetry;
 pub mod storage;
 pub mod support;
 pub mod tray;

@@ -52,7 +52,8 @@ pub struct FileIndex {
 
 /// What the scan found. `foreign` is deleted on the spot; `missing`/`changed`
 /// require the archive, because the launcher cannot invent the original bytes.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanReport {
     pub checked: usize,
     pub missing: Vec<String>,

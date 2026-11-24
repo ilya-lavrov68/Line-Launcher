@@ -60,11 +60,12 @@ test("refresh preserves a current server and stable controls", () => {
   assert.match(list, /disabled=\{actionsDisabled \|\| refreshing\}/);
   for (const file of [
     "ServerList",
-    "ServerDetail",
     "SettingsScreen",
     "WardrobeScreen",
     "ConfigUrlInput",
   ]) {
     assert.match(read(`src/components/line/${file}.tsx`), /<StableActionLabel/);
   }
+  assert.match(detail, /<MinecraftPanel/);
+  assert.match(detail, /<ServerActionPanel/);
 });

@@ -23,28 +23,28 @@
 
 :root {
   --radius: 12px;
-  --background: #0b0c0b;
+  --background: #0d1117;
   --foreground: #f2f1ec;
   --card: transparent;
   --card-foreground: #f2f1ec;
-  --popover: #151614;
+  --popover: #171d25;
   --popover-foreground: #f2f1ec;
   /* White is the single interface accent. It marks primary actions and active
    * states; green, amber, and red remain reserved for semantic status. */
   --primary: #ffffff;
   --primary-foreground: #111210;
-  --secondary: rgba(244, 242, 234, 0.075);
+  --secondary: rgba(229, 237, 248, 0.075);
   --secondary-foreground: #e6e5df;
-  --muted: rgba(244, 242, 234, 0.045);
-  --muted-foreground: oklch(0.72 0.008 95);
+  --muted: rgba(229, 237, 248, 0.045);
+  --muted-foreground: oklch(0.72 0.012 250);
   --accent: rgba(255, 255, 255, 0.1);
   --accent-foreground: #ffffff;
   --destructive: oklch(0.66 0.21 22);
   /* Saturated red reserved for the window close control; error copy keeps its
    * own lighter semantic color above. */
   --destructive-strong: oklch(0.58 0.24 27);
-  --border: rgba(236, 234, 226, 0.14);
-  --input: rgba(236, 234, 226, 0.2);
+  --border: rgba(220, 231, 245, 0.14);
+  --input: rgba(220, 231, 245, 0.2);
   --ring: rgba(255, 255, 255, 0.64);
   --sidebar: #10110f;
   --sidebar-foreground: #f2f1ec;
@@ -64,15 +64,15 @@
    * The tint density is unchanged; only the interface accent and quiet-fill
    * colors have been refreshed. The pane remains dark, translucent, and free of
    * blur so the selected live backdrop still reads through. */
-  --fill-subtle: rgba(244, 242, 234, 0.045);
-  --fill: rgba(244, 242, 234, 0.075);
+  --fill-subtle: rgba(229, 237, 248, 0.045);
+  --fill: rgba(229, 237, 248, 0.075);
   --fill-hover: rgba(244, 242, 234, 0.11);
   --fill-strong: rgba(244, 242, 234, 0.16);
   /* One fill, one name. `--glass-surface` is the token `[data-line-glass]`
    * reads; `--surface-glass` stays as its alias so nothing that still names the
    * old slot points at a value that no longer exists. */
   --surface-glass: var(--glass-surface);
-  --line-hairline: rgba(244, 242, 234, 0.1);
+  --line-hairline: rgba(229, 237, 248, 0.1);
   --line-accent: var(--primary);
   --line-online: oklch(0.8 0.17 155);
   --line-offline: oklch(0.66 0.02 250);
@@ -112,7 +112,7 @@
    * the sign-in plate from `--glass-surface-gate` —
    * and a component-by-component switch would drift the moment one of them
    * was touched. */
-  --line-solid-panel: #21221f;
+  --line-solid-panel: #1c232d;
 
   /* Glass: a dark pane over the moving backdrop — the state this design had
    * before it was inverted. `rgba(9,12,20,0.48)` lets the colour field read
@@ -122,13 +122,13 @@
    * around. */
   /* The shared pane: a darkening tint. Everything that is *not* the shell —
    * cards, the dock, rows inside a pane — sits on this. */
-  --glass-surface: rgba(10, 12, 16, 0.45);
-  --glass-surface-strong: rgba(10, 12, 16, 0.6);
+  --glass-surface: rgba(12, 17, 24, 0.48);
+  --glass-surface-strong: rgba(12, 17, 24, 0.62);
   /* The sign-in card. A page-level plate rather than a card inside a pane, so
    * it does not borrow the shell's light grey: it keeps the established dark
    * veil (`rgba(10,12,16,0.225)`). A veil, not a sheet — the plate darkens
    * what is behind it and the light ink reads on the result. */
-  --glass-surface-gate: rgba(10, 12, 16, 0.225);
+  --glass-surface-gate: rgba(12, 17, 24, 0.24);
   /* The page and sign-in plates keep the established dark veil. The rail has
    * its own separate treatment so it reads as navigation, not a second copy
    * of the panel beside it.
@@ -149,31 +149,31 @@
    * plate is a clear surface at the rounded edge and the field still moves
    * underneath it. Readability is not what pays for it — light ink on a darker
    * composite reads *better* the more veil there is. */
-  --glass-surface-shell: rgba(10, 12, 16, 0.225);
+  --glass-surface-shell: rgba(12, 17, 24, 0.24);
   /* Light ink on the unchanged dark wash. */
-  --glass-shell-ink: oklch(0.97 0.008 95);
+  --glass-shell-ink: oklch(0.97 0.008 250);
   /* The quiet slot runs lighter than the canvas's own `--glass-ink-soft`
    * (0.72) because the pane is *not* opaque: body copy can sit over a bright
    * stop of the backdrop, and the wash only takes the edge off it. 0.92 is the
    * step that clears 4.58:1 on the worst backdrop; 0.80 measured 2.74:1 on
    * `frost` and had to go. */
-  --glass-shell-ink-soft: oklch(0.92 0.01 95);
+  --glass-shell-ink-soft: oklch(0.92 0.01 250);
   /* State colours keep their canvas lightness: the pane is dark again, so
    * «проверена» can be drawn in the same green it is drawn in everywhere
    * else. */
   --glass-shell-online: oklch(0.8 0.17 155);
   --glass-shell-update: oklch(0.82 0.15 85);
   --glass-shell-error: oklch(0.72 0.19 22);
-  --glass-ink: oklch(0.97 0.008 95);
-  --glass-ink-soft: oklch(0.72 0.008 95);
-  --glass-ink-faint: oklch(0.62 0.008 95);
+  --glass-ink: oklch(0.97 0.008 250);
+  --glass-ink-soft: oklch(0.72 0.012 250);
+  --glass-ink-faint: oklch(0.62 0.012 250);
   --glass-hairline: rgba(255, 255, 255, 0.1);
   --glass-fill-subtle: rgba(255, 255, 255, 0.045);
   --glass-fill: rgba(255, 255, 255, 0.07);
   --glass-fill-hover: rgba(255, 255, 255, 0.1);
   --glass-fill-strong: rgba(255, 255, 255, 0.14);
-  --glass-border: rgba(236, 234, 226, 0.14);
-  --glass-input: rgba(236, 234, 226, 0.2);
+  --glass-border: rgba(220, 231, 245, 0.14);
+  --glass-input: rgba(220, 231, 245, 0.2);
   --glass-ring: rgba(255, 255, 255, 0.64);
   --glass-online: oklch(0.8 0.17 155);
   --glass-offline: oklch(0.66 0.02 250);
@@ -353,11 +353,11 @@
   /* Paint the distinct main plate and sign-in gate from the saved finish;
    * navigation stays transparent in either state. */
   :root[data-line-workspace="glass"] [data-line-glass="main"] {
-    background-color: rgba(10, 12, 16, 0.225);
+    background-color: rgba(12, 17, 24, 0.24);
   }
 
   :root[data-line-workspace="glass"] [data-line-glass="gate"] {
-    background-color: rgba(10, 12, 16, 0.225);
+    background-color: rgba(12, 17, 24, 0.24);
   }
 
   :root:not([data-line-workspace="glass"]) [data-line-glass="main"],

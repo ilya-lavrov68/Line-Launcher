@@ -13,6 +13,7 @@ import {
   Download,
   Palette,
   RefreshCw,
+  ShieldCheck,
   Trash2,
 } from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,7 +46,7 @@ import { LANGUAGES, LANGUAGE_NAMES, isLanguage } from "@/lib/line/languages";
 import { setLanguage, useT, type Translator } from "@/lib/line/i18n";
 
 type SettingsGroup =
-  "performance" | "appearance" | "java" | "window" | "storage";
+  "performance" | "appearance" | "java" | "window" | "storage" | "privacy";
 
 export interface SettingsScreenProps {
   snapshot: SettingsSnapshot;
@@ -54,6 +55,9 @@ export interface SettingsScreenProps {
   disabled?: boolean;
   /** The provider's own support address, from its config; absent = no button. */
   providerEmail?: string;
+  /** Telemetry is offered only with both provider endpoint and policy URL. */
+  telemetryAvailable?: boolean;
+  telemetryPrivacyUrl?: string;
 }
 
 /**
@@ -144,6 +148,8 @@ export default function SettingsScreen({
   onChange,
   disabled = false,
   providerEmail,
+  telemetryAvailable = false,
+  telemetryPrivacyUrl,
 }: SettingsScreenProps) {
   const t = useT();
   const afterLaunch = afterLaunchOptions(t);
@@ -165,6 +171,15 @@ export default function SettingsScreen({
     { id: "java", label: t("settings.group.java"), icon: Coffee },
     { id: "window", label: t("settings.group.window"), icon: MonitorCog },
     { id: "storage", label: t("settings.group.storage"), icon: HardDrive },
+    ...(telemetryAvailable
+      ? [
+          {
+            id: "privacy" as const,
+            label: t("settings.group.privacy"),
+            icon: ShieldCheck,
+          },
+        ]
+      : []),
   ] as const;
   const activeGroupIndex = settingsGroups.findIndex(
     ({ id }) => id === activeGroup,
@@ -634,6 +649,49 @@ export default function SettingsScreen({
                 onChange={(id) => void persist({ ...settings, backdrop: id })}
               />
             </Section>
+
+            <Section
+              icon={Palette}
+              title={t("settings.backdropMotion")}
+              description={t("settings.backdropMotionHint")}
+            >
+              <div
+                role="radiogroup"
+                aria-label={t("settings.backdropMotion")}
+                className="grid grid-cols-2 gap-2"
+              >
+                {(["static", "live"] as const).map((motion) => {
+                  const selected =
+                    (settings.backdropMotion ?? "live") === motion;
+                  return (
+                    <button
+                      key={motion}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={busy}
+                      onClick={() =>
+                        void persist({ ...settings, backdropMotion: motion })
+                      }
+                      className={cn(
+                        "flex min-h-10 cursor-pointer flex-col justify-center rounded-lg border px-3 py-2 text-start transition-colors",
+                        selected
+                          ? "border-foreground/30 bg-fill-subtle"
+                          : "border-border/40 hover:border-foreground/20 hover:bg-fill-subtle/60",
+                        busy && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <span className="text-foreground text-xs font-medium">
+                        {t(`onboarding.${motion}`)}
+                      </span>
+                      <span className="text-muted-foreground text-[11px]">
+                        {t(`onboarding.${motion}Hint`)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
           </div>
           <div
             data-settings-panel="java"
@@ -959,6 +1017,47 @@ export default function SettingsScreen({
               />
             </Section>
           </div>
+          {telemetryAvailable && telemetryPrivacyUrl && (
+            <div
+              data-settings-panel="privacy"
+              hidden={activeGroup !== "privacy"}
+              className={
+                activeGroup === "privacy" ? "flex flex-col gap-6" : "hidden"
+              }
+            >
+              <Section
+                icon={ShieldCheck}
+                title={t("telemetry.settingsTitle")}
+                description={t("telemetry.settingsDescription")}
+              >
+                <label
+                  htmlFor="provider-telemetry-consent"
+                  className="flex cursor-pointer items-start gap-3"
+                >
+                  <Switch
+                    id="provider-telemetry-consent"
+                    checked={settings.telemetryConsent ?? false}
+                    disabled={busy}
+                    onCheckedChange={(checked) =>
+                      void persist({ ...settings, telemetryConsent: checked })
+                    }
+                    className="mt-0.5"
+                  />
+                  <span className="text-foreground text-xs leading-relaxed">
+                    {t("telemetry.settingsToggle")}
+                  </span>
+                </label>
+                <a
+                  href={telemetryPrivacyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground w-fit text-xs underline underline-offset-2"
+                >
+                  {t("telemetry.privacyLink")}
+                </a>
+              </Section>
+            </div>
+          )}
         </div>
       </div>
     </section>

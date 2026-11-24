@@ -36,6 +36,9 @@ export interface LineProvider {
    * no desk, and «Связаться с провайдером» is not offered.
    */
   support_email?: string;
+  /** Optional telemetry is enabled only when both this and privacy_url exist. */
+  telemetry_url?: string;
+  privacy_url?: string;
 }
 
 /** Per-server game-join endpoints; a ticket authorises one specific server. */
@@ -117,6 +120,32 @@ export interface SkinState {
 
 export type LaunchMode = "ticket" | "offline" | "minecraft";
 
+export type TelemetryStage =
+  "login" | "register" | "install" | "prepare" | "launch";
+export type TelemetryOutcome = "success" | "failure" | "cancelled";
+
+export interface TelemetryRequest {
+  stage: TelemetryStage;
+  durationMs: number;
+  dataBytes?: number;
+  outcome: TelemetryOutcome;
+}
+
+export interface BuildIntegrityCheckResult {
+  checked: number;
+  missing: string[];
+  changed: string[];
+  foreign: string[];
+}
+
+export interface LiveServerStatus {
+  online: boolean;
+  playersOnline?: number;
+  playersMax?: number;
+  /** Round-trip time to the provider status endpoint; not game-server ping. */
+  latencyMs: number;
+}
+
 export interface LineServer {
   /** Stable, lowercase ASCII slug; never accept a filesystem path from JSON. */
   id: string;
@@ -135,6 +164,8 @@ export interface LineServer {
   launch_mode?: LaunchMode;
   /** Host or host:port the client joins right after launch (Minecraft mode). */
   server_address?: string;
+  /** Optional HTTPS JSON endpoint for this server's live status. */
+  status_url?: string;
   /** When false, the provider disables the test-world button. Defaults to true. */
   test_mode_enabled?: boolean;
   /** `pack.json` beside the instance ZIP; it decides whether the pack changed. */
@@ -251,6 +282,12 @@ export interface LauncherSettings {
    * rewriting anybody's settings file.
    */
   workspace?: WorkspaceFinish | null;
+  /** `live` animates the backdrop; `static` keeps the selected palette still. */
+  backdropMotion?: "static" | "live" | null;
+  /** Stored per OS profile; legacy settings migrate as already completed. */
+  onboardingCompleted?: boolean;
+  /** Explicit opt-in for provider telemetry; missing and false mean off. */
+  telemetryConsent?: boolean;
 }
 
 /** The two finishes the workspace can be painted in. */
@@ -509,50 +546,19 @@ export function toLineError(value: unknown, fallback?: string): LineError {
 export const LINE_MC_INSTALL_EVENT = "line://mc-install-progress";
 export const LINE_MC_GAME_EVENT = "line://mc-game-status";
 
-export type McLoaderKind = "fabric" | "quilt" | "forge" | "neoforge";
-
-export interface McLoaderRequest {
-  kind: McLoaderKind;
-  /** Omitted or empty = latest stable version of that loader. */
-  version?: string;
-}
-
-export interface McInstallRequest {
-  instanceId: string;
-  minecraftVersion: string;
-  loader?: McLoaderRequest;
-}
-
-export interface McInstalled {
-  instanceId: string;
-  /** With a loader this differs from the requested Minecraft version. */
-  versionId: string;
-}
-
-export interface McLaunchRequest {
-  instanceId: string;
-  versionId: string;
-  /** The client joins immediately; the launcher never leaves it in the menu. */
-  serverAddress: string;
-}
-
 /**
  * «Играть»: read `pack.json`, download the instance ZIP or confirm the installed
  * copy is current, fill any gaps from the official hosts, then join the server.
  * Everything except `serverId` defaults to what the provider published.
  */
 export interface McPlayRequest {
+  /** Provider config supplies every version, loader and join address. */
   serverId: string;
-  instanceId?: string;
-  minecraftVersion?: string;
-  loader?: McLoaderRequest;
-  serverAddress?: string;
   testMode?: boolean;
   prepareOnly?: boolean;
   approveZipRepair?: ZipRepairPlan;
   approveJavaDownload?: JavaDownloadPlan;
 }
-
 /** `pack.json`: a ZIP of a whole `.minecraft`, described for the launcher. */
 export interface LinePackManifest {
   schema_version: number;

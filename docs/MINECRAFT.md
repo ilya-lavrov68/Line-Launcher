@@ -38,24 +38,25 @@ Microsoft-логики в режиме нет и не планируется: `a
 поведение: режим не включается ни наличием адреса, ни `required_features`, ни
 версией лаунчера.
 
-Страница сервера такого типа показывает панель Minecraft вместо док-панели
-ZIP-сборки. Она вызывает:
+Страница сервера такого типа показывает панель Minecraft вместо ZIP-док-панели.
+Клиент отправляет в `mc_play` только идентификатор сервера и явные подтверждения
+для дополнительных загрузок. Версия Minecraft, pack, загрузчик, instance ID и
+адрес подключения берутся из проверенной конфигурации/сборки провайдера; клиент
+не может подменить эти значения произвольным IPC-запросом.
 
 | Команда                   | Когда                                                                   |
 | ------------------------- | ----------------------------------------------------------------------- |
-| `mc_status`               | при открытии страницы — восстановить «игра запущена» после смены экрана |
-| `mc_list_installed`       | доступен через API; список профилей не выводится в панели запуска       |
-| `mc_play`                 | кнопка «Играть»: проверить/скачать, синхронизировать, запустить и зайти |
-| `mc_play` с `prepareOnly` | «Подготовить заранее»: та же сборка и профиль, но без запуска           |
-| `mc_install`              | отдельная низкоуровневая установка только профиля Minecraft, без сборки |
-| `mc_stop`                 | «Остановить игру»; фаза `exited` приходит событием, а не ответом        |
+| `mc_status`               | при открытии страницы — восстановить состояние игры                     |
+| `mc_play`                 | «Играть»: проверить/скачать сборку, синхронизировать, запустить и зайти |
+| `mc_play` с `prepareOnly` | «Подготовить заранее»: тот же проверенный путь, но без запуска          |
+| `mc_stop`                 | «Остановить игру»; фаза `exited` приходит событием                      |
 
-`mc_launch` в интерфейсе намеренно не используется: он запускает профиль без
-сверки с опубликованной сборкой, и единственный корректный путь «просто играть» —
-`mc_play`. Команда остаётся в API для будущего экрана выбора версии/загрузчика.
+Низкоуровневые `mc_install`, `mc_list_installed` и `mc_launch` не являются
+публичными командами. Отдельная установка произвольной версии и прямой запуск
+профиля обходили бы опубликованную сборку и ограничения провайдера.
 
 События `line://mc-install-progress` и `line://mc-game-status` фильтруются по
-`instanceId`, поэтому два сервера в одном окне не перепутают прогресс.
+`instanceId`.
 
 ## Автозаход на сервер
 
@@ -195,7 +196,7 @@ pack.json. Если обновить архив, но забыть pack.json, л
 | Шаг             | Код                                    | API крейта                                                                                                                           |
 | --------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Инициализация   | `instance_root` + `Launcher::new(dir)` | `launcher::Launcher`                                                                                                                 |
-| Установка       | `mc_install`                           | `install_with_progress(InstallRequest, reporter)`                                                                                    |
+| Установка       | внутренняя `install_profile`           | `install_with_progress(InstallRequest, reporter)`                                                                                    |
 | Загрузчик модов | `loader_spec`                          | `LoaderSpec::{Fabric,Quilt,Forge,NeoForge}`, `LoaderVersion::{LatestStable,Exact}`; NeoForge 1.20.1: отдельный путь установщика 47.x |
 | Метаданные      | `start_game`                           | `load_version` → `VersionJson` (с учётом `inheritsFrom`)                                                                             |
 | Команда         | `start_game`                           | `build_launch_command_from_version(&version, LaunchOptions)`                                                                         |
@@ -250,20 +251,14 @@ Account::Offline { username: account_name, uuid: account_uuid }
 
 ## Команды Tauri
 
-| Команда             | Аргументы                                            | Результат                   |
-| ------------------- | ---------------------------------------------------- | --------------------------- |
-| `mc_install`        | `request: { instanceId, minecraftVersion, loader? }` | `{ instanceId, versionId }` |
-| `mc_list_installed` | `instanceId`                                         | `string[]`                  |
-| `mc_launch`         | `request: { instanceId, versionId }`                 | `McGameStatus`              |
-| `mc_stop`           | `instanceId`                                         | `boolean`                   |
-| `mc_status`         | `instanceId`                                         | `McGameStatus`              |
+| Команда     | Аргументы                                                                                 | Результат      |
+| ----------- | ----------------------------------------------------------------------------------------- | -------------- |
+| `mc_play`   | `request: { serverId, testMode?, prepareOnly?, approveZipRepair?, approveJavaDownload? }` | `McGameStatus` |
+| `mc_stop`   | `instanceId`                                                                              | `boolean`      |
+| `mc_status` | `instanceId`                                                                              | `McGameStatus` |
 
-События: `line://mc-install-progress` и `line://mc-game-status`. Обёртки —
-`lineApi.mcPlay/mcInstall/mcLaunch/mcStop/mcStatus/onMcProgress/onMcGame`.
-Кнопка «Играть» вызывает `mcPlay`.
-
-`versionId` из `mc_install` надо сохранять: с загрузчиком это не исходная версия
-(`fabric-loader-0.16.9-1.21.1` вместо `1.21.1`).
+События: `line://mc-install-progress` и `line://mc-game-status`. В UI используются
+`lineApi.mcPlay/mcStop/mcStatus/onMcProgress/onMcGame`.
 
 Лог игры: `<app-data>/minecraft/<instanceId>/logs/launch.log`. Данные игрока —
 каталог `game/` рядом с `versions/`, он не удаляется при обновлении профиля.

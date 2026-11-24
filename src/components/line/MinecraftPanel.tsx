@@ -1,6 +1,5 @@
 import {
-  Download,
-  Gamepad2,
+  ChevronDown,
   Loader2,
   Play,
   Square,
@@ -17,6 +16,7 @@ import {
 import { ServerDock, ServerDockPrimary } from "./ServerDock";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type {
+  BuildIntegrityCheckResult,
   GamePhase,
   JavaDownloadPlan,
   LineServer,
@@ -86,6 +86,9 @@ export default function MinecraftPanel({
   const [busy, setBusy] = useState<Busy>("idle");
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [buildCheck, setBuildCheck] =
+    useState<BuildIntegrityCheckResult | null>(null);
+  const [buildCheckError, setBuildCheckError] = useState<string>();
   const [pendingRepair, setPendingRepair] = useState<ZipRepairPlan | null>(
     null,
   );
@@ -284,6 +287,17 @@ export default function MinecraftPanel({
     }
   }
 
+  async function checkBuild() {
+    if (locked) return;
+    setBuildCheck(null);
+    setBuildCheckError(undefined);
+    try {
+      setBuildCheck(await lineApi.checkBuild(instanceId));
+    } catch (cause) {
+      setBuildCheckError(errorMessage(cause));
+    }
+  }
+
   async function stop() {
     if (locked || operationActive.current) return;
     updateBusy("stopping");
@@ -363,14 +377,10 @@ export default function MinecraftPanel({
           прогресса — как play/pause у Liner, который меняет состояние, но не
           добавляет рядом вторую строку. Ни процента текстом, ни имени файла:
           стадию говорит строка статуса выше. */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-stretch gap-1.5">
         <ServerDockPrimary
           disabled={locked}
           active={running}
-          // When available, the fill grows from zero by real work — files done
-          // over files total, else bytes over bytes. Before a stage has a
-          // denominator (resolving the version, scanning the cache), the
-          // indeterminate sweep signals activity without inventing a percent.
           progress={working ? (percent ?? 0) : null}
           indeterminate={working && percent === null}
           progressLabel={stageNames[progress?.stage ?? "task"]}
@@ -387,40 +397,126 @@ export default function MinecraftPanel({
             ? t("detail.stopGame")
             : t("detail.play")}
         </ServerDockPrimary>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {!running && server.test_mode_enabled !== false && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={locked}
-            onClick={() => void play(true)}
-            className="cursor-pointer gap-1.5 text-xs"
-          >
-            <Gamepad2 className="size-3.5" aria-hidden="true" />
-            {t("mc.testMode")}
-          </Button>
-        )}
-
-        {/* The secondary path is only useful while nothing is running. */}
         {!running && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={locked}
-            onClick={() => void prepare()}
-            className="text-muted-foreground hover:text-foreground cursor-pointer gap-1.5 text-xs"
+          <details
+            className="group relative shrink-0"
+            data-testid="server-action-menu"
           >
-            {busy === "installing" ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Download className="size-3.5" aria-hidden="true" />
-            )}
-            {t("mc.prepare")}
-          </Button>
+            <summary
+              aria-label={t("detail.moreActions")}
+              aria-haspopup="menu"
+              title={t("detail.moreActions")}
+              className={cn(
+                "bg-primary text-primary-foreground hover:bg-primary/85 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-[var(--radius-item)] transition-colors",
+                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+                locked && "pointer-events-none opacity-50",
+              )}
+            >
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </summary>
+            <div
+              role="menu"
+              className="bg-popover text-popover-foreground border-border absolute end-0 top-[calc(100%+8px)] z-30 flex min-w-52 flex-col gap-1 rounded-[var(--radius-item)] border p-1.5 shadow-lg"
+            >
+              <button
+                role="menuitem"
+                type="button"
+                disabled={locked}
+                onClick={(event) => {
+                  event.currentTarget
+                    .closest("details")
+                    ?.removeAttribute("open");
+                  void checkBuild();
+                }}
+                className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+              >
+                {t("detail.checkBuild")}
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                disabled={locked}
+                onClick={(event) => {
+                  event.currentTarget
+                    .closest("details")
+                    ?.removeAttribute("open");
+                  void prepare();
+                }}
+                className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+              >
+                {t("detail.prepareAhead")}
+              </button>
+              {server.test_mode_enabled !== false && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  disabled={locked}
+                  onClick={(event) => {
+                    event.currentTarget
+                      .closest("details")
+                      ?.removeAttribute("open");
+                    void play(true);
+                  }}
+                  className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                >
+                  {t("detail.offlineLaunch")}
+                </button>
+              )}
+            </div>
+          </details>
         )}
       </div>
+
+      {buildCheck && (
+        <div
+          data-testid="build-integrity-result"
+          className="bg-fill-subtle flex flex-col gap-1 rounded-[var(--radius-item)] p-3 text-xs"
+        >
+          <p
+            role="status"
+            className={
+              buildCheck.missing.length +
+                buildCheck.changed.length +
+                buildCheck.foreign.length ===
+              0
+                ? "text-line-online font-medium"
+                : "text-line-update font-medium"
+            }
+          >
+            {buildCheck.missing.length +
+              buildCheck.changed.length +
+              buildCheck.foreign.length ===
+            0
+              ? t("detail.buildVerified", { count: buildCheck.checked })
+              : t("detail.buildNeedsRepair")}
+          </p>
+          {(
+            [
+              ["detail.buildMissingFiles", buildCheck.missing],
+              ["detail.buildChangedFiles", buildCheck.changed],
+              ["detail.buildExtraFiles", buildCheck.foreign],
+            ] as const
+          ).map(([label, paths]) =>
+            paths.length > 0 ? (
+              <div key={label}>
+                <p className="text-muted-foreground">
+                  {t(label)} · {paths.length}
+                </p>
+                <ul className="text-muted-foreground max-h-24 overflow-y-auto font-mono text-[11px] break-all">
+                  {paths.slice(0, 12).map((path) => (
+                    <li key={path}>{path}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
+      {buildCheckError && (
+        <p role="alert" className="text-destructive text-xs">
+          {buildCheckError}
+        </p>
+      )}
 
       {notice && (
         <p

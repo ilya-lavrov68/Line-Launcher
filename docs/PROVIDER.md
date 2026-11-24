@@ -10,20 +10,22 @@
 
 JSON использует `snake_case`; IPC Tauri — `camelCase`.
 
-| Поле                     | Требование                                                                                                                                                                        |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema_version`         | Сейчас ровно `1`                                                                                                                                                                  |
-| `min_launcher_version`   | Строгий SemVer, например `0.1.0`                                                                                                                                                  |
-| `provider.id`            | Lowercase ASCII slug, до 64 символов                                                                                                                                              |
-| `provider.name`          | Непустое название, до 100 символов                                                                                                                                                |
-| `provider.logo_url`      | Необязательный HTTPS URL                                                                                                                                                          |
-| `provider.auth`          | Обязательный объект: `login_url` (HTTPS) и необязательный `register_url`. Один аккаунт на весь проект                                                                             |
-| `provider.wardrobe`      | Необязательный объект; требует **оба** поля `skin_url` и `skin_upload_url`, оба HTTPS. Гардероб общий для аккаунта                                                                |
-| `anticheat`              | Необязательный объект: `scan_resourcepacks`, `extra_keywords`, `allow`. По умолчанию проверка включена. [ANTICHEAT.md](ANTICHEAT.md)                                              |
-| `provider.support_email` | Необязательный адрес почты поддержки проекта. Показывает игроку кнопку «Связаться с провайдером» в настройках; письмо открывается черновиком с диагностикой. Только адрес, не URL |
-| `cache_ttl_seconds`      | Необязательный, 60–86400; по умолчанию 300                                                                                                                                        |
-| `required_features`      | Поддерживаются `custom-auth-v1`, `zip-sha256-v1`, `launch-manifest-v1`, `private-ipc-v1`, `skin-upload-v1`; неизвестные возможности запрещены                                     |
-| `servers`                | 1–100 записей с уникальными `id`                                                                                                                                                  |
+| Поле                     | Требование                                                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema_version`         | Сейчас ровно `1`                                                                                                                              |
+| `min_launcher_version`   | Строгий SemVer, например `0.1.0`                                                                                                              |
+| `provider.id`            | Lowercase ASCII slug, до 64 символов                                                                                                          |
+| `provider.name`          | Непустое название, до 100 символов                                                                                                            |
+| `provider.logo_url`      | Необязательный HTTPS URL                                                                                                                      |
+| `provider.auth`          | Обязательный объект: `login_url` (HTTPS) и необязательный `register_url`. Один аккаунт на весь проект                                         |
+| `provider.wardrobe`      | Необязательный объект; требует **оба** поля `skin_url` и `skin_upload_url`, оба HTTPS. Гардероб общий для аккаунта                            |
+| `anticheat`              | Необязательный объект: `scan_resourcepacks`, `extra_keywords`, `allow`. По умолчанию проверка включена. [ANTICHEAT.md](ANTICHEAT.md)          |
+| `provider.support_email` | Необязательный адрес поддержки. Показывает кнопку связи с провайдером; письмо открывается черновиком с диагностикой. Только адрес, не URL     |
+| `provider.telemetry_url` | Необязательный HTTPS endpoint для минимальной добровольной телеметрии; интерфейс согласия появляется только вместе с `privacy_url`            |
+| `provider.privacy_url`   | Необязательная HTTPS-ссылка на политику; без неё телеметрия не предлагается и не отправляется                                                 |
+| `cache_ttl_seconds`      | Необязательный, 60–86400; по умолчанию 300                                                                                                    |
+| `required_features`      | Поддерживаются `custom-auth-v1`, `zip-sha256-v1`, `launch-manifest-v1`, `private-ipc-v1`, `skin-upload-v1`; неизвестные возможности запрещены |
+| `servers`                | 1–100 записей с уникальными `id`                                                                                                              |
 
 Сервер содержит `id`, `name`, `description`, `version`, необязательные `icon_url`, `banner_url`, `minecraft_version` и `auth`. Для ZIP укажите `distribution`; экспериментальные сборки из packwiz/Modrinth описаны в [SOURCES.md](SOURCES.md).
 
@@ -44,6 +46,7 @@ JSON использует `snake_case`; IPC Tauri — `camelCase`.
 | ------------ | -------------------------------------------------------------------------------------------------------- |
 | `icon_url`   | Необязательный HTTPS URL квадратной иконки сервера (рекомендуется 128×128 и больше)                      |
 | `banner_url` | Необязательный HTTPS URL широкого баннера (рекомендуется 1600×400, соотношение около 4:1)                |
+| `status_url` | Необязательный HTTPS JSON endpoint для live status; формат ответа описан ниже                            |
 | `auth`       | Необязательный объект только для запуска: `launch_ticket_url` и `session_exchange_url` вместе, оба HTTPS |
 
 `logo_url` у сервера — устаревшее имя `icon_url`. Лаунчер читает его как алиас,
@@ -55,6 +58,62 @@ JSON использует `snake_case`; IPC Tauri — `camelCase`.
 скрывается. Ссылки должны быть публично доступными и отдавать корректный
 `Content-Type`; для предпросмотра скина с другого origin нужен
 `Access-Control-Allow-Origin` (canvas читает пиксели).
+
+## Live status
+
+`servers[].status_url` — необязательный HTTPS endpoint. Пока игрок находится на
+странице сервера, лаунчер запрашивает его примерно раз в минуту. Endpoint должен
+отдавать небольшой JSON-объект (максимум 16 KiB):
+
+```json
+{
+  "online": true,
+  "players_online": 24,
+  "players_max": 120
+}
+```
+
+`online` обязателен; числа игроков опциональны. Если переданы оба числа,
+`players_online` не может быть больше `players_max`. Ошибку endpoint нельзя
+показывать как доказательство, что игровой сервер выключен. В интерфейсе
+отображаются число игроков и HTTP round-trip до endpoint — это **не игровой
+ping** и не проверка протокола Minecraft.
+
+## Добровольная телеметрия
+
+Чтобы показать необязательное согласие, задайте оба поля провайдера:
+
+```json
+{
+  "provider": {
+    "telemetry_url": "https://example.org/launcher/telemetry",
+    "privacy_url": "https://example.org/privacy"
+  }
+}
+```
+
+Без любого из них лаунчер не предлагает и не отправляет телеметрию. Согласие
+хранится локально, выключено по умолчанию и может быть отозвано в настройках.
+Отказ не блокирует авторизацию или запуск. Endpoint принимает POST JSON с
+allowlisted полями:
+
+```json
+{
+  "launcherVersion": "0.15.4",
+  "os": "windows",
+  "stage": "install",
+  "durationMs": 18342,
+  "dataBytes": 7340032,
+  "outcome": "success"
+}
+```
+
+`stage`: `login`, `register`, `install`, `prepare` или `launch`; `outcome`:
+`success`, `failure` или `cancelled`. `dataBytes` может отсутствовать. Длительность
+ограничена семью днями. Имя игрока, UUID, ID сервера, токены, локальные пути,
+URL операции и сырой текст ошибки в payload не передаются. Ответ с успешным
+HTTP-кодом означает, что endpoint принял событие; недоступность endpoint не
+должна мешать основной операции.
 
 `distribution` требует **одно** поле:
 

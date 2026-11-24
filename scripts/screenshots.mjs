@@ -43,6 +43,8 @@ const config = JSON.parse(
   readFileSync(path.join(root, "examples/config.json"), "utf8"),
 );
 config.provider.name = "Plus In Plus Demo";
+config.provider.telemetry_url = "https://demo.plusinplus.ru/line/telemetry";
+config.provider.privacy_url = "https://demo.plusinplus.ru/privacy";
 
 // Use the same authored vector artwork as the reference provider. Keeping one
 // source of truth prevents the README screenshots from drifting into a separate
@@ -70,6 +72,7 @@ config.servers = config.servers.map((server, index) => {
     ...server,
     banner_url: demoBannerDataUrl(theme),
     icon_url: demoIconDataUrl(theme),
+    status_url: "https://demo.plusinplus.ru/line/status",
   };
 });
 
@@ -226,6 +229,11 @@ await page.addInitScript(
     window.isTauri = true;
     window.__callbacks = new Map();
     window.__cid = 1;
+    // Keep the short welcome screen stable long enough to capture it, then the
+    // script advances it explicitly. This affects only the screenshot fixture.
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (handler, delay, ...args) =>
+      nativeSetTimeout(handler, delay === 1900 ? 15_000 : delay, ...args);
     window.__events = new Map();
     window.__session = null;
     window.__installed = installed;
@@ -289,6 +297,8 @@ await page.addInitScript(
               // default the first run actually opens with.
               sidebarCollapsed: true,
               afterLaunch: "minimize",
+              onboardingCompleted: false,
+              telemetryConsent: false,
               // Capture the unified server directory and opaque panels. The
               // animated backdrop remains visible around panels in solid mode.
               backdrop: "copper",
@@ -369,6 +379,13 @@ await page.addInitScript(
             exitCode: null,
             message: null,
           };
+        if (cmd === "get_server_status")
+          return {
+            online: true,
+            playersOnline: 24,
+            playersMax: 120,
+            latencyMs: 34,
+          };
         if (cmd === "get_game_status")
           return { serverId: args.serverId, revision: 1, phase: "idle" };
         if (cmd === "list_release_history")
@@ -426,7 +443,15 @@ try {
     .waitFor({ timeout: 5_000 });
   await page.waitForTimeout(420);
   await shot("welcome");
+  await page.getByRole("button", { name: "Продолжить", exact: true }).click();
   await page.locator("[data-line-welcome]").waitFor({ state: "detached" });
+
+  // The first-run wizard is a real page in the app, before authentication.
+  // Capture its language, backdrop and motion choices from the reset settings.
+  await page.locator("[data-line-first-run-setup]").waitFor();
+  await shot("setup");
+  await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+  await page.getByRole("heading", { level: 1 }).waitFor();
 
   // The single sign-in gate: one account for the whole project, on a page of
   // its own — the provider's name is the heading, the card holds the form.
@@ -454,11 +479,17 @@ try {
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("server");
+  await page.locator('[data-testid="server-action-menu"] summary').click();
+  await shot("server-actions");
+  await page.locator('[data-testid="server-action-menu"] summary').click();
 
   await page.getByRole("button", { name: "Все серверы" }).click();
   await page.getByRole("button", { name: /Открыть сервер SkyBlock/ }).click();
-  await page.getByRole("button", { name: "Подготовить заранее" }).waitFor();
+  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("minecraft");
+  await page.locator('[data-testid="server-action-menu"] summary').click();
+  await shot("minecraft-actions");
+  await page.locator('[data-testid="server-action-menu"] summary').click();
 
   await page.getByRole("button", { name: "Гардероб", exact: true }).click();
   await page.getByRole("heading", { name: "Локальная история" }).waitFor();
@@ -488,8 +519,11 @@ try {
   await workspaceHeading.evaluate((element) =>
     element.scrollIntoView({ block: "start", behavior: "instant" }),
   );
-  await page.locator('[role="radiogroup"]').waitFor();
+  await page.getByRole("radiogroup", { name: "Рабочая зона" }).waitFor();
   await shot("workspace");
+  await page.locator('[data-settings-category="privacy"]').click();
+  await page.locator('[data-settings-panel="privacy"]').waitFor();
+  await shot("privacy");
 
   if (errors.length > 0) {
     console.error("page errors:", errors);
@@ -497,14 +531,18 @@ try {
   } else {
     const expected = [
       "welcome",
+      "setup",
       "account",
       "servers",
       "server",
+      "server-actions",
       "minecraft",
+      "minecraft-actions",
       "wardrobe",
       "profile",
       "settings",
       "workspace",
+      "privacy",
     ].map((name) => `line-${name}.png`);
     if (
       captured.length !== expected.length ||

@@ -195,8 +195,14 @@ test("disabling keyword scans leaves mod composition checking enabled", () => {
     launchRust.indexOf("pub fn scan_packs_with"),
     launchRust.indexOf("pub async fn launch_game"),
   );
-  assert.ok(body.indexOf("check_live_mods_with") < body.indexOf("if !settings.scan_resourcepacks"));
-  assert.match(body.slice(body.indexOf("if !settings.scan_resourcepacks")), /blocked: None/);
+  assert.ok(
+    body.indexOf("check_live_mods_with") <
+      body.indexOf("if !settings.scan_resourcepacks"),
+  );
+  assert.match(
+    body.slice(body.indexOf("if !settings.scan_resourcepacks")),
+    /blocked: None/,
+  );
 });
 
 test("the anticheat block is optional and its limits are enforced", () => {
@@ -242,7 +248,8 @@ test("pack check reports missing installs and renders structured errors", async 
     "utf8",
   );
   const panel = detail.slice(detail.indexOf("export function PackCheckPanel"));
-  assert.match(panel, /setError\(errorMessage\(cause\)\)/);
+  assert.match(panel, /checkError/);
+  assert.match(panel, /setReportError\(errorMessage\(cause\)\)/);
   assert.doesNotMatch(panel, /String\(cause\)/);
   const launch = readFileSync(
     path.join(ROOT, "src-tauri/src/line/launch.rs"),
@@ -268,9 +275,11 @@ test("the resource scan skips prose across mods and keeps checking render assets
   );
 });
 
-
 test("mods are checked for missing and extra JARs, not keyword content or service data", () => {
-  const scan = launchRust.slice(launchRust.indexOf("pub fn is_mod_jar"), launchRust.indexOf("/// Result of the resource-pack check"));
+  const scan = launchRust.slice(
+    launchRust.indexOf("pub fn is_mod_jar"),
+    launchRust.indexOf("/// Result of the resource-pack check"),
+  );
   assert.match(scan, /ends_with\("\.jar"\)/);
   assert.match(scan, /!is_real_file\(&target\)/);
   assert.match(scan, /!is_mod_jar\(&relative\)/);

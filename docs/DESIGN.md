@@ -307,8 +307,9 @@ src/components/line/BackdropPicker.tsx
 
 Что **не** переносится, но и не удаляется из tryliner — это их код, а не наш:
 `shared/api`, `shared/telemetry`, `features/updater`, `features/youtube-auth`,
-`features/discord`. В Line Launcher на их месте уже стоят Rust-команды,
-провайдер-конфиг и отсутствие внешней телеметрии.
+`features/discord`. В Line Launcher на их месте стоят Rust-команды и провайдер-конфиг. Сторонняя
+телеметрия не импортирована: отдельная минимальная телеметрия провайдера может
+отправляться только с явного согласия игрока.
 
 ## Почему не `tailwind.config.ts`
 

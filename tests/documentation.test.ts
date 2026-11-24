@@ -6,12 +6,15 @@ import test from "node:test";
 const root = path.resolve(import.meta.dirname, "..");
 
 test("README and every documentation page have valid local markdown links", () => {
-  const files = [
-    "README.md",
-    ...readdirSync(path.join(root, "docs"))
-      .filter((name) => name.endsWith(".md"))
-      .map((name) => `docs/${name}`),
-  ];
+  const markdownFiles = (directory: string): string[] =>
+    readdirSync(path.join(root, directory), { withFileTypes: true }).flatMap(
+      (entry) => {
+        const relative = path.join(directory, entry.name);
+        if (entry.isDirectory()) return markdownFiles(relative);
+        return entry.isFile() && entry.name.endsWith(".md") ? [relative] : [];
+      },
+    );
+  const files = ["README.md", ...markdownFiles("docs")];
   for (const file of files) {
     const body = readFileSync(path.join(root, file), "utf8");
     for (const match of body.matchAll(/\]\(([^)]+)\)/g)) {
@@ -32,11 +35,9 @@ test("documentation has one active roadmap and labels current integration limits
   assert.match(roadmap, /Единственное место для активных планов проекта/);
   assert.match(roadmap, /не передавать UUID из\s+интерфейса лаунчера/i);
   assert.match(roadmap, /не добавлять endpoint, поля ответа, mock-метрики/i);
-  assert.match(verification, /422 total, 421 passed, 1 skipped, 0 failed/);
-  assert.match(
-    verification,
-    /Playwright could not find its Chromium\s+executable/,
-  );
+  assert.match(verification, /423 total, 422 passed, 1 skipped, 0 failed/);
+  assert.match(verification, /npm run screenshots` passed and regenerated/);
+  assert.match(verification, /mocked Tauri IPC/);
   assert.match(
     read("CONTRIBUTING.md"),
     /Обновляйте документацию в том же изменении/,

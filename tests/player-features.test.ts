@@ -625,14 +625,14 @@ test("a signed-out launcher locks the shell on every screen", () => {
 
   assert.match(
     shell,
-    /const signedOut =\s*introDone &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
+    /const signedOut =\s*introDone &&\s*!setupRequired &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
     "the lock must be derived from the session",
   );
   // The page is raised by the session, not by the screen name; see the test
   // below for the door that the screen-shaped rule left open.
   assert.match(
     shell,
-    /const signedOut =\s*introDone &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
+    /const signedOut =\s*introDone &&\s*!setupRequired &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
     "the sign-in page is raised by the absence of a session",
   );
   // The page itself: shown whenever the player is signed out, with the shell
@@ -678,7 +678,7 @@ test("a build with no provider keeps its own screen instead of a sign-in box", (
   // would show a password field that can never succeed.
   assert.match(
     shell,
-    /const signedOut =\s*introDone &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
+    /const signedOut =\s*introDone &&\s*!setupRequired &&\s*!session &&\s*mode !== "unconfigured" &&\s*!\(mode === "dev-url" && !snapshot\)/,
   );
   assert.match(shell, /mode === "unconfigured" \? \(/);
 });

@@ -695,7 +695,7 @@ test("panes are a darkening tint over the moving backdrop", () => {
   // backdrop's colour to read through it, and stay dark.
   assert.match(
     indexCss,
-    /--background:\s*#0b0c0b/,
+    /--background:\s*#0d1117/,
     "the ground stays dark; the backdrop paints over it",
   );
 
@@ -817,12 +817,12 @@ test("the sign-in plate is half the density of the shared pane", () => {
   const css = read("src/index.css");
   assert.match(
     css,
-    /--glass-surface:\s*rgba\(10,\s*12,\s*16,\s*0\.45\)/,
+    /--glass-surface:\s*rgba\(12,\s*17,\s*24,\s*0\.48\)/,
     "--glass-surface must stay the shared pane value",
   );
   assert.match(
     css,
-    /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/,
+    /--glass-surface-gate:\s*rgba\(12,\s*17,\s*24,\s*0\.24\)/,
     "the gate plate must be half the shared pane: 0.45 → 0.225",
   );
   assert.doesNotMatch(
@@ -874,9 +874,10 @@ test("the skin placeholder cannot stretch the card around it", () => {
 
 test("the sidebar blends into the backdrop while the main page stays distinct", () => {
   const css = read("src/index.css");
-  const shell =
-    /--glass-surface-shell:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(css);
-  const gate = /--glass-surface-gate:\s*rgba\(10,\s*12,\s*16,\s*0\.225\)/.exec(
+  const shell = /--glass-surface-shell:\s*rgba\(12,\s*17,\s*24,\s*0\.24\)/.exec(
+    css,
+  );
+  const gate = /--glass-surface-gate:\s*rgba\(12,\s*17,\s*24,\s*0\.24\)/.exec(
     css,
   );
   assert.ok(shell, "the main page must keep its dark translucent plate");
@@ -918,7 +919,7 @@ test("the sidebar blends into the backdrop while the main page stays distinct", 
     /className="flex min-h-0 w-full flex-1 gap-1\.5 overflow-hidden"/,
     "a small gap preserves the separation between rail and page",
   );
-  assert.match(css, /--line-solid-panel:\s*#21221f/);
+  assert.match(css, /--line-solid-panel:\s*#1c232d/);
   assert.doesNotMatch(
     css,
     /--glass-surface-shell:\s*rgba\(230,/,

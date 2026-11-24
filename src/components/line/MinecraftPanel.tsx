@@ -367,11 +367,10 @@ export default function MinecraftPanel({
         <ServerDockPrimary
           disabled={locked}
           active={running}
-          // The fill grows from zero by real work — files done over files
-          // total, else bytes over bytes. A stage with neither (resolving the
-          // version, scanning the cache) holds a third of the surface instead
-          // of sweeping, so the button reads as filling, never as something
-          // running past it.
+          // When available, the fill grows from zero by real work — files done
+          // over files total, else bytes over bytes. Before a stage has a
+          // denominator (resolving the version, scanning the cache), the
+          // indeterminate sweep signals activity without inventing a percent.
           progress={working ? (percent ?? 0) : null}
           indeterminate={working && percent === null}
           progressLabel={stageNames[progress?.stage ?? "task"]}

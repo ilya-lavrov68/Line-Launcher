@@ -52,7 +52,7 @@ export function ServerCatalogRail({
             data-line-server-featured
             role="region"
             aria-label={t("catalog.lastSelected")}
-            className="border-border/50 bg-fill relative isolate flex aspect-[4/1] min-h-64 overflow-hidden rounded-[var(--radius-panel)] border sm:min-h-72"
+            className="border-border/50 bg-fill relative isolate flex aspect-[4/1] min-h-64 w-full min-w-0 overflow-hidden rounded-[var(--radius-panel)] border sm:min-h-72"
           >
             {server.banner_url && !bannerFailed ? (
               <img
@@ -69,7 +69,7 @@ export function ServerCatalogRail({
             ) : (
               <div className="bg-fill-strong absolute inset-0">
                 <ServerIcon
-                  className="text-foreground/10 absolute -right-3 -bottom-16 size-64"
+                  className="text-foreground/10 absolute top-[42%] right-[4%] size-28 -translate-y-1/2 sm:size-32 md:size-36 lg:size-40"
                   aria-hidden="true"
                 />
                 <div

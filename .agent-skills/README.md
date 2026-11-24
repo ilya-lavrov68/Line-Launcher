@@ -19,3 +19,9 @@ intact.
 The rules that changed this codebase are summarised in
 [`docs/DESIGN.md`](../docs/DESIGN.md) under «Правила, которые действуют сейчас»,
 so nobody has to read 500 KB of skill files to make a card.
+
+Additional upstream collections are installed in the standard
+[`../.agents/skills/`](../.agents/skills/) directory. The root
+[`AGENTS.md`](../AGENTS.md) now requires a skill-first workflow and Grill Me
+alignment before project changes. Skill names were checked against this
+collection; none of the 67 added skills duplicates one of these 15.

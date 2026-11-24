@@ -7,6 +7,8 @@ import {
   PackageX,
   ShieldCheck,
   ShieldX,
+  Wifi,
+  WifiOff,
 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,13 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/line/i18n";
-import { errorMessage } from "@/lib/line/api";
+import { errorMessage, lineApi } from "@/lib/line/api";
 import { NO_SECTION, type ServerSection } from "@/lib/line/server-layout";
 import type {
+  BuildIntegrityCheckResult,
   GameStatus,
   InstallProgress,
   InstallReceipt,
   LineServer,
+  LiveServerStatus,
   McInstallProgress,
   PackCheckResult,
   ReleaseHistory,
@@ -34,10 +38,11 @@ import ServerActionPanel, {
   type ServerAvailability,
 } from "./ServerActionPanel";
 import MinecraftPanel from "./MinecraftPanel";
-import StableActionLabel from "./StableActionLabel";
 
 export interface ServerDetailProps {
   server: LineServer;
+  /** Poll live status only while this detail page is actually open. */
+  active?: boolean;
   providerName?: string;
   onReportPacks?: () => Promise<void>;
   hasSession: boolean;
@@ -80,6 +85,7 @@ export interface ServerDetailProps {
   onCheckPacks?: () => Promise<PackCheckResult>;
   /** The files the last refusal named, when it was about unproved mods. */
   unprovedMods?: string[];
+  onUnprovedModsChange?: (paths: string[]) => void;
   /** Opens the quarantine decision for exactly those files. */
   onQuarantine?: () => void;
 }
@@ -130,6 +136,7 @@ export function phaseOf(
 export default function ServerDetail(props: ServerDetailProps) {
   const {
     server,
+    active = true,
     providerName,
     hasSession,
     receipt,
@@ -147,8 +154,60 @@ export default function ServerDetail(props: ServerDetailProps) {
   const reducedMotion = useReducedMotion();
   const [bannerFailed, setBannerFailed] = useState(false);
   const [iconFailed, setIconFailed] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<LiveServerStatus | null>(null);
+  const [liveStatusUnavailable, setLiveStatusUnavailable] = useState(false);
+  const [buildIntegrity, setBuildIntegrity] =
+    useState<BuildIntegrityCheckResult | null>(null);
+  const [packCheckResult, setPackCheckResult] =
+    useState<PackCheckResult | null>(null);
+  const [packCheckBusy, setPackCheckBusy] = useState(false);
+  const [packCheckError, setPackCheckError] = useState<string>();
   useEffect(() => setBannerFailed(false), [server.banner_url]);
   useEffect(() => setIconFailed(false), [server.icon_url, server.logo_url]);
+  useEffect(() => {
+    setLiveStatus(null);
+    setLiveStatusUnavailable(false);
+    if (!active || !server.status_url) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const next = await lineApi.serverStatus(server.id);
+        if (!cancelled) {
+          setLiveStatus(next);
+          setLiveStatusUnavailable(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveStatus(null);
+          setLiveStatusUnavailable(true);
+        }
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [active, server.id, server.status_url]);
+  async function checkBuild() {
+    if (!props.onCheckPacks || packCheckBusy) return;
+    setPackCheckBusy(true);
+    setPackCheckError(undefined);
+    setBuildIntegrity(null);
+    setPackCheckResult(null);
+    try {
+      const integrity = await lineApi.checkBuild(server.id);
+      const result = await props.onCheckPacks();
+      setBuildIntegrity(integrity);
+      setPackCheckResult(result);
+      props.onUnprovedModsChange?.(result.unproved);
+    } catch (cause) {
+      setPackCheckError(errorMessage(cause));
+    } finally {
+      setPackCheckBusy(false);
+    }
+  }
   const phase = phaseOf(server, receipt, progress, status);
   const legacy = actionsBusy || installing || launching;
   // Explicit opt-in from the provider, never inferred from the presence of an
@@ -223,6 +282,49 @@ export default function ServerDetail(props: ServerDetailProps) {
           <p className="text-muted-foreground max-w-prose text-[13px] leading-relaxed">
             {server.description}
           </p>
+          {server.status_url && (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="live-server-status"
+              className="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+            >
+              <span
+                className={
+                  liveStatus?.online
+                    ? "text-line-online inline-flex items-center gap-1.5"
+                    : liveStatus
+                      ? "text-line-offline inline-flex items-center gap-1.5"
+                      : "inline-flex items-center gap-1.5"
+                }
+              >
+                {liveStatus?.online ? (
+                  <Wifi className="size-3.5" aria-hidden="true" />
+                ) : (
+                  <WifiOff className="size-3.5" aria-hidden="true" />
+                )}
+                {liveStatusUnavailable
+                  ? t("live.unavailable")
+                  : liveStatus
+                    ? t(liveStatus.online ? "live.online" : "live.offline")
+                    : t("live.checking")}
+              </span>
+              {liveStatus?.playersOnline !== undefined &&
+                liveStatus.playersMax !== undefined && (
+                  <span>
+                    {t("live.players", {
+                      online: liveStatus.playersOnline,
+                      max: liveStatus.playersMax,
+                    })}
+                  </span>
+                )}
+              {liveStatus && (
+                <span className="tabular-nums">
+                  {t("live.endpointLatency", { ms: liveStatus.latencyMs })}
+                </span>
+              )}
+            </div>
+          )}
           {props.onSectionChange && (props.sections?.length ?? 0) > 0 && (
             /* Player-owned, so it is placed with the server's own details and
                not with the provider's — and it says so, because a control that
@@ -328,6 +430,17 @@ export default function ServerDetail(props: ServerDetailProps) {
             }
             onCancel={phase === "installing" ? props.onCancel : undefined}
             onHistory={receipt ? () => props.onHistory(true) : undefined}
+            onCheckBuild={
+              hasSession && props.onCheckPacks
+                ? () => void checkBuild()
+                : undefined
+            }
+            onPrepareAhead={hasSession ? props.onInstall : undefined}
+            onOfflineLaunch={
+              hasSession && server.launch_mode === "offline"
+                ? props.onLaunch
+                : undefined
+            }
           />
         )}
       </m.div>
@@ -352,11 +465,65 @@ export default function ServerDetail(props: ServerDetailProps) {
           a button and not automatic: hashing a large folder on every visit is
           wasted work, and a player who just installed a pack wants to know now,
           not by being refused at the dock. */}
+      {hasSession && buildIntegrity && (
+        <section
+          data-testid="build-integrity-result"
+          className="bg-fill-subtle flex flex-col gap-2 rounded-[var(--radius-item)] p-3 text-xs"
+        >
+          <p
+            role="status"
+            className={
+              buildIntegrity.missing.length +
+                buildIntegrity.changed.length +
+                buildIntegrity.foreign.length ===
+              0
+                ? "text-line-online font-medium"
+                : "text-line-update font-medium"
+            }
+          >
+            {buildIntegrity.missing.length +
+              buildIntegrity.changed.length +
+              buildIntegrity.foreign.length ===
+            0
+              ? t("detail.buildVerified", { count: buildIntegrity.checked })
+              : t("detail.buildNeedsRepair")}
+          </p>
+          {(
+            [
+              ["detail.buildMissingFiles", buildIntegrity.missing],
+              ["detail.buildChangedFiles", buildIntegrity.changed],
+              ["detail.buildExtraFiles", buildIntegrity.foreign],
+            ] as const
+          ).map(([label, paths]) =>
+            paths.length > 0 ? (
+              <div key={label} className="flex flex-col gap-1">
+                <p className="text-muted-foreground">
+                  {t(label)} · {paths.length}
+                </p>
+                <ul className="text-muted-foreground max-h-24 overflow-y-auto font-mono text-[11px] break-all">
+                  {paths.slice(0, 12).map((path) => (
+                    <li key={path}>{path}</li>
+                  ))}
+                  {paths.length > 12 && (
+                    <li>
+                      {t("packs.moreFiles", { count: paths.length - 12 })}
+                    </li>
+                  )}
+                </ul>
+              </div>
+            ) : null,
+          )}
+        </section>
+      )}
       {hasSession && (
         <PackCheckPanel
-          onCheck={props.onCheckPacks}
+          result={packCheckResult}
+          checking={packCheckBusy}
+          checkError={packCheckError}
           onReport={props.onReportPacks}
-          unproved={phase === "blocked" ? props.unprovedMods : undefined}
+          unproved={
+            phase === "blocked" ? props.unprovedMods : packCheckResult?.unproved
+          }
           onQuarantine={props.onQuarantine}
           blocked={
             phase === "blocked" ? (props.launchError ?? undefined) : undefined
@@ -388,30 +555,23 @@ export default function ServerDetail(props: ServerDetailProps) {
 }
 
 export interface PackCheckPanelProps {
-  onCheck?: () => Promise<PackCheckResult>;
+  result: PackCheckResult | null;
+  checking?: boolean;
+  checkError?: string;
   onReport?: () => Promise<void>;
   /** Set when a launch was already refused, so the reason survives a reload. */
   blocked?: string;
-  /**
-   * The exact files the refusal named, when the reason was unproved mods. The
-   * panel offers them to quarantine; it never offers this for a keyword finding
-   * or a missing release file, because those have different answers.
-   */
+  /** Exact paths the refusal named; shown before quarantine is offered. */
   unproved?: string[];
-  /** Opens the quarantine decision. Absent hides the button, never fakes it. */
   onQuarantine?: () => void;
   disabled?: boolean;
 }
 
-/**
- * «Проверить сборку» and the explanation of a blocked launch.
- *
- * The panel never deletes anything and never offers a "launch anyway" button.
- * Deletion is the player's, done in the folder — the launcher tells them which
- * file and why, which is the part they cannot work out alone.
- */
+/** Results for the build check launched from the split action menu. */
 export function PackCheckPanel({
-  onCheck,
+  result,
+  checking = false,
+  checkError,
   onReport,
   blocked,
   unproved,
@@ -419,73 +579,44 @@ export function PackCheckPanel({
   disabled = false,
 }: PackCheckPanelProps) {
   const t = useT();
-  const [state, setState] = useState<"idle" | "running">("idle");
-  const [result, setResult] = useState<PackCheckResult | null>(null);
-  const [error, setError] = useState<string>();
-
-  async function run() {
-    if (!onCheck || state === "running") return;
-    setState("running");
-    setError(undefined);
-    setResult(null);
-    try {
-      setResult(await onCheck());
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setState("idle");
-    }
-  }
-
+  const [reportError, setReportError] = useState<string>();
   const suspicious = (result?.findings.length ?? 0) > 0;
+  const hasUnproved = (unproved?.length ?? 0) > 0;
+  const hasContent = Boolean(
+    result || blocked || checkError || reportError || checking,
+  );
+  if (!hasContent) return null;
 
   return (
     <div className="bg-fill-subtle flex flex-col gap-2 rounded-[var(--radius-item)] p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={disabled || state === "running" || !onCheck}
-          onClick={() => void run()}
-          className="cursor-pointer text-xs"
+      {checking && (
+        <span role="status" className="text-muted-foreground text-[11px]">
+          {t("packs.checking")}
+        </span>
+      )}
+      {result && !suspicious && !hasUnproved && (
+        <span
+          role="status"
+          data-testid="pack-check-result"
+          className="text-muted-foreground inline-flex items-center gap-1.5 text-[11px]"
         >
-          {suspicious || blocked ? (
-            <ShieldX
-              className="h-4 w-4 shrink-0 text-amber-600"
-              aria-hidden="true"
-            />
-          ) : (
-            <ShieldCheck
-              className="text-line-online h-4 w-4 shrink-0"
-              aria-hidden="true"
-            />
-          )}
-          <StableActionLabel
-            busy={state === "running"}
-            idle={t("packs.check")}
-            active={t("packs.checking")}
+          <ShieldCheck
+            className="text-line-online size-3.5"
+            aria-hidden="true"
           />
-        </Button>
-        {result && !suspicious && (
-          <span
-            role="status"
-            data-testid="pack-check-result"
-            className="text-muted-foreground text-[11px]"
-          >
-            {t("packs.clean")}
-            {result.foreign.length > 0
-              ? ` ${t("packs.foreign", { count: result.foreign.length })}`
-              : ""}
-          </span>
-        )}
-      </div>
-
-      {(blocked || suspicious) && (
+          {t("packs.clean")}
+          {result.foreign.length > 0
+            ? ` ${t("packs.foreign", { count: result.foreign.length })}`
+            : ""}
+        </span>
+      )}
+      {(blocked || suspicious || hasUnproved) && (
         <div
           role="alert"
           className="flex flex-col gap-1 rounded-[var(--radius-control)] bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-700"
         >
-          <span className="font-medium">
+          <span className="inline-flex items-center gap-1.5 font-medium">
+            <ShieldX className="size-4 shrink-0" aria-hidden="true" />
             {blocked ? t("packs.blocked") : t("packs.found", { list: "" })}
           </span>
           {blocked && <span>{blocked}</span>}
@@ -496,25 +627,25 @@ export function PackCheckPanel({
               })}
             </span>
           )}
-          {unproved && unproved.length > 0 && (
+          {hasUnproved && (
             <ul className="flex flex-col gap-0.5 font-mono text-[11px] break-all">
-              {unproved.slice(0, 5).map((path) => (
+              {unproved?.slice(0, 5).map((path) => (
                 <li key={path}>{path}</li>
               ))}
-              {unproved.length > 5 && (
+              {(unproved?.length ?? 0) > 5 && (
                 <li className="opacity-70">
-                  {t("packs.moreFiles", { count: unproved.length - 5 })}
+                  {t("packs.moreFiles", { count: (unproved?.length ?? 0) - 5 })}
                 </li>
               )}
             </ul>
           )}
           <span>{t("packs.blockedHint")}</span>
-          {onQuarantine && unproved && unproved.length > 0 && (
+          {onQuarantine && hasUnproved && (
             <Button
               variant="outline"
               size="sm"
               className="w-fit cursor-pointer gap-1.5"
-              disabled={disabled || state === "running"}
+              disabled={disabled || checking}
               onClick={onQuarantine}
               data-testid="open-quarantine"
             >
@@ -527,10 +658,10 @@ export function PackCheckPanel({
               variant="outline"
               size="sm"
               className="w-fit"
-              disabled={disabled || state === "running"}
+              disabled={disabled || checking}
               onClick={() => {
                 void onReport().catch((cause: unknown) =>
-                  setError(errorMessage(cause)),
+                  setReportError(errorMessage(cause)),
                 );
               }}
             >
@@ -539,9 +670,9 @@ export function PackCheckPanel({
           )}
         </div>
       )}
-      {error && (
+      {(checkError || reportError) && (
         <p role="alert" className="text-destructive text-[11px]">
-          {error}
+          {checkError ?? reportError}
         </p>
       )}
     </div>

@@ -3,6 +3,7 @@ import {
   CloudDownload,
   History,
   Play,
+  ChevronDown,
   RefreshCw,
   ShieldCheck,
   Square,
@@ -50,6 +51,9 @@ export interface ServerActionPanelProps {
   onPrimary: () => void;
   onCancel?: () => void;
   onHistory?: () => void;
+  onCheckBuild?: () => void;
+  onPrepareAhead?: () => void;
+  onOfflineLaunch?: () => void;
 }
 
 /**
@@ -130,6 +134,9 @@ export default function ServerActionPanel({
   onPrimary,
   onCancel,
   onHistory,
+  onCheckBuild,
+  onPrepareAhead,
+  onOfflineLaunch,
 }: ServerActionPanelProps) {
   const reducedMotion = useReducedMotion();
   const t = useT();
@@ -197,17 +204,12 @@ export default function ServerActionPanel({
         )}
       </div>
 
-      {/* Одна кнопка на весь док. Пока идёт загрузка, её заливка и есть
-          прогресс — подпись при этом остаётся действием («Отменить
-          скачивание»), поэтому ничего не прыгает и второй полосы нет. */}
-      <div className="flex items-center gap-2">
+      {/* The main half keeps the single primary action; secondary build tasks
+          live behind the adjacent disclosure, never as competing filled buttons. */}
+      <div className="flex items-stretch gap-1.5">
         <ServerDockPrimary
           disabled={!canPress}
           active={active}
-          // Two waits, two shapes: install has a denominator and fills by the
-          // real percentage; launch has none (the pack is on disk, the JVM is
-          // starting) and gets the sweep. A frozen third read as a bar that
-          // stopped, not as work in progress.
           progress={installing && progress ? (percent ?? 0) : null}
           indeterminate={!installing && phase === "starting"}
           progressLabel={
@@ -226,6 +228,79 @@ export default function ServerActionPanel({
           )}
           <span>{primaryLabel(t, phase)}</span>
         </ServerDockPrimary>
+        {(onCheckBuild || onPrepareAhead || onOfflineLaunch) && (
+          <details
+            className="group relative shrink-0"
+            data-testid="server-action-menu"
+          >
+            <summary
+              aria-label={t("detail.moreActions")}
+              aria-haspopup="menu"
+              title={t("detail.moreActions")}
+              className={cn(
+                "bg-primary text-primary-foreground hover:bg-primary/85 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-[var(--radius-item)] transition-colors",
+                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+                (disabled || installing || active) &&
+                  "pointer-events-none opacity-50",
+              )}
+            >
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </summary>
+            <div
+              role="menu"
+              className="bg-popover text-popover-foreground border-border absolute end-0 top-[calc(100%+8px)] z-30 flex min-w-52 flex-col gap-1 rounded-[var(--radius-item)] border p-1.5 shadow-lg"
+            >
+              {onCheckBuild && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  disabled={disabled || installing || active}
+                  onClick={(event) => {
+                    event.currentTarget
+                      .closest("details")
+                      ?.removeAttribute("open");
+                    onCheckBuild();
+                  }}
+                  className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                >
+                  {t("detail.checkBuild")}
+                </button>
+              )}
+              {onPrepareAhead && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  disabled={disabled || installing || active}
+                  onClick={(event) => {
+                    event.currentTarget
+                      .closest("details")
+                      ?.removeAttribute("open");
+                    onPrepareAhead();
+                  }}
+                  className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                >
+                  {t("detail.prepareAhead")}
+                </button>
+              )}
+              {onOfflineLaunch && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  disabled={disabled || installing || active || unavailable}
+                  onClick={(event) => {
+                    event.currentTarget
+                      .closest("details")
+                      ?.removeAttribute("open");
+                    onOfflineLaunch();
+                  }}
+                  className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                >
+                  {t("detail.offlineLaunch")}
+                </button>
+              )}
+            </div>
+          </details>
+        )}
       </div>
 
       <div className="text-muted-foreground flex items-center gap-1.5 text-[12px]">

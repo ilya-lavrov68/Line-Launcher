@@ -41,6 +41,12 @@ pub struct Provider {
     /// so a config cannot hand it a different protocol to launch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub support_email: Option<String>,
+    /// Optional telemetry target; consent is only offered with `privacy_url` too.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry_url: Option<String>,
+    /// Provider's privacy policy for optional telemetry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privacy_url: Option<String>,
 }
 
 /// Per-server game-join endpoints. These stay on the server because a launch
@@ -178,6 +184,9 @@ pub struct Server {
     /// the Minecraft mode; provider ZIP packs may omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_address: Option<String>,
+    /// Optional HTTPS JSON endpoint for this server's live status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_url: Option<String>,
     /// Allows the player to open this server's pack at the singleplayer menu.
     #[serde(default = "default_true")]
     pub test_mode_enabled: bool,
@@ -430,6 +439,12 @@ impl LineConfig {
                 ));
             }
         }
+        if let Some(url) = &self.provider.telemetry_url {
+            validate_https(url)?;
+        }
+        if let Some(url) = &self.provider.privacy_url {
+            validate_https(url)?;
+        }
         if self.servers.is_empty() || self.servers.len() > MAX_SERVERS {
             return Err(LineError::input(
                 "Конфигурация должна содержать от 1 до 100 серверов.",
@@ -478,6 +493,9 @@ impl LineConfig {
             }
             if let Some(address) = &server.server_address {
                 super::minecraft_core::validate_server_address(address)?;
+            }
+            if let Some(url) = &server.status_url {
+                validate_https(url)?;
             }
             if let Some(url) = &server.pack_manifest_url {
                 validate_https(url)?;

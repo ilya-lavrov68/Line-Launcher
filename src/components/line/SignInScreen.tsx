@@ -32,7 +32,14 @@ export interface SignInScreenProps {
   registrationAvailable: boolean;
   loading: boolean;
   error?: string;
-  onSubmit: (mode: AuthMode, username: string, password: string) => void;
+  telemetryPrivacyUrl?: string;
+  telemetryConsent?: boolean;
+  onSubmit: (
+    mode: AuthMode,
+    username: string,
+    password: string,
+    telemetryConsent: boolean,
+  ) => void;
 }
 
 export default function SignInScreen({
@@ -41,6 +48,8 @@ export default function SignInScreen({
   registrationAvailable,
   loading,
   error,
+  telemetryPrivacyUrl,
+  telemetryConsent,
   onSubmit,
 }: SignInScreenProps) {
   const reduced = useReducedMotion();
@@ -113,6 +122,8 @@ export default function SignInScreen({
               registrationAvailable={registrationAvailable}
               loading={loading}
               error={error}
+              telemetryPrivacyUrl={telemetryPrivacyUrl}
+              telemetryConsent={telemetryConsent}
               onSubmit={onSubmit}
             />
           </div>

@@ -27,14 +27,18 @@ const SHOT_HEIGHT = 800;
 
 const SCREENS = [
   "welcome",
+  "setup",
   "account",
   "profile",
   "servers",
   "server",
+  "server-actions",
   "minecraft",
+  "minecraft-actions",
   "wardrobe",
   "settings",
   "workspace",
+  "privacy",
 ] as const;
 
 /**
@@ -66,7 +70,7 @@ test("the gallery does not retain obsolete line screenshots", () => {
 
 test("the README embeds exactly the screenshots that are checked", () => {
   const readme = read("README.md").toString("utf8");
-  const used = [...readme.matchAll(/docs\/images\/line-([a-z]+)\.png/g)].map(
+  const used = [...readme.matchAll(/docs\/images\/line-([a-z-]+)\.png/g)].map(
     (match) => match[1],
   );
   assert.deepEqual(new Set(used), new Set(SCREENS));
@@ -160,7 +164,23 @@ test("browser capture stages the entire gallery before publishing", () => {
     browser,
     /rmSync\(staging, \{ recursive: true, force: true \}\)/,
   );
-  assert.match(browser, /shot\("minecraft"\)/);
+  for (const page of [
+    "welcome",
+    "setup",
+    "account",
+    "servers",
+    "server",
+    "server-actions",
+    "minecraft",
+    "minecraft-actions",
+    "settings",
+    "workspace",
+    "privacy",
+  ]) {
+    assert.match(browser, new RegExp(`shot\\("${page}"\\)`));
+  }
+  assert.match(browser, /onboardingCompleted: false/);
+  assert.match(browser, /privacy_url/);
   assert.doesNotMatch(browser, /shot\("harmony"\)|catalogView|Гармонь/);
   assert.match(browser, /demoBannerDataUrl/);
   assert.ok(

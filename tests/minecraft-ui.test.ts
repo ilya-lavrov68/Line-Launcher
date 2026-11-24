@@ -85,7 +85,7 @@ test("the panel replaces the ZIP dock instead of competing with it", () => {
   assert.doesNotMatch(detail, /LegacyDetail/);
 });
 
-test("the panel calls the commands needed for play, and mc_launch has none", () => {
+test("the panel exposes only provider-bound play and lifecycle commands", () => {
   // mcStatus is reached through a chained call, hence the looser match.
   for (const call of [
     /lineApi\s*\.?\s*mcStatus\(/,
@@ -97,28 +97,30 @@ test("the panel calls the commands needed for play, and mc_launch has none", () 
   // Preparation uses the same verified pack path without starting the game.
   assert.match(panel, /prepareOnly: true/);
   assert.match(panel, /await onRefreshConfig\?\.\(\)/);
-  // mc_launch would start a profile without checking it against the published
-  // pack; mc_play is the only correct "just play" path, so it stays unused in
-  // the UI on purpose (documented in MINECRAFT.md).
-  assert.ok(
-    !panel.includes("lineApi.mcLaunch("),
-    "the panel must not bypass mc_play's verification",
-  );
-  assert.match(
-    minecraftDocs,
-    /`mc_launch` в интерфейсе намеренно не используется/,
-  );
-  // Every command still exists in the API layer.
-  for (const cmd of [
-    "mc_install",
-    "mc_list_installed",
-    "mc_launch",
-    "mc_play",
-    "mc_stop",
-    "mc_status",
-  ]) {
+  // The backend itself rejects arbitrary install/list/launch commands; only
+  // provider-bound mc_play can select and start a profile.
+  assert.doesNotMatch(panel, /lineApi\.mc(?:Install|ListInstalled|Launch)\(/);
+  assert.match(minecraftDocs, /не являются\s+публичными командами/);
+  // Only provider-bound playback and lifecycle commands are public. Arbitrary
+  // install/list/launch IPC would bypass provider-controlled build policy.
+  for (const cmd of ["mc_play", "mc_stop", "mc_status"]) {
     assert.ok(api.includes(`"${cmd}"`), `${cmd} is missing from the API layer`);
   }
+  for (const cmd of ["mc_install", "mc_list_installed", "mc_launch"]) {
+    assert.ok(!api.includes(`"${cmd}"`), `${cmd} must not be public`);
+  }
+  assert.match(minecraftDocs, /не являются\s+публичными командами/);
+});
+
+test("Minecraft dock keeps advanced actions in the split menu and reports build checks", () => {
+  assert.match(panel, /data-testid="server-action-menu"/);
+  assert.match(panel, /role="menu"/);
+  assert.match(panel, /t\("detail\.checkBuild"\)/);
+  assert.match(panel, /t\("detail\.prepareAhead"\)/);
+  assert.match(panel, /t\("detail\.offlineLaunch"\)/);
+  assert.match(panel, /lineApi\.checkBuild\(instanceId\)/);
+  assert.match(panel, /data-testid="build-integrity-result"/);
+  assert.match(panel, /paths\.slice\(0, 12\)/);
 });
 
 test("running state survives a screen change and comes from the backend", () => {

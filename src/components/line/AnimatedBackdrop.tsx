@@ -91,6 +91,8 @@ export interface AnimatedBackdropProps {
   imageUrl?: string;
   /** Theme id from `BACKDROP_THEMES`; unknown ids fall back to the default. */
   themeId?: string;
+  /** Static preserves the selected palette and stops both CSS and WebGL motion. */
+  motion?: "static" | "live";
   className?: string;
 }
 
@@ -213,6 +215,7 @@ function HazeLayer({
 export default function AnimatedBackdrop({
   imageUrl,
   themeId,
+  motion = "live",
   className,
 }: AnimatedBackdropProps) {
   const [reduced, setReduced] = useState(
@@ -287,6 +290,7 @@ export default function AnimatedBackdrop({
       aria-hidden="true"
       data-line-backdrop
       data-line-backdrop-theme={active.id}
+      data-line-backdrop-motion={motion}
       className={`pointer-events-none absolute inset-0 overflow-hidden ${className ?? ""}`}
     >
       {imageUrl ? (
@@ -309,6 +313,7 @@ export default function AnimatedBackdrop({
           // The theme's own veil is folded into the layer's colour budget
           // rather than applied twice.
           opacity: 0.9,
+          animation: motion === "static" ? "none" : undefined,
         }}
       />
       {/* The animated layers, only where they can actually be drawn — and only
@@ -323,7 +328,7 @@ export default function AnimatedBackdrop({
               // the timer below keeps both mounted for the full transition.
               enter={index === layers.length - 1 && layers.length > 1}
               exit={index < layers.length - 1}
-              reduced={reduced}
+              reduced={reduced || motion === "static"}
               Shader={Shader}
               onUnsupported={() => setSupported(false)}
             />

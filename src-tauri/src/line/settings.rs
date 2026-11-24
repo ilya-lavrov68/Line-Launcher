@@ -134,11 +134,24 @@ pub struct LauncherSettings {
     /// theme's own default, so changing that default does not rewrite settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
+    /// `live` animates the backdrop; `static` preserves its selected palette.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backdrop_motion: Option<String>,
+    /// Missing in legacy settings means onboarding was already completed.
+    #[serde(default = "legacy_onboarding_complete")]
+    pub onboarding_completed: bool,
+    /// Explicit opt-in for the provider's minimal telemetry. Defaults off.
+    #[serde(default)]
+    pub telemetry_consent: bool,
     /// Pack download cap in KiB/s; zero means unlimited.
     pub download_limit_kib: u32,
     pub window_width: u32,
     pub window_height: u32,
     pub window_maximized: bool,
+}
+
+fn legacy_onboarding_complete() -> bool {
+    true
 }
 
 impl Default for LauncherSettings {
@@ -152,6 +165,9 @@ impl Default for LauncherSettings {
             language: None,
             server_layout: None,
             workspace: None,
+            backdrop_motion: None,
+            onboarding_completed: false,
+            telemetry_consent: false,
             download_limit_kib: 0,
             window_width: 1100,
             window_height: 720,
@@ -179,6 +195,11 @@ impl LauncherSettings {
         if let Some(workspace) = &self.workspace {
             if workspace != "glass" && workspace != "solid" {
                 return Err(LineError::input("Неизвестный вид рабочей зоны."));
+            }
+        }
+        if let Some(motion) = &self.backdrop_motion {
+            if motion != "static" && motion != "live" {
+                return Err(LineError::input("Неизвестный режим движения фона."));
             }
         }
         if !(MIN_WINDOW_WIDTH..=MAX_WINDOW_DIMENSION).contains(&self.window_width)
@@ -233,7 +254,7 @@ pub fn init_download_limit(app: &AppHandle) {
     super::download_limit::set_limit_kib(settings.download_limit_kib);
 }
 
-fn total_memory() -> u64 {
+pub(crate) fn total_memory() -> u64 {
     let mut system = sysinfo::System::new();
     system.refresh_memory();
     system.total_memory()

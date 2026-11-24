@@ -679,22 +679,6 @@ pub fn is_mod_jar(path: &str) -> bool {
 /// Compare live mod JARs to the published list without inspecting their words.
 /// Non-JAR data is not treated as a mod. Links and special files are never
 /// followed, and no player files are removed.
-/// Strict form: any unproved mod is an error, which is what every caller that
-/// has no way to offer a quarantine decision needs.
-pub fn check_live_mods(game: &Path, owned: &[String]) -> LineResult<()> {
-    let unproved = check_live_mods_with(game, owned, |_| Ok(false))?;
-    if let Some(first) = unproved.first() {
-        return Err(LineError::new(
-            ErrorCode::Integrity,
-            format!(
-                "В папке mods найден лишний мод: {first}. Уберите его и повторите запуск."
-            ),
-            false,
-        ));
-    }
-    Ok(())
-}
-
 fn check_live_mods_with(
     game: &Path,
     owned: &[String],
@@ -722,7 +706,6 @@ fn check_live_mods_with(
         }
         Ok(_) => {}
     }
-    let mut files = std::collections::BTreeSet::new();
     for path in owned.iter().filter(|path| is_mod_jar(path)) {
         let target = super::pack::checked_game_path(game, path, false)?;
         if !is_real_file(&target) {
@@ -732,7 +715,6 @@ fn check_live_mods_with(
                 false,
             ));
         }
-        files.insert(path.as_str());
     }
     // Files that are neither published nor proved derived. Reported, not acted on.
     let mut unproved: Vec<String> = Vec::new();
@@ -758,8 +740,7 @@ fn check_live_mods_with(
             if kind.is_dir() && is_real_dir(&entry.path()) {
                 pending.push((entry.path(), relative));
             } else if kind.is_file() && is_real_file(&entry.path()) {
-                if !is_mod_jar(&relative) || files.contains(relative.as_str()) || prove(&relative)?
-                {
+                if !is_mod_jar(&relative) || prove(&relative)? {
                     continue;
                 }
                 // Not proved: collect it. The caller decides whether to refuse
@@ -791,10 +772,42 @@ pub struct PackScan {
 /// does not block a pack or turn it into a suspicious finding.
 pub fn scan_packs(
     base: &Path,
+    release: &Path,
     server: &super::config::Server,
     owned: &[String],
 ) -> LineResult<PackScan> {
-    scan_packs_with(base, server, owned, |_| Ok(false))
+    let game = instance_game_dir(base)?;
+    let expected = release_mod_hashes(release)?;
+    let unproved = check_live_mods_against_release(&game, owned, &expected)?;
+    scan_packs_with_checked_mods(base, server, owned, unproved)
+}
+
+/// Only exact bytes present in the verified provider release prove a mod's
+/// origin. A matching filename or directory is not evidence.
+fn release_mod_hashes(release: &Path) -> LineResult<std::collections::HashMap<String, (String, u64)>> {
+    let index = super::integrity::read_index(release)?;
+    Ok(index.files.into_iter()
+        .filter(|entry| is_mod_jar(&entry.path))
+        .map(|entry| (entry.path, (entry.sha256, entry.size)))
+        .collect())
+}
+
+fn check_live_mods_against_release(
+    game: &Path,
+    owned: &[String],
+    expected: &std::collections::HashMap<String, (String, u64)>,
+) -> LineResult<Vec<String>> {
+    check_live_mods_with(game, owned, |relative| {
+        let Some((sha256, size)) = expected.get(relative) else {
+            return Ok(false);
+        };
+        let path = super::pack::checked_game_path(game, relative, false)?;
+        if !is_real_file(&path) {
+            return Ok(false);
+        }
+        let (actual_sha, actual_size) = super::integrity::hash_file(&path)?;
+        Ok(actual_sha == *sha256 && actual_size == *size)
+    })
 }
 
 /// The callback may admit only content proved against the current verified
@@ -807,13 +820,23 @@ pub fn scan_packs_with(
 ) -> LineResult<PackScan> {
     let game = instance_game_dir(base)?;
     let unproved = check_live_mods_with(&game, owned, prove)?;
+    scan_packs_with_checked_mods(base, server, owned, unproved)
+}
+
+fn scan_packs_with_checked_mods(
+    base: &Path,
+    server: &super::config::Server,
+    owned: &[String],
+    unproved: Vec<String>,
+) -> LineResult<PackScan> {
+    let game = instance_game_dir(base)?;
     let settings = server.anticheat.clone().unwrap_or_default();
     if !settings.scan_resourcepacks {
         // The mod composition check above is independent of this switch.
         return Ok(PackScan {
             blocked: None,
             foreign: 0,
-            unproved: Vec::new(),
+            unproved,
         });
     }
     let (findings, foreign) =
@@ -1085,6 +1108,7 @@ pub async fn launch_game(
         // The manifest is read from the immutable release; the game itself runs
         // in the server's writable directory so worlds and settings survive
         // updates and repairs.
+        let provenance_release = release.clone();
         let io_release = release;
         let io_base = base.clone();
         let io = tauri::async_runtime::spawn_blocking(move || {
@@ -1101,9 +1125,10 @@ pub async fn launch_game(
         // Check mod composition and resource-pack keywords before starting Java.
         let owned = super::pack::owned_files(&base);
         let scan_base = base.clone();
+        let scan_release = provenance_release;
         let scan_server = server.clone();
         let scan = tauri::async_runtime::spawn_blocking(move || {
-            scan_packs(&scan_base, &scan_server, &owned)
+            scan_packs(&scan_base, &scan_release, &scan_server, &owned)
         });
         let scan = tokio::select! {
             result = scan => result.map_err(|_| LineError::storage())??,
@@ -1433,6 +1458,29 @@ pub struct PackCheck {
     pub unproved: Vec<String>,
 }
 
+/// Read-only release integrity check; it never removes files or downloads a repair.
+#[tauri::command]
+pub async fn check_build(
+    server_id: String,
+    app: AppHandle,
+    state: State<'_, LineState>,
+) -> LineResult<super::integrity::ScanReport> {
+    let (_, config) = state.fresh_config()?;
+    config.server(&server_id)?;
+    let root = app.path().app_data_dir().map_err(|_| LineError::storage())?;
+    let base = server_dir(&root, &server_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _lock = InstallLock::acquire(&base)?;
+        super::install::recover_releases(&base)?;
+        let receipt = current_receipt(&base, &server_id)
+            .ok_or_else(|| LineError::new(ErrorCode::Integrity, "Сначала подготовьте сборку.", false))?;
+        let release = verified_game_dir(&base, &receipt.sha256)?;
+        super::integrity::scan(&release)
+    })
+    .await
+    .map_err(|_| LineError::storage())?
+}
+
 /// A resource-pack check is meaningful only for a completed provider release.
 fn require_pack_check_install(base: &Path, server_id: &str) -> LineResult<()> {
     if super::install::current_receipt(base, server_id).is_none() {
@@ -1471,18 +1519,18 @@ pub async fn check_resource_packs(
     };
     tauri::async_runtime::spawn_blocking(move || -> LineResult<PackCheck> {
         require_pack_check_install(&release_base, &server_id)?;
-        let owned = super::pack::owned_files(&base);
+        let receipt = current_receipt(&release_base, &server_id)
+            .ok_or_else(|| LineError::input("Сначала подготовьте сборку."))?;
+        let release = verified_game_dir(&release_base, &receipt.sha256)?;
+        let expected = release_mod_hashes(&release)?;
+        let owned = super::pack::owned_files(&release_base);
         let settings = server.anticheat.clone().unwrap_or_default();
         let game = instance_game_dir(&base)?;
         if !settings.scan_resourcepacks {
             return Ok(PackCheck {
                 findings: Vec::new(),
                 foreign: Vec::new(),
-                unproved: check_live_mods_with(
-                    &game,
-                    &owned,
-                    |_| Ok(false),
-                )?,
+                unproved: check_live_mods_against_release(&game, &owned, &expected)?,
             });
         }
         let (findings, foreign) = super::resourcepack::scan_all(
@@ -1505,7 +1553,7 @@ pub async fn check_resource_packs(
                 })
                 .collect(),
             foreign: foreign.into_iter().map(|pack| pack.path).collect(),
-            unproved: check_live_mods_with(&game, &owned, |_| Ok(false))?,
+            unproved: check_live_mods_against_release(&game, &owned, &expected)?,
         })
     })
     .await
@@ -1517,21 +1565,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nested_owned_mods_are_accepted_but_foreign_content_is_blocked() {
+    fn nested_mods_are_accepted_only_when_the_callback_proves_them() {
         let temp = tempfile::tempdir().unwrap();
         let nested = temp.path().join("mods/1.20.1/subdir");
         std::fs::create_dir_all(&nested).unwrap();
         std::fs::write(nested.join("owned.jar"), b"mod").unwrap();
         let owned = vec!["mods/1.20.1/subdir/owned.jar".to_owned()];
-        assert!(check_live_mods(temp.path(), &owned).is_ok());
+        let proved = |path: &str| Ok(path == "mods/1.20.1/subdir/owned.jar");
+        assert!(check_live_mods_with(temp.path(), &owned, proved).unwrap().is_empty());
         std::fs::write(nested.join("foreign.jar"), b"foreign").unwrap();
-        assert!(check_live_mods(temp.path(), &owned).is_err());
+        assert_eq!(check_live_mods_with(temp.path(), &owned, proved).unwrap(), vec!["mods/1.20.1/subdir/foreign.jar"]);
         std::fs::remove_file(nested.join("foreign.jar")).unwrap();
         std::fs::create_dir(nested.join("foreign-dir")).unwrap();
         // Empty directories may remain after a pack update; they load nothing.
-        assert!(check_live_mods(temp.path(), &owned).is_ok());
+        assert!(check_live_mods_with(temp.path(), &owned, proved).unwrap().is_empty());
         std::fs::write(nested.join("foreign-dir/hidden.jar"), b"foreign").unwrap();
-        assert!(check_live_mods(temp.path(), &owned).is_err());
+        assert_eq!(check_live_mods_with(temp.path(), &owned, proved).unwrap(), vec!["mods/1.20.1/subdir/foreign-dir/hidden.jar"]);
+    }
+
+    #[test]
+    fn a_published_mod_path_does_not_prove_changed_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let release = temp.path().join("release");
+        let source = release.join("mods/allowed.jar");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"provider bytes").unwrap();
+        let (sha256, size) = super::super::integrity::hash_file(&source).unwrap();
+        super::super::integrity::write_index(
+            &release,
+            &super::super::integrity::FileIndex {
+                schema_version: super::super::integrity::INDEX_SCHEMA,
+                files: vec![super::super::integrity::FileEntry {
+                    path: "mods/allowed.jar".into(),
+                    sha256,
+                    size,
+                }],
+            },
+        ).unwrap();
+        let game = temp.path().join("game");
+        let live_mod = game.join("mods/allowed.jar");
+        std::fs::create_dir_all(live_mod.parent().unwrap()).unwrap();
+        std::fs::write(&live_mod, b"provider bytes").unwrap();
+        let owned = vec!["mods/allowed.jar".into()];
+        let expected = release_mod_hashes(&release).unwrap();
+        assert!(check_live_mods_against_release(&game, &owned, &expected).unwrap().is_empty());
+
+        // The published path is the same, but the bytes are not: never classify
+        // it as provider-approved merely because its filename is familiar.
+        std::fs::write(&live_mod, b"replacement bytes").unwrap();
+        assert_eq!(check_live_mods_against_release(&game, &owned, &expected).unwrap(), vec!["mods/allowed.jar"]);
     }
 
     #[test]
@@ -1554,14 +1636,15 @@ mod tests {
             "mods/xray-allowed.jar".to_string(),
             "mods/missing-config.json".to_string(),
         ];
-        assert!(check_live_mods(temp.path(), &owned).is_ok());
+        let proved = |path: &str| Ok(path == "mods/xray-allowed.jar");
+        assert!(check_live_mods_with(temp.path(), &owned, proved).unwrap().is_empty());
         std::fs::write(mods.join("unowned.JAR"), b"unknown").unwrap();
-        assert!(check_live_mods(temp.path(), &owned).is_err());
+        assert_eq!(check_live_mods_with(temp.path(), &owned, proved).unwrap(), vec!["mods/unowned.JAR"]);
         std::fs::remove_file(mods.join("unowned.JAR")).unwrap();
         std::fs::remove_file(mods.join("xray-allowed.jar")).unwrap();
-        assert!(check_live_mods(temp.path(), &owned).is_err());
+        assert!(check_live_mods_with(temp.path(), &owned, proved).is_err());
         std::fs::remove_dir_all(mods).unwrap();
-        assert!(check_live_mods(temp.path(), &owned).is_err());
+        assert!(check_live_mods_with(temp.path(), &owned, proved).is_err());
     }
 
     #[test]
@@ -1570,7 +1653,7 @@ mod tests {
         let cache = temp.path().join("mods/.connector/temp");
         std::fs::create_dir_all(&cache).unwrap();
         std::fs::write(cache.join("parent$child.jar"), b"nested").unwrap();
-        assert!(check_live_mods(temp.path(), &[]).is_err());
+        assert_eq!(check_live_mods_with(temp.path(), &[], |_| Ok(false)).unwrap().len(), 1);
         assert!(check_live_mods_with(temp.path(), &[], |name| Ok(
             name == "mods/.connector/temp/parent$child.jar"
         ))
@@ -1589,7 +1672,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         std::fs::create_dir(temp.path().join("mods")).unwrap();
         symlink(temp.path(), temp.path().join("mods/nested")).unwrap();
-        assert!(check_live_mods(temp.path(), &["mods/nested/file.jar".into()]).is_err());
+        assert!(check_live_mods_with(temp.path(), &["mods/nested/file.jar".into()], |_| Ok(false)).is_err());
     }
 
     #[test]

@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   LINE_MC_GAME_EVENT,
   LINE_MC_INSTALL_EVENT,
-  type McLoaderKind,
 } from "../src/types/line.ts";
 
 const read = (file: string) =>
@@ -123,21 +122,24 @@ test("Java prefers a valid local runtime, then Windows Temurin or Mojang", () =>
     /let probed = java::inspect_path\(&path\.to_string_lossy\(\)\)\.await\?;/,
   );
   assert.match(resolve, /probed\.major != required_major/);
-  assert.match(resolve, /consent\.require\(required_major, purpose, "adoptium"\)/);
-  assert.match(resolve, /consent\.require\(required_major, purpose, "mojang"\)/);
+  assert.match(
+    resolve,
+    /consent\.require\(required_major, purpose, "adoptium"\)/,
+  );
+  assert.match(
+    resolve,
+    /consent\.require\(required_major, purpose, "mojang"\)/,
+  );
 });
 
 test("commands, state and the additive boundary are wired", () => {
   const lib = read("src-tauri/src/lib.rs");
-  for (const command of [
-    "mc_install",
-    "mc_list_installed",
-    "mc_launch",
-    "mc_play",
-    "mc_stop",
-    "mc_status",
-  ]) {
+  for (const command of ["mc_play", "mc_stop", "mc_status"]) {
     assert.match(lib, new RegExp(`line::minecraft::${command},`));
+  }
+  for (const removed of ["mc_install", "mc_list_installed", "mc_launch"]) {
+    assert.doesNotMatch(lib, new RegExp(`line::minecraft::${removed},`));
+    assert.doesNotMatch(rust, new RegExp(`pub async fn ${removed}\\b`));
   }
   assert.match(
     lib,
@@ -175,26 +177,31 @@ test("the WebView contract matches the Rust event names and payload shape", () =
     /pub const MC_GAME_EVENT: &str = "line:\/\/mc-game-status";/,
   );
   const api = read("src/lib/line/api.ts");
-  for (const command of [
-    "mc_install",
-    "mc_list_installed",
-    "mc_launch",
-    "mc_play",
-    "mc_stop",
-    "mc_status",
-  ]) {
+  for (const command of ["mc_play", "mc_stop", "mc_status"]) {
     assert.ok(
       api.includes(`"${command}"`),
       `${command} is not exposed to the UI`,
     );
   }
-  const kinds: McLoaderKind[] = ["fabric", "quilt", "forge", "neoforge"];
-  for (const kind of kinds) {
+  for (const removed of ["mc_install", "mc_list_installed", "mc_launch"]) {
     assert.ok(
-      core.includes(`"${kind}" => LoaderChoice::`),
-      `${kind} is not accepted by Rust`,
+      !api.includes(`"${removed}"`),
+      `${removed} remains exposed to the UI`,
     );
   }
+  assert.doesNotMatch(api, /mcInstall:|mcListInstalled:|mcLaunch:/);
+  assert.match(
+    rust,
+    /pub struct McPlayRequest \{[\s\S]*server_id: String,[\s\S]*test_mode: bool/,
+  );
+  assert.doesNotMatch(
+    rust,
+    /pub struct McPlayRequest \{[^}]*minecraft_version|pub struct McPlayRequest \{[^}]*loader:|pub struct McPlayRequest \{[^}]*server_address/s,
+  );
+  assert.doesNotMatch(
+    read("src/types/line.ts"),
+    /export interface McLoaderRequest|export interface McInstallRequest|export interface McLaunchRequest/,
+  );
 });
 
 test("the pure Minecraft rules are part of the compiled Rust subset", () => {
@@ -268,7 +275,10 @@ test("Играть verifies-or-downloads and then joins the server in one comman
   // Only the downloaded official NeoForge installer is opened to read its bounded profile.
   assert.match(rust, /archive\.by_name\("version\.json"\)/);
   assert.match(rust, /entry\.size\(\) > 4 \* 1024 \* 1024/);
-  assert.match(read("src/types/line.ts"), /serverAddress\?: string;/);
+  assert.doesNotMatch(
+    read("src/types/line.ts"),
+    /export interface McPlayRequest \{[^}]*minecraftVersion|export interface McPlayRequest \{[^}]*loader:|export interface McPlayRequest \{[^}]*serverAddress/s,
+  );
 });
 
 test("auto-join uses Quick Play on 1.20+ and the legacy pair only on older clients", () => {
@@ -374,7 +384,7 @@ test("the live game directory is writable and player data survives updates", () 
   assert.match(instance, /pub fn is_user_data/);
 });
 
-test("the loader inside the instance wins over the provider's request", () => {
+test("provider builds may use verified instance loaders, never a player override", () => {
   assert.match(pack, /loader_from_libraries\(&library_names\(json\)\)/);
   assert.match(pack, /inheritsFrom/);
   const play = rust.slice(
@@ -382,7 +392,9 @@ test("the loader inside the instance wins over the provider's request", () => {
     rust.indexOf("fn emit_mc_progress("),
   );
   assert.match(play, /if detected\.generated_profile \{/);
-  assert.match(play, /else if detected\.loader\.is_none\(\)/);
+  assert.match(play, /let loader = if detected\.generated_profile/);
+  assert.doesNotMatch(play, /request\.loader/);
+  assert.match(play, /requested_loader: None/);
   assert.match(play, /loader_spec\(\s*kind,/);
   // Only the gaps are fetched, and the pack's own profile is what launches.
   assert.match(play, /if !unresolved_hints\.is_empty\(\)/);

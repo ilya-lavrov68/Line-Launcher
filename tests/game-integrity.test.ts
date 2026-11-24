@@ -111,7 +111,10 @@ test("launch scans under the lock, deletes foreign files and repairs before spaw
   assert.match(prepare, /ErrorCode::Integrity/);
 
   // The scan is wired into the launch path before Java is started.
-  const game = launch.slice(launch.indexOf("pub async fn launch_game("));
+  const game = launch.slice(
+    launch.indexOf("pub async fn launch_game("),
+    launch.indexOf("pub async fn stop_game("),
+  );
   const prepareCall = game.indexOf(
     "prepare_release(&app, &state, &server, &base, &stop)",
   );
@@ -130,7 +133,10 @@ test("launch scans under the lock, deletes foreign files and repairs before spaw
 
 test("the game runs in the server's own writable directory", () => {
   assert.match(launch, /let dir = base\.join\("game"\);/);
-  const game = launch.slice(launch.indexOf("pub async fn launch_game("));
+  const game = launch.slice(
+    launch.indexOf("pub async fn launch_game("),
+    launch.indexOf("pub async fn stop_game("),
+  );
   assert.match(game, /let game_dir = instance_game_dir\(&io_base\)\?;/);
   assert.match(game, /game_dir: game_dir\.clone\(\)/);
   assert.match(game, /\.current_dir\(&game_dir\)/);

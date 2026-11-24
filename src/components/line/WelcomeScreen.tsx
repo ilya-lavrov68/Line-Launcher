@@ -1,5 +1,6 @@
 import { m, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
+import { useT } from "@/lib/line/i18n";
 
 /**
  * The greeting a player sees before anything else.
@@ -52,6 +53,7 @@ export default function WelcomeScreen({
   minMs = 1900,
 }: WelcomeScreenProps) {
   const reduced = useReducedMotion();
+  const t = useT();
   // Not translated, on purpose: it is a wordmark — the greeting itself, not a
   // sentence that belongs to one language.
   const word = "Welcome";
@@ -112,7 +114,7 @@ export default function WelcomeScreen({
         initial={reduced ? false : { clipPath: "inset(-40% 100% -40% -12%)" }}
         animate={{ clipPath: "inset(-40% -12% -40% -12%)" }}
         transition={{
-          duration: DRAW_DURATION,
+          duration: reduced ? 0 : DRAW_DURATION,
           // Quick where the nib lands, easing as it lifts: the stroke moves
           // fastest in the middle of the word, like a hand, not like a wipe.
           ease: [0.55, 0, 0.25, 1],
@@ -120,6 +122,13 @@ export default function WelcomeScreen({
       >
         {word}
       </m.span>
+      <button
+        type="button"
+        onClick={onDone}
+        className="bg-primary text-primary-foreground hover:bg-primary/85 focus-visible:ring-ring absolute end-8 bottom-8 min-h-11 rounded-[var(--radius-item)] px-5 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-offset-2"
+      >
+        {t("welcome.continue")}
+      </button>
     </m.div>
   );
 }

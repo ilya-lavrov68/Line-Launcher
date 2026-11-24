@@ -10,23 +10,23 @@ import {
   type AuthCredentials,
   type AuthMode,
   type AuthSessionInfo,
+  type BuildIntegrityCheckResult,
   type ConfigSnapshot,
   type InstallProgress,
   type InstallReceipt,
   type GameStatus,
+  type LiveServerStatus,
   type ReleaseHistory,
   type RollbackResult,
   type JavaRuntimeInfo,
   type LauncherSettings,
   type McGameStatus,
   type McInstallProgress,
-  type McInstallRequest,
-  type McInstalled,
-  type McLaunchRequest,
   type McPlayRequest,
   type PackCheckResult,
   type QuarantineOutcome,
   type SettingsSnapshot,
+  type TelemetryRequest,
   type SkinModel,
   type SkinState,
   type SkinLibrarySnapshot,
@@ -94,6 +94,8 @@ export const lineApi = {
    * The same resource-pack check a launch runs, without launching. Same Rust
    * path, so the button and the gate cannot disagree.
    */
+  checkBuild: (serverId: string) =>
+    call<BuildIntegrityCheckResult>("check_build", { serverId }),
   checkPacks: (serverId: string) =>
     call<PackCheckResult>("check_resource_packs", { serverId }),
   /**
@@ -109,6 +111,8 @@ export const lineApi = {
   stopGame: (serverId: string) => call<boolean>("stop_game", { serverId }),
   gameStatus: (serverId: string) =>
     call<GameStatus>("get_game_status", { serverId }),
+  serverStatus: (serverId: string) =>
+    call<LiveServerStatus>("get_server_status", { serverId }),
   history: (serverId: string) =>
     call<ReleaseHistory>("list_release_history", { serverId }),
   rollback: (serverId: string, sha256: string) =>
@@ -116,6 +120,8 @@ export const lineApi = {
   settings: () => call<SettingsSnapshot>("get_settings"),
   saveSettings: (settings: LauncherSettings) =>
     call<SettingsSnapshot>("save_settings", { settings }),
+  sendTelemetry: (request: TelemetryRequest) =>
+    call<boolean>("send_provider_telemetry", { request }).catch(() => false),
   javaRuntimes: () => call<JavaRuntimeInfo[]>("list_java_runtimes"),
   probeJavaPath: (path: string) =>
     call<JavaRuntimeInfo>("probe_java_path", { path }),
@@ -146,14 +152,6 @@ export const lineApi = {
   /** Drops the "already uploaded" marker after an account change. */
   forgetSyncedSkin: () => call<SkinLibrarySnapshot>("forget_synced_skin"),
   // ------------------------------------------------------------- Minecraft
-  /** Installs a vanilla or loader profile from the official endpoints. */
-  mcInstall: (request: McInstallRequest) =>
-    call<McInstalled>("mc_install", { request }),
-  mcListInstalled: (instanceId: string) =>
-    call<string[]>("mc_list_installed", { instanceId }),
-  /** Offline identity: provider nickname + the launcher's stable UUID. */
-  mcLaunch: (request: McLaunchRequest) =>
-    call<McGameStatus>("mc_launch", { request }),
   /** One button: verify-or-download the profile, then auto-join the server. */
   mcPlay: (request: McPlayRequest) =>
     call<McGameStatus>("mc_play", { request }),

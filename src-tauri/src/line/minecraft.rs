@@ -28,7 +28,7 @@ use super::java;
 use super::launch::{optimal_heap_mb, player_uuid, validate_heap, GamePhase};
 use super::minecraft_core::{
     accepts_explicit_java, apply_heap, ensure_server_join, has_quick_play_token,
-    reject_dangerous_args, remove_automatic_joins, validate_instance_id, validate_loader,
+    reject_dangerous_args, remove_automatic_joins, validate_instance_id,
     validate_server_address, validate_test_mode, validate_version_id, LoaderChoice,
 };
 use super::pack::{self, DetectedInstance};
@@ -60,38 +60,12 @@ use uuid::Uuid;
 pub const MC_INSTALL_EVENT: &str = "line://mc-install-progress";
 pub const MC_GAME_EVENT: &str = "line://mc-game-status";
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct McLoaderRequest {
-    pub kind: String,
-    #[serde(default)]
-    pub version: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct McInstallRequest {
-    pub instance_id: String,
-    pub minecraft_version: String,
-    #[serde(default)]
-    pub loader: Option<McLoaderRequest>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McInstalled {
     pub instance_id: String,
-    /// Profile id to launch; with a loader this differs from the input version.
+    /// Profile id derived from the provider-owned build.
     pub version_id: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct McLaunchRequest {
-    pub instance_id: String,
-    pub version_id: String,
-    /// The client joins this server straight away; there is no menu step.
-    pub server_address: String,
 }
 
 /// What the «Играть» button calls: verify-or-download the profile, then join.
@@ -100,16 +74,8 @@ pub struct McLaunchRequest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct McPlayRequest {
-    /// Everything else defaults to what the provider published for this server.
+    /// Server id selects the provider-owned distribution and version.
     pub server_id: String,
-    #[serde(default)]
-    pub instance_id: Option<String>,
-    #[serde(default)]
-    pub minecraft_version: Option<String>,
-    #[serde(default)]
-    pub loader: Option<McLoaderRequest>,
-    #[serde(default)]
-    pub server_address: Option<String>,
     #[serde(default)]
     pub test_mode: bool,
     #[serde(default)]
@@ -119,7 +85,6 @@ pub struct McPlayRequest {
     #[serde(default)]
     pub approve_java_download: Option<super::java_consent::JavaDownloadPlan>,
 }
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McInstallProgress {
@@ -514,30 +479,6 @@ fn progress_dto(instance_id: &str, event: &ProgressEvent, finished: bool) -> McI
     }
 }
 
-/// Installs a vanilla or loader-backed profile from the official Mojang/loader
-/// endpoints. Blocking work stays off the async runtime.
-#[tauri::command]
-pub async fn mc_install(
-    app: AppHandle,
-    state: State<'_, MinecraftState>,
-    request: McInstallRequest,
-) -> LineResult<McInstalled> {
-    let instance_id = validate_instance_id(&request.instance_id)?;
-    let version = validate_version_id(&request.minecraft_version)?;
-    let loader = parse_loader(request.loader.as_ref())?;
-    install_profile(&app, &state, instance_id, version, loader, None, None).await
-}
-
-fn parse_loader(loader: Option<&McLoaderRequest>) -> LineResult<Option<LoaderSpec>> {
-    match loader {
-        Some(loader) => {
-            let (choice, exact) = validate_loader(&loader.kind, loader.version.as_deref())?;
-            Ok(Some(loader_spec(choice, exact)))
-        }
-        None => Ok(None),
-    }
-}
-
 // NeoForge 47.x was published as net.neoforged:forge with the Minecraft
 // version in the artifact version. Later NeoForge releases use :neoforge.
 fn legacy_neoforge_version(
@@ -884,31 +825,6 @@ async fn install_profile(
     })
 }
 
-/// Profiles already present on disk, newest directory order is not implied.
-#[tauri::command]
-pub async fn mc_list_installed(app: AppHandle, instance_id: String) -> LineResult<Vec<String>> {
-    let instance_id = validate_instance_id(&instance_id)?;
-    let dir = game_root(&app, &instance_id)?.join("versions");
-    let mut found = Vec::new();
-    let entries = match std::fs::read_dir(&dir) {
-        Ok(entries) => entries,
-        Err(_) => return Ok(found),
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        if path.is_dir() && path.join(format!("{name}.json")).is_file() {
-            if let Ok(id) = validate_version_id(name) {
-                found.push(id);
-            }
-        }
-    }
-    found.sort();
-    Ok(found)
-}
-
 /// Runtime installation returns a boxed error, which may contain URLs, local
 /// paths or tokens. Classify known types only; never expose raw error text.
 fn java_install_error(
@@ -1092,32 +1008,6 @@ fn emit_status(app: &AppHandle, status: McGameStatus) -> McGameStatus {
     status
 }
 
-/// Builds the command with the crate and spawns it as a monitored Tokio child.
-#[tauri::command]
-pub async fn mc_launch(
-    app: AppHandle,
-    line: State<'_, LineState>,
-    state: State<'_, MinecraftState>,
-    request: McLaunchRequest,
-) -> LineResult<McGameStatus> {
-    let instance_id = validate_instance_id(&request.instance_id)?;
-    let version_id = validate_version_id(&request.version_id)?;
-    let (host, port) = validate_server_address(&request.server_address)?;
-    launch_profile(
-        &app,
-        &line,
-        &state,
-        instance_id,
-        version_id,
-        host,
-        port,
-        false,
-        None,
-        None,
-    )
-    .await
-}
-
 /// Diagnostic timing deliberately contains no URL, path, user or raw error.
 fn log_preparation_stage(stage: &'static str, started: std::time::Instant, success: bool) {
     use super::logger::{self, Area, Field};
@@ -1153,16 +1043,12 @@ pub async fn mc_play(
         server.test_mode_enabled,
         server.launch_mode == super::config::LaunchMode::Minecraft,
     )?;
-    let instance_id = validate_instance_id(request.instance_id.as_deref().unwrap_or(&server.id))?;
-    let address = request
-        .server_address
-        .clone()
-        .or_else(|| server.server_address.clone())
-        .ok_or_else(|| {
-            LineError::input(
-                "Провайдер не указал адрес сервера: добавьте server_address в config.json.",
-            )
-        })?;
+    let instance_id = validate_instance_id(&server.id)?;
+    let address = server.server_address.clone().ok_or_else(|| {
+        LineError::input(
+            "Провайдер не указал адрес сервера: добавьте server_address в config.json.",
+        )
+    })?;
     let (host, port) = validate_server_address(&address)?;
     // Claim the instance before any pack resolution, sync or live-file scan.
     // The inner install and launch are allowed only as part of this operation.
@@ -1566,27 +1452,21 @@ pub async fn mc_play(
     // separately locked live instance installs missing Minecraft components.
     drop(release_lease);
 
-    // 4. Fill only the gaps. A loader found inside the instance is used as is;
-    //    one requested by the provider is installed only when none is there.
-    let requested_loader = parse_loader(request.loader.as_ref())?;
+    // 4. Fill only the gaps. A loader found in the verified instance is used
+    // as is. A generated profile may declare a loader without its libraries;
+    // install that exact provider-declared loader from its official host.
     let mut launch_version = detected.version_id.clone();
-    // A generated profile identifies the requested loader, but contains no real
-    // loader libraries; install it from the official host before launching.
     let loader = if detected.generated_profile {
-        requested_loader.or_else(|| {
-            detected.loader.clone().map(|(kind, version)| {
-                loader_spec(
-                    kind,
-                    if version.is_empty() {
-                        None
-                    } else {
-                        Some(version)
-                    },
-                )
-            })
+        detected.loader.clone().map(|(kind, version)| {
+            loader_spec(
+                kind,
+                if version.is_empty() {
+                    None
+                } else {
+                    Some(version)
+                },
+            )
         })
-    } else if detected.loader.is_none() {
-        requested_loader
     } else {
         None
     };
@@ -1644,9 +1524,7 @@ pub async fn mc_play(
                     .loader
                     .as_ref()
                     .map(|(kind, version)| format!("{kind:?}:{version}")),
-                requested_loader: request.loader.as_ref().map(|value| {
-                    format!("{}:{}", value.kind, value.version.as_deref().unwrap_or(""))
-                }),
+                requested_loader: None,
                 generated_profile: detected.generated_profile,
                 install_loader: loader.is_some(),
                 missing_from_archive: unresolved_hints

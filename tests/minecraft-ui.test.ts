@@ -123,6 +123,15 @@ test("Minecraft dock keeps advanced actions in the split menu and reports build 
   assert.match(panel, /paths\.slice\(0, 12\)/);
 });
 
+test("the advanced-actions trigger is a separate animated segment beside Play", () => {
+  const dock = read("src/components/line/ServerDock.tsx");
+  assert.match(panel, /<ServerDockPrimary\s+joined=\{!running\}/);
+  assert.match(panel, /<details[\s\S]*?<summary[\s\S]*?aria-haspopup="menu"/);
+  assert.match(panel, /group-open:rotate-180/);
+  assert.match(dock, /joined && "rounded-e-none"/);
+  assert.match(panel, /rounded-s-none rounded-e-\[var\(--radius-item\)\]/);
+});
+
 test("running state survives a screen change and comes from the backend", () => {
   // mc_status is called on mount: a game started before the player navigated
   // away is still running, and the panel has to show «Остановить игру».

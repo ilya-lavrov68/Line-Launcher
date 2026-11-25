@@ -69,6 +69,7 @@ export function ServerDockPrimary({
   progress = null,
   indeterminate = false,
   progressLabel,
+  joined = false,
   onClick,
 }: {
   children: ReactNode;
@@ -79,6 +80,8 @@ export function ServerDockPrimary({
   indeterminate?: boolean;
   /** Accessible name for the progress value, e.g. «Скачивание сборки». */
   progressLabel?: string;
+  /** Square off the trailing edge when a separate disclosure button adjoins it. */
+  joined?: boolean;
   onClick: () => void;
 }) {
   const busy = progress !== null || indeterminate;
@@ -94,6 +97,7 @@ export function ServerDockPrimary({
         onClick={onClick}
         className={cn(
           "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
+          joined && "rounded-e-none",
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
             : "bg-primary text-primary-foreground hover:bg-primary/85",

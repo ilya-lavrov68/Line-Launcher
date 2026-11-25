@@ -35,7 +35,7 @@ pub async fn get_server_status(
     let (_, config) = state.fresh_config()?;
     let server = config.server(&server_id)?;
     let raw_url = server.status_url.as_deref().ok_or_else(|| {
-        LineError::new(ErrorCode::Input, "Статус сервера не настроен.", false)
+        LineError::new(ErrorCode::InvalidInput, "Статус сервера не настроен.", false)
     })?;
     let url = validate_https(raw_url)?;
     let start = Instant::now();
@@ -44,14 +44,18 @@ pub async fn get_server_status(
     let bytes = http::read_limited(&mut response, 16 * 1024).await?;
     let status: ProviderStatus = serde_json::from_slice(&bytes).map_err(|_| {
         LineError::new(
-            ErrorCode::Input,
+            ErrorCode::InvalidInput,
             "Провайдер вернул некорректный статус сервера.",
             false,
         )
     })?;
-    if status.players_online.zip(status.players_max).is_some_and(|(online, max)| online > max) {
+    if status
+        .players_online
+        .zip(status.players_max)
+        .is_some_and(|(online, max)| online > max)
+    {
         return Err(LineError::new(
-            ErrorCode::Input,
+            ErrorCode::InvalidInput,
             "Провайдер вернул некорректное число игроков.",
             false,
         ));

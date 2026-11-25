@@ -262,7 +262,8 @@ test("Играть verifies-or-downloads and then joins the server in one comman
       `${earlier} must run before ${later}`,
     );
   }
-  assert.match(play, /or_else\(\|\| effective\.minecraft_version\.clone\(\)\)/);
+  assert.match(play, /let hint = effective\.minecraft_version\.clone\(\);/);
+  assert.doesNotMatch(play, /request\.minecraft_version/);
   assert.match(install, /pub async fn download_and_extract_resolved/);
   const resolved = install.slice(
     install.indexOf("pub async fn download_and_extract_resolved("),

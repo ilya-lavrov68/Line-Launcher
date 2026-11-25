@@ -131,20 +131,33 @@ test("the advanced-actions trigger is a separate animated segment beside Play", 
   assert.match(panel, /<details[\s\S]*?<summary[\s\S]*?aria-haspopup="menu"/);
   assert.match(panel, /group-open:rotate-180/);
   assert.match(
-    dock,
-    /joined && "rounded-s-\[calc\(var\(--radius-item\)-1px\)\] rounded-e-none"/,
-  );
-  assert.match(
     panel,
     /rounded-s-none rounded-e-\[calc\(var\(--radius-item\)-1px\)\]/,
   );
   assert.match(panel, /bg-border gap-0 rounded-\[var\(--radius-item\)\] p-px/);
   assert.match(panel, /flex h-11 w-11/);
+  assert.match(dock, /h-11 w-full/);
+  assert.match(
+    dock,
+    /joined &&\s+"rounded-s-\[calc\(var\(--radius-item\)-1px\)\] rounded-e-none border-0"/,
+  );
   assert.doesNotMatch(panel, /bg-border gap-px/);
   assert.doesNotMatch(
     read("src/components/line/ServerActionPanel.tsx"),
     /bg-border gap-px/,
   );
+});
+
+test("Minecraft preflight reads ownership from the writable instance state", () => {
+  const launch = read("src-tauri/src/line/launch.rs");
+  const check = launch.slice(
+    launch.indexOf("pub async fn check_resource_packs("),
+    launch.indexOf(
+      "#[cfg(test)]",
+      launch.indexOf("pub async fn check_resource_packs("),
+    ),
+  );
+  assert.match(check, /pack::owned_files\(&base\)/);
 });
 
 test("Minecraft quarantine and restore operate in the separate writable instance", () => {

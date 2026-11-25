@@ -823,8 +823,9 @@ pub fn scan_packs_with(
     scan_packs_with_checked_mods(base, server, owned, unproved)
 }
 
-/// Same bounded nested-JAR proof used by the Minecraft launch gate and its
-/// read-only preflight command.
+/// Same release-bound provenance proof used by the Minecraft launch gate and
+/// its read-only preflight command: direct files match indexed hashes, and only
+/// generated nested JARs use the bounded archive-content proof.
 pub(super) fn check_minecraft_mod_provenance(
     game: &Path,
     owned: &[String],
@@ -833,6 +834,18 @@ pub(super) fn check_minecraft_mod_provenance(
 ) -> LineResult<Vec<String>> {
     let mut checked = super::connector::ParentChecks::default();
     check_live_mods_with(game, owned, |relative| {
+        // A direct JAR is trusted only when its bytes match the exact indexed
+        // file from this verified release. Nested proof is only a fallback for
+        // live-generated JARs that have no direct entry in the release index.
+        let indexed_path = format!("{prefix}{relative}");
+        if let Some(entry) = index.files.iter().find(|entry| entry.path == indexed_path) {
+            let path = super::pack::checked_game_path(game, relative, false)?;
+            if !is_real_file(&path) {
+                return Ok(false);
+            }
+            let (sha256, size) = super::integrity::hash_file(&path)?;
+            return Ok(sha256 == entry.sha256 && size == entry.size);
+        }
         super::connector::matches_verified_nested(game, index, prefix, relative, &mut checked)
     })
 }
@@ -1555,12 +1568,14 @@ pub async fn check_resource_packs(
         let receipt = current_receipt(&release_base, &server_id)
             .ok_or_else(|| LineError::input("Сначала подготовьте сборку."))?;
         let release = verified_game_dir(&release_base, &receipt.sha256)?;
-        let owned = super::pack::owned_files(&release_base);
+        // Minecraft's writable copy owns its PackState; the provider release
+        // directory does not. The archive-backed mode stores PackState in base.
+        let owned = super::pack::owned_files(&base);
         let settings = server.anticheat.clone().unwrap_or_default();
         let game = instance_game_dir(&base)?;
         // Minecraft launch and its preflight check share the same provenance
-        // proof: a byte-identical nested JAR must be declared by the verified
-        // profile, not merely absent from the archive's direct file list.
+        // proof: direct JARs must match this verified release, while generated
+        // nested JARs must match a declared entry inside that release.
         let unproved = if server.launch_mode == super::config::LaunchMode::Minecraft {
             let report = super::integrity::scan(&release)?;
             if !report.is_clean() {
@@ -1617,6 +1632,40 @@ pub async fn check_resource_packs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn minecraft_proves_direct_mods_by_release_hash_not_by_first_launch() {
+        let temp = tempfile::tempdir().unwrap();
+        let game = temp.path().join("game");
+        let source = temp.path().join("release/mods/official.jar");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"verified Modrinth release bytes").unwrap();
+        let (sha256, size) = super::super::integrity::hash_file(&source).unwrap();
+        let index = super::super::integrity::FileIndex {
+            schema_version: super::super::integrity::INDEX_SCHEMA,
+            files: vec![super::super::integrity::FileEntry {
+                path: "mods/official.jar".into(),
+                sha256,
+                size,
+            }],
+        };
+        let live = game.join("mods/official.jar");
+        std::fs::create_dir_all(live.parent().unwrap()).unwrap();
+        std::fs::write(&live, b"verified Modrinth release bytes").unwrap();
+        let owned = vec!["mods/official.jar".to_owned()];
+
+        assert!(check_minecraft_mod_provenance(&game, &owned, &index, "")
+            .unwrap()
+            .is_empty());
+
+        // A first-launch snapshot would trust this replacement. The verified
+        // release index must keep rejecting it regardless of launch history.
+        std::fs::write(&live, b"unverified replacement bytes").unwrap();
+        assert_eq!(
+            check_minecraft_mod_provenance(&game, &owned, &index, "").unwrap(),
+            vec!["mods/official.jar"]
+        );
+    }
 
     #[test]
     fn nested_mods_are_accepted_only_when_the_callback_proves_them() {

@@ -23,6 +23,8 @@ test("Connector cache is checked against a scanned release and never globally al
   assert.match(connector, /actual == format!/);
   assert.match(launch, /check_live_mods_with\(game, owned, \|relative\|/);
   assert.match(launch, /actual_sha == \*sha256 && actual_size == \*size/);
+  assert.match(launch, /indexed_path = format!\("\{prefix\}\{relative\}"\)/);
+  assert.match(launch, /sha256 == entry\.sha256 && size == entry\.size/);
 });
 
 test("Minecraft preflight uses the same verified nested-JAR proof as launch", () => {

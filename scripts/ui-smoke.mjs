@@ -146,8 +146,12 @@ try {
   console.error(`${error.message}\n\n${browserHelp()}`);
   process.exit(2);
 }
+const initialViewport = {
+  width: Number(process.env.SMOKE_WIDTH) || 1280,
+  height: Number(process.env.SMOKE_HEIGHT) || 900,
+};
 const page = await browser.newPage({
-  viewport: { width: 1280, height: 900 },
+  viewport: initialViewport,
   // Obsy's animated gradient never settles; screenshots must disable motion.
   reducedMotion: "reduce",
   // The launcher follows the system language until a language is chosen, and
@@ -438,13 +442,21 @@ await page.addInitScript(
   { config, skinPng: skinBytes.toString("base64") },
 );
 
-const shot = (name) =>
-  page.screenshot({
+const shot = async (name) => {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  check(
+    !overflow,
+    `${name}: horizontal document overflow at ${initialViewport.width}px`,
+  );
+  return page.screenshot({
     path: path.join(outDir, `${name}.png`),
     fullPage: true,
     animations: "disabled",
     timeout: 60_000,
   });
+};
 
 function check(condition, message) {
   if (!condition) throw new Error(message);
@@ -475,6 +487,9 @@ try {
   await page
     .getByLabel("Адрес конфигурации")
     .fill("https://provider.example.com/config.json");
+  // Let the screen's one-time entrance transition finish before measuring the
+  // button; otherwise the idle sample races a transform and looks like a jump.
+  await page.waitForTimeout(600);
   // Regression: submitting used to clear the error block, shrinking the centred
   // card and throwing the button up, then back down when the error returned.
   // Measure the three states the player actually sees: idle, error, loading.
@@ -523,7 +538,7 @@ try {
   await page.getByLabel("Логин", { exact: true }).fill("Player_1");
   await page.getByLabel("Пароль", { exact: true }).fill("test-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await page.getByRole("button", { name: "Открыть сервер Survival" }).waitFor();
+  await page.getByRole("dialog").waitFor();
   const login = await page.evaluate(() => {
     const call = window.__calls.find((c) => c[0] === "line_login");
     return {
@@ -540,20 +555,90 @@ try {
   );
   check(login.restored, "the shell never asked the backend for the session");
   check(login.forgotten, "signing in must reset the uploaded-skin marker");
-  // A fresh account now gets the six-page guidebook immediately after login.
-  // Advance its real controls before the later tests click the title bar or rail.
+  // The first sign-in offers a reference index with direct chapter access.
+  // Verify every topic can be opened independently, then defer and reopen it
+  // from the persistent book control in the title bar.
   await page.getByRole("dialog").waitFor();
-  for (const title of [
-    "Каталог серверов",
-    "Карточка сервера",
-    "Гардероб персонажа",
-    "Аккаунт и профиль",
-    "Настройки лаунчера",
-  ]) {
-    await page.getByRole("button", { name: "Далее", exact: true }).click();
+  const chapters = [
+    "Найти сервер",
+    "Установить и играть",
+    "Перейти в раздел",
+    "Выбрать скин",
+    "Проверить аккаунт",
+    "Настроить лаунчер",
+  ];
+  for (const title of chapters) {
+    await page.getByRole("button", { name: title, exact: true }).click();
     await page.getByRole("heading", { name: title, exact: true }).waitFor();
   }
-  await page.getByRole("button", { name: "Готово", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Позже — закрыть справочник" })
+    .click();
+  await page.getByTestId("guidebook-replay").click();
+  const guideDialog = page.getByRole("dialog");
+  await guideDialog.waitFor();
+  for (let index = 0; index < 12; index += 1) await page.keyboard.press("Tab");
+  check(
+    await guideDialog.evaluate((dialog) =>
+      dialog.contains(document.activeElement),
+    ),
+    "keyboard focus escaped the modal guidebook",
+  );
+  const guideImage = guideDialog.locator("img");
+  check(
+    (await guideImage.getAttribute("src"))?.endsWith("servers.png"),
+    "the guidebook should start on its static poster",
+  );
+  await page.getByRole("button", { name: "Запустить анимацию" }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[role="dialog"] img')
+      ?.getAttribute("src")
+      ?.endsWith("servers.gif"),
+  );
+  await page.getByRole("button", { name: "Пауза" }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[role="dialog"] img')
+      ?.getAttribute("src")
+      ?.endsWith("servers.png"),
+  );
+  await page.setViewportSize({ width: 800, height: 560 });
+  const guidebookBounds = await page.getByRole("dialog").boundingBox();
+  check(
+    Boolean(
+      guidebookBounds &&
+      guidebookBounds.x >= 0 &&
+      guidebookBounds.y >= 0 &&
+      guidebookBounds.x + guidebookBounds.width <= 800 &&
+      guidebookBounds.y + guidebookBounds.height <= 560 &&
+      guidebookBounds.width >= 700,
+    ),
+    `guidebook must fit the minimum supported window: ${JSON.stringify(guidebookBounds)}`,
+  );
+  check(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    "guidebook introduced horizontal page overflow at 800px",
+  );
+  await page.screenshot({
+    path: path.join(outDir, "guidebook-minimum.png"),
+    animations: "disabled",
+  });
+  await page.getByRole("button", { name: "Найти сервер", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Найти сервер", exact: true })
+    .waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  check(
+    await page
+      .getByTestId("guidebook-replay")
+      .evaluate((button) => button === document.activeElement),
+    "closing the guidebook did not restore focus to its launcher button",
+  );
+  await page.setViewportSize(initialViewport);
   await shot("account");
 
   // The mark is tinted through a CSS mask. Vite inlines the SVG as a data: URL
@@ -1115,7 +1200,7 @@ try {
   await assertWidgetInsidePane();
   await page.setViewportSize({ width: 640, height: 720 });
   await assertWidgetInsidePane();
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setViewportSize(initialViewport);
   check(
     (await downloadWidget
       .getByRole("progressbar")

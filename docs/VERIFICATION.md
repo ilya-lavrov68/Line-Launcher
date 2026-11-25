@@ -1,58 +1,33 @@
 # Verification status
 
-## Current snapshot — 2026-11-25
+## Current snapshot — 2026-11-17
 
-For the current PR workspace:
-
+- `npm ci --no-audit --no-fund` completed successfully.
 - `npm run check` passed (`tsc -b --pretty false`).
-- `npm test` passed: **430 total, 429 passed, 1 skipped, 0 failed**.
-- `npm run build` passed. Vite reports the existing `skinview3d` chunk over
-  500 kB (about 526 kB).
-- `npm run test:ui` passed in Chromium: **179 IPC calls, 0 page errors**. The
-  smoke now completes the first-run guidebook and explicitly selects the
-  settings categories before exercising their controls.
-- `npm run screenshots` passed after the final UI changes and regenerated all
-  **14 real-browser screenshots**, all **six GIFs**, and all **six poster PNGs**.
-  The run used
-  Chromium `158.0.8127.0` and reported **0 page errors**.
-- `docs/visual-evidence.json` records SHA-256 hashes for all 14 screenshots and
-  all 12 GIF/poster files. `npm run visual-evidence:check` passed against the
-  generated files.
+- `npm test` passed: **431 total, 430 passed, 1 skipped, 0 failed**.
+- `npm run build` passed. Vite reports the existing `skinview3d` chunk at
+  525.52 kB, above its 500 kB advisory threshold.
+- `npm run test:ui` passed in Chromium at **1280×900** and at the Tauri minimum
+  **800×560**: 180 mocked IPC calls per run, 0 page errors. Coverage includes
+  sign-in/configuration error states, all six independently selectable guide
+  topics, defer/reopen/Escape, server actions, Minecraft, wardrobe, account,
+  settings, and four-locale settings text overflow checks.
+- `npm run test:dock` passed at 1100 and 640 px; `npm run test:drag` passed;
+  `npm run test:catalog-rail` passed at 1280, 720, and 375 px.
+- `npm run screenshots` passed in real Chromium **158.0.8127.0** and regenerated
+  **14 screenshots, six GIFs, and six poster PNGs**, with 0 page errors. The
+  capture manifest records hashes and date `2026-11-17`.
+- `npm run visual-evidence:check` passed: all 14 screenshots, six GIFs, and six
+  posters match the manifest.
 - `git diff --check` passed.
 
-The screenshot harness renders the real React components with demo config and
-mocked Tauri IPC. It documents the UI but does **not** prove live provider
-status, authentication, telemetry delivery, ZIP downloads, native Tauri
-behavior, or an actual Minecraft launch. These screenshots are not production
-data.
+Browser screenshots and UI smoke use the real React application with demo data
+and mocked Tauri IPC. They do not prove native window behavior, Windows/WebView2,
+real provider responses, production authentication, downloads, or a Minecraft
+launch. This environment has no `rustc`, `cargo`, or Windows toolchain, so Rust
+format/build/tests/Clippy and native desktop checks remain unverified. Follow the
+open acceptance gates in [ROADMAP.md](ROADMAP.md).
 
-This sandbox has no `rustc`, `cargo`, or Windows build tools. The Windows
-`npm run demo:build` failure report was fixed at its source, but a native
-Rust/Tauri build, Cargo tests/Clippy, Windows/WebView2 validation, provider
-integration, and real Minecraft launch could not be run here. The Rust errors
-must still be confirmed by CI or a Windows build environment.
-
-For this PR, GitHub Actions passed both frontend jobs, `ui-smoke`, all three
-`java-client` jobs, `rust-pure`, `secret-scan`, and `pr-visual-evidence`. The
-three `rust` matrix jobs stop before compilation at `cargo metadata --locked`:
-`mc-launcher-core` is absent from `src-tauri/Cargo.lock`. This existing lockfile
-blocker is documented in [GITHUB-PROTECTION.md](GITHUB-PROTECTION.md); Rust
-formatting, compilation, tests, and Clippy remain unverified by CI.
-
-The screenshot capture is an unconditional pre-PR requirement: every PR
-refreshes the full screenshot set, all six guidebook GIF/poster pairs, the
-README generated-on note, relevant player documentation, and this verification
-record. The PR evidence checklist and CI gate enforce the manifest and doc
-refresh.
-
-Accepted open work and acceptance gates are in [ROADMAP.md](ROADMAP.md);
-detailed installation risks are in [INSTALLATION-AUDIT.md](INSTALLATION-AUDIT.md).
-
-## Earlier records
-
-Older verification counts, platform availability and implementation details
-were removed from this rolling status page to avoid presenting stale snapshots
-as current. Historical audit observations remain in
-[AUDIT-2026-11.md](AUDIT-2026-11.md). Update this page whenever a new verification
-pass is performed; keep dated historical results only when they add evidence not
-already covered by that audit.
+The UI audit’s coverage and one non-blocking visual opportunity are recorded in
+[UI-AUDIT-ACTIONS.md](UI-AUDIT-ACTIONS.md). Older verification counts have been
+removed rather than carried forward.

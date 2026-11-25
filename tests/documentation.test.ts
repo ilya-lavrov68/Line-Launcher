@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { DICTIONARIES } from "../src/lib/line/i18n-dictionaries.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -28,7 +29,7 @@ test("README and every documentation page have valid local markdown links", () =
   }
 });
 
-test("the in-app guidebook has six GIF pages with real navigation controls", () => {
+test("the in-app player guide has six authentic illustrations and direct chapter navigation", () => {
   const component = readFileSync(
     path.join(root, "src/components/line/LauncherTour.tsx"),
     "utf8",
@@ -51,17 +52,79 @@ test("the in-app guidebook has six GIF pages with real navigation controls", () 
     assert.ok(component.includes(`/guidebook/${name}.gif`));
     assert.ok(component.includes(`/guidebook/${name}.png`));
   }
-  assert.match(component, /tour\.back/);
-  assert.match(component, /tour\.next/);
+  assert.match(component, /PAGES\.map/);
+  assert.match(component, /setPage\(index\)/);
+  assert.match(component, /aria-current/);
+  assert.match(component, /<DialogContent/);
   assert.match(component, /<img/);
   assert.match(component, /current\.body/);
-  assert.match(component, /useReducedMotion/);
   assert.match(component, /tour\.pauseAnimation/);
   assert.match(component, /tour\.playAnimation/);
+  const dictionaries = readFileSync(
+    path.join(root, "src/lib/line/i18n-dictionaries.ts"),
+    "utf8",
+  );
+  for (const phrase of [
+    "Choose a topic",
+    "Thema auswählen",
+    "Choisir un sujet",
+    "Выберите тему",
+    "Close for now",
+    "Vorläufig schließen",
+    "Fermer pour le moment",
+    "Позже — закрыть справочник",
+  ]) {
+    assert.ok(
+      dictionaries.includes(phrase),
+      `missing guidebook translation: ${phrase}`,
+    );
+  }
   assert.match(
     readFileSync(path.join(root, "README.md"), "utf8"),
-    /GIF-прохождениями/,
+    /Встроенный справочник игрока/,
   );
+});
+
+test("all guidebook chapters and defer controls are complete in every supported locale", () => {
+  const keys = [
+    "tour.title",
+    "tour.intro",
+    "tour.choose",
+    "tour.navTitle",
+    "tour.navBody",
+    "tour.navAlt",
+    "tour.catalogTitle",
+    "tour.catalogBody",
+    "tour.catalogAlt",
+    "tour.serverTitle",
+    "tour.serverBody",
+    "tour.serverAlt",
+    "tour.wardrobeTitle",
+    "tour.wardrobeBody",
+    "tour.wardrobeAlt",
+    "tour.accountTitle",
+    "tour.accountBody",
+    "tour.accountAlt",
+    "tour.settingsTitle",
+    "tour.settingsBody",
+    "tour.settingsAlt",
+    "tour.skip",
+    "tour.playAnimation",
+    "tour.pauseAnimation",
+  ] as const;
+  for (const [locale, dictionary] of Object.entries(DICTIONARIES)) {
+    for (const key of keys) {
+      assert.ok(
+        dictionary[key].trim().length > 0,
+        `${locale} is missing ${key}`,
+      );
+      assert.notEqual(
+        dictionary[key],
+        key,
+        `${locale}.${key} contains an untranslated key`,
+      );
+    }
+  }
 });
 
 test("the project skill keeps screenshots, docs, and GIF guidebook changes linked", () => {
@@ -108,12 +171,8 @@ test("documentation has one active roadmap and labels current integration limits
   assert.match(roadmap, /Единственное место для активных планов проекта/);
   assert.match(roadmap, /не передавать UUID из\s+интерфейса лаунчера/i);
   assert.match(roadmap, /не добавлять endpoint, поля ответа, mock-метрики/i);
-  assert.match(verification, /430 total, 429 passed, 1 skipped, 0 failed/);
-  assert.match(
-    verification,
-    /npm run screenshots` passed after the final UI changes/,
-  );
-  assert.match(verification, /14 real-browser screenshots/);
+  assert.match(verification, /431 total, 430 passed, 1 skipped, 0 failed/);
+  assert.match(verification, /14 screenshots, six GIFs, and six poster PNGs/);
   assert.match(verification, /mocked Tauri IPC/);
   assert.match(
     read("CONTRIBUTING.md"),

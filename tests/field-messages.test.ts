@@ -59,7 +59,9 @@ test("the reserved height still holds the submit button still", () => {
   // The message slot is fixed-height on purpose: the button used to jump when
   // an error appeared. Toning the message down must not reintroduce that.
   const form = read("src/components/line/AuthForm.tsx");
-  assert.match(form, /min-h-4/);
+  // Long localized authentication errors can wrap to multiple lines at the
+  // minimum supported window; the slot reserves enough height to keep submit still.
+  assert.match(form, /min-h-16/);
   const config = read("src/components/line/ConfigUrlInput.tsx");
   assert.match(config, /min-h-12/);
 });

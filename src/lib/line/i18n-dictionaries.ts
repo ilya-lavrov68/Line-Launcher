@@ -49,34 +49,43 @@ export const ru = {
   "window.connecting": "Подключение",
 
   "welcome.continue": "Продолжить",
-  "tour.title": "Знакомство с лаунчером",
-  "guidebook.replay": "Пройти обучение заново",
-  "tour.progress": "ШАГ {current} ИЗ {total}",
-  "tour.navTitle": "Основная навигация",
+  "tour.title": "Справочник игрока",
+  "guidebook.replay": "Открыть справочник",
+  "tour.intro":
+    "Выберите нужную тему — главы можно открывать в любом порядке. Справочник всегда доступен по кнопке книги.",
+  "tour.choose": "Выберите тему",
+  "tour.navTitle": "Перейти в раздел",
   "tour.navBody":
-    "Здесь находятся каталог серверов, гардероб и настройки. Вернитесь сюда, чтобы переключаться между разделами.",
-  "tour.wardrobeTitle": "Гардероб персонажа",
+    "На боковой панели находятся серверы, гардероб, аккаунт и настройки. Выберите раздел, чтобы перейти к нему; возврат не сбрасывает выбранный сервер.",
+  "tour.navAlt": "Показан переход с каталога серверов в гардероб и обратно.",
+  "tour.wardrobeTitle": "Выбрать скин",
   "tour.wardrobeBody":
-    "В гардеробе можно просматривать и менять скин, который будет использоваться в игре.",
-  "tour.settingsTitle": "Настройки лаунчера",
+    "Откройте гардероб, выберите сохранённый вариант и проверьте, какой скин будет активным. Сервер может показывать скины по своим правилам.",
+  "tour.wardrobeAlt":
+    "Показан выбор сохранённого скина и изменение предпросмотра.",
+  "tour.settingsTitle": "Настроить лаунчер",
   "tour.settingsBody":
-    "Выберите язык и оформление, настройте поведение окна и параметры загрузки.",
-  "tour.catalogTitle": "Каталог серверов",
+    "В настройках можно выбрать язык и оформление, а также настроить параметры загрузки и окна. Внешний вид не меняет игровые файлы.",
+  "tour.settingsAlt":
+    "Показан выбор лимита загрузки и возврат к исходному значению.",
+  "tour.catalogTitle": "Найти сервер",
   "tour.catalogBody":
-    "Найдите сервер по названию или фильтрам. На карточке выберите сервер, чтобы открыть его страницу и перейти к установке или запуску игры.",
-  "tour.accountTitle": "Аккаунт и профиль",
+    "Откройте «Серверы», введите название в поиск или выберите фильтр. Откройте строку сервера, чтобы посмотреть подробности и доступные действия.",
+  "tour.catalogAlt":
+    "Показан поиск сервера по названию, открытие карточки и возврат к списку.",
+  "tour.accountTitle": "Проверить аккаунт",
   "tour.accountBody":
-    "Здесь видны данные аккаунта и срок сессии, а также предварительный просмотр скина и переход в гардероб.",
-  "tour.back": "Назад",
-  "tour.serverTitle": "Карточка сервера",
+    "В разделе «Аккаунт» проверьте активную сессию и сведения профиля. Здесь же можно открыть гардероб и посмотреть предпросмотр скина.",
+  "tour.accountAlt":
+    "Показано раскрытие и сворачивание блока статистики аккаунта.",
+  "tour.serverTitle": "Установить и играть",
   "tour.serverBody":
-    "Откройте сервер: проверьте сборку, установите обновление или запустите игру.",
-  "tour.next": "Далее",
-  "tour.done": "Готово",
-  "tour.skip": "Пропустить обучение",
+    "На странице сервера основная кнопка показывает следующий шаг: установить или обновить сборку, начать игру либо остановить её. Дополнительные команды находятся в меню.",
+  "tour.serverAlt":
+    "Показано открытие меню команд и запуск проверки целостности сборки.",
+  "tour.skip": "Позже — закрыть справочник",
   "tour.playAnimation": "Запустить анимацию",
   "tour.pauseAnimation": "Пауза",
-  "tour.animationResumeHint": "Повторный запуск начнёт анимацию сначала.",
   "onboarding.step": "НАСТРОЙКА ПРОФИЛЯ",
   "onboarding.title": "Настройте лаунчер",
   "onboarding.description":
@@ -654,34 +663,42 @@ const en: Dictionary = {
   "window.connecting": "Connecting",
 
   "welcome.continue": "Continue",
-  "tour.title": "Launcher tour",
-  "guidebook.replay": "Restart the guide",
-  "tour.progress": "STEP {current} OF {total}",
-  "tour.navTitle": "Your navigation",
+  "tour.title": "Player guide",
+  "guidebook.replay": "Open the guide",
+  "tour.intro":
+    "Choose a topic to get started. Open chapters in any order, and return to this guide from the book button whenever you need it.",
+  "tour.choose": "Choose a topic",
+  "tour.navTitle": "Switch sections",
   "tour.navBody":
-    "Use this rail to switch between servers, your wardrobe and launcher settings.",
-  "tour.wardrobeTitle": "Your character wardrobe",
-  "tour.wardrobeBody": "Preview and change the skin that will appear in game.",
-  "tour.settingsTitle": "Launcher settings",
+    "The side navigation links to servers, wardrobe, account and settings. Choose a section to switch views; returning does not clear your selected server.",
+  "tour.navAlt": "Shows switching from the server list to Wardrobe and back.",
+  "tour.wardrobeTitle": "Choose a skin",
+  "tour.wardrobeBody":
+    "Open Wardrobe, choose a saved skin and check which one is active. A server may display skins according to its own rules.",
+  "tour.wardrobeAlt": "Shows selecting a saved skin and the preview changing.",
+  "tour.settingsTitle": "Set up the launcher",
   "tour.settingsBody":
-    "Choose language and appearance, and adjust window behaviour and download options.",
-  "tour.catalogTitle": "Server catalogue",
+    "Choose a language and appearance in Settings, and adjust download and window options. Appearance changes do not modify game files.",
+  "tour.settingsAlt":
+    "Shows changing the download limit and restoring its original value.",
+  "tour.catalogTitle": "Find a server",
   "tour.catalogBody":
-    "Search by name or filter the catalogue. Choose a server card to open its page and find the install and play actions.",
-  "tour.accountTitle": "Account and profile",
+    "Open Servers, search by name or choose a filter. Open a server row to see its details and available actions.",
+  "tour.catalogAlt":
+    "Shows searching for a server, opening its page, then returning to the list.",
+  "tour.accountTitle": "Check your account",
   "tour.accountBody":
-    "See your account details and session expiry, preview your skin, and jump to the wardrobe.",
-  "tour.back": "Back",
-  "tour.serverTitle": "A server card",
+    "In Account, check the active session and profile details. You can also open Wardrobe and preview your skin here.",
+  "tour.accountAlt":
+    "Shows expanding and collapsing the account statistics section.",
+  "tour.serverTitle": "Install and play",
   "tour.serverBody":
-    "Open a server to check its build, install an update, or start the game.",
-  "tour.next": "Next",
-  "tour.done": "Done",
-  "tour.skip": "Skip tour",
+    "On a server page, the main button shows the next step: install or update the build, play, or stop the game. More actions are in the adjacent menu.",
+  "tour.serverAlt":
+    "Shows opening the actions menu and checking the build files.",
+  "tour.skip": "Close for now",
   "tour.playAnimation": "Play animation",
   "tour.pauseAnimation": "Pause",
-  "tour.animationResumeHint":
-    "Playing again starts the animation from the beginning.",
   "onboarding.step": "PROFILE SETUP",
   "onboarding.title": "Set up your launcher",
   "onboarding.description":
@@ -1259,35 +1276,43 @@ const de: Dictionary = {
   "window.connecting": "Verbindung",
 
   "welcome.continue": "Weiter",
-  "tour.title": "Launcher-Tour",
-  "guidebook.replay": "Einführung erneut ansehen",
-  "tour.progress": "SCHRITT {current} VON {total}",
-  "tour.navTitle": "Deine Navigation",
+  "tour.title": "Spielerhandbuch",
+  "guidebook.replay": "Handbuch öffnen",
+  "tour.intro":
+    "Wähle ein Thema und öffne die Kapitel in beliebiger Reihenfolge. Über die Buch-Schaltfläche kannst du jederzeit hierher zurückkehren.",
+  "tour.choose": "Thema auswählen",
+  "tour.navTitle": "Bereich wechseln",
   "tour.navBody":
-    "Wechsle hier zwischen Servern, Garderobe und Launcher-Einstellungen.",
-  "tour.wardrobeTitle": "Deine Charakter-Garderobe",
+    "Die Seitennavigation führt zu Servern, Garderobe, Konto und Einstellungen. Beim Wechsel bleibt der ausgewählte Server erhalten.",
+  "tour.navAlt":
+    "Zeigt den Wechsel von der Serverliste zur Garderobe und zurück.",
+  "tour.wardrobeTitle": "Skin auswählen",
   "tour.wardrobeBody":
-    "Sieh dir den Skin an und ändere ihn, der im Spiel angezeigt wird.",
-  "tour.settingsTitle": "Launcher-Einstellungen",
+    "Öffne die Garderobe, wähle einen gespeicherten Skin und prüfe, welcher aktiv ist. Ein Server kann Skins nach eigenen Regeln anzeigen.",
+  "tour.wardrobeAlt":
+    "Zeigt die Auswahl eines gespeicherten Skins und die aktualisierte Vorschau.",
+  "tour.settingsTitle": "Launcher einrichten",
   "tour.settingsBody":
-    "Wähle Sprache und Design und passe Fenster- und Downloadoptionen an.",
-  "tour.catalogTitle": "Serverkatalog",
+    "Wähle unter Einstellungen Sprache und Darstellung und passe Download- und Fensteroptionen an. Die Darstellung ändert keine Spieldateien.",
+  "tour.settingsAlt": "Zeigt das Ändern und Zurücksetzen des Downloadlimits.",
+  "tour.catalogTitle": "Server finden",
   "tour.catalogBody":
-    "Suche nach Namen oder filtere den Katalog. Wähle eine Serverkarte, um die Seite mit den Aktionen zum Installieren und Spielen zu öffnen.",
-  "tour.accountTitle": "Konto und Profil",
+    "Öffne Server, suche nach Namen oder wähle einen Filter. Öffne einen Servereintrag, um Details und verfügbare Aktionen zu sehen.",
+  "tour.catalogAlt":
+    "Zeigt die Serversuche, das Öffnen eines Eintrags und die Rückkehr zur Liste.",
+  "tour.accountTitle": "Konto prüfen",
   "tour.accountBody":
-    "Hier findest du Kontodaten und Sitzungsablauf, kannst deinen Skin ansehen und zur Garderobe wechseln.",
-  "tour.back": "Zurück",
-  "tour.serverTitle": "Eine Serverkarte",
+    "Prüfe unter Konto die aktive Sitzung und Profildaten. Hier kannst du auch die Garderobe öffnen und deinen Skin ansehen.",
+  "tour.accountAlt":
+    "Zeigt das Öffnen und Schließen des Statistikbereichs im Konto.",
+  "tour.serverTitle": "Installieren und spielen",
   "tour.serverBody":
-    "Öffne einen Server: Prüfe das Paket, installiere ein Update oder starte das Spiel.",
-  "tour.next": "Weiter",
-  "tour.done": "Fertig",
-  "tour.skip": "Tour überspringen",
+    "Auf der Serverseite zeigt die Hauptschaltfläche den nächsten Schritt: Paket installieren oder aktualisieren, spielen oder das Spiel beenden. Weitere Aktionen stehen im Menü.",
+  "tour.serverAlt":
+    "Zeigt das Menü mit Aktionen und die Prüfung der Build-Dateien.",
+  "tour.skip": "Vorläufig schließen",
   "tour.playAnimation": "Animation abspielen",
   "tour.pauseAnimation": "Pause",
-  "tour.animationResumeHint":
-    "Beim erneuten Start beginnt die Animation von vorn.",
   "onboarding.step": "PROFIL EINRICHTEN",
   "onboarding.title": "Launcher einrichten",
   "onboarding.description":
@@ -1873,35 +1898,44 @@ const fr: Dictionary = {
   "window.connecting": "Connexion",
 
   "welcome.continue": "Continuer",
-  "tour.title": "Visite du launcher",
-  "guidebook.replay": "Revoir le guide",
-  "tour.progress": "ÉTAPE {current} SUR {total}",
-  "tour.navTitle": "Votre navigation",
+  "tour.title": "Guide du joueur",
+  "guidebook.replay": "Ouvrir le guide",
+  "tour.intro":
+    "Choisissez un sujet et consultez les chapitres dans l’ordre de votre choix. Le bouton en forme de livre permet de revenir au guide à tout moment.",
+  "tour.choose": "Choisir un sujet",
+  "tour.navTitle": "Changer de rubrique",
   "tour.navBody":
-    "Passez ici des serveurs à la garde-robe et aux réglages du launcher.",
-  "tour.wardrobeTitle": "La garde-robe de votre personnage",
+    "La navigation latérale mène aux serveurs, à la garde-robe, au compte et aux réglages. Le serveur sélectionné reste conservé lorsque vous changez de rubrique.",
+  "tour.navAlt":
+    "Montre le passage de la liste des serveurs à la garde-robe, puis le retour.",
+  "tour.wardrobeTitle": "Choisir un skin",
   "tour.wardrobeBody":
-    "Prévisualisez et modifiez le skin qui apparaîtra en jeu.",
-  "tour.settingsTitle": "Réglages du launcher",
+    "Ouvrez la garde-robe, choisissez un skin enregistré et vérifiez lequel est actif. Un serveur peut afficher les skins selon ses propres règles.",
+  "tour.wardrobeAlt":
+    "Montre la sélection d’un skin enregistré et la mise à jour de l’aperçu.",
+  "tour.settingsTitle": "Configurer le launcher",
   "tour.settingsBody":
-    "Choisissez la langue et l’apparence, puis réglez la fenêtre et les téléchargements.",
-  "tour.catalogTitle": "Catalogue des serveurs",
+    "Dans les réglages, choisissez la langue et l’apparence, puis ajustez les options de téléchargement et de fenêtre. L’apparence ne modifie pas les fichiers du jeu.",
+  "tour.settingsAlt":
+    "Montre la modification de la limite de téléchargement et son rétablissement.",
+  "tour.catalogTitle": "Trouver un serveur",
   "tour.catalogBody":
-    "Recherchez par nom ou filtrez le catalogue. Choisissez une carte pour ouvrir la page du serveur et accéder à l’installation ou au lancement.",
-  "tour.accountTitle": "Compte et profil",
+    "Ouvrez Serveurs, recherchez par nom ou choisissez un filtre. Ouvrez une ligne pour consulter les détails et les actions disponibles.",
+  "tour.catalogAlt":
+    "Montre la recherche d’un serveur, son ouverture et le retour à la liste.",
+  "tour.accountTitle": "Vérifier le compte",
   "tour.accountBody":
-    "Consultez vos informations et l’expiration de session, prévisualisez votre skin et ouvrez la garde-robe.",
-  "tour.back": "Retour",
-  "tour.serverTitle": "Une carte de serveur",
+    "Dans Compte, vérifiez la session active et les informations du profil. Vous pouvez aussi ouvrir la garde-robe et prévisualiser votre skin.",
+  "tour.accountAlt":
+    "Montre l’ouverture et le repli de la section des statistiques du compte.",
+  "tour.serverTitle": "Installer et jouer",
   "tour.serverBody":
-    "Ouvrez un serveur : vérifiez le pack, installez une mise à jour ou lancez le jeu.",
-  "tour.next": "Suivant",
-  "tour.done": "Terminé",
-  "tour.skip": "Ignorer la visite",
+    "Sur la page du serveur, le bouton principal indique l’étape suivante : installer ou mettre à jour le pack, jouer ou arrêter le jeu. Les autres actions se trouvent dans le menu voisin.",
+  "tour.serverAlt":
+    "Montre le menu des actions et le lancement de la vérification du pack.",
+  "tour.skip": "Fermer pour le moment",
   "tour.playAnimation": "Lire l’animation",
   "tour.pauseAnimation": "Pause",
-  "tour.animationResumeHint":
-    "La lecture recommence l’animation depuis le début.",
   "onboarding.step": "CONFIGURATION DU PROFIL",
   "onboarding.title": "Configurez le launcher",
   "onboarding.description":

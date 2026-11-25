@@ -27,9 +27,13 @@ try {
     await page.goto(`${base}/tests/ui/server-dock/`);
     const region = page.getByRole("region", { name: "BattleArmory" });
     const play = region.getByRole("button", { name: "Играть", exact: true });
-    const testMode = region.getByRole("button", { name: "Запуск без сервера" });
+    const actionMenu = region.getByTestId("server-action-menu");
+    const menuTrigger = actionMenu.locator("summary");
+    const testMode = region.getByRole("menuitem", {
+      name: "Запуск без сервера",
+    });
     await play.waitFor();
-    const details = region.locator("details");
+    const details = region.locator("details").filter({ hasText: "О запуске" });
     const hint = details.getByText(/Игра откроется главным меню/);
     assert.equal(await hint.isVisible(), false);
     assert.equal(await region.getByText(/Установлено профилей/).count(), 0);
@@ -43,7 +47,7 @@ try {
     assert.equal(await hint.isVisible(), false);
     await page.waitForTimeout(350);
     const beforePlay = await play.boundingBox();
-    const beforeTest = await testMode.boundingBox();
+    const beforeTest = await menuTrigger.boundingBox();
     assert.ok(beforePlay && beforeTest);
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await play.click();
@@ -81,7 +85,7 @@ try {
     await page.evaluate(() => window.pushProgress());
     await region.getByRole("progressbar").waitFor({ state: "attached" });
     const afterPlay = await play.boundingBox();
-    const afterTest = await testMode.boundingBox();
+    const afterTest = await menuTrigger.boundingBox();
     for (const [before, after] of [
       [beforePlay, afterPlay],
       [beforeTest, afterTest],
@@ -116,6 +120,7 @@ try {
         .isDisabled(),
       false,
     );
+    await menuTrigger.click();
     await testMode.click();
     await page.waitForFunction(() => window.requestCount() === 2);
     assert.equal(
@@ -129,7 +134,8 @@ try {
       afterError && Math.abs(beforePlay.y - afterError.y) < 1,
       "error moved the primary action",
     );
-    await region.getByRole("button", { name: "Подготовить заранее" }).click();
+    await menuTrigger.click();
+    await region.getByRole("menuitem", { name: "Подготовить заранее" }).click();
     await page.waitForFunction(() => window.requestCount() === 3);
     assert.equal(
       await page.evaluate(() => window.lastRequest().prepareOnly),

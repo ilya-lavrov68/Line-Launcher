@@ -19,7 +19,7 @@ If a browser, image tool, Rust toolchain, or other required validator is unavail
 
 ## Guidebook constraints
 
-- Preserve the six separate chapters and their order: navigation, catalog, server actions, wardrobe, account, settings.
+- Keep six independent, directly selectable chapters, organized around first-time player tasks: find a server, install and launch a game, move between sections, choose a character skin, check the account, and set up the launcher. The order is a suggested starting point, not a forced sequence.
 - Keep each GIF tied to real React UI interactions captured by Playwright; `scripts/generate-guidebook-gifs.py` encodes the browser-frame manifest and creates matching posters.
-- Keep localized visible copy in `ru`, `en`, `de`, and `fr`; preserve reduced-motion behavior, replay controls, and loop continuity.
-- For new or removed chapters, update the tour UI, capture scenario, README gallery, documentation tests, and manifest expectations together. Do not silently drop an existing page.
+- Keep localized visible copy in `ru`, `en`, `de`, and `fr`; do not autoplay animations, respect reduced motion, keep replay/pause controls, and preserve loop continuity.
+- For new or removed chapters, update the reference UI, capture scenario, README gallery, documentation tests, and manifest expectations together. Do not silently drop an existing topic.

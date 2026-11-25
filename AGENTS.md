@@ -8,6 +8,10 @@
 4. If the runtime does not expose a skill-invocation tool, follow the installed skill files manually and conduct the Grill Me rounds in the conversation (use the structured question UI when available).
 5. For review, deployment, PR, testing, or other operational tasks, read the corresponding skill(s) first; use Grill Me as well whenever the request introduces a product/project decision. Never run scripts bundled with a skill unless the user-approved task actually requires them and their contents have been inspected.
 
+## Canonical product-design authority
+
+For any UI or product-design work, read `.agents/skills/product-design/SKILL.md` and treat it as the primary source for design direction, information architecture, and visual hierarchy. It supersedes conflicting generic aesthetic recipes in imported skills, including `frontend-design` and `better-ui`; do not edit vendored skill sources to resolve a conflict. Keep specialist requirements for accessibility, measured contrast, localization, platform semantics, and functional verification in force. For Line-specific decisions, read `docs/DESIGN.md` as the current product profile and update it when the approved design changes.
+
 ## Documentation and visual evidence
 
 Before changing behavior, identify the user-facing contracts and the documentation that describes them; check each document against the current code rather than treating old text as truth. Update the relevant `docs/` and README sections in the same change. For UI changes, run the real app in a live browser, inspect the actual affected states and controls, and regenerate affected committed UI screenshots from that browser only after the checks pass. Never replace a missing browser run with hand-drawn/offline renderings or fixtures presented as real screenshots. Record unavailable checks and stale screenshots explicitly in `docs/VERIFICATION.md`; do not claim verification that did not happen.

@@ -45,12 +45,16 @@ pub fn fallback_urls(url: &str) -> Vec<String> {
     }
 
     // CreeperHost exposes the NeoForged `/releases` repository at its root.
-    let mirror_path = parsed.path().strip_prefix("/releases").unwrap_or(parsed.path());
+    let mirror_path = parsed
+        .path()
+        .strip_prefix("/releases")
+        .unwrap_or(parsed.path())
+        .to_owned();
     let mut fallback = parsed;
     if fallback.set_host(Some(NEOFORGE_FALLBACK_HOST)).is_err() {
         return vec![url.to_string()];
     }
-    fallback.set_path(mirror_path);
+    fallback.set_path(&mirror_path);
     let fallback = fallback.to_string();
     if fallback == url {
         vec![url.to_string()]

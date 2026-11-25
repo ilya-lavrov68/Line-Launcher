@@ -603,7 +603,11 @@ fn loader_installer_command(java: &Path, installer: &Path, game: &Path) -> std::
         .arg("-jar")
         .arg(installer)
         .arg("--installClient")
-        .arg(game);
+        .arg(game)
+        // NeoForge documents this fallback for temporary Maven outages. This
+        // runner is used for the legacy NeoForge installer path only.
+        .arg("--mirror")
+        .arg("https://maven.creeperhost.net");
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -2129,7 +2133,9 @@ mod preparation_lock_tests {
                 std::ffi::OsStr::new("-jar"),
                 std::ffi::OsStr::new("installer path/setup.jar"),
                 std::ffi::OsStr::new("--installClient"),
-                std::ffi::OsStr::new("game path")
+                std::ffi::OsStr::new("game path"),
+                std::ffi::OsStr::new("--mirror"),
+                std::ffi::OsStr::new("https://maven.creeperhost.net")
             ]
         );
     }

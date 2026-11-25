@@ -32,6 +32,13 @@ Rust/Tauri build, Cargo tests/Clippy, Windows/WebView2 validation, provider
 integration, and real Minecraft launch could not be run here. The Rust errors
 must still be confirmed by CI or a Windows build environment.
 
+For this PR, GitHub Actions passed both frontend jobs, `ui-smoke`, all three
+`java-client` jobs, `rust-pure`, `secret-scan`, and `pr-visual-evidence`. The
+three `rust` matrix jobs stop before compilation at `cargo metadata --locked`:
+`mc-launcher-core` is absent from `src-tauri/Cargo.lock`. This existing lockfile
+blocker is documented in [GITHUB-PROTECTION.md](GITHUB-PROTECTION.md); Rust
+formatting, compilation, tests, and Clippy remain unverified by CI.
+
 The screenshot capture is an unconditional pre-PR requirement: every PR
 refreshes the full screenshot set, all six guidebook GIF/poster pairs, the
 README generated-on note, relevant player documentation, and this verification

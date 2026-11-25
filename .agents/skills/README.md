@@ -6,6 +6,10 @@ These are project-local Agent Skills in the standard `.agents/skills/<skill-name
 
 Follow the skill-first and Grill Me process in [`AGENTS.md`](../../AGENTS.md). Read the complete skill relevant to the task and any references it explicitly requires. For project changes, always read `grill-me` and `grilling`, interview in rounds, and wait for confirmation before implementation.
 
+## Project-specific skills
+
+- [`launcher-guidebook-maintenance`](launcher-guidebook-maintenance/SKILL.md) — use for player-facing launcher changes to decide when README/docs, authentic browser screenshots, and the in-app GIF guidebook need to move together.
+
 ## Sources and pinned snapshots
 
 - [`mattpocock/skills`](https://github.com/mattpocock/skills) at `abeeaf95660ba9e8b7c753eb38f441ca707a8823` — 39 skills.

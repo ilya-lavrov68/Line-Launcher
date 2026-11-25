@@ -11,12 +11,15 @@
 // Captures are staged and published only when the whole gallery succeeds.
 // The transient connecting screen is not part of the gallery.
 import {
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -180,6 +183,11 @@ const SOFTWARE_RENDERER =
 
 const staging = mkdtempSync(path.join(outDir, ".capture-"));
 const captured = [];
+const guidebookFramesRoot = path.join(staging, "guidebook-frames");
+mkdirSync(guidebookFramesRoot, { recursive: true });
+const guidebookManifest = {};
+let guideCursor = { x: 2, y: SHOT_HEIGHT - 2, visible: false, pressed: false };
+let guideCursorMounted = false;
 const page = await browser.newPage({
   // One size for every image, matching scripts/render-screens.mjs. The README
   // gallery looked broken when it mixed 480, 860, 1000 and 1060 tall pictures.
@@ -229,12 +237,14 @@ await page.addInitScript(
     window.isTauri = true;
     window.__callbacks = new Map();
     window.__cid = 1;
-    // Keep the short welcome screen stable long enough to capture it, then the
-    // script advances it explicitly. This affects only the screenshot fixture.
+    // Keep the short welcome screen stable long enough for cold, software
+    // rendering, then the script advances it explicitly. This affects only the
+    // screenshot fixture.
     const nativeSetTimeout = window.setTimeout.bind(window);
     window.setTimeout = (handler, delay, ...args) =>
-      nativeSetTimeout(handler, delay === 1900 ? 15_000 : delay, ...args);
+      nativeSetTimeout(handler, delay === 1900 ? 120_000 : delay, ...args);
     window.__events = new Map();
+    window.__guideCheckBuildCalls = 0;
     window.__session = null;
     window.__installed = installed;
     window.__library = {
@@ -355,6 +365,10 @@ await page.addInitScript(
           };
         };
         if (cmd === "get_skin") return remoteSkin();
+        if (cmd === "set_active_skin") {
+          window.__library.active = args.id ?? null;
+          return { library: window.__library, limit: 64 };
+        }
         if (cmd === "sync_active_skin") {
           if (window.__library.active === window.__library.synced)
             return { status: "unchanged", skin: null };
@@ -370,6 +384,13 @@ await page.addInitScript(
           return args.serverId === installed.serverId
             ? window.__installed
             : null;
+        if (cmd === "ensure_fresh_config") return null;
+        if (cmd === "check_build") {
+          window.__guideCheckBuildCalls += 1;
+          return { checked: 42, missing: [], changed: [], foreign: [] };
+        }
+        if (cmd === "check_resource_packs")
+          return { findings: [], foreign: [], unproved: [] };
         if (cmd === "mc_status")
           return {
             instanceId: args.instanceId,
@@ -430,6 +451,163 @@ async function shot(name) {
   console.log(`staged line-${name}.png`);
 }
 
+async function mountGuideCursor() {
+  if (guideCursorMounted) return;
+  await page.evaluate(() => {
+    const pointer = document.createElement("div");
+    pointer.setAttribute("aria-hidden", "true");
+    pointer.style.cssText = [
+      "position:fixed",
+      "left:0",
+      "top:0",
+      "z-index:2147483647",
+      "width:24px",
+      "height:32px",
+      "pointer-events:none",
+      "opacity:0",
+      "transform:translate3d(-40px,-40px,0)",
+      "transform-origin:1px 1px",
+      "will-change:transform,opacity",
+    ].join(";");
+    pointer.innerHTML = `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M2 1v24l6.3-6.1 4.2 10 4.1-1.8-4.2-9.8H21L2 1Z" fill="#fffdf6" stroke="#171a20" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
+    document.documentElement.append(pointer);
+    window.__lineGuideCursor = (x, y, visible, pressed) => {
+      pointer.style.opacity = visible ? "1" : "0";
+      pointer.style.transform = `translate3d(${x}px,${y}px,0) scale(${pressed ? 0.92 : 1})`;
+    };
+  });
+  guideCursorMounted = true;
+}
+
+async function setGuideCursor(x, y, visible = true, pressed = false) {
+  await page.evaluate(
+    ({ x, y, visible, pressed }) =>
+      window.__lineGuideCursor?.(x, y, visible, pressed),
+    { x, y, visible, pressed },
+  );
+  guideCursor = { x, y, visible, pressed };
+}
+
+async function recordGuidebookChapter(name, scenario) {
+  const framesDir = path.join(guidebookFramesRoot, name);
+  mkdirSync(framesDir, { recursive: true });
+  const frames = [];
+  let frameIndex = 0;
+
+  async function capture(durationMs = 50) {
+    const file = path.join(
+      framesDir,
+      `${String(frameIndex++).padStart(4, "0")}.png`,
+    );
+    await page.screenshot({ path: file, animations: "disabled" });
+    frames.push({ file, durationMs });
+  }
+
+  async function hold(durationMs = 650) {
+    await capture(durationMs);
+  }
+
+  async function moveToPoint(x, y, durationMs = 700) {
+    const from = guideCursor;
+    const steps = Math.max(10, Math.ceil(durationMs / 55));
+    const frameDuration = durationMs / steps;
+    for (let index = 1; index <= steps; index += 1) {
+      const t = index / steps;
+      const eased = t * t * (3 - 2 * t);
+      const nextX = from.x + (x - from.x) * eased;
+      const nextY = from.y + (y - from.y) * eased;
+      await page.mouse.move(nextX, nextY);
+      await setGuideCursor(nextX, nextY, true, false);
+      await capture(frameDuration);
+    }
+  }
+
+  async function glide(locator, durationMs = 720) {
+    const bounds = await locator.boundingBox();
+    if (!bounds)
+      throw new Error(`Cannot find guidebook interaction target: ${locator}`);
+    await moveToPoint(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2,
+      durationMs,
+    );
+  }
+
+  async function click(locator, options = {}) {
+    const bounds = await locator.boundingBox();
+    if (!bounds) throw new Error(`Cannot click guidebook target: ${locator}`);
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await setGuideCursor(x, y, true, false);
+    await page.mouse.down();
+    await setGuideCursor(x, y, true, true);
+    await capture(60);
+    await page.mouse.up();
+    await setGuideCursor(x, y, true, false);
+    if (options.waitFor) await options.waitFor();
+    if (options.settleMs) await page.waitForTimeout(options.settleMs);
+    await hold(options.holdMs ?? 600);
+  }
+
+  async function typeText(text) {
+    for (const character of text) {
+      await page.keyboard.type(character);
+      await capture(90);
+    }
+  }
+
+  async function press(key) {
+    await page.keyboard.press(key);
+    await hold(250);
+  }
+
+  async function scrollBy(deltaY, { steps = 8, x = 900, y = 690 } = {}) {
+    if (guideCursor.x !== x || guideCursor.y !== y) {
+      await moveToPoint(x, y, 420);
+    }
+    const increment = deltaY / steps;
+    for (let index = 0; index < steps; index += 1) {
+      await page.mouse.wheel(0, increment);
+      await capture(55);
+    }
+  }
+
+  try {
+    // The scripted pointer supplies the only motion in these captures. Keeping
+    // the app's ambient background reduced prevents shimmer and cuts file size.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mountGuideCursor();
+    await page.mouse.move(guideCursor.x, guideCursor.y);
+    await setGuideCursor(guideCursor.x, guideCursor.y, false, false);
+    await hold(650);
+    await scenario({
+      hold,
+      glide,
+      click,
+      typeText,
+      press,
+      moveToPoint,
+      scrollBy,
+    });
+    await moveToPoint(2, SHOT_HEIGHT - 2, 620);
+    await setGuideCursor(2, SHOT_HEIGHT - 2, false, false);
+    await hold(80);
+    // Every chapter restores the state it began in. Reuse the real starting
+    // frame for the final held frame so the infinite GIF has no visual seam.
+    if (frames.length > 1) {
+      copyFileSync(frames[0].file, frames[frames.length - 1].file);
+    }
+    guidebookManifest[name] = frames;
+    console.log(`recorded ${name} (${frames.length} real-browser frames)`);
+  } finally {
+    await setGuideCursor(2, SHOT_HEIGHT - 2, false, false).catch(
+      () => undefined,
+    );
+    await page.emulateMedia({ reducedMotion: "reduce" });
+  }
+}
+
 try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
@@ -441,10 +619,23 @@ try {
   await page
     .locator("[data-line-welcome] [aria-label='Welcome']")
     .waitFor({ timeout: 5_000 });
-  await page.waitForTimeout(420);
+  // With reduced motion the word is fully visible immediately; an extra fixed
+  // pause can outlive the deliberately short prologue on a cold browser.
   await shot("welcome");
-  await page.getByRole("button", { name: "Продолжить", exact: true }).click();
-  await page.locator("[data-line-welcome]").waitFor({ state: "detached" });
+  // Welcome is intentionally brief and may finish while a slow headless browser
+  // encodes the first capture. Click through when the button is still present;
+  // otherwise let the already-running welcome exit finish naturally.
+  const welcomeContinue = page.getByRole("button", {
+    name: "Продолжить",
+    exact: true,
+  });
+  if (await welcomeContinue.isVisible().catch(() => false)) {
+    await welcomeContinue.click({ timeout: 1200 }).catch(() => undefined);
+  }
+  await page.locator("[data-line-welcome]").waitFor({
+    state: "detached",
+    timeout: 10_000,
+  });
 
   // The first-run wizard is a real page in the app, before authentication.
   // Capture its language, backdrop and motion choices from the reset settings.
@@ -462,6 +653,18 @@ try {
   await page.getByLabel("Логин", { exact: true }).fill("Player_1");
   await page.getByLabel("Пароль", { exact: true }).fill("demo-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
+  await page.getByRole("dialog").waitFor();
+  for (const title of [
+    "Каталог серверов",
+    "Карточка сервера",
+    "Гардероб персонажа",
+    "Аккаунт и профиль",
+    "Настройки лаунчера",
+  ]) {
+    await page.getByRole("button", { name: "Далее", exact: true }).click();
+    await page.getByRole("heading", { name: title, exact: true }).waitFor();
+  }
+  await page.getByRole("button", { name: "Готово", exact: true }).click();
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).waitFor();
 
   // Return once from a server so the directory captures its real
@@ -475,13 +678,104 @@ try {
     .waitFor();
   await shot("servers");
 
+  // Record real, reversible navigation between the section rail and catalog.
+  await recordGuidebookChapter("navigation", async ({ hold, glide, click }) => {
+    await glide(page.getByRole("button", { name: "Гардероб", exact: true }));
+    await click(page.getByRole("button", { name: "Гардероб", exact: true }), {
+      waitFor: () =>
+        page.getByRole("heading", { name: "Гардероб", exact: true }).waitFor(),
+    });
+    await glide(page.getByRole("button", { name: "Серверы", exact: true }));
+    await click(page.getByRole("button", { name: "Серверы", exact: true }), {
+      waitFor: () =>
+        page
+          .getByRole("region", { name: "Последний выбранный сервер" })
+          .waitFor(),
+    });
+    await hold(650);
+  });
+
+  // The directory tutorial types into the real search field, opens a matching
+  // card, and uses the actual Back control before clearing the query.
+  await recordGuidebookChapter(
+    "servers",
+    async ({ glide, click, typeText, press }) => {
+      const search = page.getByRole("searchbox", {
+        name: "Найти сервер",
+        exact: true,
+      });
+      await glide(search);
+      await click(search, { holdMs: 180 });
+      await typeText("Survival");
+      const survivalCard = page.getByRole("button", {
+        name: /Открыть сервер Survival/,
+      });
+      await survivalCard.waitFor();
+      await glide(survivalCard);
+      await click(survivalCard, {
+        waitFor: () =>
+          page
+            .getByRole("button", { name: "Все серверы", exact: true })
+            .waitFor(),
+      });
+      const back = page.getByRole("button", {
+        name: "Все серверы",
+        exact: true,
+      });
+      await glide(back);
+      await click(back, {
+        waitFor: () => search.waitFor(),
+      });
+      await glide(search);
+      await click(search, { holdMs: 120 });
+      await press("Control+A");
+      await press("Backspace");
+      await page
+        .getByRole("button", { name: /Открыть сервер Survival/ })
+        .waitFor();
+    },
+  );
+
   // Every server is already unlocked: no second login, straight to the build.
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
   await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
   await shot("server");
-  await page.locator('[data-testid="server-action-menu"] summary').click();
+  const serverActionMenu = page.locator(
+    '[data-testid="server-action-menu"] summary',
+  );
+  await serverActionMenu.click();
   await shot("server-actions");
-  await page.locator('[data-testid="server-action-menu"] summary').click();
+  await serverActionMenu.click();
+
+  // Seed the reversible re-check with its verified state. Re-running the
+  // idempotent check leaves this same real result on screen for a seamless loop.
+  await serverActionMenu.click();
+  await page
+    .getByRole("menuitem", { name: "Проверить сборку", exact: true })
+    .click();
+  await page
+    .getByTestId("build-integrity-result")
+    .waitFor({ state: "visible" });
+  await recordGuidebookChapter("server-actions", async ({ glide, click }) => {
+    const checkBuild = page.getByRole("menuitem", {
+      name: "Проверить сборку",
+      exact: true,
+    });
+    await glide(serverActionMenu);
+    await click(serverActionMenu, {
+      waitFor: () => page.getByRole("menu").waitFor(),
+    });
+    await glide(checkBuild);
+    await click(checkBuild, {
+      waitFor: async () => {
+        await page.waitForFunction(() => window.__guideCheckBuildCalls >= 2);
+        await page
+          .getByTestId("build-integrity-result")
+          .waitFor({ state: "visible" });
+      },
+      holdMs: 850,
+    });
+  });
 
   await page.getByRole("button", { name: "Все серверы" }).click();
   await page.getByRole("button", { name: /Открыть сервер SkyBlock/ }).click();
@@ -495,6 +789,61 @@ try {
   await page.getByRole("heading", { name: "Локальная история" }).waitFor();
   await shot("wardrobe");
 
+  const workingSkin = page.getByRole("button", {
+    name: "Сделать активным: Рабочий",
+    exact: true,
+  });
+  const winterSkin = page.getByRole("button", {
+    name: "Сделать активным: Зимний",
+    exact: true,
+  });
+  await recordGuidebookChapter("wardrobe", async ({ glide, click }) => {
+    await glide(workingSkin);
+    await click(workingSkin, {
+      waitFor: () =>
+        page.waitForFunction(
+          () =>
+            document
+              .querySelector('[aria-label="Сделать активным: Рабочий"]')
+              ?.getAttribute("aria-pressed") === "true",
+        ),
+      holdMs: 800,
+    });
+    await glide(winterSkin);
+    await click(winterSkin, {
+      waitFor: () =>
+        page.waitForFunction(
+          () =>
+            document
+              .querySelector('[aria-label="Сделать активным: Рабочий"]')
+              ?.getAttribute("aria-pressed") === "false",
+        ),
+      holdMs: 800,
+    });
+    // The success notice is transient component state. Switching sections and
+    // returning is a real action that restores the clean initial screen for the
+    // next loop without hiding or synthesizing the message.
+    const settingsNav = page.getByRole("button", {
+      name: "Настройки",
+      exact: true,
+    });
+    const wardrobeNav = page.getByRole("button", {
+      name: "Гардероб",
+      exact: true,
+    });
+    await glide(settingsNav);
+    await click(settingsNav, {
+      waitFor: () =>
+        page.getByRole("heading", { name: "Настройки", exact: true }).waitFor(),
+    });
+    await glide(wardrobeNav);
+    await click(wardrobeNav, {
+      waitFor: () =>
+        page.getByRole("heading", { name: "Гардероб", exact: true }).waitFor(),
+    });
+    await page.getByRole("heading", { name: "Локальная история" }).waitFor();
+  });
+
   // The account page and its 3D viewer. skinview3d loads lazily and draws a
   // frame or two after its dynamic import resolves, so the wait is on the
   // viewer's own state attribute, not a fixed timeout.
@@ -505,9 +854,90 @@ try {
     .waitFor({ timeout: 20_000 });
   await shot("profile");
 
+  const profileStatistics = page
+    .locator("details")
+    .filter({ hasText: "Статистика сервера" });
+  const statisticsSummary = profileStatistics.locator("summary");
+  await recordGuidebookChapter(
+    "account",
+    async ({ glide, click, scrollBy }) => {
+      await scrollBy(520, { steps: 10, x: 950, y: 690 });
+      await glide(statisticsSummary);
+      await click(statisticsSummary, {
+        waitFor: () =>
+          page.waitForFunction(
+            ({ text, open }) =>
+              Array.from(document.querySelectorAll("details")).some(
+                (element) =>
+                  element.textContent?.includes(text) && element.open === open,
+              ),
+            { text: "Статистика сервера", open: true },
+          ),
+        holdMs: 800,
+      });
+      await glide(statisticsSummary);
+      await click(statisticsSummary, {
+        waitFor: () =>
+          page.waitForFunction(
+            ({ text, open }) =>
+              Array.from(document.querySelectorAll("details")).some(
+                (element) =>
+                  element.textContent?.includes(text) && element.open === open,
+              ),
+            { text: "Статистика сервера", open: false },
+          ),
+        holdMs: 500,
+      });
+      await scrollBy(-520, { steps: 10, x: 950, y: 690 });
+    },
+  );
+
   await page.getByRole("button", { name: "Настройки", exact: true }).click();
   await page.getByRole("heading", { name: "Память игры" }).waitFor();
   await shot("settings");
+
+  const downloadLimit = page.getByRole("combobox", {
+    name: "Скорость загрузки сборок",
+    exact: true,
+  });
+  const oneMiB = page.getByRole("option", { name: "1 MiB/s", exact: true });
+  const unlimited = page.getByRole("option", {
+    name: "Без ограничения",
+    exact: true,
+  });
+  await recordGuidebookChapter("settings", async ({ glide, click }) => {
+    await glide(downloadLimit);
+    await click(downloadLimit, {
+      waitFor: () => page.getByRole("listbox").waitFor(),
+      holdMs: 250,
+    });
+    await glide(oneMiB);
+    await click(oneMiB, {
+      waitFor: () =>
+        page.waitForFunction(() =>
+          document
+            .querySelector('[aria-label="Скорость загрузки сборок"]')
+            ?.textContent?.includes("1 MiB/s"),
+        ),
+      holdMs: 700,
+    });
+    await glide(downloadLimit);
+    await click(downloadLimit, {
+      waitFor: () => page.getByRole("listbox").waitFor(),
+      holdMs: 200,
+    });
+    await glide(unlimited);
+    await click(unlimited, {
+      waitFor: () =>
+        page.waitForFunction(() =>
+          document
+            .querySelector('[aria-label="Скорость загрузки сборок"]')
+            ?.textContent?.includes("Без ограничения"),
+        ),
+      holdMs: 650,
+    });
+  });
+
   // The workspace finish lives in the Appearance category, not the default
   // Performance panel. Open that category before scrolling to the section; the
   // old capture waited for a heading that could never become visible.
@@ -529,10 +959,54 @@ try {
     console.error("page errors:", errors);
     process.exitCode = 1;
   } else {
+    const expectedChapters = [
+      "navigation",
+      "servers",
+      "server-actions",
+      "wardrobe",
+      "account",
+      "settings",
+    ];
+    if (expectedChapters.some((name) => !guidebookManifest[name])) {
+      throw new Error(
+        "Incomplete guidebook recording; existing GIFs were not replaced",
+      );
+    }
+    const manifestPath = path.join(staging, "guidebook-frames.json");
+    writeFileSync(manifestPath, JSON.stringify(guidebookManifest), "utf8");
+    const generated = spawnSync(
+      "python3",
+      [
+        path.join(root, "scripts/generate-guidebook-gifs.py"),
+        "--manifest",
+        manifestPath,
+      ],
+      { cwd: root, stdio: "inherit" },
+    );
+    if (generated.error) throw generated.error;
+    if (generated.status !== 0) {
+      throw new Error(
+        `Guidebook GIF generation failed with exit code ${generated.status}`,
+      );
+    }
+
+    // Reopen the actual guidebook only after the new poster/GIF assets exist,
+    // so the committed browser screenshot shows the current reduced-motion state.
+    await page.getByTestId("guidebook-replay").click();
+    await page.getByRole("dialog").waitFor();
+    await page
+      .locator('[role="dialog"] img')
+      .evaluate((image) => image instanceof HTMLImageElement && image.decode());
+    await page
+      .getByRole("button", { name: "Запустить анимацию", exact: true })
+      .waitFor();
+    await shot("guidebook");
+
     const expected = [
       "welcome",
       "setup",
       "account",
+      "guidebook",
       "servers",
       "server",
       "server-actions",

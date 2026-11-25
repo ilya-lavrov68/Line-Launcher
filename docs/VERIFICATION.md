@@ -5,15 +5,17 @@
 For the current workspace state:
 
 - `npm run check` passed (`tsc -b --pretty false`).
-- `npm test` passed: **423 total, 422 passed, 1 skipped, 0 failed**.
+- `npm test` passed: **426 total, 425 passed, 1 skipped, 0 failed**.
 - `npm run build` passed. Vite warned about a chunk over 500 kB; the
   `skinview3d` chunk is approximately 526 kB.
-- `npm run screenshots` passed and regenerated **13 real browser captures** in
-  `docs/images/`: welcome, first-run setup, account, catalog, server page/action
-  menus, Minecraft page/action menu, wardrobe, profile, settings, workspace and
-  privacy. The browser binary and its missing Linux runtime libraries were
-  supplied temporarily outside the repository; no browser dependency was added
-  to the project.
+- `npm run screenshots` passed and regenerated **14 real browser captures** in
+  `docs/images/`, including the new in-app guidebook page. The script now waits
+  through its timed welcome screen and closes the post-login guidebook after
+  capturing it. A temporary Chromium package and its Linux runtime libraries
+  were supplied outside the repository; no browser dependency was added.
+- `python3 scripts/generate-guidebook-gifs.py` passed and regenerated all six
+  looping GIFs from the refreshed real app screenshots. The navigation sequence
+  now also points out the replay-guidebook icon in the window header.
 - `git diff --check` passed at the last verification.
 
 The screenshot harness renders the real React components with demo config and

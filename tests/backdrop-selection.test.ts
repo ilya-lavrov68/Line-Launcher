@@ -1,75 +1,81 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { BACKDROP_THEMES, backdropTheme } from "../src/lib/line/backdrops.ts";
 
-// Copper Bush is the one explicitly retained palette; pin its full config so
-// later edits cannot accidentally change it while warming the other themes.
-test("Copper Bush remains exactly as selected", () => {
-  const expected: Record<string, string> = {
-    copper: "843fa99ef1ac37e10e06555e54bae7a86530124b2e51ea7111d4bcd6c74f759a",
-  };
-  for (const [id, digest] of Object.entries(expected)) {
-    const theme = BACKDROP_THEMES.find((entry) => entry.id === id);
-    assert.ok(theme, `${id} must still be selectable`);
-    assert.equal(
-      createHash("sha256").update(JSON.stringify(theme)).digest("hex"),
-      digest,
-      id,
-    );
-    assert.equal(backdropTheme(id), theme);
-  }
-});
+const EXPECTED_IDS = [
+  "aurora",
+  "zenith",
+  "garden",
+  "mint",
+  "steel",
+  "copper",
+  "arc",
+  "flare",
+  "frost",
+  "azure",
+  "borealis",
+  "pearl",
+];
 
-test("the non-copper backdrops are warm and slightly grainier", () => {
-  for (const theme of BACKDROP_THEMES) {
-    if (theme.id === "copper") {
-      assert.equal(theme.config.grain, 0.443);
-      continue;
-    }
-    assert.equal(theme.config.grain, 0.52, `${theme.id} grain strength`);
-    for (const color of theme.config.palette) {
-      const [r, g, b] = [1, 3, 5].map((offset) =>
-        parseInt(color.slice(offset, offset + 2), 16),
-      );
-      assert.ok(r > b, `${theme.id}: ${color} is not warm-toned`);
-      assert.ok(r >= g, `${theme.id}: ${color} shifts green over red`);
-    }
-  }
-});
-
-test("the eight replacements are subdued, diverse and keep stored ids", () => {
-  const ids = [
-    "aurora",
-    "zenith",
-    "garden",
-    "steel",
-    "arc",
-    "flare",
-    "borealis",
-    "pearl",
-  ];
-  const themes = ids.map((id) => {
-    const found = BACKDROP_THEMES.find((theme) => theme.id === id);
-    assert.ok(found, `${id} must still resolve a saved preference`);
-    return found;
-  });
-  assert.equal(
-    new Set(themes.map((theme) => theme.config.shape)).size >= 4,
-    true,
+function channels(color: string) {
+  return [1, 3, 5].map((offset) =>
+    parseInt(color.slice(offset, offset + 2), 16),
   );
-  assert.equal(new Set(themes.map((theme) => theme.config.seed)).size, 8);
-  for (const theme of themes) {
-    assert.equal(theme.config.background, "#000000");
-    for (const color of theme.config.palette) {
-      const rgb = [1, 3, 5].map((offset) =>
-        parseInt(color.slice(offset, offset + 2), 16),
-      );
-      assert.ok(Math.max(...rgb) <= 160, `${theme.id}: bright ${color}`);
+}
+
+test("backdrop themes keep every saved id selectable", () => {
+  assert.deepEqual(
+    BACKDROP_THEMES.map((theme) => theme.id),
+    EXPECTED_IDS,
+  );
+  for (const theme of BACKDROP_THEMES) {
+    assert.equal(backdropTheme(theme.id), theme);
+  }
+  assert.equal(backdropTheme("unknown-theme"), BACKDROP_THEMES[0]);
+});
+
+test("all twelve backdrop palettes are distinct, subdued, and mostly cool", () => {
+  const palettes = BACKDROP_THEMES.map((theme) => theme.config.palette);
+  assert.equal(new Set(palettes.map((palette) => palette.join(","))).size, 12);
+  assert.ok(
+    new Set(BACKDROP_THEMES.map((theme) => theme.config.shape)).size >= 4,
+    "themes should keep a variety of shapes as well as colours",
+  );
+
+  let coolPalettes = 0;
+  for (const theme of BACKDROP_THEMES) {
+    assert.equal(theme.config.background, "#000000", `${theme.id} base`);
+    assert.ok(
+      theme.config.palette.length >= 5,
+      `${theme.id} needs a full ramp`,
+    );
+    assert.ok(theme.shade >= 0.5 && theme.shade <= 0.58);
+    assert.ok(theme.config.speed >= 1.4 && theme.config.speed <= 1.8);
+    assert.equal(theme.config.grain, 0.28, `${theme.id} grain`);
+
+    const paletteChannels = theme.config.palette.map(channels);
+    const peaks = paletteChannels.map((rgb) => Math.max(...rgb));
+    assert.ok(Math.max(...peaks) <= 176, `${theme.id} has an over-bright stop`);
+    for (const [r, g, b] of paletteChannels) {
       assert.ok(
-        Math.max(...rgb) - Math.min(...rgb) <= 65,
-        `${theme.id}: saturated ${color}`,
+        Math.max(r, g, b) - Math.min(r, g, b) <= 72,
+        `${theme.id} has a high-chroma stop`,
       );
     }
+    if (peaks.at(-1)! > paletteChannels.at(-1)![0]) coolPalettes += 1;
+
+    assert.ok(
+      theme.swatch.every((color) => theme.config.palette.includes(color)),
+      `${theme.id} swatch must come from its rendered ramp`,
+    );
+    assert.ok(
+      theme.config.mesh.every(
+        ([, , color]) =>
+          theme.config.palette.includes(color) ||
+          color === theme.config.background,
+      ),
+      `${theme.id} mesh uses a colour outside its palette`,
+    );
   }
+  assert.ok(coolPalettes >= 10, `only ${coolPalettes} palettes read as cool`);
 });

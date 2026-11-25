@@ -10,7 +10,7 @@ This is an unconditional repository rule, not an impact-based suggestion. Before
 ## Required sequence
 
 1. Finish code changes and run the project checks first: `npm run check`, `npm test`, `npm run build`, relevant Rust checks, and `git diff --check`.
-2. Run the real app in a browser and execute `npm run screenshots`. This must regenerate all 14 screenshots in `docs/images/`, all six GIFs and six poster PNGs in `public/guidebook/`, `docs/visual-evidence.json` with hashes for every generated file, and the generated-on note in `README.md`.
+2. Install the capture dependency with `python3 -m pip install -r scripts/requirements-guidebook.txt`, run the real app in Chromium, and execute `npm run screenshots`. This must regenerate all 14 native 1920×1080 screenshots in `docs/images/`, all six native Full HD GIFs and posters in `public/guidebook/`, `docs/visual-evidence.json` with hashes for every generated file, and the generated-on note in `README.md`. The GIF encoder may reduce frame rate, never resolution.
 3. Inspect the complete screenshot set and each guidebook chapter. Confirm the controls, labels, state, loop boundary, and navigation still match the real app. Never present mock, fixture-only, hand-drawn, or reconstructed images as real screenshots.
 4. Update the relevant player-facing documentation and `docs/VERIFICATION.md` for this PR. The README gallery and verification record are refreshed on every PR; update any other pages describing changed behavior.
 5. Run `npm run visual-evidence:check`. Complete every item in `.github/pull_request_template.md`. Only then open the PR. CI validates the hashes, required documentation changes, and checked PR assertions.

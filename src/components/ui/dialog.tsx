@@ -42,17 +42,21 @@ function DialogContent({
   children,
   showCloseButton = true,
   overlayClassName,
+  "data-line-glass": lineGlass = "raised",
+  style,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
   overlayClassName?: string;
+  "data-line-glass"?: string;
 }) {
   return (
     <DialogPortal>
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        data-line-glass="raised"
+        data-line-glass={lineGlass}
+        style={style}
         className={cn(
           // The width caps are deliberately base-tier (`max-w-…` without `sm:`)
           // and sit ABOVE the caller's `className`. With `sm:max-w-sm` here,

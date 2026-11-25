@@ -1024,7 +1024,7 @@ test("the close button is neutral at rest and reveals red on hover or focus", ()
   assert.match(css, /--line-error:\s*var\(--destructive\)/);
 });
 
-test("backdrops are dim enough to read on, and none of them stands still", () => {
+test("backdrops use quiet palettes, a readable veil, and restrained motion", () => {
   const source = read("src/lib/line/backdrops.ts");
   const shades = [...source.matchAll(/^\s*shade: ([\d.]+),/gm)].map((m) =>
     Number(m[1]),
@@ -1046,26 +1046,21 @@ test("backdrops are dim enough to read on, and none of them stands still", () =>
   assert.equal(grains.length, 12);
   assert.equal(animationCenters.length, 12);
   assert.equal(motions.length, 12);
-  assert.equal(grains.filter((grain) => grain === 0.52).length, 11);
-  assert.equal(grains.filter((grain) => grain === 0.443).length, 1);
   assert.ok(
     animationCenters.every(([x]) => x >= 0.16 && x <= 0.24),
     "the animated fields should cluster around the sidebar-to-content seam",
   );
 
-  // The panels are translucent, so the backdrop is not decoration behind
-  // glass — it is behind the text. At 0.26–0.46 the bright themes lifted the
-  // title bar and the body copy enough to make a flat interface glow.
   for (const shade of shades) {
     assert.ok(
-      shade >= 0.42 && shade <= 0.62,
-      `shade ${shade} outside 0.42–0.62`,
+      shade >= 0.5 && shade <= 0.58,
+      `shade ${shade} outside 0.50–0.58`,
     );
   }
+  assert.deepEqual(new Set(grains), new Set([0.28]));
 
-  // All twelve used to run `drift` at 1.1: slow enough to read as a still
-  // image, and identical in behaviour, so twelve palettes behaved as one
-  // gradient. They now spread across hazeglow's three motions and run faster.
+  // Keep distinct motions and speeds, but cap their visual intensity so the
+  // backdrop stays atmospheric rather than competing with launcher content.
   assert.equal(new Set(motions).size, 3);
   for (const motion of motions) {
     assert.ok(
@@ -1074,7 +1069,7 @@ test("backdrops are dim enough to read on, and none of them stands still", () =>
     );
   }
   for (const speed of speeds) {
-    assert.ok(speed >= 2 && speed <= 3, `speed ${speed} outside 2–3`);
+    assert.ok(speed >= 1.4 && speed <= 1.8, `speed ${speed} outside 1.4–1.8`);
   }
   assert.ok(new Set(speeds).size >= 6, "speeds should differ between themes");
 });
@@ -1225,7 +1220,7 @@ test("the animated backdrop keeps its saturation lift across theme changes", () 
   assert.match(launcher, /className="line-backdrop-saturation"/);
   assert.match(
     css,
-    /\[data-line-backdrop\]\.line-backdrop-saturation\s*\{\s*filter: saturate\(1\.4\);/,
+    /\[data-line-backdrop\]\.line-backdrop-saturation\s*\{\s*filter: saturate\(1\.08\);/,
   );
   assert.match(backdrop, /exit=\{index < layers\.length - 1\}/);
   assert.match(backdrop, /opacity: exit \? 0 : shown \? 1 : 0/);

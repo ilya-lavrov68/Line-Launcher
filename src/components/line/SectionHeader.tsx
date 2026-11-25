@@ -158,7 +158,7 @@ export default function SectionHeader({
                 <button
                   role="menuitem"
                   type="button"
-                  className="hover:bg-accent flex w-full cursor-pointer rounded-lg px-2 py-1.5 text-left text-xs"
+                  className="hover:bg-accent flex w-full cursor-pointer rounded-[calc(var(--radius-control)-5px)] px-2 py-1.5 text-left text-xs"
                   onClick={() => {
                     setDraft(name);
                     setMenu(false);
@@ -170,7 +170,7 @@ export default function SectionHeader({
                 <button
                   role="menuitem"
                   type="button"
-                  className="hover:bg-destructive/15 text-destructive flex w-full cursor-pointer rounded-lg px-2 py-1.5 text-left text-xs"
+                  className="hover:bg-destructive/15 text-destructive flex w-full cursor-pointer rounded-[calc(var(--radius-control)-5px)] px-2 py-1.5 text-left text-xs"
                   onClick={() => {
                     setMenu(false);
                     onRemove();

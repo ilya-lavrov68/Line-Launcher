@@ -52,35 +52,37 @@ export const ru = {
   "tour.title": "Справочник игрока",
   "guidebook.replay": "Открыть справочник",
   "tour.intro":
-    "Выберите нужную тему — главы можно открывать в любом порядке. Справочник всегда доступен по кнопке книги.",
-  "tour.choose": "Выберите тему",
+    "Шесть глав доступны в любом порядке. Выберите тему снизу или переходите по одной с помощью стрелок; GIF запускается вручную.",
+  "tour.choose": "Выбрать главу справочника",
+  "tour.previous": "Предыдущая глава",
+  "tour.next": "Следующая глава",
   "tour.navTitle": "Перейти в раздел",
   "tour.navBody":
-    "На боковой панели находятся серверы, гардероб, аккаунт и настройки. Выберите раздел, чтобы перейти к нему; возврат не сбрасывает выбранный сервер.",
+    "Боковая панель ведёт к серверам, гардеробу, аккаунту и настройкам. Выберите значок или подпись нужного раздела.\nЕсли названия скрыты, раскройте панель стрелкой; повторное нажатие вернёт компактный вид.\nПереход между разделами не сбрасывает выбранный сервер и состояние его текущей операции.\nЧтобы вернуться к сборкам, снова откройте «Серверы». Последний просмотренный сервер может быть вынесен в верхнюю витрину каталога.",
   "tour.navAlt": "Показан переход с каталога серверов в гардероб и обратно.",
   "tour.wardrobeTitle": "Выбрать скин",
   "tour.wardrobeBody":
-    "Откройте гардероб, выберите сохранённый вариант и проверьте, какой скин будет активным. Сервер может показывать скины по своим правилам.",
+    "Откройте «Гардероб», чтобы увидеть активный скин и локальную историю. Выбор хранится на этом компьютере.\nВ форме добавления выберите PNG-текстуру 64×64 или 64×32, задайте понятное имя и модель рук, соответствующую текстуре.\nПеред сохранением проверьте предпросмотр. Если текстура не подходит или файл недоступен, исправьте входные данные; существующая история не должна заменяться незаметно.\nВыберите нужный вариант в локальной истории — он станет активным. Лаунчер автоматически синхронизирует его с настроенным сервером.\nСервер может использовать собственную систему скинов, поэтому активный здесь вариант не обязательно будет виден другим игрокам.",
   "tour.wardrobeAlt":
     "Показан выбор сохранённого скина и изменение предпросмотра.",
   "tour.settingsTitle": "Настроить лаунчер",
   "tour.settingsBody":
-    "В настройках можно выбрать язык и оформление, а также настроить параметры загрузки и окна. Внешний вид не меняет игровые файлы.",
+    "Откройте «Настройки» и выберите категорию слева. Разделы сгруппированы по назначению; на узком окне список можно прокручивать.\nВ «Производительности» задайте лимит загрузки и доступную память. Ползунок показывает выбранное значение; автоматический режим можно включить отдельно.\nВ «Java» выберите найденную среду или укажите путь к установленной Java. Если нужного варианта нет, запустите повторный поиск.\nВ «Оформлении» выберите язык, спокойный фон и отделку панелей. Эти параметры меняют вид лаунчера, а не игровые файлы.\nПараметры окна и запуска собраны в отдельной категории. Меняйте их по одному и проверяйте подписи рядом с контролами.\nНастройки приватности и диагностические действия находятся в своих разделах. Не включайте отправку данных, если не согласны с её описанием.",
   "tour.settingsAlt":
     "Показан выбор лимита загрузки и возврат к исходному значению.",
   "tour.catalogTitle": "Найти сервер",
   "tour.catalogBody":
-    "Откройте «Серверы», введите название в поиск или выберите фильтр. Откройте строку сервера, чтобы посмотреть подробности и доступные действия.",
+    "Откройте «Серверы» на боковой панели. Здесь собраны игровые сборки, доступные в проекте.\nВведите часть названия в поиск или выберите фильтр, чтобы оставить только установленные либо ещё не установленные сборки.\nЕсли серверы распределены по секциям, раскройте нужную. Личные секции помогают группировать список и не меняют сами сборки.\nОткройте строку сервера, чтобы прочитать описание, проверить версию и увидеть доступные действия. Последний выбранный сервер можно быстро продолжить из верхней витрины.",
   "tour.catalogAlt":
     "Показан поиск сервера по названию, открытие карточки и возврат к списку.",
   "tour.accountTitle": "Проверить аккаунт",
   "tour.accountBody":
-    "В разделе «Аккаунт» проверьте активную сессию и сведения профиля. Здесь же можно открыть гардероб и посмотреть предпросмотр скина.",
+    "Откройте «Аккаунт» на боковой панели. Один вход используется для серверов всего проекта.\nПроверьте имя профиля и состояние сессии. Если вход завершился, вернитесь к форме и войдите снова через настроенного провайдера.\nИз аккаунта можно перейти в гардероб, обновить сведения или открыть дополнительные действия профиля.\nРазверните блок статистики сервера, если хотите проверить доступные игровые данные. Он может быть пустым, когда сервер их не передаёт.\nВыход завершает доступ ко всем серверам этого проекта. Перед подтверждением убедитесь, что готовы войти заново.",
   "tour.accountAlt":
     "Показано раскрытие и сворачивание блока статистики аккаунта.",
   "tour.serverTitle": "Установить и играть",
   "tour.serverBody":
-    "На странице сервера основная кнопка показывает следующий шаг: установить или обновить сборку, начать игру либо остановить её. Дополнительные команды находятся в меню.",
+    "На странице сервера сверьте название и версию сборки с тем, что хотите запустить. Статус подскажет, готова ли она.\nНажмите основную кнопку: «Установить» подготовит сборку, «Обновить» заменит её проверенной версией. Дождитесь окончания индикатора прогресса.\nЕсли лаунчер отдельно запросит дополнительные компоненты, сначала проверьте их назначение и источник. Подтверждайте загрузку, только если доверяете проекту; отказ не должен запускать её.\nКогда станет доступно «Играть», нажмите её для запуска. Во время подготовки используйте «Отмена», а для уже запущенной игры — штатную кнопку «Стоп». Не удаляйте файлы вручную.\nПроверка целостности в меню только сравнивает файлы с проверенным индексом: она показывает расхождения, но сама их не исправляет.",
   "tour.serverAlt":
     "Показано открытие меню команд и запуск проверки целостности сборки.",
   "tour.skip": "Позже — закрыть справочник",
@@ -420,18 +422,18 @@ export const ru = {
   "settings.backdropHint":
     "Двенадцать градиентов, каждый движется по-своему. Переключение плавное, выбор сохраняется.",
   "settings.backdropPreview": "Фон лаунчера: {name}. Открыть список",
-  "backdrop.aurora": "Graphite chaleureux",
-  "backdrop.zenith": "Crique ambrée",
-  "backdrop.garden": "Bois ocre",
-  "backdrop.mint": "Banc de sable",
-  "backdrop.steel": "Acier bronze",
-  "backdrop.copper": "Медный куст",
-  "backdrop.arc": "Orbite chaude",
-  "backdrop.flare": "Тлеющий уголь",
-  "backdrop.frost": "Éclats d’ambre",
-  "backdrop.azure": "Trame terre cuite",
-  "backdrop.borealis": "Profondeur miellée",
-  "backdrop.pearl": "Pierre de soleil",
+  "backdrop.aurora": "Тихий графит",
+  "backdrop.zenith": "Ночной фьорд",
+  "backdrop.garden": "Хвойная роща",
+  "backdrop.mint": "Морская мята",
+  "backdrop.steel": "Синий металл",
+  "backdrop.copper": "Сдержанная медь",
+  "backdrop.arc": "Сумеречная орбита",
+  "backdrop.flare": "Полярный дым",
+  "backdrop.frost": "Ледяной туман",
+  "backdrop.azure": "Глубокий океан",
+  "backdrop.borealis": "Северное сияние",
+  "backdrop.pearl": "Серебряный камень",
   "zipRepair.runtimeFiles": "Файлы, найденные при проверке",
   "zipRepair.liveRuntime":
     "По хешам профиля отсутствуют или повреждены файлы клиента и библиотек: {count}, ориентировочно {size}.",
@@ -666,34 +668,36 @@ const en: Dictionary = {
   "tour.title": "Player guide",
   "guidebook.replay": "Open the guide",
   "tour.intro":
-    "Choose a topic to get started. Open chapters in any order, and return to this guide from the book button whenever you need it.",
-  "tour.choose": "Choose a topic",
+    "Open six chapters in any order. Choose a topic below or move one chapter at a time with the arrows; GIFs start only when you press play.",
+  "tour.choose": "Choose a guide chapter",
+  "tour.previous": "Previous chapter",
+  "tour.next": "Next chapter",
   "tour.navTitle": "Switch sections",
   "tour.navBody":
-    "The side navigation links to servers, wardrobe, account and settings. Choose a section to switch views; returning does not clear your selected server.",
+    "The side navigation links to Servers, Wardrobe, Account, and Settings. Choose the icon or label for the section you need.\nIf labels are hidden, expand the rail with its arrow; press it again to return to the compact view.\nChanging sections does not clear the selected server or the state of its current operation.\nOpen Servers to return to the builds. The last viewed server may be featured above the catalogue.",
   "tour.navAlt": "Shows switching from the server list to Wardrobe and back.",
   "tour.wardrobeTitle": "Choose a skin",
   "tour.wardrobeBody":
-    "Open Wardrobe, choose a saved skin and check which one is active. A server may display skins according to its own rules.",
+    "Open Wardrobe to see the active skin and local history. Your choices are stored on this computer.\nIn the add form, choose a 64×64 or 64×32 PNG texture, give it a recognisable name, and select the arm model that matches the texture.\nCheck the preview before saving. If the texture is invalid or unavailable, correct the input; existing history should not be silently replaced.\nChoose an entry in local history to make it active. The launcher synchronises the active skin with the configured server automatically.\nA server may use its own skin system, so other players might not see the skin selected here.",
   "tour.wardrobeAlt": "Shows selecting a saved skin and the preview changing.",
   "tour.settingsTitle": "Set up the launcher",
   "tour.settingsBody":
-    "Choose a language and appearance in Settings, and adjust download and window options. Appearance changes do not modify game files.",
+    "Open Settings and choose a category on the left. Options are grouped by purpose; on a narrow window, scroll the category list.\nUnder Performance, set the download limit and available memory. The slider shows the selected value; automatic memory can be enabled separately.\nUnder Java, choose a detected runtime or enter the path to an installed Java environment. Search again if the runtime you need is missing.\nUnder Appearance, choose a language, a subdued backdrop, and a panel finish. These options change the launcher’s appearance, not game files.\nWindow and launch options have their own category. Change one setting at a time and read the adjacent description.\nPrivacy settings and diagnostics have separate sections. Do not enable data sharing unless its description matches your preference.",
   "tour.settingsAlt":
     "Shows changing the download limit and restoring its original value.",
   "tour.catalogTitle": "Find a server",
   "tour.catalogBody":
-    "Open Servers, search by name or choose a filter. Open a server row to see its details and available actions.",
+    "Open Servers from the side navigation. This list contains the game builds available in the project.\nSearch for part of a name or choose a filter to show installed or not-yet-installed builds.\nIf servers are grouped into sections, expand the section you need. Personal sections organise the list; they do not change a build.\nOpen a server row to read its description, check its version, and see available actions. The last selected server may also appear in the featured area above the list.",
   "tour.catalogAlt":
     "Shows searching for a server, opening its page, then returning to the list.",
   "tour.accountTitle": "Check your account",
   "tour.accountBody":
-    "In Account, check the active session and profile details. You can also open Wardrobe and preview your skin here.",
+    "Open Account from the side navigation. One sign-in is shared across the project’s servers.\nCheck the profile name and session status. If the session has ended, return to the sign-in form and authenticate with the configured provider.\nFrom Account, you can open Wardrobe, refresh information, or access additional profile actions.\nExpand server statistics to view available game data. The section may be empty when the server does not provide it.\nSigning out ends access to every server in this project. Confirm only when you are ready to sign in again.",
   "tour.accountAlt":
     "Shows expanding and collapsing the account statistics section.",
   "tour.serverTitle": "Install and play",
   "tour.serverBody":
-    "On a server page, the main button shows the next step: install or update the build, play, or stop the game. More actions are in the adjacent menu.",
+    "On the server page, check the build name and version. Its status tells you whether it is ready.\nPress the main button: Install prepares the build; Update replaces it with a verified version. Wait for the progress indicator to finish.\nIf the launcher separately asks for extra components, check their purpose and source first. Confirm only if you trust the project; declining must not start the download.\nWhen Play is available, press it to launch. Use Cancel while preparation is running and the normal Stop action for a running game. Do not remove files by hand.\nThe integrity check in the menu only compares files with a verified index. It reports differences but does not repair them.",
   "tour.serverAlt":
     "Shows opening the actions menu and checking the build files.",
   "tour.skip": "Close for now",
@@ -1037,17 +1041,17 @@ const en: Dictionary = {
     "Twelve gradients, each one moving in its own way. Switching dissolves, the choice is kept.",
   "settings.backdropPreview": "Launcher backdrop: {name}. Open the list",
   "backdrop.aurora": "Quiet graphite",
-  "backdrop.zenith": "Night cove",
-  "backdrop.garden": "Forest mist",
-  "backdrop.mint": "Mint band",
-  "backdrop.steel": "Twilight steel",
-  "backdrop.copper": "Copper bush",
-  "backdrop.arc": "Quiet orbit",
-  "backdrop.flare": "Smoldering coal",
-  "backdrop.frost": "Ice chips",
-  "backdrop.azure": "Azure mesh",
-  "backdrop.borealis": "Ocean depths",
-  "backdrop.pearl": "Moonstone",
+  "backdrop.zenith": "Night fjord",
+  "backdrop.garden": "Evergreen grove",
+  "backdrop.mint": "Sea mint",
+  "backdrop.steel": "Blue steel",
+  "backdrop.copper": "Soft copper",
+  "backdrop.arc": "Twilight orbit",
+  "backdrop.flare": "Polar haze",
+  "backdrop.frost": "Ice mist",
+  "backdrop.azure": "Deep ocean",
+  "backdrop.borealis": "Northern lights",
+  "backdrop.pearl": "Silver stone",
   "zipRepair.runtimeFiles": "Files identified by the check",
   "zipRepair.liveRuntime":
     "Profile hashes identify missing or damaged client and library files: {count}, approximately {size}.",
@@ -1279,35 +1283,37 @@ const de: Dictionary = {
   "tour.title": "Spielerhandbuch",
   "guidebook.replay": "Handbuch öffnen",
   "tour.intro":
-    "Wähle ein Thema und öffne die Kapitel in beliebiger Reihenfolge. Über die Buch-Schaltfläche kannst du jederzeit hierher zurückkehren.",
-  "tour.choose": "Thema auswählen",
+    "Die sechs Kapitel lassen sich in beliebiger Reihenfolge öffnen. Wähle unten ein Thema oder wechsle mit den Pfeilen kapitelweise; GIFs starten erst auf Knopfdruck.",
+  "tour.choose": "Handbuchkapitel auswählen",
+  "tour.previous": "Vorheriges Kapitel",
+  "tour.next": "Nächstes Kapitel",
   "tour.navTitle": "Bereich wechseln",
   "tour.navBody":
-    "Die Seitennavigation führt zu Servern, Garderobe, Konto und Einstellungen. Beim Wechsel bleibt der ausgewählte Server erhalten.",
+    "Die Seitennavigation führt zu Servern, Garderobe, Konto und Einstellungen. Wähle das Symbol oder die Beschriftung des gewünschten Bereichs.\nWenn die Namen ausgeblendet sind, klappe die Leiste mit dem Pfeil auf; ein weiterer Klick stellt die kompakte Ansicht wieder her.\nBeim Wechsel des Bereichs bleiben der ausgewählte Server und der Status seiner laufenden Aktion erhalten.\nÖffne Server, um zu den Paketen zurückzukehren. Der zuletzt betrachtete Server kann oberhalb des Katalogs erscheinen.",
   "tour.navAlt":
     "Zeigt den Wechsel von der Serverliste zur Garderobe und zurück.",
   "tour.wardrobeTitle": "Skin auswählen",
   "tour.wardrobeBody":
-    "Öffne die Garderobe, wähle einen gespeicherten Skin und prüfe, welcher aktiv ist. Ein Server kann Skins nach eigenen Regeln anzeigen.",
+    "Öffne die Garderobe, um den aktiven Skin und den lokalen Verlauf zu sehen. Die Auswahl wird auf diesem Computer gespeichert.\nWähle im Formular eine PNG-Textur mit 64×64 oder 64×32 Pixeln, gib ihr einen Namen und wähle das passende Armmodell.\nPrüfe die Vorschau vor dem Speichern. Ist die Textur ungültig oder nicht verfügbar, korrigiere die Eingabe; der vorhandene Verlauf darf nicht unbemerkt ersetzt werden.\nWähle einen Eintrag aus dem lokalen Verlauf, um ihn zu aktivieren. Der Launcher synchronisiert den aktiven Skin automatisch mit dem eingerichteten Server.\nEin Server kann ein eigenes Skin-System verwenden. Andere Spieler sehen den hier gewählten Skin daher möglicherweise nicht.",
   "tour.wardrobeAlt":
     "Zeigt die Auswahl eines gespeicherten Skins und die aktualisierte Vorschau.",
   "tour.settingsTitle": "Launcher einrichten",
   "tour.settingsBody":
-    "Wähle unter Einstellungen Sprache und Darstellung und passe Download- und Fensteroptionen an. Die Darstellung ändert keine Spieldateien.",
+    "Öffne Einstellungen und wähle links eine Kategorie. Die Optionen sind nach Zweck geordnet; bei schmalem Fenster lässt sich die Kategorienliste scrollen.\nUnter Leistung legst du Downloadlimit und verfügbaren Speicher fest. Der Regler zeigt den gewählten Wert; automatische Speicherzuweisung lässt sich separat aktivieren.\nUnter Java wählst du eine erkannte Laufzeit oder gibst den Pfad zu einer installierten Java-Umgebung an. Starte eine neue Suche, wenn sie fehlt.\nUnter Darstellung wählst du Sprache, einen zurückhaltenden Hintergrund und den Stil der Bedienflächen. Diese Optionen verändern keine Spieldateien.\nFenster- und Startoptionen haben eine eigene Kategorie. Ändere eine Einstellung nach der anderen und lies die Beschreibung daneben.\nDatenschutz und Diagnose sind separat gruppiert. Aktiviere die Datenübermittlung nur, wenn die Beschreibung deinen Erwartungen entspricht.",
   "tour.settingsAlt": "Zeigt das Ändern und Zurücksetzen des Downloadlimits.",
   "tour.catalogTitle": "Server finden",
   "tour.catalogBody":
-    "Öffne Server, suche nach Namen oder wähle einen Filter. Öffne einen Servereintrag, um Details und verfügbare Aktionen zu sehen.",
+    "Öffne Server über die Seitennavigation. Die Liste enthält die Spielpakete, die im Projekt verfügbar sind.\nSuche nach einem Teil des Namens oder filtere die Liste nach installierten und noch nicht installierten Paketen.\nSind Server in Bereiche gruppiert, klappe den gewünschten Bereich auf. Eigene Bereiche ordnen die Liste, ändern aber keine Pakete.\nÖffne einen Servereintrag, um Beschreibung, Version und verfügbare Aktionen zu sehen. Der zuletzt ausgewählte Server kann zusätzlich oben hervorgehoben sein.",
   "tour.catalogAlt":
     "Zeigt die Serversuche, das Öffnen eines Eintrags und die Rückkehr zur Liste.",
   "tour.accountTitle": "Konto prüfen",
   "tour.accountBody":
-    "Prüfe unter Konto die aktive Sitzung und Profildaten. Hier kannst du auch die Garderobe öffnen und deinen Skin ansehen.",
+    "Öffne Konto über die Seitennavigation. Eine Anmeldung gilt für alle Server des Projekts.\nPrüfe Profilname und Sitzungsstatus. Ist die Sitzung abgelaufen, melde dich über den eingerichteten Anbieter erneut an.\nÜber Konto kannst du die Garderobe öffnen, Informationen aktualisieren oder weitere Profilaktionen aufrufen.\nKlappe die Serverstatistik auf, um verfügbare Spieldaten anzusehen. Ohne Daten des Servers bleibt der Bereich leer.\nBeim Abmelden endet der Zugang zu allen Servern dieses Projekts. Bestätige erst, wenn du dich erneut anmelden möchtest.",
   "tour.accountAlt":
     "Zeigt das Öffnen und Schließen des Statistikbereichs im Konto.",
   "tour.serverTitle": "Installieren und spielen",
   "tour.serverBody":
-    "Auf der Serverseite zeigt die Hauptschaltfläche den nächsten Schritt: Paket installieren oder aktualisieren, spielen oder das Spiel beenden. Weitere Aktionen stehen im Menü.",
+    "Prüfe auf der Serverseite den Namen und die Version des Pakets. Der Status zeigt, ob es bereit ist.\nDie Hauptschaltfläche zeigt den nächsten Schritt: Installieren bereitet das Paket vor, Aktualisieren ersetzt es durch eine geprüfte Version. Warte, bis der Fortschritt abgeschlossen ist.\nFragt der Launcher separat nach zusätzlichen Komponenten, prüfe zuerst Zweck und Quelle. Bestätige nur, wenn du dem Projekt vertraust; Ablehnen darf den Download nicht starten.\nSobald Spielen verfügbar ist, kannst du die Installation starten. Während der Vorbereitung nutzt du Abbrechen, bei einem laufenden Spiel die reguläre Stopp-Aktion. Lösche keine Dateien manuell.\nDie Integritätsprüfung im Menü vergleicht Dateien nur mit einem geprüften Index. Sie meldet Abweichungen, repariert sie aber nicht.",
   "tour.serverAlt":
     "Zeigt das Menü mit Aktionen und die Prüfung der Build-Dateien.",
   "tour.skip": "Vorläufig schließen",
@@ -1655,18 +1661,18 @@ const de: Dictionary = {
   "settings.backdropHint":
     "Zwölf Farbverläufe, jeder bewegt sich auf seine eigene Weise. Der Wechsel blendet über, die Wahl bleibt gespeichert.",
   "settings.backdropPreview": "Hintergrund: {name}. Liste öffnen",
-  "backdrop.aurora": "Stiller Graphit",
-  "backdrop.zenith": "Nachtbucht",
-  "backdrop.garden": "Waldnebel",
-  "backdrop.mint": "Minzband",
-  "backdrop.steel": "Dämmerstahl",
-  "backdrop.copper": "Kupferbusch",
-  "backdrop.arc": "Stille Umlaufbahn",
-  "backdrop.flare": "Glimmende Kohle",
-  "backdrop.frost": "Eiskrümel",
-  "backdrop.azure": "Azurnetz",
-  "backdrop.borealis": "Meerestiefe",
-  "backdrop.pearl": "Mondstein",
+  "backdrop.aurora": "Leiser Graphit",
+  "backdrop.zenith": "Nachtfjord",
+  "backdrop.garden": "Nadelwald",
+  "backdrop.mint": "Meeresminze",
+  "backdrop.steel": "Blauer Stahl",
+  "backdrop.copper": "Mattes Kupfer",
+  "backdrop.arc": "Dämmerungsorbit",
+  "backdrop.flare": "Polarnebel",
+  "backdrop.frost": "Eisnebel",
+  "backdrop.azure": "Tiefsee",
+  "backdrop.borealis": "Nordlicht",
+  "backdrop.pearl": "Silberstein",
   "zipRepair.runtimeFiles": "Bei der Prüfung gefundene Dateien",
   "zipRepair.liveRuntime":
     "Laut Profil-Hashes fehlen oder sind Client- und Bibliotheksdateien beschädigt: {count}, etwa {size}.",
@@ -1901,36 +1907,38 @@ const fr: Dictionary = {
   "tour.title": "Guide du joueur",
   "guidebook.replay": "Ouvrir le guide",
   "tour.intro":
-    "Choisissez un sujet et consultez les chapitres dans l’ordre de votre choix. Le bouton en forme de livre permet de revenir au guide à tout moment.",
-  "tour.choose": "Choisir un sujet",
+    "Les six chapitres sont accessibles dans n’importe quel ordre. Choisissez un sujet en bas ou avancez avec les flèches ; les GIF ne démarrent qu’après un clic.",
+  "tour.choose": "Choisir un chapitre du guide",
+  "tour.previous": "Chapitre précédent",
+  "tour.next": "Chapitre suivant",
   "tour.navTitle": "Changer de rubrique",
   "tour.navBody":
-    "La navigation latérale mène aux serveurs, à la garde-robe, au compte et aux réglages. Le serveur sélectionné reste conservé lorsque vous changez de rubrique.",
+    "La navigation latérale mène aux serveurs, à la garde-robe, au compte et aux réglages. Choisissez l’icône ou le nom de la rubrique voulue.\nSi les noms sont masqués, développez la barre avec la flèche ; un nouveau clic rétablit la vue compacte.\nChanger de rubrique ne réinitialise ni le serveur sélectionné ni l’état de son opération en cours.\nOuvrez Serveurs pour revenir aux packs. Le dernier serveur consulté peut apparaître en tête du catalogue.",
   "tour.navAlt":
     "Montre le passage de la liste des serveurs à la garde-robe, puis le retour.",
   "tour.wardrobeTitle": "Choisir un skin",
   "tour.wardrobeBody":
-    "Ouvrez la garde-robe, choisissez un skin enregistré et vérifiez lequel est actif. Un serveur peut afficher les skins selon ses propres règles.",
+    "Ouvrez la garde-robe pour voir le skin actif et l’historique local. Vos choix sont enregistrés sur cet ordinateur.\nDans le formulaire, choisissez une texture PNG de 64×64 ou 64×32, donnez-lui un nom reconnaissable et sélectionnez le modèle de bras adapté.\nVérifiez l’aperçu avant l’enregistrement. Si la texture est invalide ou indisponible, corrigez-la ; l’historique existant ne doit pas être remplacé silencieusement.\nChoisissez une entrée de l’historique local pour l’activer. Le launcher synchronise automatiquement le skin actif avec le serveur configuré.\nUn serveur peut avoir son propre système de skins ; les autres joueurs ne verront donc pas forcément celui choisi ici.",
   "tour.wardrobeAlt":
     "Montre la sélection d’un skin enregistré et la mise à jour de l’aperçu.",
   "tour.settingsTitle": "Configurer le launcher",
   "tour.settingsBody":
-    "Dans les réglages, choisissez la langue et l’apparence, puis ajustez les options de téléchargement et de fenêtre. L’apparence ne modifie pas les fichiers du jeu.",
+    "Ouvrez Réglages et choisissez une catégorie à gauche. Les options sont regroupées par fonction ; sur une petite fenêtre, faites défiler la liste.\nDans Performance, définissez la limite de téléchargement et la mémoire disponible. Le curseur indique la valeur choisie ; l’allocation automatique s’active séparément.\nDans Java, choisissez un environnement détecté ou indiquez le chemin d’une installation existante. Relancez la recherche s’il manque.\nDans Apparence, choisissez la langue, un fond discret et le style des panneaux. Ces options ne modifient pas les fichiers du jeu.\nLes options de fenêtre et de lancement ont leur propre catégorie. Modifiez un réglage à la fois et lisez son explication.\nLa confidentialité et les diagnostics sont regroupés séparément. N’activez le partage de données que si sa description vous convient.",
   "tour.settingsAlt":
     "Montre la modification de la limite de téléchargement et son rétablissement.",
   "tour.catalogTitle": "Trouver un serveur",
   "tour.catalogBody":
-    "Ouvrez Serveurs, recherchez par nom ou choisissez un filtre. Ouvrez une ligne pour consulter les détails et les actions disponibles.",
+    "Ouvrez Serveurs dans la navigation latérale. La liste regroupe les packs de jeu disponibles pour le projet.\nRecherchez une partie du nom ou choisissez un filtre pour afficher les packs installés ou pas encore installés.\nSi les serveurs sont répartis en sections, développez celle qui vous intéresse. Les sections personnelles organisent la liste sans modifier les packs.\nOuvrez une ligne pour lire la description, vérifier la version et consulter les actions disponibles. Le dernier serveur choisi peut aussi être mis en avant au-dessus du catalogue.",
   "tour.catalogAlt":
     "Montre la recherche d’un serveur, son ouverture et le retour à la liste.",
   "tour.accountTitle": "Vérifier le compte",
   "tour.accountBody":
-    "Dans Compte, vérifiez la session active et les informations du profil. Vous pouvez aussi ouvrir la garde-robe et prévisualiser votre skin.",
+    "Ouvrez Compte dans la navigation latérale. Une seule connexion est partagée par les serveurs du projet.\nVérifiez le nom du profil et l’état de la session. Si elle a expiré, reconnectez-vous via le fournisseur configuré.\nDepuis Compte, vous pouvez ouvrir la garde-robe, actualiser les informations ou accéder aux actions du profil.\nDéveloppez les statistiques du serveur pour consulter les données disponibles. La section peut être vide si le serveur ne les transmet pas.\nLa déconnexion ferme l’accès à tous les serveurs du projet. Confirmez uniquement si vous êtes prêt à vous reconnecter.",
   "tour.accountAlt":
     "Montre l’ouverture et le repli de la section des statistiques du compte.",
   "tour.serverTitle": "Installer et jouer",
   "tour.serverBody":
-    "Sur la page du serveur, le bouton principal indique l’étape suivante : installer ou mettre à jour le pack, jouer ou arrêter le jeu. Les autres actions se trouvent dans le menu voisin.",
+    "Sur la page du serveur, vérifiez le nom et la version du pack. Son état indique s’il est prêt.\nLe bouton principal indique l’étape suivante : Installer prépare le pack ; Mettre à jour le remplace par une version vérifiée. Attendez la fin de la progression.\nSi le launcher demande séparément des composants supplémentaires, vérifiez leur rôle et leur source. Confirmez uniquement si vous faites confiance au projet ; refuser ne doit pas lancer le téléchargement.\nLorsque Jouer est disponible, lancez le jeu. Pendant la préparation, utilisez Annuler ; pour un jeu en cours, utilisez Arrêter. Ne supprimez pas les fichiers manuellement.\nLa vérification d’intégrité du menu compare seulement les fichiers à un index vérifié. Elle signale les écarts sans les réparer.",
   "tour.serverAlt":
     "Montre le menu des actions et le lancement de la vérification du pack.",
   "tour.skip": "Fermer pour le moment",
@@ -2275,18 +2283,18 @@ const fr: Dictionary = {
   "settings.backdropHint":
     "Douze dégradés, chacun se déplace à sa manière. Le changement fond en douceur, le choix est conservé.",
   "settings.backdropPreview": "Fond du launcher : {name}. Ouvrir la liste",
-  "backdrop.aurora": "Graphite calme",
-  "backdrop.zenith": "Anse nocturne",
-  "backdrop.garden": "Brume forestière",
-  "backdrop.mint": "Bande menthe",
-  "backdrop.steel": "Acier crépusculaire",
-  "backdrop.copper": "Buisson de cuivre",
-  "backdrop.arc": "Orbite calme",
-  "backdrop.flare": "Braise sombre",
-  "backdrop.frost": "Éclats de glace",
-  "backdrop.azure": "Maillage azur",
-  "backdrop.borealis": "Profondeurs océanes",
-  "backdrop.pearl": "Pierre de lune",
+  "backdrop.aurora": "Graphite discret",
+  "backdrop.zenith": "Fjord nocturne",
+  "backdrop.garden": "Bosquet de conifères",
+  "backdrop.mint": "Menthe marine",
+  "backdrop.steel": "Acier bleu",
+  "backdrop.copper": "Cuivre doux",
+  "backdrop.arc": "Orbite crépusculaire",
+  "backdrop.flare": "Brume polaire",
+  "backdrop.frost": "Brume glacée",
+  "backdrop.azure": "Océan profond",
+  "backdrop.borealis": "Aurore boréale",
+  "backdrop.pearl": "Pierre d’argent",
   "zipRepair.runtimeFiles": "Fichiers repérés lors de la vérification",
   "zipRepair.liveRuntime":
     "Selon les empreintes du profil, des fichiers du client et des bibliothèques manquent ou sont endommagés : {count}, environ {size}.",

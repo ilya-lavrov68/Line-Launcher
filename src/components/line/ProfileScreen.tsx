@@ -202,7 +202,7 @@ export default function ProfileScreen({
           >
             <span
               aria-hidden="true"
-              className="bg-fill-strong pointer-events-none absolute top-1 bottom-1 left-1 w-[calc((100%-0.75rem)/3)] rounded-md transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
+              className="bg-fill-strong pointer-events-none absolute top-1 bottom-1 left-1 w-[calc((100%-0.75rem)/3)] rounded-[calc(var(--radius-item)-4px)] transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none"
               style={{
                 transform: `translateX(calc(${["walk", "wave", "manual"].indexOf(viewerPose)} * (100% + 0.125rem)))`,
               }}
@@ -213,7 +213,7 @@ export default function ProfileScreen({
                 type="button"
                 aria-pressed={viewerPose === pose}
                 onClick={() => setViewerPose(pose)}
-                className={`relative z-10 min-h-8 cursor-pointer rounded-md px-2.5 text-[11px] font-medium transition-colors ${viewerPose === pose ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                className={`relative z-10 min-h-8 cursor-pointer rounded-[calc(var(--radius-item)-4px)] px-2.5 text-[11px] font-medium transition-colors ${viewerPose === pose ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {t(`profile.viewer.${pose}`)}
               </button>

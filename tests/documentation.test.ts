@@ -47,28 +47,57 @@ test("the in-app player guide has six authentic illustrations and direct chapter
     const poster = path.join(root, "public/guidebook", `${name}.png`);
     assert.ok(existsSync(file), `missing ${name} guidebook animation`);
     assert.ok(existsSync(poster), `missing ${name} reduced-motion poster`);
-    const signature = readFileSync(file).subarray(0, 6).toString("ascii");
+    const gifBytes = readFileSync(file);
+    const signature = gifBytes.subarray(0, 6).toString("ascii");
     assert.ok(["GIF87a", "GIF89a"].includes(signature), `${name} is not a GIF`);
+    assert.deepEqual(
+      [gifBytes.readUInt16LE(6), gifBytes.readUInt16LE(8)],
+      [1920, 1080],
+      `${name} guidebook GIF must be captured at Full HD 16:9`,
+    );
+    const posterBytes = readFileSync(poster);
+    assert.deepEqual(
+      [posterBytes.readUInt32BE(16), posterBytes.readUInt32BE(20)],
+      [1920, 1080],
+      `${name} guidebook poster must be Full HD 16:9`,
+    );
     assert.ok(component.includes(`/guidebook/${name}.gif`));
     assert.ok(component.includes(`/guidebook/${name}.png`));
   }
   assert.match(component, /PAGES\.map/);
-  assert.match(component, /setPage\(index\)/);
+  assert.match(component, /goToPage\(index\)/);
+  assert.match(component, /role="tablist"/);
   assert.match(component, /aria-current/);
+  assert.match(component, /data-line-glass="guidebook"/);
+  assert.match(component, /data-testid="launcher-tour-media"/);
+  assert.match(component, /data-testid="launcher-tour-copy"/);
+  assert.match(component, /aspect-video/);
+  assert.match(component, /grid-rows-\[auto_minmax\(0,1fr\)_auto\]/);
+  assert.match(component, /tour\.previous/);
+  assert.match(component, /tour\.next/);
   assert.match(component, /<DialogContent/);
   assert.match(component, /<img/);
   assert.match(component, /current\.body/);
   assert.match(component, /tour\.pauseAnimation/);
   assert.match(component, /tour\.playAnimation/);
+  assert.doesNotMatch(component, /border-b|border-r|rounded-xl/);
   const dictionaries = readFileSync(
     path.join(root, "src/lib/line/i18n-dictionaries.ts"),
     "utf8",
   );
   for (const phrase of [
-    "Choose a topic",
-    "Thema auswählen",
-    "Choisir un sujet",
-    "Выберите тему",
+    "Choose a guide chapter",
+    "Handbuchkapitel auswählen",
+    "Choisir un chapitre du guide",
+    "Выбрать главу справочника",
+    "Previous chapter",
+    "Vorheriges Kapitel",
+    "Chapitre précédent",
+    "Предыдущая глава",
+    "Next chapter",
+    "Nächstes Kapitel",
+    "Chapitre suivant",
+    "Следующая глава",
     "Close for now",
     "Vorläufig schließen",
     "Fermer pour le moment",
@@ -90,6 +119,8 @@ test("all guidebook chapters and defer controls are complete in every supported 
     "tour.title",
     "tour.intro",
     "tour.choose",
+    "tour.previous",
+    "tour.next",
     "tour.navTitle",
     "tour.navBody",
     "tour.navAlt",
@@ -122,6 +153,19 @@ test("all guidebook chapters and defer controls are complete in every supported 
         dictionary[key],
         key,
         `${locale}.${key} contains an untranslated key`,
+      );
+    }
+    for (const key of [
+      "tour.catalogBody",
+      "tour.serverBody",
+      "tour.navBody",
+      "tour.wardrobeBody",
+      "tour.accountBody",
+      "tour.settingsBody",
+    ] as const) {
+      assert.ok(
+        dictionary[key].split("\n").length >= 4,
+        `${locale}.${key} should contain a full, step-by-step guide`,
       );
     }
   }
@@ -171,8 +215,9 @@ test("documentation has one active roadmap and labels current integration limits
   assert.match(roadmap, /Единственное место для активных планов проекта/);
   assert.match(roadmap, /не передавать UUID из\s+интерфейса лаунчера/i);
   assert.match(roadmap, /не добавлять endpoint, поля ответа, mock-метрики/i);
-  assert.match(verification, /431 total, 430 passed, 1 skipped, 0 failed/);
-  assert.match(verification, /14 screenshots, six GIFs, and six poster PNGs/);
+  assert.match(verification, /432 total, 431 passed, 1 skipped, 0 failed/);
+  assert.match(verification, /14 real-browser/);
+  assert.match(verification, /1920×1080/);
   assert.match(verification, /mocked Tauri IPC/);
   assert.match(
     read("CONTRIBUTING.md"),

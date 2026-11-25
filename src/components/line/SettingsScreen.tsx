@@ -337,7 +337,7 @@ export default function SettingsScreen({
         </p>
       )}
 
-      <div className="grid min-w-0 gap-5 md:grid-cols-[168px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-5 md:grid-cols-[224px_minmax(0,1fr)]">
         <nav
           aria-label={t("settings.group.nav")}
           data-settings-categories
@@ -346,14 +346,14 @@ export default function SettingsScreen({
           <div className="relative flex min-w-[640px] gap-1 md:min-w-0 md:flex-col">
             <span
               aria-hidden="true"
-              className="bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-4px)] transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:hidden"
+              className="bg-primary/12 pointer-events-none absolute top-0 bottom-0 left-0 w-[calc((100%-1rem)/5)] rounded-[calc(var(--radius-item)-5px)] transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:hidden"
               style={{
                 transform: `translateX(calc(${activeGroupIndex} * (100% + 0.25rem)))`,
               }}
             />
             <span
               aria-hidden="true"
-              className="bg-primary/12 pointer-events-none absolute top-0 left-0 hidden h-10 w-full rounded-lg transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:block"
+              className="bg-primary/12 pointer-events-none absolute top-0 left-0 hidden h-10 w-full rounded-[calc(var(--radius-item)-5px)] transition-transform duration-300 ease-[var(--ease-line)] motion-reduce:transition-none md:block"
               style={{
                 transform: `translateY(calc(${activeGroupIndex * 44}px))`,
               }}
@@ -375,7 +375,7 @@ export default function SettingsScreen({
                   )}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{label}</span>
+                  <span className="whitespace-nowrap">{label}</span>
                 </button>
               );
             })}
@@ -617,7 +617,7 @@ export default function SettingsScreen({
                       >
                         <span
                           className={cn(
-                            "block size-6 rounded-[3px] border border-white/15",
+                            "block size-6 rounded-none border border-white/15",
                             option.id === "solid"
                               ? "bg-[var(--line-solid-panel)]"
                               : "bg-white/15 backdrop-blur-[2px]",

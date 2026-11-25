@@ -413,7 +413,7 @@ export default function MinecraftPanel({
               aria-haspopup="menu"
               title={t("detail.moreActions")}
               className={cn(
-                "bg-primary text-primary-foreground hover:bg-primary/85 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-s-none rounded-e-[var(--radius-item)] transition-colors",
+                "bg-primary text-primary-foreground hover:bg-primary/85 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-s-none rounded-e-[calc(var(--radius-item)-1px)] transition-colors",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
                 locked && "pointer-events-none opacity-50",
               )}
@@ -437,7 +437,7 @@ export default function MinecraftPanel({
                     ?.removeAttribute("open");
                   void checkBuild();
                 }}
-                className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[calc(var(--radius-item)-7px)] px-3 text-start text-xs disabled:opacity-50"
               >
                 {t("detail.checkBuild")}
               </button>
@@ -451,7 +451,7 @@ export default function MinecraftPanel({
                     ?.removeAttribute("open");
                   void prepare();
                 }}
-                className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[calc(var(--radius-item)-7px)] px-3 text-start text-xs disabled:opacity-50"
               >
                 {t("detail.prepareAhead")}
               </button>
@@ -466,7 +466,7 @@ export default function MinecraftPanel({
                       ?.removeAttribute("open");
                     void play(true);
                   }}
-                  className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[var(--radius-control)] px-3 text-start text-xs disabled:opacity-50"
+                  className="hover:bg-fill-hover focus-visible:bg-fill-hover flex min-h-9 items-center rounded-[calc(var(--radius-item)-7px)] px-3 text-start text-xs disabled:opacity-50"
                 >
                   {t("detail.offlineLaunch")}
                 </button>

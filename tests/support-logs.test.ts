@@ -215,13 +215,25 @@ test("the logger is initialised before anything can fail", () => {
   assert.match(lib, /line::support::open_mail_draft/);
 });
 
-test("the log lives next to instances, one file per day, seven kept", () => {
+test("diagnostics gather all launcher lines and each instance game launch log", () => {
+  const support = read("src-tauri/src/line/support.rs");
+  assert.match(support, /fn read_logs\(root: &Path\)/);
+  assert.match(support, /logger::log_files\(&root\.join\(logger::DIR\)\)/);
+  assert.match(support, /instance_dir\.join\("game"\)\.join\("logs"\)/);
+  assert.match(support, /logs_dir\.join\("launch\.log"\)/);
+  assert.match(support, /reader\.read_until\(b'\\n'/);
+  assert.doesNotMatch(support, /const BUDGET|MAX_LINES/);
+  assert.match(support, /reads_every_launcher_file_and_game_launch_log/);
+});
+
+test("daily launcher logs are retained by age, not capped by file count", () => {
   const logger = read("src-tauri/src/line/logger.rs");
   assert.match(logger, /pub const DIR: &str = "launcher_logs";/);
-  assert.match(logger, /pub const MAX_FILES: usize = 7;/);
+  assert.match(logger, /pub const RETENTION_DAYS: u64 = 30;/);
   assert.match(logger, /launcher-\{day\}\.log/);
-  // Pruning only ever touches files this module named.
-  assert.match(logger, /\.is_some_and\(is_log_name\)/);
+  assert.match(logger, /prune_before\(dir, cutoff\)/);
+  assert.match(logger, /modified < cutoff/);
+  assert.match(logger, /pruning_uses_age_and_never_limits_the_number_of_recent_daily_files/);
 });
 
 test("secrets cannot reach a log line", () => {
@@ -260,9 +272,14 @@ test("the diagnostic bundle carries paths, not secrets", () => {
     .replace(/\/\/[^\n]*/g, "")
     .replace(/\/\*[\s\S]*?\*\//g, "");
   assert.match(code, /signed_in as /);
-  assert.doesNotMatch(code, /access_token|session_secret/);
-  // Bound on what a bundle can carry.
-  assert.match(diagnostics, /pub const MAX_LINES: usize = 400;/);
+  // Raw logs must flow through the conservative secret filter before output.
+  assert.match(code, /sanitize_line\(line\)/);
+  assert.match(code, /"access_token"/);
+  assert.match(code, /"session_secret"/);
+  // No line cap: all retained log entries are included.
+  assert.doesNotMatch(diagnostics, /MAX_LINES/);
+  assert.match(diagnostics, /pub fn sanitize_line\(/);
+  assert.match(diagnostics, /SENSITIVE_MARKERS/);
   // The mailto is built here, percent-encoded, never string-concatenated raw.
   assert.match(diagnostics, /pub fn mailto\(/);
   assert.match(diagnostics, /percent_encode\(body\)/);
@@ -284,7 +301,8 @@ test("the log scheme is documented where a provider will look", () => {
   ]) {
     assert.ok(doc.includes(part), `LOGGING.md is missing ${part}`);
   }
-  assert.match(doc, /7/);
+  assert.match(doc, /30 дней/);
+  assert.match(doc, /launch\.log/);
   // Indexed from the README, and cross-linked from the provider contract.
   assert.match(read("README.md"), /\[LOGGING\.md\]\(docs\/LOGGING\.md\)/);
   assert.match(read("docs/PROVIDER.md"), /\[LOGGING\.md\]\(LOGGING\.md\)/);

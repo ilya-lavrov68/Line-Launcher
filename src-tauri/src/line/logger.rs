@@ -14,7 +14,7 @@
 //!   instances/<id>/…            game data, unchanged
 //!   launcher_logs/
 //!     launcher-2026-11-13.log   today
-//!     launcher-2026-11-12.log   … up to 7, oldest pruned
+//!     launcher-2026-11-12.log   … retained for 30 days, then pruned
 //! ```
 //!
 //! Four rules the rest of the app can rely on:
@@ -28,9 +28,9 @@
 //!    file handle and are flushed per record; there is no buffer to lose.
 //! 3. **A broken log never breaks the launcher.** Every public function returns
 //!    `()`. A read-only disk costs a log line, not a sign-in.
-//! 4. **Bounded.** One file per day, at most [`MAX_FILES`], and a record is
-//!    truncated at [`MAX_LINE_BYTES`] so one pathological error cannot fill the
-//!    disk.
+//! 4. **Age-retained.** One file per day; files older than [`RETENTION_DAYS`]
+//!    are pruned. A record is truncated at [`MAX_LINE_BYTES`] so one
+//!    pathological error cannot fill the disk.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -40,9 +40,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Directory name, next to `instances/`.
 pub const DIR: &str = "launcher_logs";
-/// How many daily files are kept. The oldest is removed after a successful
-/// write, never before, so a failed prune cannot cost today's log.
-pub const MAX_FILES: usize = 7;
+/// Keep log files for this many days; prune by file age, not by file count.
+pub const RETENTION_DAYS: u64 = 30;
 /// A single record is truncated here. Support does not need a megabyte of
 /// message, and a loop that logs an error can otherwise fill a disk.
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
@@ -225,6 +224,7 @@ impl Writer {
             eprintln!("[line] launcher_logs unavailable: {error}");
             return None;
         }
+        prune(&dir);
         Some(Self {
             dir,
             file: Mutex::new(None),
@@ -335,32 +335,36 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m as u32, d as u32)
 }
 
-/// Remove the oldest daily files beyond [`MAX_FILES`].
-///
-/// Only files this module created are considered: a name must match
-/// `launcher-YYYY-MM-DD.log` exactly. Anything else in the directory belongs to
-/// the player or to a future version, and is not ours to delete.
+/// Remove only our daily log files whose actual modification time is older
+/// than the retention window. The count of files is not capped; a busy month
+/// keeps every day it needs, while stale logs are deleted on startup and after
+/// each write.
 fn prune(dir: &Path) {
+    let age = std::time::Duration::from_secs(RETENTION_DAYS * 24 * 60 * 60);
+    let Some(cutoff) = SystemTime::now().checked_sub(age) else {
+        return;
+    };
+    prune_before(dir, cutoff);
+}
+
+fn prune_before(dir: &Path, cutoff: SystemTime) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    let mut ours: Vec<PathBuf> = entries
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(is_log_name)
-        })
-        .collect();
-    if ours.len() <= MAX_FILES {
-        return;
-    }
-    // The name sorts chronologically, so lexical order is age order.
-    ours.sort();
-    let excess = ours.len() - MAX_FILES;
-    for path in ours.into_iter().take(excess) {
-        let _ = fs::remove_file(path);
+    for path in entries.flatten().map(|entry| entry.path()) {
+        let is_ours = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(is_log_name);
+        if !is_ours {
+            continue;
+        }
+        let old = fs::symlink_metadata(&path)
+            .and_then(|metadata| metadata.modified())
+            .is_ok_and(|modified| modified < cutoff);
+        if old {
+            let _ = fs::remove_file(path);
+        }
     }
 }
 
@@ -487,6 +491,36 @@ mod tests {
         assert!(!is_log_name("crash-2026-11-13.log"));
         assert!(!is_log_name("launcher-2026-99-13.log"));
         assert!(!is_log_name("launcher-2026-11-13.txt"));
+    }
+
+    #[test]
+    fn pruning_uses_age_and_never_limits_the_number_of_recent_daily_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let cutoff = UNIX_EPOCH + std::time::Duration::from_secs(2_000_000_000);
+        let old = dir.path().join("launcher-2020-01-01.log");
+        let recent_a = dir.path().join("launcher-2020-01-02.log");
+        let recent_b = dir.path().join("launcher-2020-01-03.log");
+        let unrelated = dir.path().join("notes.log");
+        for path in [&old, &recent_a, &recent_b, &unrelated] {
+            fs::write(path, "log").unwrap();
+        }
+        let set_modified = |path: &Path, modified| {
+            File::open(path)
+                .unwrap()
+                .set_times(std::fs::FileTimes::new().set_modified(modified))
+                .unwrap();
+        };
+        set_modified(&old, cutoff - std::time::Duration::from_secs(1));
+        set_modified(&recent_a, cutoff + std::time::Duration::from_secs(1));
+        set_modified(&recent_b, cutoff + std::time::Duration::from_secs(2));
+        set_modified(&unrelated, cutoff - std::time::Duration::from_secs(1));
+
+        prune_before(dir.path(), cutoff);
+
+        assert!(!old.exists());
+        assert!(recent_a.exists());
+        assert!(recent_b.exists());
+        assert!(unrelated.exists());
     }
 
     #[test]

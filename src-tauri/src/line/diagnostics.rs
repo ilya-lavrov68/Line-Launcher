@@ -1,8 +1,9 @@
 //! The diagnostic bundle: one file a player sends and a provider can act on.
 //!
-//! Two buttons in Settings use this: «Скопировать диагностику» puts it on the
-//! clipboard, «Отправить по Email» opens a draft with it as the body. Both read
-//! the same string, so what the player sees is exactly what the provider gets.
+//! Two buttons in Settings use this: «Скопировать диагностику» puts the full
+//! bundle on the clipboard; «Отправить по Email» opens a draft with it when the
+//! encoded URL is small enough, otherwise the draft tells the player how to
+//! paste the full copied bundle.
 //!
 //! What goes in, and why:
 //!
@@ -26,10 +27,6 @@ use super::logger::{self, Field, MAX_LINE_BYTES};
 use super::state::LineState;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-/// How many trailing log records the bundle carries. One full day is usually
-/// fewer than this; a busy install day is more, and the tail is what matters.
-pub const MAX_LINES: usize = 400;
 
 /// Everything the bundle needs, gathered by the caller.
 ///
@@ -93,15 +90,16 @@ pub fn render(summary: &Summary<'_>, log_tail: &[String]) -> String {
         }
     }
     out.push('\n');
-    out.push_str(&format!("[лог, последние {MAX_LINES} строк]\n"));
+    out.push_str(&format!(
+        "[логи: launcher за последние {} дней; игровые launch.log]\n",
+        logger::RETENTION_DAYS
+    ));
     if log_tail.is_empty() {
-        out.push_str("(лог пуст — лаунчер ещё ничего не записал или запущен впервые)\n");
+        out.push_str("(логи пусты — лаунчер ещё ничего не записал или игровых журналов нет)\n");
     } else {
         for line in log_tail {
-            out.push_str(line);
-            if !line.ends_with('\n') {
-                out.push('\n');
-            }
+            out.push_str(&sanitize_line(line));
+            out.push('\n');
         }
     }
     out
@@ -145,30 +143,50 @@ pub fn percent_encode(value: &str) -> String {
     out
 }
 
-/// Keep the tail of a log, at most [`MAX_LINES`] and at most
-/// [`MAX_LINE_BYTES`] per line. Scrubs every line on the way through: the file
-/// was scrubbed when it was written, and this is the second gate before the
-/// text leaves the machine.
-pub fn tail(lines: impl IntoIterator<Item = String>) -> Vec<String> {
-    let mut out: Vec<String> = lines
-        .into_iter()
-        .map(|line| {
-            let line = logger::scrub(&line);
-            if line.len() > MAX_LINE_BYTES {
-                let mut cut = MAX_LINE_BYTES;
-                while cut > 0 && !line.is_char_boundary(cut) {
-                    cut -= 1;
-                }
-                line[..cut].to_owned()
-            } else {
-                line
-            }
-        })
-        .collect();
-    if out.len() > MAX_LINES {
-        out.drain(..out.len() - MAX_LINES);
+/// Scrub one launcher or Minecraft output line before it leaves the machine.
+/// The bundle keeps every line in the retention window, but individual lines
+/// remain bounded and likely credential-bearing game-log lines are omitted.
+pub fn sanitize_line(line: &str) -> String {
+    let lower = line.to_ascii_lowercase();
+    const SENSITIVE_MARKERS: &[&str] = &[
+        "access_token",
+        "accesstoken",
+        "client_token",
+        "clienttoken",
+        "refresh_token",
+        "refreshtoken",
+        "session_secret",
+        "session_token",
+        "sessiontoken",
+        "session_id",
+        "sessionid",
+        "authorization",
+        "bearer ",
+        "password",
+        "ticket",
+        "xsts",
+        "userproperties",
+        "cookie",
+        "credential",
+        "api_key",
+        "apikey",
+        "signature",
+        "secret",
+        "token",
+    ];
+    if SENSITIVE_MARKERS.iter().any(|marker| lower.contains(marker)) {
+        return "[строка скрыта: возможные учётные данные]".to_owned();
     }
-    out
+
+    let line = logger::scrub(line);
+    if line.len() <= MAX_LINE_BYTES {
+        return line;
+    }
+    let mut cut = MAX_LINE_BYTES;
+    while cut > 0 && !line.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    line[..cut].to_owned()
 }
 
 /// The session line, without the session. Shared by the bundle and the log so
@@ -237,7 +255,7 @@ mod tests {
         assert!(text.contains("launcher_logs"));
         assert!(text.contains("provider_id=line-demo"));
         assert!(text.contains("session=signed_out"));
-        assert!(text.contains("[лог, последние 400 строк]"));
+        assert!(text.contains("[логи: launcher за последние 30 дней; игровые launch.log]"));
     }
 
     #[test]
@@ -249,18 +267,26 @@ mod tests {
     }
 
     #[test]
-    fn the_tail_is_bounded_and_scrubbed() {
-        let lines = (0..MAX_LINES + 50)
-            .map(|i| format!("record {i} token=abcdef"))
+    fn the_report_keeps_every_line_but_redacts_token_like_game_output() {
+        let dir = PathBuf::from("/tmp/x");
+        let lines = (0..1_000)
+            .map(|i| format!("record {i}"))
             .collect::<Vec<_>>();
-        let kept = tail(lines);
-        assert_eq!(kept.len(), MAX_LINES);
-        assert!(!kept.iter().any(|line| line.contains("abcdef")));
-        // The newest survive; the oldest are dropped.
-        assert!(kept
-            .last()
-            .unwrap()
-            .contains(&format!("record {}", MAX_LINES + 49)));
+        let text = render(&summary(&dir, None), &lines);
+        assert!(text.contains("record 0"));
+        assert!(text.contains("record 999"));
+
+        let secret = "Launching with --accessToken very-secret-value";
+        let hidden = sanitize_line(secret);
+        assert!(!hidden.contains("very-secret-value"));
+        assert!(hidden.contains("скрыта"));
+        let report = render(&summary(&dir, None), &[secret.to_owned()]);
+        assert!(!report.contains("very-secret-value"));
+        assert!(report.contains("строка скрыта"));
+        assert_eq!(
+            sanitize_line("ordinary diagnostic line"),
+            "ordinary diagnostic line"
+        );
     }
 
     #[test]

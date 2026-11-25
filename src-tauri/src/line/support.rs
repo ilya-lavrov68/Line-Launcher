@@ -9,9 +9,15 @@ use super::diagnostics::{self, Summary};
 use super::error::{LineError, LineResult};
 use super::logger::{self, Area, Field};
 use super::state::LineState;
-use std::fs;
-use std::path::PathBuf;
+use super::storage::{is_real_dir, is_real_file};
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
+
+/// Keep the complete `mailto:` URL below common shell/protocol-handler limits.
+/// Larger full reports remain available through «Скопировать диагностику».
+const MAX_MAILTO_URL_BYTES: usize = 6 * 1024;
 
 /// `launcher_logs/`, created if this is the first run. The folder is what the
 /// player opens when asked «пришлите логи».
@@ -45,11 +51,10 @@ fn instance_ids(root: &std::path::Path) -> Vec<String> {
     ids
 }
 
-/// The whole bundle as one string. Shared by both copy and mail so the two
-/// buttons can never disagree about what the diagnostics are.
+/// The whole bundle as one string. Copy always returns the complete report;
+/// mail uses the same report when it fits the safe URL size.
 fn build(app: &AppHandle, state: &LineState) -> LineResult<String> {
     let root = data_dir(app)?;
-    let dir = root.join(logger::DIR);
     let (provider_id, config_url) = match state.active_config() {
         Ok((url, config)) => (Some(config.provider.id), Some(url)),
         Err(_) => (None, None),
@@ -60,7 +65,7 @@ fn build(app: &AppHandle, state: &LineState) -> LineResult<String> {
         .flatten()
         .map(|info| info.username);
     let instances = instance_ids(&root);
-    let lines = read_tail(&dir);
+    let lines = read_logs(&root);
     let summary = Summary {
         launcher_version: super::LAUNCHER_VERSION,
         os: std::env::consts::OS,
@@ -83,35 +88,84 @@ fn build(app: &AppHandle, state: &LineState) -> LineResult<String> {
     Ok(bundle)
 }
 
-/// Newest log file first, up to the bundle's cap. Reading the whole file is
-/// bounded by the daily rotation, but a single day of a tight loop could still
-/// be large, so the read stops at a fixed budget and keeps the tail.
-fn read_tail(dir: &std::path::Path) -> Vec<String> {
-    const BUDGET: usize = 512 * 1024;
-    let mut lines: Vec<String> = Vec::new();
-    for path in logger::log_files(dir) {
-        let Ok(bytes) = fs::read(&path) else {
+/// Collect all retained launcher records plus the latest `launch.log` for each
+/// real Minecraft instance. Launcher files are emitted oldest-first so the
+/// combined report reads chronologically. The game logs are opened only after
+/// checking each path component is a real directory/file, never a symlink or
+/// Windows reparse point.
+fn read_logs(root: &Path) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut launcher_files = logger::log_files(&root.join(logger::DIR));
+    launcher_files.reverse();
+    for path in launcher_files {
+        if !is_real_file(&path) {
             continue;
-        };
-        let start = bytes.len().saturating_sub(BUDGET);
-        let slice = &bytes[start..];
-        // Start on a char boundary; a split UTF-8 sequence would make the tail
-        // unreadable for the very tools meant to read it.
-        let offset = slice
-            .iter()
-            .position(|byte| byte & 0xC0 != 0x80)
-            .unwrap_or(0);
-        if let Ok(text) = std::str::from_utf8(&slice[offset..]) {
-            // A partial first line from the slice is dropped by taking the tail
-            // of the file rather than the head.
-            lines.extend(text.lines().map(str::to_owned));
-            // One file is enough for the tail; older days only fill a gap.
-            if lines.len() >= diagnostics::MAX_LINES {
-                break;
+        }
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("launcher log");
+        lines.push(format!("--- launcher log: {name} ---"));
+        append_log_lines(&path, &mut lines);
+    }
+
+    let minecraft_root = root.join("minecraft");
+    if !is_real_dir(&minecraft_root) {
+        return lines;
+    }
+    let Ok(entries) = fs::read_dir(&minecraft_root) else {
+        return lines;
+    };
+    let mut instances: Vec<(String, PathBuf)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if !is_real_dir(&path) {
+                return None;
             }
+            Some((entry.file_name().to_string_lossy().into_owned(), path))
+        })
+        .collect();
+    instances.sort_by(|a, b| a.0.cmp(&b.0));
+
+    for (id, instance_dir) in instances {
+        // Current instances launch from `game/`; legacy launch paths wrote to
+        // the instance root. Include both when present so either path has logs.
+        for (kind, logs_dir) in [
+            ("game/logs", instance_dir.join("game").join("logs")),
+            ("logs", instance_dir.join("logs")),
+        ] {
+            let launch_log = logs_dir.join("launch.log");
+            if !is_real_dir(&logs_dir) || !is_real_file(&launch_log) {
+                continue;
+            }
+            lines.push(format!(
+                "--- Minecraft {kind}/launch.log, instance={} ---",
+                logger::scrub(&id)
+            ));
+            append_log_lines(&launch_log, &mut lines);
         }
     }
-    diagnostics::tail(lines)
+    lines
+}
+
+fn append_log_lines(path: &Path, lines: &mut Vec<String>) {
+    let Ok(file) = File::open(path) else {
+        return;
+    };
+    let mut reader = BufReader::new(file);
+    let mut bytes = Vec::new();
+    loop {
+        bytes.clear();
+        let Ok(read) = reader.read_until(b'\n', &mut bytes) else {
+            break;
+        };
+        if read == 0 {
+            break;
+        }
+        let line = String::from_utf8_lossy(&bytes);
+        lines.push(line.trim_end_matches(['\r', '\n']).to_owned());
+    }
 }
 
 #[tauri::command]
@@ -141,8 +195,9 @@ pub async fn copy_diagnostics(app: AppHandle, state: State<'_, LineState>) -> Li
 ///
 /// The address is *not* taken from the provider config here: the caller passes
 /// the one the build was configured with, and an empty address is rejected
-/// rather than opening an empty draft. The body is the same bundle
-/// «Скопировать диагностику» produces.
+/// rather than opening an empty draft. Small reports use the complete bundle;
+/// if all retained logs exceed the safe `mailto:` size, the draft explains how
+/// to paste the full report copied with «Скопировать диагностику».
 #[tauri::command]
 pub async fn open_mail_draft(
     app: AppHandle,
@@ -151,8 +206,18 @@ pub async fn open_mail_draft(
 ) -> LineResult<()> {
     let bundle = build(&app, &state)?;
     let subject = format!("Line Launcher — диагностика {}", app_version());
-    let url = diagnostics::mailto(Some(&address), &subject, &bundle)
+    let full_url = diagnostics::mailto(Some(&address), &subject, &bundle)
         .ok_or_else(|| LineError::input("Не указан адрес почты поддержки."))?;
+    let url = if full_url.len() <= MAX_MAILTO_URL_BYTES {
+        full_url
+    } else {
+        let hint = format!(
+            "Полная диагностика содержит {} байт и слишком велика для ссылки почтового клиента. Нажмите «Скопировать диагностику» и вставьте полный текст в это письмо или приложите launcher_logs и logs/launch.log.",
+            bundle.len()
+        );
+        diagnostics::mailto(Some(&address), &subject, &hint)
+            .ok_or_else(|| LineError::input("Не указан адрес почты поддержки."))?
+    };
     logger::info(
         Area::Settings,
         "mail draft opened",
@@ -163,6 +228,65 @@ pub async fn open_mail_draft(
 
 fn app_version() -> &'static str {
     super::LAUNCHER_VERSION
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_every_launcher_file_and_game_launch_log() {
+        let root = tempfile::tempdir().unwrap();
+        let launcher = root.path().join(logger::DIR);
+        fs::create_dir_all(&launcher).unwrap();
+        for day in 1..=9 {
+            fs::write(
+                launcher.join(format!("launcher-2026-11-{day:02}.log")),
+                format!("launcher record {day}\n"),
+            )
+            .unwrap();
+        }
+        let long_log = launcher.join("launcher-2026-11-09.log");
+        let many_lines = (0..600)
+            .map(|line| format!("detail {line}\n"))
+            .collect::<String>();
+        fs::write(&long_log, format!("launcher record 9\n{many_lines}")).unwrap();
+        let game_logs = root.path().join("minecraft/demo/game/logs");
+        fs::create_dir_all(&game_logs).unwrap();
+        fs::write(
+            game_logs.join("launch.log"),
+            "Minecraft started\naccessToken=do-not-include-this-secret\n",
+        )
+        .unwrap();
+        let legacy_logs = root.path().join("minecraft/demo/logs");
+        fs::create_dir_all(&legacy_logs).unwrap();
+        fs::write(legacy_logs.join("launch.log"), "legacy launch output\n").unwrap();
+
+        let lines = read_logs(root.path());
+        assert!(lines.iter().any(|line| line == "launcher record 1"));
+        assert!(lines.iter().any(|line| line == "launcher record 9"));
+        assert!(lines.iter().any(|line| line == "detail 599"));
+        assert!(lines.iter().any(|line| line == "Minecraft started"));
+        assert!(lines.iter().any(|line| line == "legacy launch output"));
+        let secret = lines
+            .iter()
+            .find(|line| line.contains("accessToken"))
+            .expect("raw game log is collected for sanitizer");
+        assert_eq!(diagnostics::sanitize_line(secret), "[строка скрыта: возможные учётные данные]");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn does_not_follow_symlinked_game_logs() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().unwrap();
+        let outside = root.path().join("outside.log");
+        fs::write(&outside, "secret external file").unwrap();
+        let game_logs = root.path().join("minecraft/demo/game/logs");
+        fs::create_dir_all(&game_logs).unwrap();
+        symlink(&outside, game_logs.join("launch.log")).unwrap();
+        assert!(read_logs(root.path()).is_empty());
+    }
 }
 
 /// Hand a file manager the folder. The argument is a path this module built

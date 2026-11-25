@@ -10,6 +10,7 @@
 //
 // Captures are staged and published only when the whole gallery succeeds.
 // The transient connecting screen is not part of the gallery.
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   mkdirSync,
@@ -28,6 +29,9 @@ import { demoBannerDataUrl, demoIconDataUrl } from "./lib/demo-art.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs/images");
+const evidenceManifestPath = path.join(root, "docs/visual-evidence.json");
+const sha256 = (file) =>
+  createHash("sha256").update(readFileSync(file)).digest("hex");
 // Kept in sync with scripts/render-screens.mjs: both writers must agree, or a
 // regeneration with the other tool silently reintroduces mixed sizes.
 const SHOT_WIDTH = 1280;
@@ -494,12 +498,12 @@ async function recordGuidebookChapter(name, scenario) {
   const frames = [];
   let frameIndex = 0;
 
-  async function capture(durationMs = 50) {
+  async function capture(durationMs = 50, animations = "disabled") {
     const file = path.join(
       framesDir,
       `${String(frameIndex++).padStart(4, "0")}.png`,
     );
-    await page.screenshot({ path: file, animations: "disabled" });
+    await page.screenshot({ path: file, animations });
     frames.push({ file, durationMs });
   }
 
@@ -522,31 +526,46 @@ async function recordGuidebookChapter(name, scenario) {
     }
   }
 
-  async function glide(locator, durationMs = 720) {
+  function pointIn(bounds, position = { x: 0.5, y: 0.5 }) {
+    return {
+      x: bounds.x + bounds.width * position.x,
+      y: bounds.y + bounds.height * position.y,
+    };
+  }
+
+  async function glide(locator, durationMs = 720, position) {
     const bounds = await locator.boundingBox();
     if (!bounds)
       throw new Error(`Cannot find guidebook interaction target: ${locator}`);
-    await moveToPoint(
-      bounds.x + bounds.width / 2,
-      bounds.y + bounds.height / 2,
-      durationMs,
-    );
+    const point = pointIn(bounds, position);
+    await moveToPoint(point.x, point.y, durationMs);
   }
 
   async function click(locator, options = {}) {
     const bounds = await locator.boundingBox();
     if (!bounds) throw new Error(`Cannot click guidebook target: ${locator}`);
-    const x = bounds.x + bounds.width / 2;
-    const y = bounds.y + bounds.height / 2;
+    const { x, y } = pointIn(bounds, options.position);
     await page.mouse.move(x, y);
     await setGuideCursor(x, y, true, false);
     await page.mouse.down();
     await setGuideCursor(x, y, true, true);
     await capture(60);
+    if (options.captureTransition) {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+    }
     await page.mouse.up();
     await setGuideCursor(x, y, true, false);
     if (options.waitFor) await options.waitFor();
     if (options.settleMs) await page.waitForTimeout(options.settleMs);
+    if (options.captureTransition) {
+      // Capture CSS motion instead of forcing it to its end state. This is used
+      // for the disclosure chevron so its rotation is visible in the GIF.
+      for (let index = 0; index < 8; index += 1) {
+        await page.waitForTimeout(25);
+        await capture(25, "allow");
+      }
+      await page.emulateMedia({ reducedMotion: "reduce" });
+    }
     await hold(options.holdMs ?? 600);
   }
 
@@ -761,9 +780,12 @@ try {
       name: "Проверить сборку",
       exact: true,
     });
-    await glide(serverActionMenu);
+    const menuTriggerPosition = { x: 0.18, y: 0.78 };
+    await glide(serverActionMenu, 720, menuTriggerPosition);
     await click(serverActionMenu, {
+      position: menuTriggerPosition,
       waitFor: () => page.getByRole("menu").waitFor(),
+      captureTransition: true,
     });
     await glide(checkBuild);
     await click(checkBuild, {
@@ -1030,7 +1052,69 @@ try {
       renameSync(path.join(staging, file), path.join(outDir, file));
     // This transient screenshot was often stale when the template was unconfigured.
     rmSync(path.join(outDir, "line-connecting.png"), { force: true });
-    console.log(`Published ${captured.length} screenshots (0 page errors)`);
+
+    const screenshotHashes = Object.fromEntries(
+      expected.map((file) => [
+        `docs/images/${file}`,
+        sha256(path.join(outDir, file)),
+      ]),
+    );
+    const guidebookHashes = Object.fromEntries(
+      expectedChapters.map((chapter) => [
+        chapter,
+        {
+          gif: `public/guidebook/${chapter}.gif`,
+          gifSha256: sha256(path.join(root, `public/guidebook/${chapter}.gif`)),
+          poster: `public/guidebook/${chapter}.png`,
+          posterSha256: sha256(
+            path.join(root, `public/guidebook/${chapter}.png`),
+          ),
+        },
+      ]),
+    );
+    const generatedOn =
+      process.env.VISUAL_EVIDENCE_DATE ?? new Date().toISOString().slice(0, 10);
+    writeFileSync(
+      evidenceManifestPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          generatedOn,
+          browser: await browser.version(),
+          screenshotCount: expected.length,
+          screenshots: screenshotHashes,
+          guidebookChapterCount: expectedChapters.length,
+          guidebook: guidebookHashes,
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const readmePath = path.join(root, "README.md");
+    const readme = readFileSync(readmePath, "utf8");
+    const refreshNote = [
+      "<!-- visual-evidence-refresh:start -->",
+      `Полный набор скриншотов и GIF перегенерирован **${generatedOn}** ([контрольные суммы](docs/visual-evidence.json)).`,
+      "<!-- visual-evidence-refresh:end -->",
+    ].join("\n");
+    const refreshedReadme = readme.replace(
+      /<!-- visual-evidence-refresh:start -->[\s\S]*?<!-- visual-evidence-refresh:end -->/,
+      refreshNote,
+    );
+    if (
+      refreshedReadme === readme &&
+      !readme.includes("visual-evidence-refresh:start")
+    ) {
+      throw new Error(
+        "README.md is missing the visual-evidence refresh marker",
+      );
+    }
+    writeFileSync(readmePath, refreshedReadme, "utf8");
+    console.log(
+      `Published ${captured.length} screenshots and ${expectedChapters.length} GIF chapters (0 page errors)`,
+    );
   }
 } catch (error) {
   await page

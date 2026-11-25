@@ -25,6 +25,7 @@
     "test:ui": "node scripts/ui-smoke.mjs",
     "test:boot": "node scripts/ui-boot-smoke.mjs",
     "screenshots": "node scripts/screenshots.mjs",
+    "visual-evidence:check": "node scripts/check-visual-evidence.mjs",
     "screenshots:offline": "node scripts/render-screens.mjs",
     "screenshots:gallery": "node scripts/render-gallery.mjs",
     "test:provider": "node scripts/test-provider.mjs",

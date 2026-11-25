@@ -109,6 +109,24 @@ jobs:
             exit 1
           fi
 
+  pr-visual-evidence:
+    # A PR is not review-ready until the complete screenshot/GIF/doc refresh is
+    # recorded, hash-verified, and checked off in the PR body.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify every screenshot, GIF and poster against the latest capture manifest
+        run: npm run visual-evidence:check
+      - name: Require the full pre-PR evidence checklist and documentation refresh
+        run: node scripts/check-pr-visual-evidence.mjs "$GITHUB_EVENT_PATH"
+
   rust-pure:
     # Runs the dependency-free Rust logic with plain rustc. This is a fast
     # smoke signal, NOT a replacement for the full `rust` job below.

@@ -120,6 +120,14 @@ test("both screenshot writers agree on the size", () => {
   assert.match(renderer, new RegExp(`SHOT_HEIGHT = ${SHOT_HEIGHT};`));
 });
 
+test("the server-action GIF records the animated disclosure chevron", () => {
+  const browser = read("scripts/screenshots.mjs").toString("utf8");
+  assert.match(browser, /captureTransition: true/);
+  assert.match(browser, /position: menuTriggerPosition/);
+  assert.match(browser, /capture\(25, "allow"\)/);
+  assert.match(browser, /emulateMedia\(\{ reducedMotion: "no-preference" \}\)/);
+});
+
 test("the offline renderer reads tokens from the live palette block", () => {
   // The renderer parses `src/index.css` itself, so it breaks silently whenever
   // that file is reorganised: an earlier version read only one of two blocks and

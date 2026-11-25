@@ -47,10 +47,9 @@ tempfile = "3.27"
 sysinfo = { version = "0.39.5", default-features = false, features = ["disk", "system"] }
 uuid = { version = "1.11", features = ["v4"] }
 zeroize = "1.9"
-# Minecraft profiles (vanilla/Fabric/Quilt/Forge/NeoForge) from the official
-# Mojang and loader endpoints. Pinned exactly: the 0.1.x facade is still moving
-# and `minecraft.rs` matches `LauncherError` exhaustively.
-mc-launcher-core = "=0.1.2"
+# Minecraft profile facade; vendored 0.1.2 applies the scoped NeoForge Maven
+# retry/mirror fix while keeping the API pinned for exhaustive error mapping.
+mc-launcher-core = { version = "=0.1.2", path = "vendor/mc-launcher-core" }
 
 [profile.release]
 codegen-units = 1

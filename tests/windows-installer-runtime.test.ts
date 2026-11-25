@@ -18,6 +18,8 @@ test("legacy NeoForge uses a no-console process and preserves output in a log", 
   assert.match(runner, /creation_flags\(0x0800_0000\)/);
   assert.match(runner, /\.arg\("-jar"\)/);
   assert.match(runner, /\.arg\("--installClient"\)/);
+  assert.match(runner, /\.arg\("--mirror"\)/);
+  assert.match(runner, /maven\.creeperhost\.net/);
   assert.match(runner, /\.stdout\(Stdio::from\(log\)\)/);
   assert.match(runner, /\.stderr\(Stdio::from\(stderr\)\)/);
   assert.match(runner, /line-loader-install\.log/);

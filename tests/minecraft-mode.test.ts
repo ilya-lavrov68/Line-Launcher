@@ -17,7 +17,10 @@ const instance = read("src-tauri/src/line/instance.rs");
 
 test("the crate is pinned and the prelude is imported without shadowing Result", () => {
   const manifest = read("src-tauri/Cargo.toml");
-  assert.match(manifest, /mc-launcher-core = "=0\.1\.2"/);
+  assert.match(
+    manifest,
+    /mc-launcher-core = \{ version = "=0\.1\.2", path = "vendor\/mc-launcher-core" \}/,
+  );
   assert.match(rust, /use mc_launcher_core::prelude::\{/);
   // A glob would import the crate's one-parameter `Result` alias over std's.
   assert.doesNotMatch(rust, /use mc_launcher_core::prelude::\*/);

@@ -1,51 +1,57 @@
-import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Pause, Play, X } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useT } from "@/lib/line/i18n";
 
 const PAGES = [
   {
-    title: "tour.navTitle",
-    body: "tour.navBody",
-    gif: "/guidebook/navigation.gif",
-    poster: "/guidebook/navigation.png",
-    alt: "tour.navTitle",
-  },
-  {
     title: "tour.catalogTitle",
     body: "tour.catalogBody",
+    alt: "tour.catalogAlt",
     gif: "/guidebook/servers.gif",
     poster: "/guidebook/servers.png",
-    alt: "tour.catalogTitle",
   },
   {
     title: "tour.serverTitle",
     body: "tour.serverBody",
+    alt: "tour.serverAlt",
     gif: "/guidebook/server-actions.gif",
     poster: "/guidebook/server-actions.png",
-    alt: "tour.serverTitle",
+  },
+  {
+    title: "tour.navTitle",
+    body: "tour.navBody",
+    alt: "tour.navAlt",
+    gif: "/guidebook/navigation.gif",
+    poster: "/guidebook/navigation.png",
   },
   {
     title: "tour.wardrobeTitle",
     body: "tour.wardrobeBody",
+    alt: "tour.wardrobeAlt",
     gif: "/guidebook/wardrobe.gif",
     poster: "/guidebook/wardrobe.png",
-    alt: "tour.wardrobeTitle",
   },
   {
     title: "tour.accountTitle",
     body: "tour.accountBody",
+    alt: "tour.accountAlt",
     gif: "/guidebook/account.gif",
     poster: "/guidebook/account.png",
-    alt: "tour.accountTitle",
   },
   {
     title: "tour.settingsTitle",
     body: "tour.settingsBody",
+    alt: "tour.settingsAlt",
     gif: "/guidebook/settings.gif",
     poster: "/guidebook/settings.png",
-    alt: "tour.settingsTitle",
   },
 ] as const;
 
@@ -53,159 +59,112 @@ interface LauncherTourProps {
   onFinish: () => void;
 }
 
-/** A page-by-page illustrated guide, shown after the player's first sign-in. */
+/** A searchable-at-a-glance, directly navigable guide for first-time players. */
 export default function LauncherTour({ onFinish }: LauncherTourProps) {
   const t = useT();
-  const reducedMotion = useReducedMotion();
   const [page, setPage] = useState(0);
-  const [playback, setPlayback] = useState<{
-    page: number;
-    playing: boolean;
-  } | null>(null);
+  const [playing, setPlaying] = useState(false);
   const current = PAGES[page];
-  const isLastPage = page === PAGES.length - 1;
-  const isPlaying =
-    playback?.page === page ? playback.playing : reducedMotion === false;
 
   useEffect(() => {
-    if (reducedMotion === null) return;
-    setPlayback({ page, playing: !reducedMotion });
-  }, [page, reducedMotion]);
-
-  useEffect(() => {
-    const keyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onFinish();
-      if (event.key === "ArrowRight")
-        setPage((value) => Math.min(value + 1, PAGES.length - 1));
-      if (event.key === "ArrowLeft") setPage((value) => Math.max(value - 1, 0));
-    };
-    window.addEventListener("keydown", keyboard);
-    return () => window.removeEventListener("keydown", keyboard);
-  }, [onFinish]);
+    setPlaying(false);
+  }, [page]);
 
   return (
-    <AnimatePresence>
-      <m.div
-        className="bg-background/85 fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-3 backdrop-blur-md sm:p-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+    <Dialog open onOpenChange={(open) => !open && onFinish()}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/30 supports-backdrop-filter:backdrop-blur-sm"
+        className="max-h-[calc(100dvh-1.5rem)] max-w-[calc(100vw-1.5rem)] gap-0 overflow-hidden p-0 sm:max-h-[calc(100dvh-3rem)] sm:max-w-5xl"
       >
-        <m.section
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="launcher-tour-title"
-          className="bg-card text-card-foreground border-border my-auto w-full max-w-4xl overflow-hidden rounded-2xl border shadow-2xl"
-          initial={
-            reducedMotion ? { opacity: 0 } : { opacity: 0, y: 18, scale: 0.985 }
-          }
-          animate={
-            reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }
-          }
-          transition={
-            reducedMotion
-              ? { duration: 0.12 }
-              : { type: "spring", stiffness: 260, damping: 25 }
-          }
-        >
-          <header className="border-border/70 flex items-start justify-between gap-4 border-b px-5 py-4 sm:px-7">
-            <div>
-              <p className="text-primary mb-1 text-[11px] font-semibold tracking-[.16em] uppercase">
-                {t("tour.progress", {
-                  current: page + 1,
-                  total: PAGES.length,
-                })}
-              </p>
-              <h2 id="launcher-tour-title" className="text-xl font-semibold">
+        <DialogHeader className="relative shrink-0 border-b px-5 py-4 pr-14 sm:px-7 sm:py-5">
+          <DialogTitle id="launcher-tour-title" className="text-lg sm:text-xl">
+            {t("tour.title")}
+          </DialogTitle>
+          <DialogDescription className="max-w-2xl leading-relaxed">
+            {t("tour.intro")}
+          </DialogDescription>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onFinish}
+            aria-label={t("tour.skip")}
+            title={t("tour.skip")}
+            className="absolute top-3 right-3"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </Button>
+        </DialogHeader>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(170px,0.3fr)_minmax(0,1fr)]">
+          <nav
+            aria-label={t("tour.choose")}
+            className="border-border/70 flex gap-2 overflow-x-auto border-b p-3 sm:flex-col sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-4"
+          >
+            {PAGES.map((item, index) => (
+              <button
+                key={item.title}
+                type="button"
+                aria-current={page === index ? "page" : undefined}
+                onClick={() => setPage(index)}
+                className={`focus-visible:ring-ring flex min-h-9 shrink-0 items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none sm:w-full ${
+                  page === index
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                }`}
+              >
+                <span className="whitespace-nowrap sm:whitespace-normal">
+                  {t(item.title)}
+                </span>
+              </button>
+            ))}
+          </nav>
+
+          <section
+            className="min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6"
+            aria-live="polite"
+          >
+            <article className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+              <h2 className="font-heading text-base font-semibold sm:text-lg">
                 {t(current.title)}
               </h2>
-            </div>
-            <button
-              type="button"
-              onClick={onFinish}
-              aria-label={t("tour.skip")}
-              title={t("tour.skip")}
-              className="text-muted-foreground hover:text-foreground rounded-lg p-2 transition-colors"
-            >
-              <X className="size-4" />
-            </button>
-          </header>
-
-          <AnimatePresence mode="wait">
-            <m.div
-              key={current.gif}
-              className="px-4 pt-4 sm:px-7 sm:pt-6"
-              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, x: 14 }}
-              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
-              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, x: -14 }}
-              transition={{ duration: reducedMotion ? 0.12 : 0.18 }}
-            >
-              <div className="bg-background/70 border-border/60 overflow-hidden rounded-xl border shadow-inner">
+              <div className="bg-background/70 border-border/60 overflow-hidden rounded-lg border">
                 <img
-                  key={`${current.gif}-${isPlaying ? "playing" : "poster"}`}
-                  src={isPlaying ? current.gif : current.poster}
+                  key={`${current.gif}-${playing ? "playing" : "poster"}`}
+                  src={playing ? current.gif : current.poster}
                   alt={t(current.alt)}
-                  className="aspect-[8/5] max-h-[min(56vh,500px)] w-full object-contain"
+                  className="mx-auto max-h-[min(26dvh,360px)] w-full object-contain"
                   draggable={false}
                 />
               </div>
-              <div className="flex min-h-10 items-center justify-end pt-2">
+              <div className="flex min-h-9 items-center justify-between gap-3">
+                <p className="text-muted-foreground min-w-0 text-sm leading-relaxed">
+                  {t(current.body)}
+                </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   aria-label={t(
-                    isPlaying ? "tour.pauseAnimation" : "tour.playAnimation",
+                    playing ? "tour.pauseAnimation" : "tour.playAnimation",
                   )}
-                  aria-pressed={isPlaying}
-                  aria-describedby={
-                    !isPlaying ? "tour-animation-restart-hint" : undefined
-                  }
-                  onClick={() => setPlayback({ page, playing: !isPlaying })}
+                  aria-pressed={playing}
+                  onClick={() => setPlaying((value) => !value)}
+                  className="shrink-0"
                 >
-                  {isPlaying ? (
+                  {playing ? (
                     <Pause className="size-4" aria-hidden="true" />
                   ) : (
                     <Play className="size-4" aria-hidden="true" />
                   )}
-                  {t(isPlaying ? "tour.pauseAnimation" : "tour.playAnimation")}
+                  {t(playing ? "tour.pauseAnimation" : "tour.playAnimation")}
                 </Button>
-                <span id="tour-animation-restart-hint" className="sr-only">
-                  {t("tour.animationResumeHint")}
-                </span>
               </div>
-              <p className="text-muted-foreground min-h-14 px-1 pt-4 text-sm leading-relaxed sm:text-base">
-                {t(current.body)}
-              </p>
-            </m.div>
-          </AnimatePresence>
-
-          <footer className="border-border/70 flex items-center justify-between gap-3 border-t px-4 py-4 sm:px-7">
-            <Button
-              variant="outline"
-              onClick={() => setPage((value) => value - 1)}
-              disabled={page === 0}
-            >
-              {t("tour.back")}
-            </Button>
-            <div className="flex items-center gap-1.5" aria-hidden="true">
-              {PAGES.map((item, index) => (
-                <span
-                  key={item.gif}
-                  className={`h-1.5 rounded-full transition-all ${index === page ? "bg-primary w-5" : "bg-muted-foreground/30 w-1.5"}`}
-                />
-              ))}
-            </div>
-            <Button
-              onClick={() =>
-                isLastPage ? onFinish() : setPage((value) => value + 1)
-              }
-            >
-              {t(isLastPage ? "tour.done" : "tour.next")}
-            </Button>
-          </footer>
-        </m.section>
-      </m.div>
-    </AnimatePresence>
+            </article>
+          </section>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

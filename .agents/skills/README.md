@@ -8,6 +8,7 @@ Follow the skill-first and Grill Me process in [`AGENTS.md`](../../AGENTS.md). R
 
 ## Project-specific skills
 
+- [`product-design`](product-design/SKILL.md) — canonical design authority for research, information architecture, visual hierarchy, product UI audits, and design-system decisions. It takes precedence over conflicting generic aesthetic recipes; platform, accessibility, localization, and functional requirements remain binding.
 - [`launcher-guidebook-maintenance`](launcher-guidebook-maintenance/SKILL.md) — use for player-facing launcher changes to decide when README/docs, authentic browser screenshots, and the in-app GIF guidebook need to move together.
 
 ## Sources and pinned snapshots

@@ -316,7 +316,7 @@ export default function AuthForm({
           error moved the submit button on every attempt. The height is fixed so
           clearing the message while the request runs cannot shift the layout.
         */}
-        <div className="min-h-4" aria-live="polite" aria-atomic="true">
+        <div className="min-h-16" aria-live="polite" aria-atomic="true">
           {message && <FieldMessage id={`${id}-error`}>{message}</FieldMessage>}
         </div>
 

@@ -1,5 +1,9 @@
 # Vendored interface skills
 
+## Project design authority
+
+For product UI and design decisions, first read the canonical project skill at [`../.agents/skills/product-design/SKILL.md`](../.agents/skills/product-design/SKILL.md) and the applicable product profile. This collection remains available as specialist/reference guidance, but generic aesthetic recipes do not override the user-approved brief or the canonical design authority. Accessibility, platform, localization, and functional requirements remain binding. Do not modify vendored skill sources to resolve conflicts.
+
 `jakubkrehel-skills/` is a verbatim copy of
 [jakubkrehel/skills](https://github.com/jakubkrehel/skills) at commit
 `8b254eb75dadf3615a6abce87aed28e1b6e4d77c` (2026-11-10), MIT, © Jakub Krehel.

@@ -673,17 +673,13 @@ try {
   await page.getByLabel("Пароль", { exact: true }).fill("demo-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
   await page.getByRole("dialog").waitFor();
-  for (const title of [
-    "Каталог серверов",
-    "Карточка сервера",
-    "Гардероб персонажа",
-    "Аккаунт и профиль",
-    "Настройки лаунчера",
-  ]) {
-    await page.getByRole("button", { name: "Далее", exact: true }).click();
-    await page.getByRole("heading", { name: title, exact: true }).waitFor();
-  }
-  await page.getByRole("button", { name: "Готово", exact: true }).click();
+  await page.getByRole("button", { name: "Найти сервер", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Найти сервер", exact: true })
+    .waitFor();
+  await page
+    .getByRole("button", { name: "Позже — закрыть справочник" })
+    .click();
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).waitFor();
 
   // Return once from a server so the directory captures its real
@@ -1017,11 +1013,14 @@ try {
     await page.getByTestId("guidebook-replay").click();
     await page.getByRole("dialog").waitFor();
     await page
+      .getByRole("heading", { name: "Справочник игрока", exact: true })
+      .waitFor();
+    await page
+      .getByRole("heading", { name: "Найти сервер", exact: true })
+      .waitFor();
+    await page
       .locator('[role="dialog"] img')
       .evaluate((image) => image instanceof HTMLImageElement && image.decode());
-    await page
-      .getByRole("button", { name: "Запустить анимацию", exact: true })
-      .waitFor();
     await shot("guidebook");
 
     const expected = [

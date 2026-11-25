@@ -134,7 +134,7 @@ export default function SideNav({
         })}
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1 p-2">
+      <div className="flex shrink-0 flex-col gap-1 p-1.5">
         <Button
           variant="ghost"
           disabled={navigationDisabled}

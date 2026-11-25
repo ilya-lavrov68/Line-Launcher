@@ -155,7 +155,7 @@ npm run demo:check        # демо-проект целиком по HTTPS, б�
 ```sh
 npm run test:ui           # сквозной сценарий интерфейса
 npm run test:boot         # подключение при старте ровно один раз
-npm run screenshots       # обновить картинки для README (1280x800)
+npm run screenshots       # обновить браузерные снимки README (1920x1080)
 npm run screenshots:offline  # приблизительные рисунки в .offline-shots/, не снимки
 ```
 

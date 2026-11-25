@@ -4,58 +4,58 @@
   "browser": "158.0.8127.0",
   "screenshotCount": 14,
   "screenshots": {
-    "docs/images/line-welcome.png": "df352dc909ce08eee2d3e86d9beca73e5e663505d59a9ddea3bb9e985eaa5dc8",
-    "docs/images/line-setup.png": "d0d0eb707b9dcdeb17767acbbe00e3d37de78f9767446f4bdc0e5abf66da8c72",
-    "docs/images/line-account.png": "067dd1d79c1e9f5ba1f7124e54e224ad8bfd6e50e63359e390b11da552f5bdcc",
-    "docs/images/line-guidebook.png": "6747a212f74e5c4f1dfa35910ee97197149b7f04bdf709e78537be828e8d6dde",
-    "docs/images/line-servers.png": "b06992a169b036454a25f6d61061d34801e1bcdbf77992f7eca21b02f20e688d",
-    "docs/images/line-server.png": "d1804817a6b03ea7f2478a28bbfbb4c07894c0cdae83451a96d8b974babacbb1",
-    "docs/images/line-server-actions.png": "e36a78e9f6da60fbcc36d8c524ae8a52071b2358c7901d62d48478c3f10d1ced",
-    "docs/images/line-minecraft.png": "28558d85e50ba86a35b06b6501735a1c2cadf1f0b0af2fd9805c785fcc355e6c",
-    "docs/images/line-minecraft-actions.png": "181b5e699e3251a3bc67f36966f64dfa2347b391b3eda2736c0e4c13f2ec0eb0",
-    "docs/images/line-wardrobe.png": "8ff1ec8b74bd84c560897760b63fe1c21f46fd4c36edb2385f7cbb906e36e6ff",
-    "docs/images/line-profile.png": "6778606739f1ad2258ed1ad3d4f3a16b3ec415c211ec0889e8c8b791b4b2062f",
-    "docs/images/line-settings.png": "cc3e00bfba40da5d96194e922a4b749161a2b70a47a672609159e28f919ced7f",
-    "docs/images/line-workspace.png": "97f5962e29ae660e9db64b3a699eb913fc50bd789ea2e448a02372fc9de30f08",
-    "docs/images/line-privacy.png": "d3d12f826d8ef3c4a2b76eb91c35f27fd3f1d6bdfeff379ec4d65f54f7d42244"
+    "docs/images/line-welcome.png": "6d0658aedeb2499ef8d6a20c6b73f8d93a572aecca12bd8aef08a19b5e76f1d0",
+    "docs/images/line-setup.png": "b2179b2d330080e254d616b9bfc35de973a7e626beb5ceca81dda0d38b0b1046",
+    "docs/images/line-account.png": "f328935b6367e33ab387ee89e13f5ccf981b770b737cef3942015ddd09b23443",
+    "docs/images/line-guidebook.png": "85e7804e189ceff8f3e41022cc6c74b55528d8427e4d55ac6d82bf971a9ff16c",
+    "docs/images/line-servers.png": "e752849bc308ec144a03686803b52850373d500907b8b71e946327360de95c67",
+    "docs/images/line-server.png": "423293163321bd6e4f77f7fafe5984e512e4d04c039e7f7b091d9ceacdfa13f4",
+    "docs/images/line-server-actions.png": "de0d5f9e703a440a0ec58213b2fe46a81276ba91cf8ac3f80c4fad4d6de4f249",
+    "docs/images/line-minecraft.png": "1e479fd80ea2e1aba8d0e2e3548ad7d388b034d020c7205e5c1470b0c6aef40b",
+    "docs/images/line-minecraft-actions.png": "d6cd8aee4690a208819af57c84ae79636f62ebab73fb4213e71d69e440117bb4",
+    "docs/images/line-wardrobe.png": "419637a7d19d223a330b82601d26fdf24b8dcaa41f437df1636d10b6b507611d",
+    "docs/images/line-profile.png": "f27441b8e9df4b4d3bf606bb977f12998072f4d40251130a56046365083f4822",
+    "docs/images/line-settings.png": "efb540caf7061f73ddea9a0853a64e8214817e2bbea7de80863f90acfc1091e5",
+    "docs/images/line-workspace.png": "176704e760619d4ec90fe8551aa41c90104911cead8a32db57e00e31fb523008",
+    "docs/images/line-privacy.png": "70e6eb5e32a372d5370844cccdf232def2c1a5c770e049510dc5ed5c17bb2237"
   },
   "guidebookChapterCount": 6,
   "guidebook": {
     "navigation": {
       "gif": "public/guidebook/navigation.gif",
-      "gifSha256": "c29c5df8d89bc10f4dbb8cb72d2073260a8efc47da8d253340adf24e35994fee",
+      "gifSha256": "6f96d0fe47b659685a0881279ed983f2acbd9abe37870c33b59cd002fafb78fd",
       "poster": "public/guidebook/navigation.png",
-      "posterSha256": "0eed6dc1264a767c5cda0172e7fb9e3e0dcd2a0fecf650b267a33ab21c85cec1"
+      "posterSha256": "6c57641541e48ea3290556614407b3b75b511d4a1aebde9eb19adc7f846e6850"
     },
     "servers": {
       "gif": "public/guidebook/servers.gif",
-      "gifSha256": "f08766443fd307a72b9e091c3699263f1c06b93f27af9016db618c581a2b4292",
+      "gifSha256": "da6e9a5263b2abf12bbf6ad07254b2c1fad868d54a0bddb98f84a2db714bd0d0",
       "poster": "public/guidebook/servers.png",
-      "posterSha256": "8dbd593fe8f5528828c37f7c1ff7ed24846a14f6bbcfa61bb717c0b8513ba904"
+      "posterSha256": "7539bbd77f606cfcc8d3c93092e94810d4f945725d946a8b4b09672b558a05ba"
     },
     "server-actions": {
       "gif": "public/guidebook/server-actions.gif",
-      "gifSha256": "26328e8a3c4ba77895cdc8a44889a784411a75650dd9539451c4c10da79b3a03",
+      "gifSha256": "6f18a4efccb9577ce0df44cad5bdec89baba5dcacb80c89a41a99eed2b432273",
       "poster": "public/guidebook/server-actions.png",
-      "posterSha256": "a655debbdd91641b7f1db0eac6305b8d5197b3ea9cfc7935be2fcf79ceaba33f"
+      "posterSha256": "dc931bf422d00b1da8cae382c878b12fb340092871161ac94c4ea8f0a2997714"
     },
     "wardrobe": {
       "gif": "public/guidebook/wardrobe.gif",
-      "gifSha256": "8d04a95c93763227f959ec44a06bf4dd3c57277ef8ea5da39d9594eaa1c387c4",
+      "gifSha256": "4991c091dd4d0f1783e14a777fad0b3fd14fa5db9ed91b4da25f9bc035a4e40d",
       "poster": "public/guidebook/wardrobe.png",
-      "posterSha256": "26691f00bfe19f488b3e171716212df928c199ec823f077d49748ddfa9b7e738"
+      "posterSha256": "6c9ceeb3898dd12bc8d629844aa970367511ea51c2fb24e054876aaabb367daa"
     },
     "account": {
       "gif": "public/guidebook/account.gif",
-      "gifSha256": "2cb4b18c72c3597356df35461520bfa1a11a28e6823e5c25e98f17e9f70ebc11",
+      "gifSha256": "b2b746541dec3720f52a55b17d90fe5cb3a253884e481a299983fca0bcba2516",
       "poster": "public/guidebook/account.png",
-      "posterSha256": "f3fdcee1e5e753969ca9bf57082d097371195888e202ea81dc19be1a20f1017e"
+      "posterSha256": "ff532f79b26a08f4378e314ca08b5881197babd4d72dd2677595040e7473d618"
     },
     "settings": {
       "gif": "public/guidebook/settings.gif",
-      "gifSha256": "0e3bd920ee9e8f150ea68a5111b6f972ed2381a78007281d2a2537c8d055c753",
+      "gifSha256": "1677de59367f303ffbe83a9a9ca4f217b13fe0f26e4490b3703fa3205299e36d",
       "poster": "public/guidebook/settings.png",
-      "posterSha256": "92155cdac8bad8a16b7c64ae4244d98fe9ce758d4dbc3b2dded39365b1405921"
+      "posterSha256": "ebe5b31483623a82c43c8533efb2bbdc45d9d44f4378ada99cfc444caa043520"
     }
   }
 }

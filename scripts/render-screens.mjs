@@ -8,7 +8,7 @@
 // React app and writes the README gallery. This script is only a fallback for
 // machines without Chrome/Edge. It draws an approximation on canvas, taking
 // colours from `src/index.css`; it does not render the app or write `docs/images`.
-// All illustrations use one fixed size (1280x800).
+// All offline illustrations use the same Full HD 16:9 dimensions as browser captures.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,8 +31,8 @@ const outDir = path.resolve(
 const checkOnly = process.argv.includes("--check");
 
 /** Every screenshot has the same body size; the poster swaps per screen. */
-export const SHOT_WIDTH = 1280;
-export const SHOT_HEIGHT = 800;
+export const SHOT_WIDTH = 1920;
+export const SHOT_HEIGHT = 1080;
 
 // `let` first: a bare destructuring assignment to undeclared names is a syntax
 // error in a module, not a runtime one.

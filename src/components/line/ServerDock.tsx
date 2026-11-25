@@ -97,7 +97,7 @@ export function ServerDockPrimary({
         onClick={onClick}
         className={cn(
           "relative h-11 w-full gap-2 overflow-hidden rounded-[var(--radius-item)] text-sm font-semibold",
-          joined && "rounded-e-none",
+          joined && "rounded-s-[calc(var(--radius-item)-1px)] rounded-e-none",
           active
             ? "bg-fill-strong text-foreground hover:bg-fill-strong/80"
             : "bg-primary text-primary-foreground hover:bg-primary/85",

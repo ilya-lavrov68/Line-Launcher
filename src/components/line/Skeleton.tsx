@@ -141,7 +141,10 @@ export function SkeletonProfile() {
       <div className="border-border/40 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="bg-fill-subtle grid grid-cols-3 gap-0.5 rounded-lg p-1">
           {[0, 1, 2].map((item) => (
-            <SkeletonBlock key={item} className="h-8 w-20 rounded-md" />
+            <SkeletonBlock
+              key={item}
+              className="h-8 w-20 rounded-[calc(var(--radius-item)-4px)]"
+            />
           ))}
         </div>
         <SkeletonBlock className="h-3 w-40" />

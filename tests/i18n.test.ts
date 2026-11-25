@@ -153,7 +153,7 @@ test("settings are grouped into left-side categories", () => {
   assert.match(settings, /data-settings-category=\{id\}/);
   assert.match(settings, /setActiveGroup\(id\)/);
   assert.match(settings, /data-settings-categories/);
-  assert.match(settings, /md:grid-cols-\[168px_minmax\(0,1fr\)\]/);
+  assert.match(settings, /md:grid-cols-\[224px_minmax\(0,1fr\)\]/);
   assert.match(settings, /md:flex-col/);
   assert.match(
     settings,

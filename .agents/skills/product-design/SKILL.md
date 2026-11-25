@@ -16,8 +16,9 @@ Use established systems as evidence about how mature products make interfaces co
 - [Microsoft Fluent UI](https://github.com/microsoft/fluentui): theming and shared foundational APIs, with accessibility described as a default rather than an add-on.
 - [IBM Carbon](https://github.com/carbon-design-system/carbon): a product system that separates reusable components from color, layout, spacing, typography, and motion foundations.
 - [GitHub Primer](https://github.com/primer/design): foundations, components, and UI patterns documented as distinct but connected layers.
+- [Modrinth's UI system](https://github.com/modrinth/code/tree/main/packages/ui): semantic surface levels, reusable component roles, and a restrained, task-focused interface.
 
-Extract the practice, not the look: consistent foundations, task-shaped patterns, predictable states, accessible defaults, and rules that hold across an entire product. Never make a product look like “enterprise software” by adding generic cards, badges, muted gray panels, or extra labels.
+Extract the practice, not the look: consistent foundations, task-shaped patterns, predictable states, accessible defaults, and rules that hold across an entire product. For Line, Modrinth is a reference for clear hierarchy, surface discipline, and calm accents—not a palette or component skin to copy. Do not adopt glossy or glowing button treatments; interaction feedback should remain legible, restrained, and functional. Never make a product look like “enterprise software” by adding generic cards, badges, muted gray panels, or extra labels.
 
 ## Design principles
 
@@ -43,6 +44,8 @@ Extract the practice, not the look: consistent foundations, task-shaped patterns
 Before adding one-off styling, inspect the project's design profile, tokens, shared primitives, platform, and supported window sizes. Use them consistently for color roles, type roles, spacing, density, shapes, elevation, icons, and state feedback.
 
 A design system is a set of decisions, not a large token count. Add a token only when a real recurring role needs it. Use the same component for the same job; do not copy a recipe's literal radius, duration, shadow, or color into a product whose established system uses different values.
+
+For nested surfaces that share a visible, evenly inset contour, derive the inner corner radius by subtraction: `innerRadius = max(0, outerRadius - insetDistance)`. The inset distance is measured from the outer contour to the inner contour; in a bordered, padded parent it is the border width plus the padding. For example, an 18px outer radius with a 4px inset gives a 14px inner radius. Do not repeat the outer radius unchanged on the inner surface. If the inset is asymmetric, the contours are not parallel, or the layers read as separate surfaces rather than concentric shapes, keep their radii independent instead of forcing the formula.
 
 Keep semantic colors meaningful and pair color with text, shape, or icon. Use borders, surfaces, and shadows only to express structure or elevation; do not add one to every group. Use decoration only when it supports recognition, orientation, or comprehension.
 

@@ -22,8 +22,8 @@ export function pngSize(bytes: Buffer): { width: number; height: number } {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
 
-const SHOT_WIDTH = 1280;
-const SHOT_HEIGHT = 800;
+const SHOT_WIDTH = 1920;
+const SHOT_HEIGHT = 1080;
 
 const SCREENS = [
   "welcome",
@@ -103,12 +103,12 @@ test("both screenshot writers agree on the size", () => {
   assert.match(
     playwright,
     new RegExp(`const SHOT_WIDTH = ${SHOT_WIDTH};`),
-    "scripts/screenshots.mjs must capture at 1280 wide",
+    "scripts/screenshots.mjs must capture at 1920 wide",
   );
   assert.match(
     playwright,
     new RegExp(`const SHOT_HEIGHT = ${SHOT_HEIGHT};`),
-    "scripts/screenshots.mjs must capture at 800 tall",
+    "scripts/screenshots.mjs must capture at 1080 tall",
   );
   // No per-screen height overrides: `shot("wardrobe", 1000)` is the regression.
   assert.doesNotMatch(
@@ -118,6 +118,25 @@ test("both screenshot writers agree on the size", () => {
   );
   assert.match(renderer, new RegExp(`SHOT_WIDTH = ${SHOT_WIDTH};`));
   assert.match(renderer, new RegExp(`SHOT_HEIGHT = ${SHOT_HEIGHT};`));
+});
+
+test("the guidebook encoder rejects non-Full-HD source frames instead of upscaling", () => {
+  const encoder = read("scripts/generate-guidebook-gifs.py").toString("utf8");
+  assert.match(encoder, /identify.*%w %h/s);
+  assert.match(encoder, /native \{SIZE\[0\]\} \{SIZE\[1\]\}/);
+  assert.doesNotMatch(encoder, /-resize.*1920x1080/);
+  assert.match(encoder, /"-colors", "256"/);
+  assert.match(encoder, /from PIL import Image/);
+  assert.match(encoder, /save_all=True/);
+  assert.match(
+    read("scripts/requirements-guidebook.txt").toString("utf8"),
+    /Pillow/,
+  );
+});
+
+test("Full-HD GIF capture limits pointer sampling to a compact frame rate", () => {
+  const browser = read("scripts/screenshots.mjs").toString("utf8");
+  assert.match(browser, /Math\.max\(5, Math\.ceil\(durationMs \/ 140\)\)/);
 });
 
 test("the server-action GIF records the animated disclosure chevron", () => {

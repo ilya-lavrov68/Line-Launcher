@@ -66,7 +66,7 @@ export default function ServerCard({
         "focus-visible:ring-primary focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2",
       )}
     >
-      <div className="bg-background relative h-[4.5rem] w-28 shrink-0 overflow-hidden rounded-[var(--radius-control)] sm:h-[4.75rem] sm:w-40 md:w-48">
+      <div className="bg-background relative h-[4.5rem] w-28 shrink-0 overflow-hidden rounded-[calc(var(--radius-item)-11px)] sm:h-[4.75rem] sm:w-40 sm:rounded-none md:w-48">
         {showBanner ? (
           <img
             src={bannerUrl}

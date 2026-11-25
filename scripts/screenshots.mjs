@@ -34,8 +34,8 @@ const sha256 = (file) =>
   createHash("sha256").update(readFileSync(file)).digest("hex");
 // Kept in sync with scripts/render-screens.mjs: both writers must agree, or a
 // regeneration with the other tool silently reintroduces mixed sizes.
-const SHOT_WIDTH = 1280;
-const SHOT_HEIGHT = 800;
+const SHOT_WIDTH = 1920;
+const SHOT_HEIGHT = 1080;
 const baseUrl = process.env.BASE_URL || "http://127.0.0.1:5173";
 
 let chromium;
@@ -441,7 +441,11 @@ async function shot(name) {
   await page.mouse.move(SHOT_WIDTH - 10, SHOT_HEIGHT - 10);
   await page.waitForTimeout(350);
   const file = path.join(staging, `line-${name}.png`);
-  await page.screenshot({ path: file, animations: "disabled" });
+  await page.screenshot({
+    path: file,
+    animations: "disabled",
+    timeout: 120_000,
+  });
   const size = await page.evaluate(() => [
     window.innerWidth,
     window.innerHeight,
@@ -503,7 +507,7 @@ async function recordGuidebookChapter(name, scenario) {
       framesDir,
       `${String(frameIndex++).padStart(4, "0")}.png`,
     );
-    await page.screenshot({ path: file, animations });
+    await page.screenshot({ path: file, animations, timeout: 120_000 });
     frames.push({ file, durationMs });
   }
 
@@ -513,7 +517,7 @@ async function recordGuidebookChapter(name, scenario) {
 
   async function moveToPoint(x, y, durationMs = 700) {
     const from = guideCursor;
-    const steps = Math.max(10, Math.ceil(durationMs / 55));
+    const steps = Math.max(5, Math.ceil(durationMs / 140));
     const frameDuration = durationMs / steps;
     for (let index = 1; index <= steps; index += 1) {
       const t = index / steps;
@@ -673,21 +677,36 @@ try {
   await page.getByLabel("Пароль", { exact: true }).fill("demo-password");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
   await page.getByRole("dialog").waitFor();
-  await page.getByRole("button", { name: "Найти сервер", exact: true }).click();
+  await page.getByRole("tab", { name: "Найти сервер", exact: true }).click();
   await page
     .getByRole("heading", { name: "Найти сервер", exact: true })
     .waitFor();
   await page
     .getByRole("button", { name: "Позже — закрыть справочник" })
     .click();
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: /Открыть сервер Survival/ }).waitFor();
 
   // Return once from a server so the directory captures its real
   // continue-playing hero, not the empty first-run state before a server has
   // ever been selected. This is still the live component and app state.
-  await page.getByRole("button", { name: /Открыть сервер Survival/ }).click();
-  await page.getByRole("button", { name: "Играть", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Все серверы" }).click();
+  const openSurvival = page.getByRole("button", {
+    name: /Открыть сервер Survival/,
+  });
+  const playAction = page.getByRole("button", { name: "Играть", exact: true });
+  // This card animates its hover surface and triggers SPA navigation. Send a
+  // real pointer click directly so Playwright does not wait for a document load.
+  await openSurvival.scrollIntoViewIfNeeded();
+  const survivalBounds = await openSurvival.boundingBox();
+  if (!survivalBounds) throw new Error("Survival card is not visible");
+  await page.mouse.click(
+    survivalBounds.x + survivalBounds.width / 2,
+    survivalBounds.y + survivalBounds.height / 2,
+  );
+  await playAction.waitFor();
+  await page
+    .getByRole("button", { name: "Все серверы" })
+    .click({ force: true });
   await page
     .getByRole("region", { name: "Последний выбранный сервер" })
     .waitFor();

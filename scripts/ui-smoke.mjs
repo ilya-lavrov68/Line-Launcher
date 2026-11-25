@@ -568,7 +568,9 @@ try {
     "Настроить лаунчер",
   ];
   for (const title of chapters) {
-    await page.getByRole("button", { name: title, exact: true }).click();
+    await page
+      .getByRole("tab", { name: title, exact: true })
+      .click({ force: true });
     await page.getByRole("heading", { name: title, exact: true }).waitFor();
   }
   await page
@@ -588,6 +590,20 @@ try {
   check(
     (await guideImage.getAttribute("src"))?.endsWith("servers.png"),
     "the guidebook should start on its static poster",
+  );
+  await page.getByRole("button", { name: "Запустить анимацию" }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[role="dialog"] img')
+      ?.getAttribute("src")
+      ?.endsWith("servers.gif"),
+  );
+  await page.getByRole("button", { name: "Пауза" }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[role="dialog"] img')
+      ?.getAttribute("src")
+      ?.endsWith("servers.png"),
   );
   await page.getByRole("button", { name: "Запустить анимацию" }).click();
   await page.waitForFunction(() =>
@@ -626,7 +642,9 @@ try {
     path: path.join(outDir, "guidebook-minimum.png"),
     animations: "disabled",
   });
-  await page.getByRole("button", { name: "Найти сервер", exact: true }).click();
+  await page
+    .getByRole("tab", { name: "Найти сервер", exact: true })
+    .click({ force: true });
   await page
     .getByRole("heading", { name: "Найти сервер", exact: true })
     .waitFor();
@@ -886,7 +904,7 @@ try {
     .locator("[data-line-backdrop]")
     .evaluate((node) => getComputedStyle(node).filter);
   check(
-    backdropFilterBefore === "saturate(1.4)" &&
+    backdropFilterBefore === "saturate(1.08)" &&
       backdropFilterAfter === backdropFilterBefore,
     `backdrop saturation changed across themes: ${backdropFilterBefore} → ${backdropFilterAfter}`,
   );
@@ -1624,12 +1642,33 @@ try {
       .getByText("Память игры", { exact: false })
       .count();
     const clipped = await clippings();
+    const categoryLabels = await page
+      .locator("[data-settings-categories] [data-settings-category]")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const label = button.lastElementChild;
+          const buttonBox = button.getBoundingClientRect();
+          const labelBox = label?.getBoundingClientRect();
+          return {
+            text: label?.textContent?.trim() ?? "",
+            clipped:
+              !label ||
+              label.scrollWidth > label.clientWidth + 1 ||
+              !labelBox ||
+              labelBox.right > buttonBox.right + 1,
+          };
+        }),
+      );
     // One image per language, kept next to the run: the German settings screen
     // is the widest the interface ever gets, so it is the one worth looking at.
     await shot(`i18n-${label.toLowerCase()}`).catch(() => {});
     check(
       clipped.length === 0,
       `${label}: settings text overflows its box: ${JSON.stringify(clipped).slice(0, 300)}`,
+    );
+    check(
+      categoryLabels.every((entry) => !entry.clipped),
+      `${label}: a settings category label is clipped: ${JSON.stringify(categoryLabels.filter((entry) => entry.clipped))}`,
     );
     check(
       label === "Русский" ? stillHere > 0 : stillHere === 0,

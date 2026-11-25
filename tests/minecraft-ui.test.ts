@@ -128,8 +128,14 @@ test("the advanced-actions trigger is a separate animated segment beside Play", 
   assert.match(panel, /<ServerDockPrimary\s+joined=\{!running\}/);
   assert.match(panel, /<details[\s\S]*?<summary[\s\S]*?aria-haspopup="menu"/);
   assert.match(panel, /group-open:rotate-180/);
-  assert.match(dock, /joined && "rounded-e-none"/);
-  assert.match(panel, /rounded-s-none rounded-e-\[var\(--radius-item\)\]/);
+  assert.match(
+    dock,
+    /joined && "rounded-s-\[calc\(var\(--radius-item\)-1px\)\] rounded-e-none"/,
+  );
+  assert.match(
+    panel,
+    /rounded-s-none rounded-e-\[calc\(var\(--radius-item\)-1px\)\]/,
+  );
 });
 
 test("running state survives a screen change and comes from the backend", () => {

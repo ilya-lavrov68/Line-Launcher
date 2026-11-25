@@ -393,7 +393,7 @@
    * the final single layer from looking washed out when the crossfade completes.
    */
   [data-line-backdrop].line-backdrop-saturation {
-    filter: saturate(1.4);
+    filter: saturate(1.08);
   }
 
   [data-line-haze] {
@@ -908,8 +908,8 @@ input[id*="hidden-input"],
  * a single line of text in it. The component's own base class
  * (`max-w-[calc(100vw-2rem)]`) already provides that safety net, without
  * `!important`, so a caller can shrink it. */
-[data-slot="dialog-content"],
-[data-base-ui-dialog-popup] {
+[data-slot="dialog-content"]:not([data-line-glass="guidebook"]),
+[data-base-ui-dialog-popup]:not([data-line-glass="guidebook"]) {
   max-height: calc(100vh - 2.5rem) !important;
   padding: 1.25rem !important;
   gap: 1rem !important;

@@ -377,7 +377,7 @@ export default function WardrobeScreen({
 
       <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="bg-fill-subtle flex min-w-0 flex-col gap-4 rounded-[var(--radius-item)] p-4">
-          <div className="border-border/40 flex flex-col items-center gap-2 rounded-[var(--radius-control)] border p-4">
+          <div className="border-border/40 flex flex-col items-center gap-2 rounded-none border p-4">
             <p className="text-muted-foreground self-start text-xs">
               {t("wardrobe.activePreview")}
             </p>
@@ -393,7 +393,7 @@ export default function WardrobeScreen({
                 {t("wardrobe.standardSkin")}
               </div>
             )}
-            <p className="text-foreground max-w-full truncate text-xs font-medium">
+            <p className="text-foreground max-w-full text-xs font-medium text-pretty break-words">
               {active?.name ?? t("wardrobe.standardSkin")}
             </p>
           </div>
@@ -605,7 +605,7 @@ export default function WardrobeScreen({
                         className="h-16 w-8"
                       />
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-foreground truncate text-xs font-medium">
+                        <span className="text-foreground min-w-0 text-xs font-medium text-pretty break-words">
                           {skin.name}
                         </span>
                         <span className="text-muted-foreground font-mono text-[12px]">

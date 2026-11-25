@@ -358,6 +358,8 @@ export interface LineError {
   httpStatus?: number;
   zipRepair?: ZipRepairPlan;
   javaDownload?: JavaDownloadPlan;
+  /** Exact unproved mod paths from the Minecraft launch safety scan. */
+  unprovedMods?: string[];
 }
 
 export interface JavaDownloadPlan {
@@ -516,7 +518,13 @@ export function isLineError(value: unknown): value is LineError {
     typeof error.retryable === "boolean" &&
     (error.httpStatus === undefined ||
       (typeof error.httpStatus === "number" &&
-        Number.isInteger(error.httpStatus)))
+        Number.isInteger(error.httpStatus))) &&
+    (error.unprovedMods === undefined ||
+      (Array.isArray(error.unprovedMods) &&
+        error.unprovedMods.length <= 512 &&
+        error.unprovedMods.every(
+          (path) => typeof path === "string" && path.length <= 1200,
+        )))
   );
 }
 

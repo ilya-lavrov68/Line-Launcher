@@ -20,6 +20,8 @@ export const ru = {
   "quarantine.restoreHint": "Файлы можно вернуть в любой момент.",
   "quarantine.restore": "Вернуть из карантина",
   "quarantine.restored": "Возвращено файлов: {count}.",
+  "quarantine.moved":
+    "В карантин перенесено файлов: {count}. Запуск не начат — нажмите «Играть» ещё раз, когда будете готовы.",
   "common.cancel": "Отмена",
   "common.close": "Закрыть",
   "common.retry": "Повторить",
@@ -240,6 +242,8 @@ export const ru = {
 
   "minecraft.ready": "Готов к запуску",
   "minecraft.notRunning": "Игра не запущена",
+  "minecraft.unprovedMods":
+    "Файлы неизвестного происхождения: {count}. Просмотрите список и решите, какие перенести в карантин.",
   "minecraft.confirmationNeeded": "Требуется подтверждение",
   "minecraft.starting": "Запуск Minecraft…",
   "minecraft.running": "Игра запущена",
@@ -636,6 +640,8 @@ const en: Dictionary = {
   "quarantine.restoreHint": "The files can be restored at any time.",
   "quarantine.restore": "Restore from quarantine",
   "quarantine.restored": "Files restored: {count}.",
+  "quarantine.moved":
+    "Files moved to quarantine: {count}. The game was not started — press Play again when you are ready.",
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.retry": "Retry",
@@ -857,6 +863,8 @@ const en: Dictionary = {
 
   "minecraft.ready": "Ready to play",
   "minecraft.notRunning": "Game not running",
+  "minecraft.unprovedMods":
+    "Files of unknown origin: {count}. Review the list and choose which files to quarantine.",
   "minecraft.confirmationNeeded": "Confirmation required",
   "minecraft.starting": "Launching Minecraft…",
   "minecraft.running": "Game is running",
@@ -1251,6 +1259,8 @@ const de: Dictionary = {
     "Die Dateien lassen sich jederzeit wiederherstellen.",
   "quarantine.restore": "Aus Quarantäne holen",
   "quarantine.restored": "Wiederhergestellte Dateien: {count}.",
+  "quarantine.moved":
+    "In Quarantäne verschobene Dateien: {count}. Das Spiel wurde nicht gestartet — drücke erneut auf Spielen, wenn du bereit bist.",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
   "common.retry": "Erneut versuchen",
@@ -1475,6 +1485,8 @@ const de: Dictionary = {
 
   "minecraft.ready": "Bereit zum Starten",
   "minecraft.notRunning": "Spiel läuft nicht",
+  "minecraft.unprovedMods":
+    "Dateien unbekannter Herkunft: {count}. Prüfe die Liste und wähle, welche Dateien in Quarantäne verschoben werden sollen.",
   "minecraft.confirmationNeeded": "Bestätigung erforderlich",
   "minecraft.starting": "Minecraft startet…",
   "minecraft.running": "Spiel läuft",
@@ -1875,6 +1887,8 @@ const fr: Dictionary = {
     "Les fichiers peuvent être restaurés à tout moment.",
   "quarantine.restore": "Restaurer depuis la quarantaine",
   "quarantine.restored": "Fichiers restaurés : {count}.",
+  "quarantine.moved":
+    "Fichiers déplacés en quarantaine : {count}. Le jeu n’a pas été lancé — appuyez de nouveau sur Jouer quand vous serez prêt.",
   "common.cancel": "Annuler",
   "common.close": "Fermer",
   "common.retry": "Réessayer",
@@ -2100,6 +2114,8 @@ const fr: Dictionary = {
 
   "minecraft.ready": "Prêt à jouer",
   "minecraft.notRunning": "Jeu non lancé",
+  "minecraft.unprovedMods":
+    "Fichiers d’origine inconnue : {count}. Consultez la liste et choisissez ceux à mettre en quarantaine.",
   "minecraft.confirmationNeeded": "Confirmation nécessaire",
   "minecraft.starting": "Lancement de Minecraft…",
   "minecraft.running": "Le jeu tourne",

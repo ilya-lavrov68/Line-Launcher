@@ -679,7 +679,7 @@ pub fn is_mod_jar(path: &str) -> bool {
 /// Compare live mod JARs to the published list without inspecting their words.
 /// Non-JAR data is not treated as a mod. Links and special files are never
 /// followed, and no player files are removed.
-fn check_live_mods_with(
+pub(super) fn check_live_mods_with(
     game: &Path,
     owned: &[String],
     mut prove: impl FnMut(&str) -> LineResult<bool>,
@@ -823,6 +823,32 @@ pub fn scan_packs_with(
     scan_packs_with_checked_mods(base, server, owned, unproved)
 }
 
+/// Same bounded nested-JAR proof used by the Minecraft launch gate and its
+/// read-only preflight command.
+pub(super) fn check_minecraft_mod_provenance(
+    game: &Path,
+    owned: &[String],
+    index: &super::integrity::FileIndex,
+    prefix: &str,
+) -> LineResult<Vec<String>> {
+    let mut checked = super::connector::ParentChecks::default();
+    check_live_mods_with(game, owned, |relative| {
+        super::connector::matches_verified_nested(game, index, prefix, relative, &mut checked)
+    })
+}
+
+pub(super) fn scan_packs_with_verified_nested(
+    base: &Path,
+    server: &super::config::Server,
+    owned: &[String],
+    game: &Path,
+    index: &super::integrity::FileIndex,
+    prefix: &str,
+) -> LineResult<PackScan> {
+    let unproved = check_minecraft_mod_provenance(game, owned, index, prefix)?;
+    scan_packs_with_checked_mods(base, server, owned, unproved)
+}
+
 fn scan_packs_with_checked_mods(
     base: &Path,
     server: &super::config::Server,
@@ -920,12 +946,17 @@ pub async fn quarantine_mods(
     state: State<'_, LineState>,
 ) -> LineResult<QuarantineOutcome> {
     let (_, config) = state.fresh_config()?;
-    config.server(&server_id)?;
+    let server = config.server(&server_id)?.clone();
     let root = app
         .path()
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
-    let base = server_dir(&root, &server_id)?;
+    let base = if server.launch_mode == super::config::LaunchMode::Minecraft {
+        root.join("minecraft")
+            .join(super::minecraft_core::validate_instance_id(&server_id)?)
+    } else {
+        server_dir(&root, &server_id)?
+    };
     let moved = tauri::async_runtime::spawn_blocking(move || -> LineResult<QuarantineOutcome> {
         // The same lock the launch takes, so a quarantine cannot interleave with
         // an installation or another launch of this server.
@@ -990,14 +1021,17 @@ pub async fn restore_quarantined(
     state: State<'_, LineState>,
 ) -> LineResult<QuarantineOutcome> {
     let (_, config) = state.fresh_config()?;
-    // Validate the id even though it is not used beyond the directory lookup:
-    // the command surface is the same shape as its siblings.
-    config.server(&server_id)?;
+    let server = config.server(&server_id)?.clone();
     let root = app
         .path()
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
-    let base = server_dir(&root, &server_id)?;
+    let base = if server.launch_mode == super::config::LaunchMode::Minecraft {
+        root.join("minecraft")
+            .join(super::minecraft_core::validate_instance_id(&server_id)?)
+    } else {
+        server_dir(&root, &server_id)?
+    };
     let outcome = tauri::async_runtime::spawn_blocking(move || -> LineResult<QuarantineOutcome> {
         let _lock = InstallLock::acquire(&base)?;
         let game = instance_game_dir(&base)?;
@@ -1521,15 +1555,37 @@ pub async fn check_resource_packs(
         let receipt = current_receipt(&release_base, &server_id)
             .ok_or_else(|| LineError::input("Сначала подготовьте сборку."))?;
         let release = verified_game_dir(&release_base, &receipt.sha256)?;
-        let expected = release_mod_hashes(&release)?;
         let owned = super::pack::owned_files(&release_base);
         let settings = server.anticheat.clone().unwrap_or_default();
         let game = instance_game_dir(&base)?;
+        // Minecraft launch and its preflight check share the same provenance
+        // proof: a byte-identical nested JAR must be declared by the verified
+        // profile, not merely absent from the archive's direct file list.
+        let unproved = if server.launch_mode == super::config::LaunchMode::Minecraft {
+            let report = super::integrity::scan(&release)?;
+            if !report.is_clean() {
+                return Err(LineError::new(
+                    ErrorCode::Integrity,
+                    "Сборка изменилась после установки. Повторите установку перед проверкой.",
+                    false,
+                ));
+            }
+            let index = super::integrity::read_index(&release)?;
+            let detected = super::pack::inspect(
+                &release,
+                &index,
+                server.minecraft_version.as_deref(),
+            )?;
+            check_minecraft_mod_provenance(&game, &owned, &index, &detected.prefix)?
+        } else {
+            let expected = release_mod_hashes(&release)?;
+            check_live_mods_against_release(&game, &owned, &expected)?
+        };
         if !settings.scan_resourcepacks {
             return Ok(PackCheck {
                 findings: Vec::new(),
                 foreign: Vec::new(),
-                unproved: check_live_mods_against_release(&game, &owned, &expected)?,
+                unproved,
             });
         }
         let (findings, foreign) = super::resourcepack::scan_all(
@@ -1542,7 +1598,6 @@ pub async fn check_resource_packs(
             findings: findings
                 .hits
                 .iter()
-                .filter(|_| settings.scan_resourcepacks)
                 .map(|hit| {
                     if hit.entry.is_empty() {
                         format!("{} ({})", hit.pack, hit.keyword)
@@ -1552,7 +1607,7 @@ pub async fn check_resource_packs(
                 })
                 .collect(),
             foreign: foreign.into_iter().map(|pack| pack.path).collect(),
-            unproved: check_live_mods_against_release(&game, &owned, &expected)?,
+            unproved,
         })
     })
     .await

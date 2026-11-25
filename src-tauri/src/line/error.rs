@@ -25,7 +25,7 @@ pub enum ErrorCode {
 }
 
 /// Public, deliberately non-sensitive error DTO. Never serialize reqwest errors,
-/// response bodies, passwords, access tokens, signed URLs or local paths.
+/// response bodies, passwords, access tokens, signed URLs or absolute local paths.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LineError {
@@ -38,6 +38,10 @@ pub struct LineError {
     pub zip_repair: Option<Box<super::zip_repair::ZipRepairPlan>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub java_download: Option<Box<super::java_consent::JavaDownloadPlan>>,
+    /// Exact unproved mods from the pack-safety scan, when launch was blocked.
+    /// This is bounded to the quarantine command's maximum batch size.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unproved_mods: Option<Vec<String>>,
 }
 
 impl LineError {
@@ -49,6 +53,7 @@ impl LineError {
             http_status: None,
             zip_repair: None,
             java_download: None,
+            unproved_mods: None,
         }
     }
 

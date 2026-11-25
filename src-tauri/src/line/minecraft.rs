@@ -1419,16 +1419,14 @@ pub async fn mc_play(
         let _preparation = scan_preparation;
         let _lease = scan_lease;
         let game = scan_base.join("game");
-        let mut checked = super::connector::ParentChecks::default();
-        super::launch::scan_packs_with(&scan_base, &scan_server, &scan_files, |relative| {
-            super::connector::matches_verified_nested(
-                &game,
-                &verified_index,
-                &scan_prefix,
-                relative,
-                &mut checked,
-            )
-        })
+        super::launch::scan_packs_with_verified_nested(
+            &scan_base,
+            &scan_server,
+            &scan_files,
+            &game,
+            &verified_index,
+            &scan_prefix,
+        )
     })
     .await
     .map_err(|_| join_error())
@@ -1442,7 +1440,13 @@ pub async fn mc_play(
     );
     let scan = scan_result?;
     if let Some(message) = scan.blocked {
-        return Err(LineError::new(ErrorCode::Integrity, message, false));
+        let mut error = LineError::new(ErrorCode::Integrity, message, false);
+        if !scan.unproved.is_empty()
+            && scan.unproved.len() <= super::quarantine::MAX_QUARANTINE_FILES
+        {
+            error.unproved_mods = Some(scan.unproved);
+        }
+        return Err(error);
     }
 
     // The release is no longer read; allow provider updates while the

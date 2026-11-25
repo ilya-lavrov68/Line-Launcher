@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ServerDock, ServerDockPrimary } from "./ServerDock";
+import QuarantineDialog from "./QuarantineDialog";
 import { errorMessage, lineApi } from "@/lib/line/api";
 import type {
   BuildIntegrityCheckResult,
@@ -22,6 +23,7 @@ import type {
   LineServer,
   McGameStatus,
   McInstallProgress,
+  PackCheckResult,
   ZipRepairPlan,
 } from "@/types/line";
 import { cn } from "@/lib/utils";
@@ -86,8 +88,11 @@ export default function MinecraftPanel({
   const [busy, setBusy] = useState<Busy>("idle");
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [unprovedMods, setUnprovedMods] = useState<string[]>([]);
+  const [quarantineOpen, setQuarantineOpen] = useState(false);
   const [buildCheck, setBuildCheck] =
     useState<BuildIntegrityCheckResult | null>(null);
+  const [packCheck, setPackCheck] = useState<PackCheckResult | null>(null);
   const [buildCheckError, setBuildCheckError] = useState<string>();
   const [pendingRepair, setPendingRepair] = useState<ZipRepairPlan | null>(
     null,
@@ -201,6 +206,7 @@ export default function MinecraftPanel({
     });
     setError(undefined);
     setNotice(undefined);
+    setUnprovedMods([]);
     try {
       await onRefreshConfig?.();
       const next = await lineApi.mcPlay({
@@ -224,6 +230,8 @@ export default function MinecraftPanel({
       } else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
       else {
         if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
+        const paths = getUnprovedMods(cause);
+        if (paths.length > 0) setUnprovedMods(paths);
         setError(errorMessage(cause));
       }
     } finally {
@@ -257,6 +265,7 @@ export default function MinecraftPanel({
     });
     setError(undefined);
     setNotice(undefined);
+    setUnprovedMods([]);
     try {
       await onRefreshConfig?.();
       await lineApi.mcPlay({
@@ -277,6 +286,8 @@ export default function MinecraftPanel({
       } else if (javaPlan) setPendingJava({ plan: javaPlan, zip: approved });
       else {
         if (toLineErrorCode(cause) === "AUTH_REQUIRED") onAuthRequired?.();
+        const paths = getUnprovedMods(cause);
+        if (paths.length > 0) setUnprovedMods(paths);
         setError(errorMessage(cause));
       }
     } finally {
@@ -290,11 +301,21 @@ export default function MinecraftPanel({
   async function checkBuild() {
     if (locked) return;
     setBuildCheck(null);
+    setPackCheck(null);
     setBuildCheckError(undefined);
+    setUnprovedMods([]);
     try {
-      setBuildCheck(await lineApi.checkBuild(instanceId));
+      await onRefreshConfig?.();
+      const [integrity, packs] = await Promise.all([
+        lineApi.checkBuild(instanceId),
+        lineApi.checkPacks(instanceId),
+      ]);
+      if (!mounted.current) return;
+      setBuildCheck(integrity);
+      setPackCheck(packs);
+      setUnprovedMods(packs.unproved);
     } catch (cause) {
-      setBuildCheckError(errorMessage(cause));
+      if (mounted.current) setBuildCheckError(errorMessage(cause));
     }
   }
 
@@ -380,7 +401,7 @@ export default function MinecraftPanel({
       <div
         className={cn(
           "flex items-stretch",
-          !running && "bg-border gap-px rounded-[var(--radius-item)] p-px",
+          !running && "bg-border gap-0 rounded-[var(--radius-item)] p-px",
         )}
       >
         <ServerDockPrimary
@@ -519,6 +540,30 @@ export default function MinecraftPanel({
               </div>
             ) : null,
           )}
+          {packCheck && packCheck.findings.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-muted-foreground">
+                {t("packs.check")} · {packCheck.findings.length}
+              </p>
+              <ul className="text-muted-foreground max-h-24 overflow-y-auto font-mono text-[11px] break-all">
+                {packCheck.findings.slice(0, 12).map((finding) => (
+                  <li key={finding}>{finding}</li>
+                ))}
+                {packCheck.findings.length > 12 && (
+                  <li>
+                    {t("packs.moreFiles", {
+                      count: packCheck.findings.length - 12,
+                    })}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+          {packCheck && packCheck.foreign.length > 0 && (
+            <p className="text-muted-foreground">
+              {t("packs.foreign", { count: packCheck.foreign.length })}
+            </p>
+          )}
         </div>
       )}
       {buildCheckError && (
@@ -542,6 +587,40 @@ export default function MinecraftPanel({
         >
           {error}
         </p>
+      )}
+      {unprovedMods.length > 0 && (
+        <div
+          className="bg-fill-subtle flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-item)] p-3 text-xs"
+          data-testid="minecraft-unproved-mods"
+        >
+          <span role="status">
+            {t("minecraft.unprovedMods", { count: unprovedMods.length })}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="cursor-pointer"
+            onClick={() => setQuarantineOpen(true)}
+            data-testid="open-quarantine"
+          >
+            {t("quarantine.title")}
+          </Button>
+        </div>
+      )}
+      {unprovedMods.length > 0 && (
+        <QuarantineDialog
+          open={quarantineOpen}
+          onOpenChange={setQuarantineOpen}
+          serverId={instanceId}
+          paths={unprovedMods}
+          onChanged={(moved) => {
+            setUnprovedMods((previous) =>
+              previous.filter((path) => !moved.includes(path)),
+            );
+            setError(undefined);
+            setNotice(t("quarantine.moved", { count: moved.length }));
+          }}
+        />
       )}
 
       <Dialog
@@ -728,6 +807,26 @@ export default function MinecraftPanel({
       </details>
     </ServerDock>
   );
+}
+
+function getUnprovedMods(cause: unknown): string[] {
+  if (
+    typeof cause !== "object" ||
+    cause === null ||
+    !("code" in cause) ||
+    cause.code !== "INTEGRITY" ||
+    !("unprovedMods" in cause)
+  )
+    return [];
+  const paths = cause.unprovedMods;
+  if (
+    !Array.isArray(paths) ||
+    paths.length === 0 ||
+    paths.length > 512 ||
+    !paths.every((path) => typeof path === "string" && path.length <= 1200)
+  )
+    return [];
+  return paths as string[];
 }
 
 /** `toLineError().code` without importing the whole error module here. */

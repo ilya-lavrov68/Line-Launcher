@@ -119,6 +119,8 @@ test("Minecraft dock keeps advanced actions in the split menu and reports build 
   assert.match(panel, /t\("detail\.prepareAhead"\)/);
   assert.match(panel, /t\("detail\.offlineLaunch"\)/);
   assert.match(panel, /lineApi\.checkBuild\(instanceId\)/);
+  assert.match(panel, /lineApi\.checkPacks\(instanceId\)/);
+  assert.match(panel, /setUnprovedMods\(packs\.unproved\)/);
   assert.match(panel, /data-testid="build-integrity-result"/);
   assert.match(panel, /paths\.slice\(0, 12\)/);
 });
@@ -136,6 +138,51 @@ test("the advanced-actions trigger is a separate animated segment beside Play", 
     panel,
     /rounded-s-none rounded-e-\[calc\(var\(--radius-item\)-1px\)\]/,
   );
+  assert.match(panel, /bg-border gap-0 rounded-\[var\(--radius-item\)\] p-px/);
+  assert.match(panel, /flex h-11 w-11/);
+  assert.doesNotMatch(panel, /bg-border gap-px/);
+  assert.doesNotMatch(
+    read("src/components/line/ServerActionPanel.tsx"),
+    /bg-border gap-px/,
+  );
+});
+
+test("Minecraft quarantine and restore operate in the separate writable instance", () => {
+  const launch = read("src-tauri/src/line/launch.rs");
+  const quarantine = launch.slice(
+    launch.indexOf("pub async fn quarantine_mods("),
+    launch.indexOf("pub async fn restore_quarantined("),
+  );
+  const restore = launch.slice(
+    launch.indexOf("pub async fn restore_quarantined("),
+    launch.indexOf("pub async fn launch_game("),
+  );
+  for (const action of [quarantine, restore]) {
+    assert.match(action, /LaunchMode::Minecraft/);
+    assert.match(action, /root\.join\("minecraft"\)/);
+    assert.match(action, /validate_instance_id\(&server_id\)/);
+  }
+});
+
+test("Minecraft safety errors expose exact paths to an explicit, non-launching quarantine dialog", () => {
+  const error = read("src-tauri/src/line/error.rs");
+  const minecraft = read("src-tauri/src/line/minecraft.rs");
+  const quarantine = read("src/components/line/QuarantineDialog.tsx");
+  assert.match(error, /pub unproved_mods: Option<Vec<String>>/);
+  assert.match(minecraft, /error\.unproved_mods = Some\(scan\.unproved\)/);
+  assert.match(types, /unprovedMods\?: string\[\]/);
+  assert.match(panel, /getUnprovedMods\(cause\)/);
+  assert.match(panel, /<QuarantineDialog[\s\S]*?paths=\{unprovedMods\}/);
+  assert.match(
+    quarantine,
+    /lineApi\.quarantineMods\(serverId, \[\.\.\.selected\]\)/,
+  );
+  const onChanged = panel.slice(
+    panel.indexOf("onChanged={(moved) =>"),
+    panel.indexOf("}\n        />", panel.indexOf("onChanged={(moved) =>")),
+  );
+  assert.doesNotMatch(onChanged, /\bplay\(|\bprepare\(/);
+  assert.match(panel, /t\("quarantine\.moved", \{ count: moved\.length \}\)/);
 });
 
 test("running state survives a screen change and comes from the backend", () => {

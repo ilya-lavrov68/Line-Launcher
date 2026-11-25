@@ -210,7 +210,7 @@ export default function ServerActionPanel({
         className={cn(
           "flex items-stretch",
           onCheckBuild || onPrepareAhead || onOfflineLaunch
-            ? "bg-border gap-px rounded-[var(--radius-item)] p-px"
+            ? "bg-border gap-0 rounded-[var(--radius-item)] p-px"
             : "gap-1.5",
         )}
       >

@@ -29,6 +29,7 @@ const SCREENS = [
   "welcome",
   "setup",
   "account",
+  "guidebook",
   "profile",
   "servers",
   "server",

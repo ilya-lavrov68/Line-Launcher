@@ -286,6 +286,8 @@ export interface LauncherSettings {
   backdropMotion?: "static" | "live" | null;
   /** Stored per OS profile; legacy settings migrate as already completed. */
   onboardingCompleted?: boolean;
+  /** The post-login guided product tour has been completed or skipped. */
+  launcherTourCompleted?: boolean;
   /** Explicit opt-in for provider telemetry; missing and false mean off. */
   telemetryConsent?: boolean;
 }

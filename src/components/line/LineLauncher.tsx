@@ -48,6 +48,7 @@ import SideNav, { type LineSection } from "./SideNav";
 import TitleBar from "./TitleBar";
 import WelcomeScreen from "./WelcomeScreen";
 import FirstRunSetup from "./FirstRunSetup";
+import LauncherTour from "./LauncherTour";
 import {
   closeWindow,
   hideWindow,
@@ -122,6 +123,7 @@ export default function LineLauncher() {
   const t = useT();
   const [section, setSection] = useState<LineSection>("servers");
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
   const [layoutSaving, setLayoutSaving] = useState(false);
   const layoutSavingRef = useRef(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -471,17 +473,17 @@ export default function LineLauncher() {
       await refreshConfigIfStale();
       if (!mounted.current) return;
       const next = await lineApi.authenticate(mode, { username, password });
+      const consented = await consentSave;
       if (!mounted.current) return;
       setSession(next);
-      void consentSave.then((consented) => {
-        if (telemetryConfigured && shareTelemetry && consented) {
-          void lineApi.sendTelemetry({
-            stage: mode,
-            durationMs: Math.round(performance.now() - startedAt),
-            outcome: "success",
-          });
-        }
-      });
+      if (settings?.settings.launcherTourCompleted !== true) setTourOpen(true);
+      if (telemetryConfigured && shareTelemetry && consented) {
+        void lineApi.sendTelemetry({
+          stage: mode,
+          durationMs: Math.round(performance.now() - startedAt),
+          outcome: "success",
+        });
+      }
       setScreen("servers");
       setSection("servers");
       // A different account must not inherit the previous player's uploaded
@@ -942,6 +944,20 @@ export default function LineLauncher() {
     setLanguage(initialLanguage(saved.settings.language));
   }
 
+  const finishTour = useCallback(async () => {
+    setTourOpen(false);
+    if (!settings) return;
+    try {
+      const saved = await lineApi.saveSettings({
+        ...settings.settings,
+        launcherTourCompleted: true,
+      });
+      if (mounted.current) setSettings(saved);
+    } catch {
+      // The tour is still dismissible if local settings storage is unavailable.
+    }
+  }, [settings]);
+
   function trackTelemetry(
     stage: TelemetryStage,
     outcome: TelemetryOutcome,
@@ -1093,7 +1109,12 @@ export default function LineLauncher() {
                 shellLocked && "pointer-events-none opacity-0",
               )}
             >
-              <TitleBar context={titleContext} />
+              <TitleBar
+                context={titleContext}
+                onReplayGuidebook={
+                  session ? () => setTourOpen(true) : undefined
+                }
+              />
               <div className="flex min-h-0 w-full flex-1 gap-1.5 overflow-hidden">
                 <SideNav
                   section={section}
@@ -1437,6 +1458,9 @@ export default function LineLauncher() {
                 open={aboutOpen}
                 onOpenChange={setAboutOpen}
               />
+              {tourOpen && session && (
+                <LauncherTour onFinish={() => void finishTour()} />
+              )}
               {/* Only mounted with a real list and a real server: the dialog
                   acts on exact paths, so it must never open on a guess. */}
               {selected && unprovedMods.length > 0 && (

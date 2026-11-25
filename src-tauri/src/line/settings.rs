@@ -140,6 +140,9 @@ pub struct LauncherSettings {
     /// Missing in legacy settings means onboarding was already completed.
     #[serde(default = "legacy_onboarding_complete")]
     pub onboarding_completed: bool,
+    /// Whether the signed-in player has completed or skipped the guided tour.
+    #[serde(default)]
+    pub launcher_tour_completed: bool,
     /// Explicit opt-in for the provider's minimal telemetry. Defaults off.
     #[serde(default)]
     pub telemetry_consent: bool,
@@ -167,6 +170,7 @@ impl Default for LauncherSettings {
             workspace: None,
             backdrop_motion: None,
             onboarding_completed: false,
+            launcher_tour_completed: false,
             telemetry_consent: false,
             download_limit_kib: 0,
             window_width: 1100,

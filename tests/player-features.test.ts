@@ -246,6 +246,17 @@ test("the title bar can actually control the window", () => {
   }
 });
 
+test("the signed-in title bar can replay the illustrated guidebook", () => {
+  const titleBar = read("src/components/line/TitleBar.tsx");
+  const launcher = read("src/components/line/LineLauncher.tsx");
+  assert.match(titleBar, /onReplayGuidebook\?: \(\) => void/);
+  assert.match(titleBar, /BookOpen/);
+  assert.match(titleBar, /data-testid="guidebook-replay"/);
+  assert.match(titleBar, /aria-label=\{t\("guidebook\.replay"\)\}/);
+  assert.match(titleBar, /TooltipContent side="bottom"/);
+  assert.match(launcher, /session \? \(\) => setTourOpen\(true\) : undefined/);
+});
+
 // --- Branding rule: tokens only, no bespoke palette ------------------------
 
 test("the new chrome uses semantic tokens, never hardcoded colours", () => {

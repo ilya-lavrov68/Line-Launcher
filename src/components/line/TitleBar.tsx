@@ -1,4 +1,4 @@
-import { Copy, CropSquare, Minus, X } from "@/components/ui/icons";
+import { BookOpen, Copy, CropSquare, Minus, X } from "@/components/ui/icons";
 import BrandMark from "@/components/line/BrandMark";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,19 @@ import {
 } from "@/lib/line/window";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/line/i18n";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export interface TitleBarProps {
   /** Breadcrumb shown after the fixed brand mark. */
   context?: string;
-  /** App-level feature actions, such as official news; omitted until implemented. */
+  /** App-level controls such as reopening the interactive guidebook. */
   actions?: React.ReactNode;
+  /** Reopen the in-app GIF guidebook while the player is signed in. */
+  onReplayGuidebook?: () => void;
 }
 
 /**
@@ -29,7 +36,11 @@ export interface TitleBarProps {
  * `data-tauri-drag-region` marks the draggable area; interactive children opt out
  * automatically because Tauri ignores the drag region on interactive elements.
  */
-export default function TitleBar({ context, actions }: TitleBarProps) {
+export default function TitleBar({
+  context,
+  actions,
+  onReplayGuidebook,
+}: TitleBarProps) {
   const t = useT();
   const [maximized, setMaximized] = useState(false);
 
@@ -92,9 +103,9 @@ export default function TitleBar({ context, actions }: TitleBarProps) {
           </>
         )}
       </div>
-      {(actions || hasCustomFrame) && (
+      {(actions || onReplayGuidebook || hasCustomFrame) && (
         <div className="flex shrink-0 items-center gap-2">
-          {actions && (
+          {(actions || onReplayGuidebook) && (
             <div
               data-window-actions
               role="group"
@@ -102,6 +113,27 @@ export default function TitleBar({ context, actions }: TitleBarProps) {
               className="flex items-center gap-1"
             >
               {actions}
+              {onReplayGuidebook && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("guidebook.replay")}
+                        data-testid="guidebook-replay"
+                        onClick={onReplayGuidebook}
+                        className="text-muted-foreground hover:text-foreground h-9 w-9 cursor-pointer rounded-lg"
+                      >
+                        <BookOpen className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent side="bottom">
+                    {t("guidebook.replay")}
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           )}
           {hasCustomFrame && (

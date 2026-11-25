@@ -1,34 +1,49 @@
 # Verification status
 
-## Current snapshot — 2026-11-17
+## Current snapshot — 2026-11-25
 
-For the current workspace state:
+For the current PR workspace:
 
 - `npm run check` passed (`tsc -b --pretty false`).
-- `npm test` passed: **426 total, 425 passed, 1 skipped, 0 failed**.
-- `npm run build` passed. Vite warned about a chunk over 500 kB; the
-  `skinview3d` chunk is approximately 526 kB.
-- `npm run screenshots` passed and regenerated **14 real browser captures** in
-  `docs/images/`, including the new in-app guidebook page. The script now waits
-  through its timed welcome screen and closes the post-login guidebook after
-  capturing it. A temporary Chromium package and its Linux runtime libraries
-  were supplied outside the repository; no browser dependency was added.
-- `python3 scripts/generate-guidebook-gifs.py` passed and regenerated all six
-  looping GIFs from the refreshed real app screenshots. The navigation sequence
-  now also points out the replay-guidebook icon in the window header.
-- `git diff --check` passed at the last verification.
+- `npm test` passed: **430 total, 429 passed, 1 skipped, 0 failed**.
+- `npm run build` passed. Vite reports the existing `skinview3d` chunk over
+  500 kB (about 526 kB).
+- `npm run test:ui` passed in Chromium: **179 IPC calls, 0 page errors**. The
+  smoke now completes the first-run guidebook and explicitly selects the
+  settings categories before exercising their controls.
+- `npm run screenshots` passed after the final UI changes and regenerated all
+  **14 real-browser screenshots**, all **six GIFs**, and all **six poster PNGs**.
+  The run used
+  Chromium `158.0.8127.0` and reported **0 page errors**.
+- `docs/visual-evidence.json` records SHA-256 hashes for all 14 screenshots and
+  all 12 GIF/poster files. `npm run visual-evidence:check` passed against the
+  generated files.
+- `git diff --check` passed.
 
 The screenshot harness renders the real React components with demo config and
-mocked Tauri IPC. It is suitable for documenting the UI, but it does **not** prove
-live provider status, authentication, telemetry delivery, ZIP downloads, native
-Tauri behavior or an actual Minecraft launch. Those screenshots are not
-production data.
+mocked Tauri IPC. It documents the UI but does **not** prove live provider
+status, authentication, telemetry delivery, ZIP downloads, native Tauri
+behavior, or an actual Minecraft launch. These screenshots are not production
+data.
 
-This environment has no `rustc`, `cargo` or `javac`. `npm run test:rust` was
-attempted but stopped with `spawnSync rustc ENOENT`; no full Rust/Tauri build,
-Cargo tests/Clippy, Java-client run, Windows/WebView2 validation, real provider
-integration or real Minecraft launch was performed. The server-profile endpoint
-is not connected; the profile UI intentionally shows no sample statistics.
+This sandbox has no `rustc`, `cargo`, or Windows build tools. The Windows
+`npm run demo:build` failure report was fixed at its source, but a native
+Rust/Tauri build, Cargo tests/Clippy, Windows/WebView2 validation, provider
+integration, and real Minecraft launch could not be run here. The Rust errors
+must still be confirmed by CI or a Windows build environment.
+
+For this PR, GitHub Actions passed both frontend jobs, `ui-smoke`, all three
+`java-client` jobs, `rust-pure`, `secret-scan`, and `pr-visual-evidence`. The
+three `rust` matrix jobs stop before compilation at `cargo metadata --locked`:
+`mc-launcher-core` is absent from `src-tauri/Cargo.lock`. This existing lockfile
+blocker is documented in [GITHUB-PROTECTION.md](GITHUB-PROTECTION.md); Rust
+formatting, compilation, tests, and Clippy remain unverified by CI.
+
+The screenshot capture is an unconditional pre-PR requirement: every PR
+refreshes the full screenshot set, all six guidebook GIF/poster pairs, the
+README generated-on note, relevant player documentation, and this verification
+record. The PR evidence checklist and CI gate enforce the manifest and doc
+refresh.
 
 Accepted open work and acceptance gates are in [ROADMAP.md](ROADMAP.md);
 detailed installation risks are in [INSTALLATION-AUDIT.md](INSTALLATION-AUDIT.md).

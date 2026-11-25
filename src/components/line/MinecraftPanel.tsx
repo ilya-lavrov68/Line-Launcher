@@ -377,8 +377,14 @@ export default function MinecraftPanel({
           прогресса — как play/pause у Liner, который меняет состояние, но не
           добавляет рядом вторую строку. Ни процента текстом, ни имени файла:
           стадию говорит строка статуса выше. */}
-      <div className="flex items-stretch gap-1.5">
+      <div
+        className={cn(
+          "flex items-stretch",
+          !running && "bg-border gap-px rounded-[var(--radius-item)] p-px",
+        )}
+      >
         <ServerDockPrimary
+          joined={!running}
           disabled={locked}
           active={running}
           progress={working ? (percent ?? 0) : null}
@@ -407,12 +413,15 @@ export default function MinecraftPanel({
               aria-haspopup="menu"
               title={t("detail.moreActions")}
               className={cn(
-                "bg-primary text-primary-foreground hover:bg-primary/85 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-[var(--radius-item)] transition-colors",
+                "bg-primary text-primary-foreground hover:bg-primary/85 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-s-none rounded-e-[var(--radius-item)] transition-colors",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
                 locked && "pointer-events-none opacity-50",
               )}
             >
-              <ChevronDown className="size-4" aria-hidden="true" />
+              <ChevronDown
+                className="size-4 transition-transform duration-200 ease-out group-open:rotate-180 motion-reduce:transition-none"
+                aria-hidden="true"
+              />
             </summary>
             <div
               role="menu"

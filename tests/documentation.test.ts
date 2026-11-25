@@ -77,7 +77,28 @@ test("the project skill keeps screenshots, docs, and GIF guidebook changes linke
   assert.match(skill, /npm run screenshots/);
   assert.match(skill, /generate-guidebook-gifs\.py/);
   assert.match(skill, /docs\/VERIFICATION\.md/);
-  assert.match(skill, /Never present a hand-drawn, fixture-rendered/);
+  assert.match(skill, /Never present mock, fixture-only, hand-drawn/);
+});
+
+test("every PR is gated on full screenshots, guidebook refresh, docs, and hash evidence", () => {
+  const read = (file: string) => readFileSync(path.join(root, file), "utf8");
+  const instructions = read("AGENTS.md");
+  const template = read(".github/pull_request_template.md");
+  const workflow = read(".github/workflows/ci.yml");
+  assert.match(
+    instructions,
+    /Mandatory pre-PR visual-evidence refresh — no exceptions/,
+  );
+  assert.match(
+    instructions,
+    /full real-browser `npm run screenshots` capture/i,
+  );
+  assert.match(template, /all six GIFs and all six posters/);
+  assert.match(template, /\*\*Integrity:\*\* `npm run visual-evidence:check`/);
+  assert.match(template, /docs\/visual-evidence\.json/);
+  assert.match(workflow, /pr-visual-evidence:/);
+  assert.match(workflow, /check-pr-visual-evidence\.mjs/);
+  assert.match(workflow, /visual-evidence:check/);
 });
 
 test("documentation has one active roadmap and labels current integration limits", () => {
@@ -87,9 +108,12 @@ test("documentation has one active roadmap and labels current integration limits
   assert.match(roadmap, /Единственное место для активных планов проекта/);
   assert.match(roadmap, /не передавать UUID из\s+интерфейса лаунчера/i);
   assert.match(roadmap, /не добавлять endpoint, поля ответа, mock-метрики/i);
-  assert.match(verification, /426 total, 425 passed, 1 skipped, 0 failed/);
-  assert.match(verification, /npm run screenshots` passed and regenerated/);
-  assert.match(verification, /14 real browser captures/);
+  assert.match(verification, /430 total, 429 passed, 1 skipped, 0 failed/);
+  assert.match(
+    verification,
+    /npm run screenshots` passed after the final UI changes/,
+  );
+  assert.match(verification, /14 real-browser screenshots/);
   assert.match(verification, /mocked Tauri IPC/);
   assert.match(
     read("CONTRIBUTING.md"),

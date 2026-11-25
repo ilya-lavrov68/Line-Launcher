@@ -91,7 +91,7 @@ API. Игрок получает лаунчер, в котором нет нич
 <td width="50%"><a href="public/guidebook/servers.gif"><img src="public/guidebook/servers.png" alt="Постер GIF: поиск Survival, открытие сервера и возврат в каталог"></a><br><sub><b>Каталог.</b> Найдите сервер по названию, откройте его карточку и вернитесь к списку.</sub></td>
 </tr>
 <tr>
-<td><a href="public/guidebook/server-actions.gif"><img src="public/guidebook/server-actions.png" alt="Постер GIF: проверка сборки в меню действий сервера"></a><br><sub><b>Сервер.</b> Откройте меню и проверьте целостность сборки, не запуская игру.</sub></td>
+<td><a href="public/guidebook/server-actions.gif"><img src="public/guidebook/server-actions.png" alt="Постер GIF: отдельная кнопка-стрелка рядом с Играть открывает проверку сборки"></a><br><sub><b>Сервер.</b> Отдельная кнопка-стрелка рядом с «Играть» открывает команды; выберите проверку целостности, не запуская игру.</sub></td>
 <td><a href="public/guidebook/wardrobe.gif"><img src="public/guidebook/wardrobe.png" alt="Постер GIF: выбор скина с обновлением превью"></a><br><sub><b>Гардероб.</b> Выберите сохранённый скин, проверьте превью и верните прежний.</sub></td>
 </tr>
 <tr>
@@ -99,6 +99,11 @@ API. Игрок получает лаунчер, в котором нет нич
 <td><a href="public/guidebook/settings.gif"><img src="public/guidebook/settings.png" alt="Постер GIF: изменение и восстановление лимита скорости загрузки"></a><br><sub><b>Настройки.</b> Измените лимит скорости загрузки и верните исходное значение.</sub></td>
 </tr>
 </table>
+
+<!-- visual-evidence-refresh:start -->
+
+Полный набор скриншотов и GIF перегенерирован **2026-11-25** ([контрольные суммы](docs/visual-evidence.json)).
+<!-- visual-evidence-refresh:end -->
 
 Галерея показывает неподвижные постеры; нажмите на постер, чтобы открыть GIF.
 

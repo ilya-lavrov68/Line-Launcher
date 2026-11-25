@@ -1203,10 +1203,7 @@ pub async fn mc_play(
     );
     // 3. Read the instance and bring the live game directory up to date. Both
     //    steps touch thousands of files, so they stay off the async workers.
-    let hint = request
-        .minecraft_version
-        .clone()
-        .or_else(|| effective.minecraft_version.clone());
+    let hint = effective.minecraft_version.clone();
     let release_base = base.clone();
     let sha256 = receipt.sha256.clone();
     let instance_dir = instance_root(&app, &instance_id)?;

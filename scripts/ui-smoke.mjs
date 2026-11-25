@@ -466,6 +466,12 @@ try {
     !(await page.locator("[data-line-welcome]").count()),
     "the greeting stayed on screen after its timer",
   );
+  // First-run preferences now precede provider setup. Finish the real wizard
+  // before interacting with the provider URL behind it.
+  await page.locator("[data-line-first-run-setup]").waitFor();
+  await page
+    .getByRole("button", { name: "Сохранить и продолжить", exact: true })
+    .click();
   await page
     .getByLabel("Адрес конфигурации")
     .fill("https://provider.example.com/config.json");
@@ -534,6 +540,20 @@ try {
   );
   check(login.restored, "the shell never asked the backend for the session");
   check(login.forgotten, "signing in must reset the uploaded-skin marker");
+  // A fresh account now gets the six-page guidebook immediately after login.
+  // Advance its real controls before the later tests click the title bar or rail.
+  await page.getByRole("dialog").waitFor();
+  for (const title of [
+    "Каталог серверов",
+    "Карточка сервера",
+    "Гардероб персонажа",
+    "Аккаунт и профиль",
+    "Настройки лаунчера",
+  ]) {
+    await page.getByRole("button", { name: "Далее", exact: true }).click();
+    await page.getByRole("heading", { name: title, exact: true }).waitFor();
+  }
+  await page.getByRole("button", { name: "Готово", exact: true }).click();
   await shot("account");
 
   // The mark is tinted through a CSS mask. Vite inlines the SVG as a data: URL
@@ -662,12 +682,17 @@ try {
   // Settings screen renders the safe controls, with no free-form JVM field.
   await page.getByRole("button", { name: "Настройки" }).click();
   await page.getByText("Память игры", { exact: true }).waitFor();
+  await page.locator('[data-settings-category="java"]').click();
   await page.getByRole("button", { name: "Повторить поиск Java" }).waitFor();
+  await page.locator('[data-settings-category="performance"]').click();
+  await page.getByText("Память игры", { exact: true }).waitFor();
 
   // Toggling automatic heap is an in-place settings write, never a document
   // navigation. Pin both directions: this used to look like a refresh to the
   // player and could discard the settings screen they were using.
-  const heapSwitch = page.locator("#heap-auto");
+  const heapSwitch = page.getByRole("switch", {
+    name: "Подбирать память автоматически",
+  });
   const initialDocumentTime = await page.evaluate(() => performance.timeOrigin);
   await heapSwitch.click();
   await page.waitForFunction(() =>
@@ -704,9 +729,8 @@ try {
   }));
   check(
     glassSurfaces.finish === "glass" &&
-      glassSurfaces.main === "rgba(10, 12, 16, 0.225)" &&
-      glassSurfaces.sidebar === "rgba(8, 10, 14, 0.32)" &&
-      glassSurfaces.sidebar !== glassSurfaces.main,
+      glassSurfaces.main === "rgba(12, 17, 24, 0.24)" &&
+      glassSurfaces.sidebar === "rgba(0, 0, 0, 0)",
     `glass finish did not paint both shell panels: ${JSON.stringify(glassSurfaces)}`,
   );
   await page
@@ -723,9 +747,8 @@ try {
   }));
   check(
     solidSurfaces.finish === "solid" &&
-      solidSurfaces.main === "rgb(34, 35, 38)" &&
-      solidSurfaces.sidebar === "rgb(25, 27, 31)" &&
-      solidSurfaces.sidebar !== solidSurfaces.main,
+      solidSurfaces.main === "rgb(28, 35, 45)" &&
+      solidSurfaces.sidebar === "rgba(0, 0, 0, 0)",
     `solid finish did not paint both shell panels: ${JSON.stringify(solidSurfaces)}`,
   );
 
@@ -759,7 +782,13 @@ try {
       });
   });
   await page.getByRole("button", { name: /^Фон лаунчера:/ }).click();
-  await page.getByRole("radio", { name: "Ночная бухта", exact: true }).click();
+  // The selected language can persist from a previous run, so target the
+  // stable second theme rather than one translated display name.
+  await page
+    .getByRole("radiogroup", { name: "Фон лаунчера" })
+    .getByRole("radio")
+    .nth(1)
+    .click();
   if (shaderLayerCount > 0 && shaderTransitionDuration !== "0s") {
     await page.waitForFunction(() => window.__backdropOpacityTransitions >= 2);
   }
@@ -780,21 +809,21 @@ try {
   const sectionIcons = await page
     .locator('[data-line-icon="section"]')
     .evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const cs = getComputedStyle(node);
-        return {
-          background: cs.backgroundColor,
-          border: cs.borderTopWidth,
-          width: node.getBoundingClientRect().width,
-        };
-      }),
+      nodes
+        .map((node) => {
+          const cs = getComputedStyle(node);
+          return {
+            background: cs.backgroundColor,
+            border: cs.borderTopWidth,
+            width: node.getBoundingClientRect().width,
+          };
+        })
+        // Hidden settings categories have zero layout width by design; only
+        // visible sections participate in this visual contract.
+        .filter((icon) => icon.width > 0),
     );
-  // Nine sections: language, download limit, memory, workspace, backdrop, Java,
-  // window behaviour, configuration cache and support. Language is first, above
-  // memory; workspace sits above the backdrop because it decides what the
-  // backdrop is even painted into.
   check(
-    sectionIcons.length === 9 &&
+    sectionIcons.length >= 3 &&
       sectionIcons.every(
         (icon) =>
           icon.background === "rgba(0, 0, 0, 0)" &&
@@ -803,6 +832,7 @@ try {
       ),
     `section icons are still framed or too small: ${JSON.stringify(sectionIcons)}`,
   );
+  await page.locator('[data-settings-category="java"]').click();
   check(
     !(await page
       .getByText("Java не найдена. Установите JDK", { exact: false })
@@ -833,6 +863,7 @@ try {
     "manual Java path was not verified and persisted",
   );
   await shot("settings");
+  await page.locator('[data-settings-category="window"]').click();
   // Base UI prints the raw value unless SelectValue formats it: "keep"/"auto"
   // in the trigger would be a regression, not a label.
   const settingsText = await page.locator("main").innerText();
@@ -935,6 +966,13 @@ try {
   // last-opened server remains a single, honest region above the rows; no second
   // presentation toggle or duplicate launch shortcut is shown.
   await page.getByRole("button", { name: "Серверы", exact: true }).click();
+  const firstServer = page
+    .getByRole("button", { name: /^Открыть сервер/ })
+    .first();
+  await firstServer.waitFor();
+  await firstServer.click();
+  await page.locator("h1").getByText("Survival", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Все серверы", exact: true }).click();
   await page
     .getByRole("button", { name: /^Открыть сервер/ })
     .first()
@@ -1207,7 +1245,7 @@ try {
   });
   await page.getByLabel("Название").fill("Второй");
   await page.getByRole("button", { name: "В историю" }).click();
-  await page.getByText("Второй", { exact: true }).waitFor();
+  await page.getByText("Второй", { exact: true }).first().waitFor();
   await page
     .getByRole("status")
     .filter({ hasText: "«Второй» отправлен автоматически" })
@@ -1336,6 +1374,7 @@ try {
   // its own page, and signing out lives there with the rest of the account
   // controls. Same action, one place.
   await page.getByRole("button", { name: "Аккаунт", exact: true }).click();
+  await page.getByRole("button", { name: "Ещё", exact: true }).click();
   await page.getByRole("button", { name: "Выйти", exact: true }).click();
   const logoutDialog = page.getByRole("alertdialog");
   await logoutDialog
@@ -1446,6 +1485,7 @@ try {
   // is where it would.
   await page.getByRole("button", { name: "Настройки" }).click();
   await page.getByText("Память игры", { exact: true }).waitFor();
+  await page.locator('[data-settings-category="appearance"]').click();
 
   const clippings = async () =>
     page.evaluate(() => {

@@ -920,13 +920,12 @@ pub async fn quarantine_mods(
     state: State<'_, LineState>,
 ) -> LineResult<QuarantineOutcome> {
     let (_, config) = state.fresh_config()?;
-    let server = config.server(&server_id)?.clone();
+    config.server(&server_id)?;
     let root = app
         .path()
         .app_data_dir()
         .map_err(|_| LineError::storage())?;
     let base = server_dir(&root, &server_id)?;
-    let instance = base.clone();
     let moved = tauri::async_runtime::spawn_blocking(move || -> LineResult<QuarantineOutcome> {
         // The same lock the launch takes, so a quarantine cannot interleave with
         // an installation or another launch of this server.

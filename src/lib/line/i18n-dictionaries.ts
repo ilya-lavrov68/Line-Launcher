@@ -573,20 +573,17 @@ export const ru = {
 
   "settings.logs": "Логи и поддержка",
   "settings.logsHint":
-    "Папка с логами лаунчера и готовый отчёт для поддержки. Пароли и токены в отчёт не попадают.",
+    "Полный отчёт сохраняется в TXT-файл в папке логов. Пароли и токены в него не попадают.",
   "support.openFolder": "Открыть папку с логами",
-  "support.copy": "Скопировать диагностику",
-  "support.copiedShort": "Скопировано",
-  "support.copied": "Диагностика скопирована ({bytes} символов).",
-  "support.copyFailed":
-    "Не удалось скопировать автоматически. Откройте папку с логами и приложите файлы вручную.",
+  "support.exportTxt": "Сохранить отчёт TXT",
+  "support.exported": "TXT-файл диагностики сохранён: {path}",
   "support.opened": "Открыта папка: {path}",
   "support.mailOwner": "Отправить в {name}",
   "support.mailProvider": "Связаться с провайдером",
   "support.mailOpened":
     "Открыт черновик письма на адрес {address}. Проверьте текст и отправьте.",
   "support.hint":
-    "«Скопировать» кладёт отчёт в буфер обмена — его можно вставить в любое сообщение. Письмо открывается в вашем почтовом клиенте с уже готовым текстом.",
+    "Полный отчёт создаётся отдельным TXT-файлом, который можно прикрепить к чату. Письмо открывается в почтовом клиенте с текстом, если он помещается в ссылку.",
 
   "about.title": "О программе",
   "about.versionLabel": "Версия",
@@ -1196,20 +1193,17 @@ const en: Dictionary = {
 
   "settings.logs": "Logs and support",
   "settings.logsHint":
-    "The launcher log folder and a ready-made support report. Passwords and tokens are never included.",
+    "The complete support report is saved as a TXT file in the logs folder. Passwords and tokens are never included.",
   "support.openFolder": "Open logs folder",
-  "support.copy": "Copy diagnostics",
-  "support.copiedShort": "Copied",
-  "support.copied": "Diagnostics copied ({bytes} characters).",
-  "support.copyFailed":
-    "Could not copy automatically. Open the logs folder and attach the files instead.",
+  "support.exportTxt": "Save diagnostics TXT",
+  "support.exported": "Diagnostic TXT saved: {path}",
   "support.opened": "Opened: {path}",
   "support.mailOwner": "Email {name}",
   "support.mailProvider": "Contact the provider",
   "support.mailOpened":
     "A draft to {address} is open. Review the text and send it.",
   "support.hint":
-    "Copy puts the report on the clipboard so it can be pasted anywhere. Email opens a draft in your mail client with the text already filled in.",
+    "The complete report is saved as a TXT file you can attach to a chat. Email opens a draft with the text when it fits in the mail link.",
 
   "about.title": "About",
   "about.versionLabel": "Version",
@@ -1823,20 +1817,17 @@ const de: Dictionary = {
 
   "settings.logs": "Logs und Support",
   "settings.logsHint":
-    "Der Log-Ordner des Launchers und ein fertiger Support-Bericht. Passwörter und Tokens sind nie enthalten.",
+    "Der vollständige Support-Bericht wird als TXT-Datei im Log-Ordner gespeichert. Passwörter und Tokens sind nie enthalten.",
   "support.openFolder": "Log-Ordner öffnen",
-  "support.copy": "Diagnose kopieren",
-  "support.copiedShort": "Kopiert",
-  "support.copied": "Diagnose kopiert ({bytes} Zeichen).",
-  "support.copyFailed":
-    "Automatisches Kopieren fehlgeschlagen. Öffne den Log-Ordner und hänge die Dateien an.",
+  "support.exportTxt": "Diagnose als TXT speichern",
+  "support.exported": "Diagnose-TXT gespeichert: {path}",
   "support.opened": "Geöffnet: {path}",
   "support.mailOwner": "E-Mail an {name}",
   "support.mailProvider": "Provider kontaktieren",
   "support.mailOpened":
     "Ein Entwurf an {address} ist offen. Prüfe den Text und sende ihn.",
   "support.hint":
-    "„Kopieren“ legt den Bericht in die Zwischenablage. „E-Mail“ öffnet einen Entwurf im Mailprogramm mit bereits eingefügtem Text.",
+    "Der vollständige Bericht wird als TXT-Datei gespeichert, die du an einen Chat anhängen kannst. E-Mail öffnet einen Entwurf mit Text, wenn er in den Mail-Link passt.",
 
   "about.title": "Über die App",
   "about.versionLabel": "Version",
@@ -2452,20 +2443,17 @@ const fr: Dictionary = {
 
   "settings.logs": "Journaux et support",
   "settings.logsHint":
-    "Le dossier des journaux du launcher et un rapport de support prêt. Les mots de passe et jetons n'y figurent jamais.",
+    "Le rapport complet est enregistré dans un fichier TXT du dossier des journaux. Il ne contient jamais de mots de passe ni de jetons.",
   "support.openFolder": "Ouvrir le dossier des journaux",
-  "support.copy": "Copier le diagnostic",
-  "support.copiedShort": "Copié",
-  "support.copied": "Diagnostic copié ({bytes} caractères).",
-  "support.copyFailed":
-    "Copie automatique impossible. Ouvrez le dossier des journaux et joignez les fichiers.",
+  "support.exportTxt": "Enregistrer le diagnostic TXT",
+  "support.exported": "Fichier TXT du diagnostic enregistré : {path}",
   "support.opened": "Ouvert : {path}",
   "support.mailOwner": "Écrire à {name}",
   "support.mailProvider": "Contacter le fournisseur",
   "support.mailOpened":
     "Un brouillon vers {address} est ouvert. Vérifiez le texte et envoyez-le.",
   "support.hint":
-    "« Copier » place le rapport dans le presse-papiers. « E-mail » ouvre un brouillon dans votre client mail avec le texte déjà rempli.",
+    "Le rapport complet est enregistré dans un fichier TXT à joindre au chat. L’e-mail ouvre un brouillon avec le texte s’il tient dans le lien.",
 
   "about.title": "À propos",
   "about.versionLabel": "Version",

@@ -1,13 +1,8 @@
 import { m, useReducedMotion } from "framer-motion";
 import {
-  ChevronLeft,
-  Info,
-  Server,
-  Settings,
-  Shirt,
-  UserRound,
-  type LineIcon,
-} from "@/components/ui/icons";
+  SidebarIcon,
+  type SidebarIconName,
+} from "@/components/ui/sidebar-icons";
 import { brand } from "@/brand/generated";
 import Attribution from "@/components/line/Attribution";
 import { Button } from "@/components/ui/button";
@@ -33,7 +28,7 @@ export interface SideNavProps {
 interface NavItem {
   id: LineSection;
   label: string;
-  icon: LineIcon;
+  icon: SidebarIconName;
   disabled?: boolean;
   hint?: string;
 }
@@ -60,14 +55,14 @@ export default function SideNav({
   const reducedMotion = useReducedMotion();
   const t = useT();
   const items: NavItem[] = [
-    { id: "servers", label: t("nav.servers"), icon: Server },
+    { id: "servers", label: t("nav.servers"), icon: "servers" },
     // Not gated by feature flags: the section is a normal destination once the
     // player is signed in (the sign-in page covers the whole window until then).
-    { id: "wardrobe", label: t("nav.wardrobe"), icon: Shirt },
+    { id: "wardrobe", label: t("nav.wardrobe"), icon: "wardrobe" },
     // The account is a page now, not only a name in the footer: it is where the
     // player sees what they look like in game, and the only place the session
     // state is explained.
-    { id: "account", label: t("nav.account"), icon: UserRound },
+    { id: "account", label: t("nav.account"), icon: "account" },
   ];
 
   return (
@@ -84,7 +79,6 @@ export default function SideNav({
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-1.5">
         {items.map((item) => {
           const active = section === item.id;
-          const Icon = item.icon;
           const button = (
             <Button
               key={item.id}
@@ -102,8 +96,7 @@ export default function SideNav({
               onClick={() => onNavigate(item.id)}
               className={cn(
                 "items-center gap-2.5 rounded-lg text-xs font-medium",
-                // The compact rail is 48px wide: 36px square targets leave
-                // 6px of breathing room on each side without crowding the glyph.
+                // Keep the original rail and target geometry; only the glyph grows.
                 collapsed
                   ? "mx-auto h-9 w-9 justify-center px-0"
                   : "h-10 w-full justify-start px-2.5",
@@ -118,7 +111,11 @@ export default function SideNav({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <SidebarIcon
+                name={item.icon}
+                className="h-6 w-6 shrink-0"
+                aria-hidden="true"
+              />
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Button>
           );
@@ -152,7 +149,11 @@ export default function SideNav({
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Settings className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <SidebarIcon
+            name="settings"
+            className="h-6 w-6 shrink-0"
+            aria-hidden="true"
+          />
           {!collapsed && <span className="truncate">{t("nav.settings")}</span>}
         </Button>
         <Button
@@ -167,7 +168,11 @@ export default function SideNav({
               : "h-10 w-full justify-start px-2.5",
           )}
         >
-          <Info className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <SidebarIcon
+            name="about"
+            className="h-6 w-6 shrink-0"
+            aria-hidden="true"
+          />
           {!collapsed && <span className="truncate">{t("nav.about")}</span>}
         </Button>
         {/* The credit is a license condition: it stays visible when collapsed. */}
@@ -187,12 +192,13 @@ export default function SideNav({
             "text-muted-foreground hover:text-foreground cursor-pointer items-center gap-2.5 rounded-lg text-xs",
             collapsed
               ? "mx-auto h-9 w-9 justify-center px-0"
-              : "h-11 w-full justify-start px-2.5",
+              : "h-10 w-full justify-start px-2.5",
           )}
         >
-          <ChevronLeft
+          <SidebarIcon
+            name="collapse"
             className={cn(
-              "h-5 w-5 shrink-0 transition-transform",
+              "h-6 w-6 shrink-0 transition-transform",
               collapsed && "rotate-180",
             )}
             aria-hidden="true"

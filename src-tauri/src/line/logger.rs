@@ -399,7 +399,7 @@ pub fn is_log_name(name: &str) -> bool {
     }
 }
 
-/// Every log file, newest first — what the «Скопировать диагностику» and
+/// Every log file, newest first — what «Сохранить отчёт TXT» and
 /// «Открыть папку» commands work from.
 pub fn log_files(dir: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(dir) else {

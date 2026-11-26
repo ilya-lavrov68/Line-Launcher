@@ -134,9 +134,36 @@ test("the guidebook encoder rejects non-Full-HD source frames instead of upscali
   );
 });
 
-test("Full-HD GIF capture limits pointer sampling to a compact frame rate", () => {
+test("browser capture always restores and verifies Chromium first", () => {
+  const packageJson = JSON.parse(read("package.json").toString("utf8"));
+  assert.match(packageJson.scripts["browser:restore"], /restore-browser\.mjs/);
+  assert.match(
+    packageJson.scripts.screenshots,
+    /restore-browser\.mjs --capture/,
+  );
+  const restore = read("scripts/restore-browser.mjs").toString("utf8");
+  assert.match(restore, /scripts[\s\S]*screenshots\.mjs/);
+  assert.match(restore, /playwright-core[\s\S]*install[\s\S]*chromium/);
+  assert.match(restore, new RegExp("@sparticuz/chromium"));
+  assert.match(restore, /CHROMIUM_PATH/);
+  assert.match(restore, /--version/);
+  for (const file of [
+    "AGENTS.md",
+    ".agents/skills/launcher-guidebook-maintenance/SKILL.md",
+  ]) {
+    assert.match(read(file).toString("utf8"), /npm run browser:restore/);
+  }
+});
+
+test("Full-HD GIF capture samples pointer movement at 15fps", () => {
   const browser = read("scripts/screenshots.mjs").toString("utf8");
-  assert.match(browser, /Math\.max\(5, Math\.ceil\(durationMs \/ 140\)\)/);
+  assert.match(browser, /const GUIDEBOOK_FPS = 15/);
+  assert.match(browser, /process\.env\.PYTHON \|\| "python3"/);
+  assert.match(browser, /const GUIDEBOOK_FRAME_MS = 1000 \/ GUIDEBOOK_FPS/);
+  assert.match(
+    browser,
+    /Math\.max\(5, Math\.ceil\(durationMs \/ GUIDEBOOK_FRAME_MS\)\)/,
+  );
 });
 
 test("the server-action GIF records the animated disclosure chevron", () => {

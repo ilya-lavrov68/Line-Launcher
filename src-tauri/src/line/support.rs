@@ -1,4 +1,4 @@
-//! The three Settings buttons: open the folder, copy the bundle, mail it.
+//! The Settings controls: open the log folder, export a TXT bundle, and mail it.
 //!
 //! All of them are one-liners over [`super::logger`] and
 //! [`super::diagnostics`]; the value of the module is that the *policy* lives in
@@ -9,14 +9,14 @@ use super::diagnostics::{self, Summary};
 use super::error::{LineError, LineResult};
 use super::logger::{self, Area, Field};
 use super::state::LineState;
-use super::storage::{is_real_dir, is_real_file};
+use super::storage::{atomic_write, is_real_dir, is_real_file};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 
 /// Keep the complete `mailto:` URL below common shell/protocol-handler limits.
-/// Larger full reports remain available through «Скопировать диагностику».
+/// Larger full reports remain available through «Сохранить отчёт TXT».
 const MAX_MAILTO_URL_BYTES: usize = 6 * 1024;
 
 /// `launcher_logs/`, created if this is the first run. The folder is what the
@@ -181,14 +181,17 @@ pub async fn open_logs_folder(app: AppHandle) -> LineResult<String> {
 }
 
 #[tauri::command]
-pub async fn copy_diagnostics(app: AppHandle, state: State<'_, LineState>) -> LineResult<String> {
+pub async fn export_diagnostics(app: AppHandle, state: State<'_, LineState>) -> LineResult<String> {
     let bundle = build(&app, &state)?;
+    let dir = logs_dir(&app)?;
+    let path = dir.join("diagnostics.txt");
+    atomic_write(&path, bundle.as_bytes())?;
     logger::info(
         Area::Settings,
-        "diagnostics copied",
+        "diagnostics exported as TXT",
         &[Field::num("bytes", bundle.len() as u64)],
     );
-    Ok(bundle)
+    Ok(path.display().to_string())
 }
 
 /// Open a draft in the player's mail client.
@@ -197,7 +200,7 @@ pub async fn copy_diagnostics(app: AppHandle, state: State<'_, LineState>) -> Li
 /// the one the build was configured with, and an empty address is rejected
 /// rather than opening an empty draft. Small reports use the complete bundle;
 /// if all retained logs exceed the safe `mailto:` size, the draft explains how
-/// to paste the full report copied with «Скопировать диагностику».
+/// to attach the full report saved with «Сохранить отчёт TXT».
 #[tauri::command]
 pub async fn open_mail_draft(
     app: AppHandle,
@@ -212,7 +215,7 @@ pub async fn open_mail_draft(
         full_url
     } else {
         let hint = format!(
-            "Полная диагностика содержит {} байт и слишком велика для ссылки почтового клиента. Нажмите «Скопировать диагностику» и вставьте полный текст в это письмо или приложите launcher_logs и logs/launch.log.",
+            "Полная диагностика содержит {} байт и слишком велика для ссылки почтового клиента. Прикрепите к письму файл launcher_logs/diagnostics.txt.",
             bundle.len()
         );
         diagnostics::mailto(Some(&address), &subject, &hint)

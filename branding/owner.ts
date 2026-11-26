@@ -15,9 +15,8 @@
  */
 export const OWNER = {
   /**
-   * The publisher's support address. `null` disables «Отправить в …» and leaves
-   * «Скопировать диагностику» in place, which is the honest state for a build
-   * with no support desk. Set it and re-run `npm run brand`.
+   * The publisher's support address. `null` disables «Отправить в …» while
+   * keeping the local TXT export available. Set it and re-run `npm run brand`.
    */
   support_email: null as string | null,
   /** Shown in the mail button and the draft subject. */

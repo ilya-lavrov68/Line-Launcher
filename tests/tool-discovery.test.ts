@@ -160,6 +160,7 @@ test("browser discovery returns null when nothing is installed", () => {
 test("browser help explains the dev server and the download fallback", () => {
   const help = browserHelp("win32");
   assert.match(help, /npm run dev/);
+  assert.match(help, /npm run browser:restore/);
   assert.match(help, /playwright-core install chromium/);
   assert.match(help, /CHROMIUM_PATH/);
 });

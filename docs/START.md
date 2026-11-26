@@ -159,16 +159,25 @@ npm run screenshots       # обновить браузерные снимки R
 npm run screenshots:offline  # приблизительные рисунки в .offline-shots/, не снимки
 ```
 
-Скачивать браузер не нужно: `scripts/lib/find-browser.mjs` берёт уже
-установленный Chrome, Edge или Chromium (на Windows первым делом Edge — он есть
-везде). Если браузер лежит не там, укажите путь явно:
+Перед каждым созданием скриншотов/GIF запустите проверку и восстановление
+Chromium; команда полного захвата также выполняет её автоматически:
+
+```sh
+npm run browser:restore
+python3 -m venv .venv
+.venv/bin/python -m pip install -r scripts/requirements-guidebook.txt
+PYTHON=.venv/bin/python npm run screenshots
+```
+
+В Windows используйте `.venv\\Scripts\\python.exe` для установки Pillow и в
+`PYTHON`. `browser:restore` использует заданный `CHROMIUM_PATH`, установленный Chrome/Edge,
+кэш Playwright, затем восстанавливает закреплённый Playwright Chromium. На Linux
+x64 есть резервная загрузка совпадающего major Chromium через npm registry для
+сред, где CDN Playwright недоступен. Указать свой браузер можно так:
 
 ```sh
 CHROMIUM_PATH=/path/to/chrome npm run screenshots
 ```
-
-`npx playwright-core install chromium` для этого не требуется и в средах без
-доступа к CDN Playwright просто не сработает.
 
 При изменении интерфейса, установки или поведения обновляйте связанные разделы
 README и `docs/` в том же PR. Исторические планы и результаты не являются

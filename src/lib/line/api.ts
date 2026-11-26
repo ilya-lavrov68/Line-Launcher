@@ -128,11 +128,8 @@ export const lineApi = {
   clearConfigCache: () => call<boolean>("clear_config_cache"),
   /** Reveal `launcher_logs/` in the OS file manager; returns the path. */
   openLogsFolder: () => call<string>("open_logs_folder"),
-  /**
-   * The diagnostic bundle as text — the same string both support buttons use,
-   * so what a player pastes is exactly what a mail draft would carry.
-   */
-  diagnostics: () => call<string>("copy_diagnostics"),
+  /** Save the complete diagnostic bundle as launcher_logs/diagnostics.txt. */
+  exportDiagnostics: () => call<string>("export_diagnostics"),
   /** Open a `mailto:` draft with the bundle as its body. */
   mailDiagnostics: (address: string) =>
     call<void>("open_mail_draft", { address }),

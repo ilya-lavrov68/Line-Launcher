@@ -36,6 +36,11 @@ const sha256 = (file) =>
 // regeneration with the other tool silently reintroduces mixed sizes.
 const SHOT_WIDTH = 1920;
 const SHOT_HEIGHT = 1080;
+// Guidebook pointer movement used to be sampled every 140ms (~7fps), which
+// made the recorded tutorial feel visibly stepped. 15fps keeps cursor travel
+// smooth while keeping Full-HD GIF sizes bounded.
+const GUIDEBOOK_FPS = 15;
+const GUIDEBOOK_FRAME_MS = 1000 / GUIDEBOOK_FPS;
 const baseUrl = process.env.BASE_URL || "http://127.0.0.1:5173";
 
 let chromium;
@@ -517,7 +522,7 @@ async function recordGuidebookChapter(name, scenario) {
 
   async function moveToPoint(x, y, durationMs = 700) {
     const from = guideCursor;
-    const steps = Math.max(5, Math.ceil(durationMs / 140));
+    const steps = Math.max(5, Math.ceil(durationMs / GUIDEBOOK_FRAME_MS));
     const frameDuration = durationMs / steps;
     for (let index = 1; index <= steps; index += 1) {
       const t = index / steps;
@@ -1012,7 +1017,7 @@ try {
     const manifestPath = path.join(staging, "guidebook-frames.json");
     writeFileSync(manifestPath, JSON.stringify(guidebookManifest), "utf8");
     const generated = spawnSync(
-      "python3",
+      process.env.PYTHON || "python3",
       [
         path.join(root, "scripts/generate-guidebook-gifs.py"),
         "--manifest",

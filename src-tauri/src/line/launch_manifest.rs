@@ -333,6 +333,7 @@ mod tests {
             game_args: Vec::new(),
             recommended_memory_mb: None,
             user_type: None,
+            loader: None,
         }
     }
 

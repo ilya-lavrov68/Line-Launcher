@@ -1379,8 +1379,18 @@ mod tests {
         super::super::super::pack::sync_game_dir(&release, &detected, &instance, &receipt.sha256)
             .expect("Не удалось подготовить игровой каталог");
         let game = instance.join("game");
-        super::super::super::launch::check_live_mods(&game, &detected.files)
-            .expect("Проверка mods в игровом каталоге не пройдена");
+        let unproved = super::super::super::launch::check_minecraft_mod_provenance(
+            &game,
+            &detected.files,
+            &index,
+            &detected.prefix,
+        )
+        .expect("Проверка mods в игровом каталоге не пройдена");
+        assert!(
+            unproved.is_empty(),
+            "Не доказано происхождение модов: {}",
+            unproved.join(", ")
+        );
         let (findings, _) =
             super::super::super::resourcepack::scan_all(&game, &detected.files, &[], &[])
                 .expect("Не удалось проверить ресурс-паки");

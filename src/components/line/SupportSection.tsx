@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
-  Check,
-  ClipboardCopy,
+  FileText,
   FolderOpen,
   Mail,
   MessageSquare,
@@ -22,7 +21,7 @@ export interface SupportSectionProps {
 }
 
 /**
- * The support block in Settings: the folder, the bundle, and the two mails.
+ * The support block in Settings: the folder, a TXT export, and the two mails.
  *
  * Two addresses, deliberately separate:
  *
@@ -33,7 +32,7 @@ export interface SupportSectionProps {
  *   server or account problem goes. Optional; the button is absent, not
  *   disabled-and-mysterious, when they do not offer one.
  *
- * Both buttons send the same bundle «Скопировать диагностику» produces, so a
+ * Both mail buttons send the same report as the saved TXT export, so a
  * provider and a publisher never argue about which report is authoritative.
  */
 export default function SupportSection({
@@ -43,11 +42,10 @@ export default function SupportSection({
   onError,
 }: SupportSectionProps) {
   const t = useT();
-  const [busy, setBusy] = useState<"copy" | "open" | "owner" | "provider">();
-  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState<"export" | "open" | "owner" | "provider">();
 
   const run = async (
-    which: "copy" | "open" | "owner" | "provider",
+    which: "export" | "open" | "owner" | "provider",
     action: () => Promise<string | void>,
     done?: string,
   ) => {
@@ -66,22 +64,11 @@ export default function SupportSection({
     }
   };
 
-  async function copy() {
-    // Clipboard access is the one step that can fail for a reason the launcher
-    // cannot fix (a locked-down WebView), so the fallback is honest: the bundle
-    // is still returned, and the player is told it could not be copied rather
-    // than shown a success tick on a failed copy.
-    await run("copy", async () => {
-      const bundle = await lineApi.diagnostics();
-      try {
-        await navigator.clipboard.writeText(bundle);
-        setCopied(true);
-        onNotice(t("support.copied", { bytes: bundle.length }));
-        window.setTimeout(() => setCopied(false), 4000);
-      } catch {
-        onError(t("support.copyFailed"));
-      }
-      return bundle;
+  async function saveTxt() {
+    await run("export", async () => {
+      const path = await lineApi.exportDiagnostics();
+      onNotice(t("support.exported", { path }));
+      return path;
     });
   }
 
@@ -126,18 +113,11 @@ export default function SupportSection({
           variant="outline"
           size="sm"
           disabled={disabled || Boolean(busy)}
-          onClick={() => void copy()}
+          onClick={() => void saveTxt()}
           className="cursor-pointer text-xs"
         >
-          {copied ? (
-            <Check
-              className="text-line-online h-4 w-4 shrink-0"
-              aria-hidden="true"
-            />
-          ) : (
-            <ClipboardCopy className="h-4 w-4 shrink-0" aria-hidden="true" />
-          )}
-          {copied ? t("support.copiedShort") : t("support.copy")}
+          <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {t("support.exportTxt")}
         </Button>
       </div>
 

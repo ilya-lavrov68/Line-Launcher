@@ -107,12 +107,14 @@ reduced-motion сразу показывается статичный посте
 Галерея показывает неподвижные постеры; нажмите на постер, чтобы открыть GIF.
 
 GIF-файлы собираются из кадров, записанных браузером во время реальных действий
-Playwright в интерфейсе приложения. Запись и обновление галереи запускаются через
-`npm run screenshots`; [`scripts/generate-guidebook-gifs.py`](scripts/generate-guidebook-gifs.py)
-создаёт общую 256-цветную палитру, кодирует Full HD кадры в GIF через Pillow и
-создаёт неподвижные постеры. Для генерации установите зависимости командой
-`python3 -m pip install -r scripts/requirements-guidebook.txt`; также нужен
-ImageMagick (`convert` и `identify`).
+Playwright в интерфейсе приложения. Перед захватом восстановите браузер через
+`npm run browser:restore`; `npm run screenshots` повторяет эту проверку автоматически.
+[`scripts/generate-guidebook-gifs.py`](scripts/generate-guidebook-gifs.py) создаёт
+общую 256-цветную палитру, кодирует Full HD кадры в GIF через Pillow и создаёт
+неподвижные постеры. Установите Pillow в виртуальное окружение командой
+`python3 -m venv .venv` и `.venv/bin/python -m pip install -r scripts/requirements-guidebook.txt`;
+захват запускается как `PYTHON=.venv/bin/python npm run screenshots`. Также
+нужен ImageMagick (`convert` и `identify`).
 Источники скриншотов остаются в [`docs/images`](docs/images/).
 
 <!-- CUSTOM BRAND DETAIL SLOT: здесь можно добавить небольшие фирменные

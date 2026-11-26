@@ -16,6 +16,10 @@ For any UI or product-design work, read `.agents/skills/product-design/SKILL.md`
 
 Before changing behavior, identify the user-facing contracts and the documentation that describes them; check each document against the current code rather than treating old text as truth. Update the relevant `docs/` and README sections in the same change. For UI changes, run the real app in a live browser, inspect the actual affected states and controls, and regenerate affected committed UI screenshots from that browser only after the checks pass. Never replace a missing browser run with hand-drawn/offline renderings or fixtures presented as real screenshots. Record unavailable checks and stale screenshots explicitly in `docs/VERIFICATION.md`; do not claim verification that did not happen.
 
+### Required Chromium restoration before every screenshot/GIF capture
+
+Before taking screenshots or recording any GIFs, run `npm run browser:restore`. It validates the selected executable, reuses an installed browser or Playwright's pinned cache, restores Playwright Chromium if absent, and on Linux x64 has a version-matched npm-registry fallback for restricted browser-CDN environments. `npm run screenshots` also runs this restoration automatically before capture; do not invoke the raw capture script directly. If restoration fails, diagnose the error and stop—never reuse stale assets or substitute offline drawings for real captures.
+
 ## Mandatory pre-PR visual-evidence refresh — no exceptions
 
 Before opening **any** pull request, even for a backend-only, internal, or documentation-only change:

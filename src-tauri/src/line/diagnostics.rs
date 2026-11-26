@@ -1,9 +1,8 @@
 //! The diagnostic bundle: one file a player sends and a provider can act on.
 //!
-//! Two buttons in Settings use this: «Скопировать диагностику» puts the full
-//! bundle on the clipboard; «Отправить по Email» opens a draft with it when the
-//! encoded URL is small enough, otherwise the draft tells the player how to
-//! paste the full copied bundle.
+//! Settings saves this bundle as a TXT file; mail buttons open a draft with the
+//! full report when the encoded URL is small enough, otherwise the draft tells
+//! the player where to attach the saved file.
 //!
 //! What goes in, and why:
 //!
@@ -20,7 +19,7 @@
 //! every line that came from a log file, and the summary fields are built here
 //! from values the launcher already chose to expose.
 //!
-//! The bundle is deliberately plain text. A provider pastes it into a ticket; a
+//! The bundle is deliberately plain text. A provider attaches it to a ticket; a
 //! player can read it before sending and see there is nothing personal in it.
 
 use super::logger::{self, Field, MAX_LINE_BYTES};

@@ -105,12 +105,12 @@ test("the generated owner module is valid TypeScript with a null address", () =>
   assert.match(withMail, /support_email: "help@example\.com"/);
 });
 
-test("settings offers the folder, the bundle and both mails", () => {
+test("settings offers the folder, TXT export and both mails", () => {
   const section = read("src/components/line/SupportSection.tsx");
-  // The three the request asked for, by their i18n keys.
+  // These controls are named by their translated keys.
   for (const key of [
     "support.openFolder",
-    "support.copy",
+    "support.exportTxt",
     "support.mailOwner",
     "support.mailProvider",
   ]) {
@@ -118,8 +118,7 @@ test("settings offers the folder, the bundle and both mails", () => {
   }
   // Provider mail appears only when the provider named an address.
   assert.match(section, /providerEmail && \(/);
-  // A failed copy is reported, not shown as success.
-  assert.match(section, /support\.copyFailed/);
+  assert.match(section, /lineApi\.exportDiagnostics\(\)/);
 
   // The section is part of Settings, titled and described like the others.
   const settings = read("src/components/line/SettingsScreen.tsx");
@@ -139,9 +138,9 @@ test("every language carries the support strings", () => {
     "settings.logs",
     "settings.logsHint",
     "support.openFolder",
-    "support.copy",
-    "support.copied",
-    "support.copyFailed",
+    "support.exportTxt",
+    "support.exported",
+    "support.opened",
     "support.mailOwner",
     "support.mailProvider",
     "support.mailOpened",
@@ -211,7 +210,7 @@ test("the logger is initialised before anything can fail", () => {
   // Before the first command can be invoked, and before the tray is touched.
   assert.ok(setup < lib.indexOf("line::tray::install"), "init must come first");
   assert.match(lib, /line::support::open_logs_folder/);
-  assert.match(lib, /line::support::copy_diagnostics/);
+  assert.match(lib, /line::support::export_diagnostics/);
   assert.match(lib, /line::support::open_mail_draft/);
 });
 
@@ -223,6 +222,9 @@ test("diagnostics gather all launcher lines and each instance game launch log", 
   assert.match(support, /logs_dir\.join\("launch\.log"\)/);
   assert.match(support, /reader\.read_until\(b'\\n'/);
   assert.doesNotMatch(support, /const BUDGET|MAX_LINES/);
+  assert.match(support, /pub async fn export_diagnostics/);
+  assert.match(support, /dir\.join\("diagnostics\.txt"\)/);
+  assert.match(support, /atomic_write\(&path, bundle\.as_bytes\(\)\)/);
   assert.match(support, /reads_every_launcher_file_and_game_launch_log/);
 });
 
@@ -233,7 +235,10 @@ test("daily launcher logs are retained by age, not capped by file count", () => 
   assert.match(logger, /launcher-\{day\}\.log/);
   assert.match(logger, /prune_before\(dir, cutoff\)/);
   assert.match(logger, /modified < cutoff/);
-  assert.match(logger, /pruning_uses_age_and_never_limits_the_number_of_recent_daily_files/);
+  assert.match(
+    logger,
+    /pruning_uses_age_and_never_limits_the_number_of_recent_daily_files/,
+  );
 });
 
 test("secrets cannot reach a log line", () => {

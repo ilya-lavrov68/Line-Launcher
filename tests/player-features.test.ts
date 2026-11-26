@@ -1233,15 +1233,35 @@ test("the animated backdrop keeps its saturation lift across theme changes", () 
   assert.match(smoke, /backdropFilterAfter/);
 });
 
-test("the sidebar is compact and uses Lucide icons with usable targets", () => {
+test("the sidebar preserves its rail width, enlarges glyphs and has custom icon slots", () => {
   const nav = read("src/components/line/SideNav.tsx");
   assert.match(nav, /animate=\{\{ width: collapsed \? 48 : 184 \}\}/);
-  assert.match(nav, /<Icon className="h-5 w-5 shrink-0"/);
-  assert.match(nav, /<Settings className="h-5 w-5 shrink-0"/);
-  assert.match(nav, /<Info className="h-5 w-5 shrink-0"/);
-  assert.match(nav, /<ChevronLeft[\s\S]{0,150}h-5 w-5/);
+  assert.match(
+    nav,
+    /<SidebarIcon[\s\S]{0,100}name=\{item\.icon\}[\s\S]{0,100}className="h-6 w-6 shrink-0"/,
+  );
+  assert.match(nav, /name="settings"[\s\S]{0,60}className="h-6 w-6 shrink-0"/);
+  assert.match(nav, /name="about"[\s\S]{0,60}className="h-6 w-6 shrink-0"/);
+  assert.match(nav, /name="collapse"/);
   assert.match(nav, /collapsed\s*\?\s*"mx-auto h-9 w-9 justify-center px-0"/);
   assert.match(nav, /"h-10 w-full justify-start px-2\.5"/);
+  const sidebarIcons = read("src/components/ui/sidebar-icons.tsx");
+  for (const name of [
+    "servers",
+    "wardrobe",
+    "account",
+    "settings",
+    "about",
+    "collapse",
+  ]) {
+    assert.match(sidebarIcons, new RegExp(`\\b${name}:`));
+  }
+  assert.match(sidebarIcons, /maskImage/);
+  assert.match(sidebarIcons, /lucideFallback/);
+  assert.ok(
+    read("public/icons/navigation/README.md").includes("currentColor"),
+    "custom navigation SVG contract must explain monochrome/currentColor assets",
+  );
   const icons = read("src/components/ui/icons.tsx");
   assert.match(icons, /Shirt,[\s\S]*?from "lucide-react"/);
 });

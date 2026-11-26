@@ -98,7 +98,7 @@ pub fn run() {
             line::skin_library::sync_active_skin,
             line::skin_library::forget_synced_skin,
             line::support::open_logs_folder,
-            line::support::copy_diagnostics,
+            line::support::export_diagnostics,
             line::support::open_mail_draft,
             line::window::show_main_window,
         ])

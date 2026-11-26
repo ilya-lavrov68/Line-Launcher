@@ -1,6 +1,6 @@
-// Find an already-installed Chromium-family browser so `npm run test:ui` does
-// not require a ~150 MB Playwright download. Windows always ships Edge; macOS
-// and Linux usually have Chrome or Chromium.
+// Prefer an already-installed Chromium-family browser before the shared
+// restore helper fetches Playwright's pinned browser. Windows typically has
+// Edge; macOS and Linux often have Chrome or Chromium.
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -91,8 +91,9 @@ export function browserHelp(platform = process.platform) {
     lines.push("     export CHROMIUM_PATH=/usr/bin/chromium");
   }
   lines.push(
-    "  2) Скачать Chromium один раз:",
-    "     npx playwright-core install chromium",
+    "  2) Восстановить закреплённый браузер:",
+    "     npm run browser:restore",
+    "     npx playwright-core install chromium (ручной запасной вариант)",
     "",
     "Не забудьте запустить dev-сервер в другом терминале: npm run dev",
   );

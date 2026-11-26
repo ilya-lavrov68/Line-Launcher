@@ -215,7 +215,7 @@ test("documentation has one active roadmap and labels current integration limits
   assert.match(roadmap, /Единственное место для активных планов проекта/);
   assert.match(roadmap, /не передавать UUID из\s+интерфейса лаунчера/i);
   assert.match(roadmap, /не добавлять endpoint, поля ответа, mock-метрики/i);
-  assert.match(verification, /432 total, 431 passed, 1 skipped, 0 failed/);
+  assert.match(verification, /441 total, 440 passed, 1 skipped, 0 failed/);
   assert.match(verification, /14 real-browser/);
   assert.match(verification, /1920×1080/);
   assert.match(verification, /mocked Tauri IPC/);
